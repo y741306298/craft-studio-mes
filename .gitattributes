@@ -1,0 +1,11 @@
+# 所有文本文件自动转换（推荐）
+* text=auto
+
+# 对于特定文件（如 XML）强制使用 LF
+*.xml text eol=lf
+
+# 对于 shell 脚本强制 LF
+*.sh text eol=lf
+
+# 对于 Windows 批处理强制 CRLF
+*.bat text eol=crlf

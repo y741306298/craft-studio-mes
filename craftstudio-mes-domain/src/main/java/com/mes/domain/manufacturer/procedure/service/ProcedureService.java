@@ -2,11 +2,14 @@ package com.mes.domain.manufacturer.procedure.service;
 
 import com.mes.domain.manufacturer.procedure.entity.Procedure;
 import com.mes.domain.manufacturer.procedure.repository.ProcedureRepository;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,9 +122,45 @@ public class ProcedureService {
     }
 
     /**
-     * 原有的add方法保持兼容性
+     * 原有的 add 方法保持兼容性
      */
     public Procedure add(Procedure procedure) {
         return addProcedure(procedure);
     }
+
+    /**
+     * 处理裁切工艺：生成切割坐标
+     * @param processingNodes 工艺流程节点列表
+     * @return 切割坐标列表 [x1, y1, x2, y2, ...]
+     */
+    public List<Double> generateCuttingCoordinates(List<ProcedureFlowNode> processingNodes) {
+        // TODO: 根据实际的裁切工艺逻辑生成切割坐标
+        // 这里暂时返回示例坐标
+        return Arrays.asList(
+                0.0, 0.0,      // 起点 (x1, y1)
+                1000.0, 1000.0 // 终点 (x2, y2)
+        );
+    }
+
+    /**
+     * 创建生产工件实体
+     * @param orderItemId 订单项 ID
+     * @param procedureFlowId 工艺流程 ID
+     * @param pieceType 工件类型
+     * @param quantity 数量
+     * @param imageUrl 图片 URL
+     * @return 生产工件实体
+     */
+    public ProductionPiece createProductionPiece(String orderItemId, String procedureFlowId, 
+                                                  String pieceType, Integer quantity, String imageUrl) {
+        ProductionPiece piece = new ProductionPiece();
+        piece.setOrderItemId(orderItemId);
+        piece.setProcedureFlowId(procedureFlowId);
+        piece.setProductionPieceType(pieceType);
+        piece.setStatus("PENDING");
+        piece.setQuantity(quantity);
+        piece.setTemplateCode(imageUrl);
+        return piece;
+    }
+
 }

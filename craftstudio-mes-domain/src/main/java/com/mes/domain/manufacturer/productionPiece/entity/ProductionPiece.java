@@ -2,6 +2,7 @@ package com.mes.domain.manufacturer.productionPiece.entity;
 
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -18,6 +19,8 @@ public class ProductionPiece extends BaseEntity {
     private String templateCode;
     private String positionType;
     private String positionCode;
+    private ImageFile productImageFile;
+    private ImageFile maskImageFile;
     private ProcedureFlow procedureFlow;
 
 }

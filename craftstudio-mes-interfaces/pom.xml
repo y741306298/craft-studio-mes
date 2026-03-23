@@ -65,7 +65,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.piliofpala.craftstudio.product.interfaces.CraftStudioProductApplication</mainClass> <!-- 替换为你的主类全限定名 -->
+                    <mainClass>com.mes.interfaces.CraftStudioMesApplication</mainClass> <!-- 替换为你的主类全限定名 -->
                 </configuration>
             </plugin>
         </plugins>

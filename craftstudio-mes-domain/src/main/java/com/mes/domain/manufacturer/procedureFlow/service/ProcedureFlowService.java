@@ -192,4 +192,43 @@ public class ProcedureFlowService {
         
         return -1;
     }
+
+    /**
+     * 解析工艺流程字符串，转换为 ProcedureFlowNode 列表
+     * @param processingFlow 工艺流程字符串，格式如"开料 - 裁切 - 封边 - 异形"
+     * @return 工艺节点列表
+     */
+    public List<ProcedureFlowNode> parseProcessingFlow(String processingFlow) {
+        if (StringUtils.isBlank(processingFlow)) {
+            throw new BusinessNotAllowException("工艺流程不能为空");
+        }
+
+        String[] nodeNames = processingFlow.split("-");
+        List<ProcedureFlowNode> nodes = new java.util.ArrayList<>();
+
+        for (int i = 0; i < nodeNames.length; i++) {
+            ProcedureFlowNode node = new ProcedureFlowNode();
+            node.setNodeId("NODE_" + i);
+            node.setNodeName(nodeNames[i].trim());
+            node.setNodeOrder(i);
+            nodes.add(node);
+        }
+
+        return nodes;
+    }
+
+    /**
+     * 检查工艺流程中是否包含指定名称的节点
+     * @param processingNodes 工艺节点列表
+     * @param nodeName 节点名称
+     * @return 是否包含
+     */
+    public boolean hasNodeWithName(List<ProcedureFlowNode> processingNodes, String nodeName) {
+        if (processingNodes == null || nodeName == null) {
+            return false;
+        }
+        
+        return processingNodes.stream()
+                .anyMatch(node -> nodeName.equals(node.getNodeName()));
+    }
 }

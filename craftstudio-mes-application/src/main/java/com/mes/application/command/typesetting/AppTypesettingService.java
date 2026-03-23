@@ -161,10 +161,10 @@ public class AppTypesettingService {
 
             // 从 OrderItem 获取 material
             OrderItem orderItem = orderItemMap.get(piece.getOrderItemId());
-            if (orderItem != null && orderItem.getMtsProduct() != null) {
+            if (orderItem != null && orderItem.getMtoProduct() != null) {
                 vo.setOrderItemInfo(orderItem);
-                // 假设 material 在 mtsProduct 中，需要根据实际情况调整
-                vo.setMaterial(orderItem.getMtsProduct().toString());
+                // 使用 mtoProduct 而不是 mtsProduct
+                vo.setMaterial(orderItem.getMtoProduct().toString());
             }
 
             vo.setPreviewUrl(null); // 生产工件暂无预览 URL

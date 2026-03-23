@@ -2,6 +2,9 @@ package com.mes.domain.order.orderInfo.entity;
 
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.vo.ManufacturerMtsProductSpec;
+import com.mes.domain.order.enums.OrderStatus;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,15 +14,15 @@ public class OrderItem extends BaseEntity {
 
     private String orderItemId;
     private String orderId;
-    private ManufacturerMtsProductSpec mtsProduct;
+    private MTOProductSpecDTO mtoProduct;
     private String material;
     private String procedureFlowId;
     private Integer quantity;
-    private String status;
+    private OrderStatus status;
     private Boolean isUrgent;
     private String processingFlow;
-    private String productionImgUrl;
-    private String maskImgUrl;
-
+    private ImageFile productionImgFile;
+    private ImageFile maskImgFile;
+    private String failureReason;
 
 }

@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -167,6 +168,36 @@ public class ManufacturerMetaController {
                 .collect(Collectors.toList());
         
         return ApiResponse.success(typeVOs);
+    }
+
+    /**
+     * 查询工厂模板列表（返回 manufacturerMetaId 和 manufacturerMetaName）
+     * @param manufacturerType 制造商类型（可选）
+     * @return 工厂模板列表
+     */
+    @GetMapping("/templateList")
+    public ApiResponse<List<ManufacturerTemplateVO>> getManufacturerTemplateList(
+            @RequestParam(required = false) String manufacturerType) {
+        
+        // 生成假数据
+        List<ManufacturerTemplateVO> templateList = new ArrayList<>();
+        
+            templateList.add(new ManufacturerTemplateVO("META_001", "华东工厂模板"));
+            templateList.add(new ManufacturerTemplateVO("META_002", "华南工厂模板"));
+            templateList.add(new ManufacturerTemplateVO("META_003", "华北工厂模板"));
+            templateList.add(new ManufacturerTemplateVO("META_004", "华西工厂模板"));
+            templateList.add(new ManufacturerTemplateVO("META_005", "华中工厂模板"));
+        return ApiResponse.success(templateList);
+    }
+
+    /**
+     * 制造商模板 VO
+     */
+    @Data
+    @RequiredArgsConstructor
+    public static class ManufacturerTemplateVO {
+        private final String manufacturerMetaId;
+        private final String manufacturerMetaName;
     }
 
     /**

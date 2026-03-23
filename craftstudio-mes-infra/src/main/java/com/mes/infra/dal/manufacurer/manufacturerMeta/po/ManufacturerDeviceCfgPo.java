@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document(collection = "manufacturerDeviceCfg")
 public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
 
+    private String manufacturerMetaId;          // 所属制造商 ID
     private String deviceId;                    // 设备 ID
     private String deviceName;                  // 设备名称
     private String deviceType;                  // 设备类型 code
@@ -26,6 +27,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         deviceCfg.setId(getId());
         deviceCfg.setCreateTime(getCreateTime());
         deviceCfg.setUpdateTime(getUpdateTime());
+        deviceCfg.setManufacturerMetaId(manufacturerMetaId);
         deviceCfg.setDeviceId(deviceId);
         deviceCfg.setDeviceName(deviceName);
         deviceCfg.setDeviceType(DeviceType.getByCode(deviceType));
@@ -40,6 +42,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         if (_do == null) {
             return null;
         }
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.deviceId = _do.getDeviceId();
         this.deviceName = _do.getDeviceName();
         this.deviceType = _do.getDeviceType() != null ? _do.getDeviceType().getCode() : null;

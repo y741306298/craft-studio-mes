@@ -1,5 +1,6 @@
 package com.mes.domain.order.orderInfo.service;
 
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
@@ -92,6 +93,24 @@ public class OrderItemService {
         OrderItem orderItem = findById(id);
         if (orderItem != null) {
             orderItemRepository.delete(orderItem);
+        }
+    }
+
+    /**
+     * 标记订单项为失败状态
+     * @param orderItemId 订单项 ID
+     * @param reason 失败原因
+     */
+    public void markAsFailed(String orderItemId, String reason) {
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new BusinessNotAllowException("订单项 ID 不能为空");
+        }
+
+        OrderItem orderItem = findById(orderItemId);
+        if (orderItem != null) {
+            orderItem.setStatus(OrderStatus.FAILED);
+            orderItem.setFailureReason(reason);
+            orderItemRepository.update(orderItem);
         }
     }
 }

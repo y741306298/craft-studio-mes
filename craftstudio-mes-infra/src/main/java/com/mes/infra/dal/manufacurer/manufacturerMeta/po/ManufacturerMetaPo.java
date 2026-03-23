@@ -18,15 +18,18 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
     private String manufacturerMetaId;
     private String manufacturerMetaType;
     private String name;
+    private String description;
     private List<ManufacturerWorkshopMeta> manufacturerWorkshopMetas;
 
     @Override
     public ManufacturerMeta toDO() {
         ManufacturerMeta manufacturerMeta = new ManufacturerMeta();
         manufacturerMeta.setId(getId());
+        copyBaseFieldsToDO(manufacturerMeta);
         manufacturerMeta.setManufacturerMetaId(manufacturerMetaId);
         manufacturerMeta.setManufacturerMetaType(ManufacturerType.getByCode(manufacturerMetaType));
         manufacturerMeta.setName(name);
+        manufacturerMeta.setDescription(description);
         manufacturerMeta.setManufacturerWorkshopMetas(manufacturerWorkshopMetas);
         return manufacturerMeta;
     }
@@ -40,6 +43,7 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.manufacturerMetaType = _do.getManufacturerMetaType() != null ? _do.getManufacturerMetaType().getCode() : null;
         this.name = _do.getName();
+        this.description = _do.getDescription();
         this.manufacturerWorkshopMetas = _do.getManufacturerWorkshopMetas();
         return this;
     }

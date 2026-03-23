@@ -1,14 +1,17 @@
 server:
-  port: 80
+  port: 8081
 
 spring:
   #多环境配置
   profiles:
     active: dev
-#  mongodb:
-#    host: localhost
-#    port: 27017
-#    database: craftstudio-product
+  mongodb:
+    host: localhost
+    port: 27017
+    database: craftstudio-mes
+    username: craftstudio-mes-admin
+    password: "craftstudiomes13579"
+    authentication-database: admin
 
 # 外部系统 API 配置
 external:

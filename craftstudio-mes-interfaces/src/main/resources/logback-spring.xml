@@ -2,7 +2,7 @@
 <configuration>
     <!-- 定义变量 -->
     <property name="APP_NAME" value="craftstudio-mes"/>
-    <property name="LOG_PATH" value="${user.home}/logs/${APP_NAME}"/>
+    <property name="LOG_PATH" value="./logs"/>
 
     <!-- 1. 控制台输出Appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -30,6 +30,7 @@
     <springProfile name="dev">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
         </root>
     </springProfile>
 
