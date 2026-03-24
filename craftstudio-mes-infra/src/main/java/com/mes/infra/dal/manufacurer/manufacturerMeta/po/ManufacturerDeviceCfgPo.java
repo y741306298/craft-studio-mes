@@ -1,6 +1,7 @@
 package com.mes.infra.dal.manufacurer.manufacturerMeta.po;
 
 import com.mes.domain.manufacturer.device.enums.DeviceType;
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.shared.enums.ProductUnit;
 import com.mes.infra.base.BasePO;
@@ -20,13 +21,13 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
     private String deviceCode;                  // 设备编号
     private Double capacity;                    // 产能
     private String capacityUnit;                // 产能单位 code
+    private String status;                      // 设备状态 code
 
     @Override
     public ManufacturerDeviceCfg toDO() {
         ManufacturerDeviceCfg deviceCfg = new ManufacturerDeviceCfg();
         deviceCfg.setId(getId());
-        deviceCfg.setCreateTime(getCreateTime());
-        deviceCfg.setUpdateTime(getUpdateTime());
+        copyBaseFieldsToDO(deviceCfg);
         deviceCfg.setManufacturerMetaId(manufacturerMetaId);
         deviceCfg.setDeviceId(deviceId);
         deviceCfg.setDeviceName(deviceName);
@@ -34,6 +35,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         deviceCfg.setDeviceCode(deviceCode);
         deviceCfg.setCapacity(capacity);
         deviceCfg.setCapacityUnit(ProductUnit.getBySymbol(capacityUnit));
+        deviceCfg.setStatus(CfgStatus.getByCode(status));
         return deviceCfg;
     }
 
@@ -49,6 +51,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         this.deviceCode = _do.getDeviceCode();
         this.capacity = _do.getCapacity();
         this.capacityUnit = _do.getCapacityUnit() != null ? _do.getCapacityUnit().getSymbol() : null;
+        this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }
 }

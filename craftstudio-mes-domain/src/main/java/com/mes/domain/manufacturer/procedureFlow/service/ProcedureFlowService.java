@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.repository.ProcedureFlowRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.mes.domain.shared.util.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,11 @@ public class ProcedureFlowService {
         if (StringUtils.isBlank(flow.getProcedureFlowName())) {
             throw new BusinessNotAllowException("工序流程名称不能为空");
         }
+        
+        // 生成唯一的 procedureFlowId
+        String procedureFlowId = IdGenerator.generateId("FLOW");
+        flow.setProcedureFlowId(procedureFlowId);
+        
         procedureFlowRepository.add(flow);
     }
 

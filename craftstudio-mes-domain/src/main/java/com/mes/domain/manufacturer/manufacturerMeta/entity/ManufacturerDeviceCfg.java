@@ -2,6 +2,7 @@ package com.mes.domain.manufacturer.manufacturerMeta.entity;
 
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.device.enums.DeviceType;
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.shared.enums.ProductUnit;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -17,5 +18,6 @@ public class ManufacturerDeviceCfg extends BaseEntity {
     private String deviceCode;                // 设备编号（与制造商关联时生成）
     private Double capacity;                  // 产能
     private ProductUnit capacityUnit;         // 产能单位
+    private CfgStatus status;
 
 }

@@ -102,6 +102,7 @@ com\mes\domain\delivery\deliveryPkg\repository\DeliveryPkgRepository.class
 com\mes\domain\manufacturer\manufacturerMeta\enums\ManufacturerType.class
 com\mes\domain\manufacturer\enums\CfgStatus.class
 com\mes\domain\shared\vo\Address.class
+com\mes\domain\shared\util\IdGenerator.class
 com\mes\domain\manufacturer\manufacturerMaterialPriceCfg\entity\ManufacturerMaterialPriceCfg.class
 com\mes\domain\manufacturer\manufacturerProcessPriceCfg\vo\MaterialProcessPrice.class
 com\mes\domain\order\enums\OrderStatus.class

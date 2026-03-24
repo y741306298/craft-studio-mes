@@ -16,6 +16,7 @@ public class DeviceCfgSummary {
     private Double capacity;                // 产能
     private String capacityUnit;            // 产能单位 code
     private String capacityUnitName;        // 产能单位名称
+    private String status;
 
     /**
      * 从 ManufacturerDeviceCfg 实体转换为响应 DTO
@@ -38,6 +39,7 @@ public class DeviceCfgSummary {
         response.setCapacity(deviceCfg.getCapacity());
         response.setCapacityUnit(deviceCfg.getCapacityUnit() != null ? deviceCfg.getCapacityUnit().getSymbol() : null);
         response.setCapacityUnitName(deviceCfg.getCapacityUnit() != null ? deviceCfg.getCapacityUnit().getChineseName() : null);
+        response.setStatus(deviceCfg.getStatus() != null ? deviceCfg.getStatus().getCode() : null);
         
         return response;
     }

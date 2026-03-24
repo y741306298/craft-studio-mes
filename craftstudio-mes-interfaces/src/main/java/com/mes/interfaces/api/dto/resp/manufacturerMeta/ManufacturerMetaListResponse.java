@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.dto.resp.manufacturerMeta;
 
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductionLineMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
 import lombok.Data;
@@ -19,6 +20,7 @@ public class ManufacturerMetaListResponse {
     private String manufacturerMetaTypeName;
     private String name;
     private String description;
+    private String status;
     
     // 时间信息
     private Date createTime;
@@ -36,6 +38,7 @@ public class ManufacturerMetaListResponse {
         private String workshopName;
         private String status;
         private Integer productionLineCount;  // 生产线数量
+        private List<String> productionLines;
     }
 
     /**
@@ -59,6 +62,7 @@ public class ManufacturerMetaListResponse {
         response.setDescription(manufacturerMeta.getDescription());
         response.setCreateTime(manufacturerMeta.getCreateTime());
         response.setUpdateTime(manufacturerMeta.getUpdateTime());
+        response.setStatus(manufacturerMeta.getStatus().getCode());
         
         // 统计信息
         if (manufacturerMeta.getManufacturerWorkshopMetas() != null) {
@@ -103,11 +107,18 @@ public class ManufacturerMetaListResponse {
         summary.setWorkshopName(workshop.getWorkshopName());
         summary.setStatus(workshop.getStatus());
         
-        // 统计生产线数量
+        // 统计生产线数量并返回产线名称列表
         if (workshop.getManufacturerProductionLineMetas() != null) {
             summary.setProductionLineCount(workshop.getManufacturerProductionLineMetas().size());
+            
+            // 提取所有产线的名称
+            List<String> productionLines = workshop.getManufacturerProductionLineMetas().stream()
+                    .map(ManufacturerProductionLineMeta::getProductionLineName)
+                    .collect(Collectors.toList());
+            summary.setProductionLines(productionLines);
         } else {
             summary.setProductionLineCount(0);
+            summary.setProductionLines(List.of());
         }
         
         return summary;

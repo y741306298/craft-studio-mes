@@ -4,6 +4,7 @@ import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageSlot;
 import com.mes.domain.manufacturer.transBox.storageTank.repository.StorageTankRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.mes.domain.shared.util.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,10 @@ public class StorageTankService {
         if (StringUtils.isBlank(storageTank.getStorageTankCode())) {
             throw new BusinessNotAllowException("储存柜编码不能为空");
         }
+
+        // 生成唯一的 storageTankId
+        String storageTankId = IdGenerator.generateId("TANK");
+        storageTank.setStorageTankId(storageTankId);
 
         return storageTankRepository.add(storageTank);
     }

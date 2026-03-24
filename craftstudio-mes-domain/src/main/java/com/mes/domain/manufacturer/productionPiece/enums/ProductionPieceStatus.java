@@ -4,28 +4,51 @@ package com.mes.domain.manufacturer.productionPiece.enums;
  * 生产工件状态机枚举
  */
 public enum ProductionPieceStatus {
-    PROCESSING("处理中"),
-    PENDING_TYPESITTING("待排版"),
-    TYPESITTING("排版中"),
-    TYPESITTING_PENDING_CONFIRM("排版待确认"),
-    PENDING_PRINT("待打印"),
-    PRINTING("打印中"),
-    PENDING_CUTTING("待切割"),
-    CUTTING("切割中"),
-    PENDING_FUBAN("待覆板"),
-    FUBAN("覆板中"),
-    PENDING_PACKING("待打包"),
-    PACKING_COMPLETED("打包完成"),
-    RETURNED("已退单");
+    PROCESSING("PROCESSING", "处理中"),
+    PENDING_TYPESITTING("PENDING_TYPESITTING", "待排版"),
+    TYPESITTING("TYPESITTING", "排版中"),
+    TYPESITTING_PENDING_CONFIRM("TYPESITTING_PENDING_CONFIRM", "排版待确认"),
+    PENDING_PRINT("PENDING_PRINT", "待打印"),
+    PRINTING("PRINTING", "打印中"),
+    PENDING_CUTTING("PENDING_CUTTING", "待切割"),
+    CUTTING("CUTTING", "切割中"),
+    PENDING_FUBAN("PENDING_FUBAN", "待覆板"),
+    FUBAN("FUBAN", "覆板中"),
+    PENDING_PACKING("PENDING_PACKING", "待打包"),
+    PACKING_COMPLETED("PACKING_COMPLETED", "打包完成"),
+    RETURNED("RETURNED", "已退单");
 
+    private final String code;
     private final String description;
 
-    ProductionPieceStatus(String description) {
+    ProductionPieceStatus(String code, String description) {
+        this.code = code;
         this.description = description;
+    }
+
+    public String getCode() {
+        return code;
     }
 
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * 根据 code 获取枚举实例
+     * @param code 状态码
+     * @return 对应的枚举实例，如果未找到则返回 null
+     */
+    public static ProductionPieceStatus getByCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        for (ProductionPieceStatus status : values()) {
+            if (status.getCode().equals(code)) {
+                return status;
+            }
+        }
+        return null;
     }
 
     /**

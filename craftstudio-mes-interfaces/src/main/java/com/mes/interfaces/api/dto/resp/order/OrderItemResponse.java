@@ -29,7 +29,6 @@ public class OrderItemResponse {
         response.setOrderId(orderItem.getOrderId());
         response.setMtoProduct(orderItem.getMtoProduct());
         response.setMaterial(orderItem.getMaterial());
-        response.setProcedureFlowId(orderItem.getProcedureFlowId());
         response.setQuantity(orderItem.getQuantity());
         response.setStatus(orderItem.getStatus() != null ? orderItem.getStatus().getCode() : null);
         response.setIsUrgent(orderItem.getIsUrgent());

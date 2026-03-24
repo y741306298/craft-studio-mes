@@ -2,12 +2,15 @@ package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaListRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaRequest;
+import com.mes.interfaces.api.dto.req.manufacturerMeta.WorkshopRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
 import com.mes.interfaces.api.dto.resp.manufacturerMeta.DeviceCfgSummary;
@@ -15,7 +18,9 @@ import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerMetaDetailRe
 import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerMetaListResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import io.micrometer.common.util.StringUtils;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
@@ -40,8 +45,6 @@ public class ManufacturerMetaController {
     /**
      * 分页查询制造商元数据
      * @param request 分页请求参数
-     * @param name 制造商名称（可选）
-     * @param manufacturerType 制造商类型（可选，不传则默认第一个类型）
      * @return 分页查询结果
      */
     @PostMapping("/list")
@@ -60,12 +63,17 @@ public class ManufacturerMetaController {
             manufacturerType = ManufacturerType.values()[0].getCode();
         }
         
-        // 调用应用服务查询数据
-        PagedResult<ManufacturerMeta> result = appManufacturerMetaService.findManufacturerMetas(name, manufacturerType, query);
+        // 调用应用服务查询数据（包含设备数量）
+        PagedResult<AppManufacturerMetaService.ManufacturerMetaWithDeviceCount> result = 
+            appManufacturerMetaService.findManufacturerMetasWithDeviceCount(name, manufacturerType, query);
         
         // 转换为响应 DTO
         List<ManufacturerMetaListResponse> responses = result.items().stream()
-                .map(ManufacturerMetaListResponse::from)
+                .map(item -> {
+                    ManufacturerMetaListResponse response = ManufacturerMetaListResponse.from(item.getManufacturerMeta());
+                    response.setDeviceCount(item.getDeviceCount());
+                    return response;
+                })
                 .collect(Collectors.toList());
         
         // 返回分页响应
@@ -85,7 +93,7 @@ public class ManufacturerMetaController {
         List<DeviceCfgSummary> deviceCfgs = null;
         if (manufacturerMeta != null && manufacturerMeta.getManufacturerMetaId() != null) {
             com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery query = 
-                new com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery(1, 1000);
+                new com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery(1, 100);
             com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult<ManufacturerDeviceCfg> result = 
                 appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMeta.getManufacturerMetaId(), query);
             deviceCfgs = result.items().stream()
@@ -116,6 +124,36 @@ public class ManufacturerMetaController {
                 appDeviceCfgService.addDeviceCfg(deviceCfg);
             }
         }
+        
+        return ApiResponse.success("success");
+    }
+
+    /**
+     * 为工厂添加车间信息
+     * @param request 添加车间请求
+     * @return 操作结果
+     */
+    @PostMapping("/workshops/add")
+    public ApiResponse<String> addWorkshopsForManufacturer(
+            @Valid @RequestBody AddWorkshopsRequest request) {
+        
+        if (StringUtils.isBlank(request.getManufacturerMetaId())) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
+        }
+        
+        if (request.getWorkshops() == null || request.getWorkshops().isEmpty()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "车间列表不能为空");
+        }
+        
+        // 将 WorkshopRequest 转换为 ManufacturerWorkshopMeta
+        List<ManufacturerWorkshopMeta> workshopMetas = new ArrayList<>();
+        for (WorkshopRequest workshopRequest : request.getWorkshops()) {
+            ManufacturerWorkshopMeta workshopMeta = workshopRequest.toDomainEntity();
+            workshopMetas.add(workshopMeta);
+        }
+        
+        // 调用应用服务添加车间
+        appManufacturerMetaService.addWorkshopsForManufacturer(request.getManufacturerMetaId(), workshopMetas);
         
         return ApiResponse.success("success");
     }
@@ -161,7 +199,7 @@ public class ManufacturerMetaController {
      * 获取所有制造商类型
      * @return 制造商类型列表
      */
-    @GetMapping("/types")
+    @GetMapping("/getAllManufacturerTypes/types")
     public ApiResponse<List<ManufacturerTypeVO>> getAllManufacturerTypes() {
         List<ManufacturerTypeVO> typeVOs = Arrays.stream(ManufacturerType.values())
                 .map(type -> new ManufacturerTypeVO(type.getCode(), type.getDescription()))
@@ -196,8 +234,8 @@ public class ManufacturerMetaController {
     @Data
     @RequiredArgsConstructor
     public static class ManufacturerTemplateVO {
-        private final String manufacturerMetaId;
-        private final String manufacturerMetaName;
+        private final String manufacturerTempId;
+        private final String manufacturerTempName;
     }
 
     /**
@@ -206,6 +244,20 @@ public class ManufacturerMetaController {
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class ManufacturerMetaAddRequest extends ManufacturerMetaRequest {
+
         private List<ManufacturerDeviceCfgRequest> deviceCfgs;
+    }
+    
+    /**
+     * 为工厂添加车间请求
+     */
+    @Data
+    public static class AddWorkshopsRequest {
+        
+        @NotBlank(message = "制造商 ID 不能为空")
+        private String manufacturerMetaId;
+        
+        @Valid
+        private List<WorkshopRequest> workshops;
     }
 }

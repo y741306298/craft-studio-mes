@@ -209,8 +209,7 @@ public class AppOrderPreprocessingService {
         // 3. 创建待抠图的 ProductionPiece，将 maskImgUrl 存储在 maskImageFile 字段中
         List<ProductionPiece> pendingPieces = new ArrayList<>();
         ProductionPiece pendingPiece = procedureService.createProductionPiece(
-                orderItem.getOrderItemId(),
-                orderItem.getProcedureFlowId(),
+                orderItem,
                 "PENDING_MASK",
                 orderItem.getQuantity(),
                 productionImgUrl
@@ -244,8 +243,7 @@ public class AppOrderPreprocessingService {
                 : null;
 
         ProductionPiece piece = procedureService.createProductionPiece(
-                orderItem.getOrderItemId(),
-                orderItem.getProcedureFlowId(),
+                orderItem,
                 "ORIGINAL",
                 orderItem.getQuantity(),
                 productionImgUrl
@@ -286,7 +284,6 @@ public class AppOrderPreprocessingService {
         for (String imageUrl : imageUrls) {
             ProductionPiece piece = new ProductionPiece();
             piece.setOrderItemId(orderItem.getOrderItemId());
-            piece.setProcedureFlowId(orderItem.getProcedureFlowId());
             piece.setProductionPieceType("PENDING_CUT");
             piece.setStatus("PENDING");
             piece.setQuantity(orderItem.getQuantity());
@@ -330,8 +327,7 @@ public class AppOrderPreprocessingService {
 
         for (CutResult cutResult : cutResults) {
             ProductionPiece piece = procedureService.createProductionPiece(
-                    orderItem.getOrderItemId(),
-                    orderItem.getProcedureFlowId(),
+                    orderItem,
                     "CUT",
                     orderItem.getQuantity(),
                     cutResult.getImageUrl()
@@ -356,8 +352,7 @@ public class AppOrderPreprocessingService {
         // 生成新的 ProductionPiece
         for (MaskResult maskResult : maskResults) {
             ProductionPiece piece = procedureService.createProductionPiece(
-                    orderItem.getOrderItemId(),
-                    orderItem.getProcedureFlowId(),
+                    orderItem,
                     "MASK",
                     orderItem.getQuantity(),
                     maskResult.getImageUrl()

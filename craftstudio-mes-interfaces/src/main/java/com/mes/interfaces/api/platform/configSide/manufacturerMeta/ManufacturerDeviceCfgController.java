@@ -26,7 +26,6 @@ public class ManufacturerDeviceCfgController {
     /**
      * 分页查询设备配置列表（根据制造商 ID）
      * @param request 分页请求参数
-     * @param manufacturerMetaId 制造商 ID（必填）
      * @return 分页查询结果
      */
     @PostMapping("/list")

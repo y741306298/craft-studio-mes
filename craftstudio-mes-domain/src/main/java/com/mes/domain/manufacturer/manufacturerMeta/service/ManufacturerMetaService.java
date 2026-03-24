@@ -1,8 +1,12 @@
 package com.mes.domain.manufacturer.manufacturerMeta.service;
 
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductionLineMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.mes.domain.shared.util.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -79,6 +83,37 @@ public class ManufacturerMetaService {
             throw new BusinessNotAllowException("制造商名称不能为空");
         }
         
+        // 生成唯一的 manufacturerMetaId
+        String manufacturerMetaId = IdGenerator.generateManufacturerMetaId();
+        manufacturerMeta.setManufacturerMetaId(manufacturerMetaId);
+        
+        // 设置默认状态为 NORMAL
+        if (manufacturerMeta.getStatus() == null) {
+            manufacturerMeta.setStatus(CfgStatus.NORMAL);
+        }
+        
+        // 为车间和产线生成唯一 ID
+        if (manufacturerMeta.getManufacturerWorkshopMetas() != null) {
+            for (ManufacturerWorkshopMeta workshop : manufacturerMeta.getManufacturerWorkshopMetas()) {
+                // 生成车间 ID
+                if (StringUtils.isBlank(workshop.getWorkshopId())) {
+                    String workshopId = IdGenerator.generateId("WORKSHOP");
+                    workshop.setWorkshopId(workshopId);
+                    workshop.setStatus(CfgStatus.NORMAL.getCode());
+                }
+                
+                // 为每个车间的生产线生成 ID
+                if (workshop.getManufacturerProductionLineMetas() != null) {
+                    for (ManufacturerProductionLineMeta productionLine : workshop.getManufacturerProductionLineMetas()) {
+                        if (StringUtils.isBlank(productionLine.getProductionLineId())) {
+                            String productionLineId = IdGenerator.generateId("LINE");
+                            productionLine.setProductionLineId(productionLineId);
+                            productionLine.setStatus(CfgStatus.NORMAL.getCode());
+                        }
+                    }
+                }
+            }
+        }
         return manufacturerMetaRepository.add(manufacturerMeta);
     }
 

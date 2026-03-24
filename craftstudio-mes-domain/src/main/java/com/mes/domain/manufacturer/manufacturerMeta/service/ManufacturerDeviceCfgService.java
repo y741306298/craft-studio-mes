@@ -1,5 +1,6 @@
 package com.mes.domain.manufacturer.manufacturerMeta.service;
 
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
@@ -69,6 +70,11 @@ public class ManufacturerDeviceCfgService {
         }
         if (StringUtils.isBlank(deviceCfg.getDeviceName())) {
             throw new BusinessNotAllowException("设备名称不能为空");
+        }
+        
+        // 设置默认状态为 NORMAL
+        if (deviceCfg.getStatus() == null) {
+            deviceCfg.setStatus(CfgStatus.NORMAL);
         }
         
         return manufacturerDeviceCfgRepository.add(deviceCfg);

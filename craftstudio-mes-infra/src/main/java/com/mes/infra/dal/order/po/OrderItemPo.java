@@ -38,7 +38,6 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setOrderId(this.orderId);
         orderItem.setMtoProduct(this.mtoProduct);
         orderItem.setMaterial(this.material);
-        orderItem.setProcedureFlowId(this.procedureFlowId);
         orderItem.setQuantity(this.quantity);
         if (this.status != null) {
             orderItem.setStatus(OrderStatus.getByCode(this.status));
@@ -58,7 +57,6 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.orderId = _do.getOrderId();
         this.mtoProduct = _do.getMtoProduct();
         this.material = _do.getMaterial();
-        this.procedureFlowId = _do.getProcedureFlowId();
         this.quantity = _do.getQuantity();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         this.isUrgent = _do.getIsUrgent();

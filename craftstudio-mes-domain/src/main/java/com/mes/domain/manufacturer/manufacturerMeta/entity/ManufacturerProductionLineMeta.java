@@ -12,6 +12,7 @@ public class ManufacturerProductionLineMeta extends BaseEntity {
 
     private String productionLineId;
     private String productionLineName;
+    private String status;
     private List<ManufacturerProcedureMeta> manufacturerProceduresMetas;
 
 }

@@ -2,6 +2,7 @@ package com.mes.domain.manufacturer.productionPiece.entity;
 
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import lombok.Data;
 import lombok.EqualsAndHashCode;

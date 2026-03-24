@@ -14,8 +14,6 @@ import java.util.stream.Collectors;
 @Data
 public class WorkshopRequest {
     
-    @NotBlank(message = "车间ID不能为空")
-    @Size(max = 50, message = "车间ID长度不能超过50个字符")
     private String workshopId;
     
     @NotBlank(message = "车间名称不能为空")
@@ -51,13 +49,7 @@ public class WorkshopRequest {
     }
 
     public boolean isValid() {
-        if (workshopId == null || workshopId.trim().isEmpty()) {
-            return false;
-        }
         if (workshopName == null || workshopName.trim().isEmpty()) {
-            return false;
-        }
-        if (workshopId.length() > 50) {
             return false;
         }
         if (workshopName.length() > 100) {
@@ -79,14 +71,8 @@ public class WorkshopRequest {
     }
 
     public String getValidationMessage() {
-        if (workshopId == null || workshopId.trim().isEmpty()) {
-            return "车间ID不能为空";
-        }
         if (workshopName == null || workshopName.trim().isEmpty()) {
             return "车间名称不能为空";
-        }
-        if (workshopId.length() > 50) {
-            return "车间ID长度不能超过50个字符";
         }
         if (workshopName.length() > 100) {
             return "车间名称长度不能超过100个字符";

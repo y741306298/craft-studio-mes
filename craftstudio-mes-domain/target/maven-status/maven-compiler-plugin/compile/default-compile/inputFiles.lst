@@ -101,4 +101,5 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\enums\ProductUnit.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\exception\BadModelException.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\exception\BusinessNotAllowException.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\utils\IdGenerator.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\vo\Address.java

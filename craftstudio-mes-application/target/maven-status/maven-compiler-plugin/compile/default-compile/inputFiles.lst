@@ -5,6 +5,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\manufacturerMeta\AppManufacturerMetaService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\manufacturerMeta\AppManufacturerMtsProductCfgService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\manufacturerMeta\AppManufacturerProcessCfgService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\manufacturerMeta\MockExternalApiService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\order\AppOrderItemService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\order\AppOrderService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\order\vo\OrderQuery.java
@@ -16,7 +17,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\orderPreprocessing\vo\PltGenerateResult.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\procedure\AppProcedureService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\procedureFlow\AppProcedureFlowService.java
-D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\productionPiece\AppTransBoxService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\productionPiece\AppProductionPieceService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\transBox\AppTransBoxService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\transBox\vo\StorageInResult.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-application\src\main\java\com\mes\application\command\typesetting\AppTypesettingService.java

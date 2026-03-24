@@ -4,7 +4,9 @@ import com.mes.domain.manufacturer.procedure.entity.Procedure;
 import com.mes.domain.manufacturer.procedure.repository.ProcedureRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.mes.domain.shared.util.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -71,6 +73,10 @@ public class ProcedureService {
         if (StringUtils.isBlank(procedure.getProcedureName())) {
             throw new BusinessNotAllowException("工序名称不能为空");
         }
+
+        // 生成唯一的 procedureId
+        String procedureId = IdGenerator.generateId("PROC");
+        procedure.setProcedureId(procedureId);
 
         return procedureRepository.add(procedure);
     }
@@ -144,18 +150,27 @@ public class ProcedureService {
 
     /**
      * 创建生产工件实体
-     * @param orderItemId 订单项 ID
-     * @param procedureFlowId 工艺流程 ID
+     * @param orderItem 订单项
      * @param pieceType 工件类型
      * @param quantity 数量
      * @param imageUrl 图片 URL
      * @return 生产工件实体
      */
-    public ProductionPiece createProductionPiece(String orderItemId, String procedureFlowId, 
-                                                  String pieceType, Integer quantity, String imageUrl) {
+    public ProductionPiece createProductionPiece(OrderItem orderItem,
+                                                 String pieceType, Integer quantity, String imageUrl) {
+        if (orderItem == null) {
+            throw new IllegalArgumentException("订单项不能为空");
+        }
+        
         ProductionPiece piece = new ProductionPiece();
-        piece.setOrderItemId(orderItemId);
-        piece.setProcedureFlowId(procedureFlowId);
+        piece.setOrderItemId(orderItem.getOrderItemId());
+        
+        // 从 OrderItem 中获取 ProcedureFlow
+        if (orderItem.getProcedureFlow() != null) {
+            piece.setProcedureFlow(orderItem.getProcedureFlow());
+            piece.setProcedureFlowId(orderItem.getProcedureFlow().getProcedureFlowId());
+        }
+        
         piece.setProductionPieceType(pieceType);
         piece.setStatus("PENDING");
         piece.setQuantity(quantity);

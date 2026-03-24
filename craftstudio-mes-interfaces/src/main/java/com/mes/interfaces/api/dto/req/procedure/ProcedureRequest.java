@@ -18,8 +18,6 @@ import jakarta.validation.Valid;
 public class ProcedureRequest extends ApiRequest {
     private String id;
 
-    @NotBlank(message = "工序 ID 不能为空")
-    @Size(max = 50, message = "工序 ID 长度不能超过 50 个字符")
     private String procedureId;
 
     @NotBlank(message = "工序名称不能为空")
@@ -76,17 +74,11 @@ public class ProcedureRequest extends ApiRequest {
     @Override
     public boolean isValid() {
         // 基本非空验证
-        if (procedureId == null || procedureId.trim().isEmpty()) {
-            return false;
-        }
         if (procedureName == null || procedureName.trim().isEmpty()) {
             return false;
         }
 
         // 长度验证
-        if (procedureId.length() > 50) {
-            return false;
-        }
         if (procedureName.length() > 100) {
             return false;
         }
@@ -119,14 +111,8 @@ public class ProcedureRequest extends ApiRequest {
 
     @Override
     public String getValidationMessage() {
-        if (procedureId == null || procedureId.trim().isEmpty()) {
-            return "工序ID不能为空";
-        }
         if (procedureName == null || procedureName.trim().isEmpty()) {
             return "工序名称不能为空";
-        }
-        if (procedureId.length() > 50) {
-            return "工序ID长度不能超过50个字符";
         }
         if (procedureName.length() > 100) {
             return "工序名称长度不能超过100个字符";

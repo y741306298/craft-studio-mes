@@ -1,10 +1,12 @@
 package com.mes.domain.order.orderInfo.service;
 
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.mes.domain.shared.util.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -302,8 +304,12 @@ public class OrderInfoService {
             throw new BusinessNotAllowException("订单项不能为空");
         }
 
-        // 设置订单项的 orderId
+        // 为每个订单项生成唯一的 orderItemId
         for (OrderItem item : orderItems) {
+            if (StringUtils.isBlank(item.getOrderItemId())) {
+                String orderItemId = IdGenerator.generateOrderItemId();
+                item.setOrderItemId(orderItemId);
+            }
             item.setOrderId(orderInfo.getOrderId());
         }
 

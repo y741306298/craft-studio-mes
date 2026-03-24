@@ -1,7 +1,7 @@
 com\mes\application\command\order\AppOrderService.class
 com\mes\application\shared\exception\ApplicationException.class
-com\mes\application\command\productionPiece\AppTransBoxService.class
 com\mes\application\command\order\vo\OrderQuery.class
+com\mes\application\command\productionPiece\AppProductionPieceService.class
 com\mes\application\command\transBox\AppTransBoxService.class
 com\mes\application\command\transBox\vo\StorageInResult.class
 com\mes\application\command\typesetting\AppTypesettingService.class
@@ -26,6 +26,7 @@ com\mes\application\command\delivery\AppDeliveryNetService.class
 com\mes\application\command\device\AppDeviceService.class
 com\mes\application\command\orderPreprocessing\vo\PltApiResponse.class
 com\mes\application\command\typesetting\vo\LayoutApiResponse.class
+com\mes\application\command\manufacturerMeta\MockExternalApiService.class
 com\mes\application\command\order\vo\OrderWithItemsVO.class
 com\mes\application\command\typesetting\vo\ConfirmPrintResult.class
 com\mes\application\command\manufacturerMeta\AppManufacturerMetaService.class

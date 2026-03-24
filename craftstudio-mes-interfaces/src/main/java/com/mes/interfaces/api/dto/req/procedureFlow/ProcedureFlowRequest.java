@@ -13,7 +13,6 @@ public class ProcedureFlowRequest {
 
     private String id;
 
-    @NotBlank(message = "工序流程 ID 不能为空")
     private String procedureFlowId;
 
     @NotBlank(message = "工序流程名称不能为空")

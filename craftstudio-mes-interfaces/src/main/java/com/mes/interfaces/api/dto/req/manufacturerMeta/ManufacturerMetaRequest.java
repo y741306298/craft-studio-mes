@@ -19,10 +19,11 @@ import java.util.stream.Collectors;
 @Data
 public class ManufacturerMetaRequest extends ApiRequest {
     private String id;
-    
-    @NotBlank(message = "制造商 ID 不能为空")
-    @Size(max = 50, message = "制造商 ID 长度不能超过 50 个字符")
+
     private String manufacturerMetaId;
+
+    @NotBlank(message = "制造商模板 ID 不能为空")
+    private String manufacturerTempId;
     
     @NotBlank(message = "制造商类型不能为空")
     @Size(max = 100, message = "制造商类型长度不能超过 100 个字符")
@@ -34,6 +35,8 @@ public class ManufacturerMetaRequest extends ApiRequest {
     
     @Size(max = 720, message = "描述长度不能超过 720 个字符")
     private String description;
+    
+    private String status;
 
     @Valid
     private List<WorkshopRequest> workshops = new ArrayList<>();
@@ -50,9 +53,17 @@ public class ManufacturerMetaRequest extends ApiRequest {
         
         // 基础字段映射
         manufacturerMeta.setManufacturerMetaId(this.manufacturerMetaId);
+        manufacturerMeta.setManufacturerTempId(this.manufacturerTempId);
         manufacturerMeta.setManufacturerMetaType(ManufacturerType.getByCode(this.manufacturerMetaType));
         manufacturerMeta.setName(this.name);
         manufacturerMeta.setDescription(this.description);
+        
+        // 设置状态，默认为 NORMAL
+        if (this.status != null && !this.status.trim().isEmpty()) {
+            manufacturerMeta.setStatus(com.mes.domain.manufacturer.enums.CfgStatus.getByCode(this.status));
+        } else {
+            manufacturerMeta.setStatus(com.mes.domain.manufacturer.enums.CfgStatus.NORMAL);
+        }
         
         // 转换车间信息
         if (this.workshops != null && !this.workshops.isEmpty()) {
@@ -70,9 +81,6 @@ public class ManufacturerMetaRequest extends ApiRequest {
     @Override
     public boolean isValid() {
         // 基本非空验证
-        if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
-            return false;
-        }
         if (manufacturerMetaType == null || manufacturerMetaType.trim().isEmpty()) {
             return false;
         }
@@ -81,9 +89,6 @@ public class ManufacturerMetaRequest extends ApiRequest {
         }
         
         // 长度验证
-        if (manufacturerMetaId.length() > 50) {
-            return false;
-        }
         if (manufacturerMetaType.length() > 100) {
             return false;
         }
@@ -116,17 +121,11 @@ public class ManufacturerMetaRequest extends ApiRequest {
 
     @Override
     public String getValidationMessage() {
-        if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
-            return "制造商 ID 不能为空";
-        }
         if (manufacturerMetaType == null || manufacturerMetaType.trim().isEmpty()) {
             return "制造商类型不能为空";
         }
         if (name == null || name.trim().isEmpty()) {
             return "制造商名称不能为空";
-        }
-        if (manufacturerMetaId.length() > 50) {
-            return "制造商 ID 长度不能超过 50 个字符";
         }
         if (manufacturerMetaType.length() > 100) {
             return "制造商类型长度不能超过 100 个字符";

@@ -14,7 +14,6 @@ public class DeviceRequest {
 
     private String id;
 
-    @NotBlank(message = "设备 ID 不能为空")
     private String deviceInfoId;
 
     @NotBlank(message = "设备名称不能为空")

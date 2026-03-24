@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.dto.resp.manufacturerMeta;
 
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductionLineMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
 import com.mes.interfaces.api.dto.resp.manufacturerMeta.DeviceCfgSummary;
@@ -30,6 +31,7 @@ public class ManufacturerMetaDetailResponse {
     private List<WorkshopSummary> workshops; // 车间摘要信息
 
     // 设备配置列表
+    private Integer deviceCfgCount;
     private List<DeviceCfgSummary> deviceCfgs;
 
     @Data
@@ -38,6 +40,7 @@ public class ManufacturerMetaDetailResponse {
         private String workshopName;
         private String status;
         private Integer productionLineCount;  // 生产线数量
+        private List<String> productionLines;
     }
 
     /**
@@ -80,6 +83,7 @@ public class ManufacturerMetaDetailResponse {
         }
 
         // 设置设备配置列表
+        response.setDeviceCfgCount(deviceCfgs != null ? deviceCfgs.size() : 0);
         response.setDeviceCfgs(deviceCfgs != null ? deviceCfgs : List.of());
 
         return response;
@@ -96,11 +100,18 @@ public class ManufacturerMetaDetailResponse {
         summary.setWorkshopName(workshop.getWorkshopName());
         summary.setStatus(workshop.getStatus());
 
-        // 统计生产线数量
+        // 统计生产线数量并返回产线名称列表
         if (workshop.getManufacturerProductionLineMetas() != null) {
             summary.setProductionLineCount(workshop.getManufacturerProductionLineMetas().size());
+            
+            // 提取所有产线的名称
+            List<String> productionLines = workshop.getManufacturerProductionLineMetas().stream()
+                    .map(ManufacturerProductionLineMeta::getProductionLineName)
+                    .collect(Collectors.toList());
+            summary.setProductionLines(productionLines);
         } else {
             summary.setProductionLineCount(0);
+            summary.setProductionLines(List.of());
         }
 
         return summary;

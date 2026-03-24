@@ -229,11 +229,11 @@ public class ProductionPieceService {
     /**
      * 更新生产工件状态
      */
-    public void updateProductionPieceStatus(String id, String status) {
+    public void updateProductionPieceStatus(String id, ProductionPieceStatus status) {
         if (StringUtils.isBlank(id)) {
             throw new BusinessNotAllowException("生产工件 ID 不能为空");
         }
-        if (StringUtils.isBlank(status)) {
+        if (status == null) {
             throw new BusinessNotAllowException("状态不能为空");
         }
         
@@ -242,7 +242,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("生产工件不存在");
         }
         
-        productionPiece.setStatus(status);
+        productionPiece.setStatus(status.getCode());
         productionPieceRepository.update(productionPiece);
     }
 
@@ -260,7 +260,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("当前状态不能开始排版，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.TYPESITTING.getDescription());
+        piece.setStatus(ProductionPieceStatus.TYPESITTING.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -278,7 +278,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("只有排版中的工件才能完成排版，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getDescription());
+        piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -296,7 +296,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("只有排版待确认的工件才能确认排版，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getDescription());
+        piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -314,7 +314,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("当前状态不能开始打印，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.PRINTING.getDescription());
+        piece.setStatus(ProductionPieceStatus.PRINTING.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -332,7 +332,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("只有打印中的工件才能完成打印，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getDescription());
+        piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -350,7 +350,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("当前状态不能开始切割，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.CUTTING.getDescription());
+        piece.setStatus(ProductionPieceStatus.CUTTING.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -370,9 +370,9 @@ public class ProductionPieceService {
         
         boolean hasFuBanProcedure = checkHasFuBanProcedure(piece);
         if (hasFuBanProcedure) {
-            piece.setStatus(ProductionPieceStatus.PENDING_FUBAN.getDescription());
+            piece.setStatus(ProductionPieceStatus.PENDING_FUBAN.getCode());
         } else {
-            piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getDescription());
+            piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
         }
         productionPieceRepository.update(piece);
     }
@@ -391,7 +391,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("当前状态不能开始覆板，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.FUBAN.getDescription());
+        piece.setStatus(ProductionPieceStatus.FUBAN.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -409,7 +409,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("只有覆板中的工件才能完成覆板，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getDescription());
+        piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -427,7 +427,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("当前状态不能开始打包，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getDescription());
+        piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -445,7 +445,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException("终态订单不能退单，当前状态：" + currentStatus.getDescription());
         }
         
-        piece.setStatus(ProductionPieceStatus.RETURNED.getDescription());
+        piece.setStatus(ProductionPieceStatus.RETURNED.getCode());
         productionPieceRepository.update(piece);
     }
 
@@ -456,11 +456,12 @@ public class ProductionPieceService {
      * @return 当前状态枚举
      */
     private ProductionPieceStatus getCurrentStatus(ProductionPiece piece) {
-        try {
-            return ProductionPieceStatus.fromDescription(piece.getStatus());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessNotAllowException("未知的状态值：" + piece.getStatus());
+        if (piece.getStatus() == null) {
+            return null;
         }
+        
+        // status 字段存储的是 String 类型的 code
+        return ProductionPieceStatus.getByCode(piece.getStatus());
     }
 
     /**

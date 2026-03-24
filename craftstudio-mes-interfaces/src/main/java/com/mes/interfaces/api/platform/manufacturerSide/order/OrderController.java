@@ -31,8 +31,6 @@ public class OrderController {
     /**
      * 分页查询订单列表（包含订单项）
      * @param request 分页请求参数
-     * @param orderId 订单号（可选）
-     * @param status 订单状态（可选）
      * @return 分页查询结果
      */
     @PostMapping("/list")
