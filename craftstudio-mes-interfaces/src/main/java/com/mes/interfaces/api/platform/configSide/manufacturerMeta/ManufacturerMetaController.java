@@ -5,8 +5,8 @@ import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
+import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaListRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -46,14 +46,14 @@ public class ManufacturerMetaController {
      */
     @PostMapping("/list")
     public PagedApiResponse<ManufacturerMetaListResponse> listManufacturerMetas(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String name,
-            @RequestParam(required = false) String manufacturerType) {
+            @Valid @RequestBody ManufacturerMetaListRequest request) {
         
         // 参数验证已经在 PagedApiRequest 中处理
         
         // 转换为领域层查询对象
         PagedQuery query = request.toPagedQuery();
+        String name = request.getName();
+        String manufacturerType = request.getManufacturerType();
         
         // 如果没有传入类型，默认使用第一个类型
         if (manufacturerType == null || manufacturerType.trim().isEmpty()) {

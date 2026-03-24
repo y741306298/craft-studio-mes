@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.configSide.delivery;
 import com.mes.application.command.delivery.AppDeliveryRouteService;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteListRequest;
 import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteNodeRequest;
 import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
@@ -33,10 +33,10 @@ public class DeliveryRouteController {
      */
     @PostMapping("/list")
     public PagedApiResponse<DeliveryRouteListResponse> listDeliveryRoutes(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String routeName) {
+            @Valid @RequestBody DeliveryRouteListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String routeName = request.getRouteName();
         
         PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName, query);
         

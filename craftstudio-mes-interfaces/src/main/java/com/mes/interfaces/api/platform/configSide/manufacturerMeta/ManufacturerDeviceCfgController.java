@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -31,10 +31,10 @@ public class ManufacturerDeviceCfgController {
      */
     @PostMapping("/list")
     public PagedApiResponse<DeviceCfgSummary> listDeviceCfgs(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = true) String manufacturerMetaId) {
+            @Valid @RequestBody ManufacturerDeviceCfgListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String manufacturerMetaId = request.getManufacturerMetaId();
         PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
         
         List<DeviceCfgSummary> responses = result.items().stream()

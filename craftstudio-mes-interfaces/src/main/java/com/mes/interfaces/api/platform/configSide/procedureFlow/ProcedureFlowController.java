@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.procedureFlow;
 
 import com.mes.application.command.procedureFlow.AppProcedureFlowService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.procedureFlow.ProcedureFlowListRequest;
 import com.mes.interfaces.api.dto.req.procedureFlow.ProcedureFlowRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -31,10 +31,10 @@ public class ProcedureFlowController {
      */
     @PostMapping("/list")
     public PagedApiResponse<ProcedureFlowListResponse> listProcedureFlows(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String procedureFlowName) {
+            @Valid @RequestBody ProcedureFlowListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String procedureFlowName = request.getProcedureFlowName();
         
         PagedResult<ProcedureFlow> result = appProcedureFlowService.findProcedureFlows(procedureFlowName, query);
         
