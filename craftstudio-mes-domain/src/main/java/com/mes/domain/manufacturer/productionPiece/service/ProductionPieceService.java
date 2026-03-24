@@ -1,5 +1,6 @@
 package com.mes.domain.manufacturer.productionPiece.service;
 
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
@@ -488,5 +489,74 @@ public class ProductionPieceService {
         
         return piece.getProcedureFlow().getNodes().stream()
                 .anyMatch(node -> "覆板".equals(node.getNodeName()) || "双面对裱".equals(node.getNodeName()));
+    }
+
+    /**
+     * 在工序节点之间划拨数量（从一个节点划转指定数量到另一个节点，保持总数量不变）
+     * 
+     * @param productionPieceId 生产工件 ID
+     * @param fromNodeId 源节点 ID
+     * @param toNodeId 目标节点 ID
+     * @param quantity 划转数量
+     */
+    public void transferPieceQuantityBetweenNodes(String productionPieceId, String fromNodeId, String toNodeId, Integer quantity) {
+        if (StringUtils.isBlank(productionPieceId)) {
+            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+        }
+        if (StringUtils.isBlank(fromNodeId)) {
+            throw new BusinessNotAllowException("源节点 ID 不能为空");
+        }
+        if (StringUtils.isBlank(toNodeId)) {
+            throw new BusinessNotAllowException("目标节点 ID 不能为空");
+        }
+        if (quantity == null || quantity <= 0) {
+            throw new BusinessNotAllowException("划转数量必须大于 0");
+        }
+
+        // 查询生产工件
+        ProductionPiece piece = findById(productionPieceId);
+        if (piece == null) {
+            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+        }
+
+        // 获取工艺路线和节点列表
+        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            throw new BusinessNotAllowException("该生产工件没有工艺路线或节点信息");
+        }
+
+        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
+        
+        // 查找源节点和目标节点
+        ProcedureFlowNode fromNode = null;
+        ProcedureFlowNode toNode = null;
+        
+        for (ProcedureFlowNode node : nodes) {
+            if (fromNodeId.equals(node.getNodeId())) {
+                fromNode = node;
+            }
+            if (toNodeId.equals(node.getNodeId())) {
+                toNode = node;
+            }
+        }
+
+        if (fromNode == null) {
+            throw new BusinessNotAllowException("源节点不存在：" + fromNodeId);
+        }
+        if (toNode == null) {
+            throw new BusinessNotAllowException("目标节点不存在：" + toNodeId);
+        }
+
+        // 检查源节点数量是否足够
+        if (fromNode.getPieceQuantity() == null || fromNode.getPieceQuantity() < quantity) {
+            throw new BusinessNotAllowException("源节点数量不足，当前数量：" + 
+                (fromNode.getPieceQuantity() != null ? fromNode.getPieceQuantity() : 0));
+        }
+
+        // 执行数量划转
+        fromNode.setPieceQuantity(fromNode.getPieceQuantity() - quantity);
+        toNode.setPieceQuantity((toNode.getPieceQuantity() != null ? toNode.getPieceQuantity() : 0) + quantity);
+
+        // 更新生产工件的工艺路线信息
+        updateProductionPiece(piece);
     }
 }

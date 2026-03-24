@@ -48,9 +48,8 @@ public class AppOrderPreprocessingService {
      * 订单预处理：根据 orderId 查询订单下的所有订单项，解析工艺流程并处理裁切和异形工艺
      *
      * @param orderId 订单 ID
-     * @return 处理后的生产零件列表
      */
-    public List<ProductionPiece> preprocessOrder(String orderId) {
+    public void preprocessOrder(String orderId) {
         if (StringUtils.isBlank(orderId)) {
             throw new RuntimeException("订单 ID 不能为空");
         }
@@ -80,7 +79,8 @@ public class AppOrderPreprocessingService {
                 }
             }
 
-            return resultPieces;
+            // 3. 预处理完成后，将新生成的 ProductionPiece 中的数量赋予 procedureFlow
+            assignQuantityToProcedureFlow(resultPieces);
 
         } catch (Exception e) {
             // 如果是订单级别的错误（如订单不存在），将订单下所有订单项标记为失败
@@ -617,6 +617,27 @@ public class AppOrderPreprocessingService {
             result.setSuccess(false);
             result.setMessage("调用 PLT 生成 API 异常：" + e.getMessage());
             return result;
+        }
+    }
+
+    /**
+     * 将 ProductionPiece 中的数量赋予第一个节点的 pieceQuantity
+     * @param pieces 生产零件列表
+     */
+    private void assignQuantityToProcedureFlow(List<ProductionPiece> pieces) {
+        for (ProductionPiece piece : pieces) {
+            if (piece.getProcedureFlow() != null && piece.getQuantity() != null) {
+                Integer quantity = piece.getQuantity();
+                // 设置第一个节点的 pieceQuantity
+                List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
+                if (nodes != null && !nodes.isEmpty()) {
+                    ProcedureFlowNode firstNode = nodes.get(0);
+                    firstNode.setPieceQuantity(quantity);
+                    
+                    // 更新生产工件的工艺流程信息
+                    productionPieceService.updateProductionPiece(piece);
+                }
+            }
         }
     }
 }

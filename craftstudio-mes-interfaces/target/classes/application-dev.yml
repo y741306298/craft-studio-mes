@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+spring:
+  mongodb:
+    host: localhost
+    port: 27017
+    database: craftstudio-mes
+    username: craftstudio-mes-admin
+    password: "craftstudiomes13579"
+    authentication-database: admin
+
+#logging:
+#  level:
+#    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+#    org.mongodb.driver: DEBUG
