@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.device;
 
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.domain.manufacturer.device.entity.Device;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.device.DeviceListRequest;
 import com.mes.interfaces.api.dto.req.device.DeviceRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -31,10 +31,10 @@ public class DeviceController {
      */
     @PostMapping("/list")
     public PagedApiResponse<DeviceListResponse> listDevices(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String deviceName) {
+            @Valid @RequestBody DeviceListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String deviceName = request.getDeviceName();
         
         PagedResult<Device> result = appDeviceService.findDevices(deviceName, query);
         

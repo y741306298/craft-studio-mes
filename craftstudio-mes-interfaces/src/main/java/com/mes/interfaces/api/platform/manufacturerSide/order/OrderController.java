@@ -5,8 +5,8 @@ import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
 import com.mes.interfaces.api.dto.req.order.OrderAddRequest;
+import com.mes.interfaces.api.dto.req.order.OrderListRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
 import com.mes.interfaces.api.dto.resp.order.OrderInfoResponse;
@@ -37,12 +37,12 @@ public class OrderController {
      */
     @PostMapping("/list")
     public PagedApiResponse<OrderWithItemsResponse> listOrders(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String orderId,
-            @RequestParam(required = false) String status) {
+            @Valid @RequestBody OrderListRequest request) {
         
         // 转换为领域层查询对象
         PagedQuery query = request.toPagedQuery();
+        String orderId = request.getOrderId();
+        String status = request.getStatus();
         
         // 构建查询条件
         OrderQuery orderQuery = new OrderQuery();

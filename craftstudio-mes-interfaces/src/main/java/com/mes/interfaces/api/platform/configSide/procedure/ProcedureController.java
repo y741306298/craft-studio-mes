@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.procedure;
 
 import com.mes.application.command.procedure.AppProcedureService;
 import com.mes.domain.manufacturer.procedure.entity.Procedure;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.procedure.ProcedureListRequest;
 import com.mes.interfaces.api.dto.req.procedure.ProcedureRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -31,13 +31,13 @@ public class ProcedureController {
      */
     @PostMapping("/list")
     public PagedApiResponse<ProcedureListResponse> listProcedures(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String procedureName) {
+            @Valid @RequestBody ProcedureListRequest request) {
         
         // 参数验证已经在PagedApiRequest中处理
         
         // 转换为领域层查询对象
         PagedQuery query = request.toPagedQuery();
+        String procedureName = request.getProcedureName();
         
         // 调用应用服务查询数据
         PagedResult<Procedure> result = appProcedureService.findProcedures(procedureName, query);

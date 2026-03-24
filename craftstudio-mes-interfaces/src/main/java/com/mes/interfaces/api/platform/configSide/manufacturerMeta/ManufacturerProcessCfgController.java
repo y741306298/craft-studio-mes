@@ -4,7 +4,7 @@ import com.mes.application.command.manufacturerMeta.AppManufacturerProcessCfgSer
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.entity.ManufacturerProcessPriceCfg;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.vo.MaterialProcessPrice;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerProcessCfgListRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.UpdateProcessPriceRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -32,10 +32,10 @@ public class ManufacturerProcessCfgController {
      */
     @PostMapping("/list")
     public ApiResponse<PagedApiResponse<ManufacturerProcessCfgListResponse>> findProcessPriceCfgs(
-            @Valid @RequestBody PagedApiRequest request,
-            @RequestParam String manufacturerId) {
+            @Valid @RequestBody ManufacturerProcessCfgListRequest request) {
 
         PagedQuery query = request.toPagedQuery();
+        String manufacturerId = request.getManufacturerId();
         List<ManufacturerProcessPriceCfg> result = processCfgService.getProcessPriceCfgByManufacturerId(
                 manufacturerId, (int) query.getCurrent(), query.getSize());
 

@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryNetService;
 import com.mes.domain.delivery.deliveryNet.entity.DeliveryNet;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.delivery.DeliveryNetListRequest;
 import com.mes.interfaces.api.dto.req.delivery.DeliveryNetRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -31,10 +31,10 @@ public class DeliveryController {
      */
     @PostMapping("/list")
     public PagedApiResponse<DeliveryNetListResponse> listDeliveryNets(
-            @RequestBody PagedApiRequest request,
-            @RequestParam(required = false) String deliveryNetName) {
+            @Valid @RequestBody DeliveryNetListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String deliveryNetName = request.getDeliveryNetName();
         
         PagedResult<DeliveryNet> result = appDeliveryNetService.findDeliveryNets(deliveryNetName, query);
         

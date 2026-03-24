@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerMtsProductCfgService;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
-import com.mes.interfaces.api.dto.req.base.PagedApiRequest;
+import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMtsProductCfgListRequest;
 import com.mes.interfaces.api.dto.req.manufacturerMeta.UpdateSpecPriceRequest;
 import com.mes.interfaces.api.dto.resp.ApiResponse;
 import com.mes.interfaces.api.dto.resp.PagedApiResponse;
@@ -32,11 +32,11 @@ public class ManufacturerMtsProductCfgController {
      */
     @PostMapping("/list")
     public ApiResponse<PagedApiResponse<ManufacturerMtsProductCfgListResponse>> findMtsProductCfgs(
-            @Valid @RequestBody PagedApiRequest request,
-            @RequestParam String manufacturerId,
-            @RequestParam(required = false) String productName) {
+            @Valid @RequestBody ManufacturerMtsProductCfgListRequest request) {
         
         PagedQuery query = request.toPagedQuery();
+        String manufacturerId = request.getManufacturerId();
+        String productName = request.getProductName();
         PagedResult<ManufacturerMtsProductCfg> result = mtsProductCfgService.findMtsProductCfgsByManufacturerId(
                 manufacturerId, productName, query);
         
