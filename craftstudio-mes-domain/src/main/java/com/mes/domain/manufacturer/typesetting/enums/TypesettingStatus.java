@@ -10,16 +10,16 @@ public enum TypesettingStatus {
     CONFIRMING("确认中", "confirming"),     // 等待确认
     COMPLETED("已下达", "completed");       // 已下达
 
-    private final String chineseName;
+    private final String description;
     private final String code;
 
-    TypesettingStatus(String chineseName, String code) {
-        this.chineseName = chineseName;
+    TypesettingStatus(String description, String code) {
+        this.description = description;
         this.code = code;
     }
 
-    public String getChineseName() {
-        return chineseName;
+    public String getDescription() {
+        return description;
     }
 
     public String getCode() {
@@ -52,7 +52,7 @@ public enum TypesettingStatus {
         }
 
         for (TypesettingStatus status : values()) {
-            if (status.getChineseName().equals(chineseName)) {
+            if (status.getDescription().equals(chineseName)) {
                 return status;
             }
         }

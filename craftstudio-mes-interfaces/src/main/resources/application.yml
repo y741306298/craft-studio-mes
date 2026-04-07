@@ -17,6 +17,7 @@ spring:
 external:
   api:
     baseUrl: http://external-system.com/api/v1
+    productCoreUrl: http://external-system.com/api/v1
 
 #logging:
 #  level:

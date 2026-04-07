@@ -1,12 +1,13 @@
 package com.mes.interfaces.api.platform.configSide.procedureFlow;
 
 import com.mes.application.command.procedureFlow.AppProcedureFlowService;
+import com.mes.application.dto.req.procedureFlow.ProcedureFlowListRequest;
+import com.mes.application.dto.req.procedureFlow.ProcedureFlowRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.procedureFlow.ProcedureFlowListResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.interfaces.api.dto.req.procedureFlow.ProcedureFlowListRequest;
-import com.mes.interfaces.api.dto.req.procedureFlow.ProcedureFlowRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.procedureFlow.ProcedureFlowListResponse;
+
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -26,7 +27,6 @@ public class ProcedureFlowController {
     /**
      * 分页查询工序流程列表
      * @param request 分页请求参数
-     * @param procedureFlowName 工序流程名称（可选）
      * @return 分页查询结果
      */
     @PostMapping("/list")

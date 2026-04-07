@@ -5,11 +5,16 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import lombok.Data;
 
+import java.util.Date;
+
 @Data
 public class TypesettingQuery {
-    private TypesettingQueryType queryType;
-    private TypesettingStatus status;
+    private String manufacturerId;
+    private String queryType;
+    private String status;
     private String material;
     private String nodeName;
+    private Date startDate;
+    private Date endDate;
     private PagedQuery pagedQuery;
 }

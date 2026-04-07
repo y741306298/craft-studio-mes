@@ -1,12 +1,12 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;

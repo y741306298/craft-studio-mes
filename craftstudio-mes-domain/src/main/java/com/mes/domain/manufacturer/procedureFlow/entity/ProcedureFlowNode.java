@@ -2,10 +2,13 @@ package com.mes.domain.manufacturer.procedureFlow.entity;
 
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.Process;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -26,6 +29,8 @@ public class ProcedureFlowNode extends BaseEntity {
     private Integer retryCount;
     private String errorMessage;
     private Integer pieceQuantity;
+    private Process.ProcessMetaSnapshot processMetaSnapshot;
+    private List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs;
 
     public boolean isStartNode() {
         return "START".equals(this.nodeType);

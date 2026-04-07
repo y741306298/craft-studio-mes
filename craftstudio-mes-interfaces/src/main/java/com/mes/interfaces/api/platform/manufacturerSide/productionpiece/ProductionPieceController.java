@@ -1,10 +1,10 @@
 package com.mes.interfaces.api.platform.manufacturerSide.productionpiece;
 
 import com.mes.application.command.productionPiece.AppProductionPieceService;
-import com.mes.interfaces.api.dto.req.productionpiece.ProductionPieceListRequest;
-import com.mes.interfaces.api.dto.resp.productionpiece.ProductionPieceResponse;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
+import com.mes.application.dto.req.productionpiece.ProductionPieceListRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.productionpiece.ProductionPieceResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -34,9 +34,12 @@ public class ProductionPieceController {
         
         PagedResult<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> result = 
                 appProductionPieceService.findProductionPieces(
+                        request.getManufacturerId(),
                         request.getStatus(),
                         request.getMaterial(),
                         request.getNodeName(),
+                        request.getStartTime(),
+                        request.getEndTime(),
                         query);
         
         java.util.List<ProductionPieceResponse> responses = result.items().stream()
@@ -48,13 +51,12 @@ public class ProductionPieceController {
 
     /**
      * 根据 productionPieceId 查询详情
-     * @param productionPieceId 生产工件 ID
      * @return 生产工件详情
      */
-    @GetMapping("/{productionPieceId}")
-    public ApiResponse<ProductionPieceResponse> getProductionPieceById(
-            @PathVariable String productionPieceId) {
-        
+    @PostMapping("/{productionPieceId}")
+    public ApiResponse<ProductionPieceResponse> getProductionPieceById(@RequestBody ProductionPieceListRequest request) {
+        String manufacturerId = request.getManufacturerId();
+        String productionPieceId = request.getProductionPieceId();
         if (StringUtils.isBlank(productionPieceId)) {
             ApiResponse<ProductionPieceResponse> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);
@@ -63,7 +65,7 @@ public class ProductionPieceController {
         }
         
         com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece piece = 
-                appProductionPieceService.findByProductionPieceId(productionPieceId);
+                appProductionPieceService.findByProductionPieceId(productionPieceId,manufacturerId);
         
         if (piece == null) {
             ApiResponse<ProductionPieceResponse> failResponse = new ApiResponse<>();

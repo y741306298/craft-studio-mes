@@ -3,6 +3,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\i
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\base\PagedApiRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\delivery\DeliveryNetListRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\delivery\DeliveryNetRequest.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\delivery\DeliveryPkgRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\delivery\DeliveryRouteListRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\delivery\DeliveryRouteRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\device\DeviceListRequest.java
@@ -26,6 +27,9 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\i
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\procedureFlow\ProcedureFlowListRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\procedureFlow\ProcedureFlowRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\productionpiece\ProductionPieceListRequest.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\typesetting\ConfirmPrintRequest.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\typesetting\LayoutConfirmRequest.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\req\typesetting\ReleaseLayoutRequest.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\resp\ApiResponse.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\resp\delivery\DeliveryNetListResponse.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\dto\resp\delivery\DeliveryRouteListResponse.java
@@ -47,7 +51,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\i
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\handler\ApiControllerHandler.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\handler\InvalidRequestException.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\handler\RequestValidator.java
-D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\delivery\DeliveryController.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\delivery\DeliveryNetController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\delivery\DeliveryRouteController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\device\DeviceController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerDeviceCfgController.java
@@ -57,8 +61,11 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\i
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerTypeVO.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\procedure\ProcedureController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\configSide\procedureFlow\ProcedureFlowController.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\manufacturerSide\delivery\DeliveryController.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\manufacturerSide\delivery\DeliveryNetController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\manufacturerSide\order\OrderController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\manufacturerSide\productionpiece\ProductionPieceController.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\platform\manufacturerSide\typesetting\TypesettingController.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\test\ConfigSideSeedGenerator.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\test\SVG2PLTConverter.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-interfaces\src\main\java\com\mes\interfaces\api\test\SvgToPltConverter.java

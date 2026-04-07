@@ -10,6 +10,8 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
+
 @Service
 public class AppProductionPieceService {
 
@@ -21,13 +23,18 @@ public class AppProductionPieceService {
      * @param status 状态（可选）
      * @param material 材质（可选）
      * @param nodeName 工序节点名称（可选）
+     * @param startDate 开始时间（可选）
+     * @param endDate 结束时间（可选）
      * @param query 分页查询参数
      * @return 分页查询结果
      */
     public PagedResult<ProductionPiece> findProductionPieces(
+            String manufacturerId,
             String status, 
             String material,
             String nodeName,
+            Date startDate,
+            Date endDate,
             PagedQuery query) {
         
         if (query == null) {
@@ -38,11 +45,11 @@ public class AppProductionPieceService {
         }
 
         // 查询数据
-        java.util.List<ProductionPiece> items = domainProductionPieceService.findProductionPiecesByConditions(
-                status, material, nodeName, (int) query.getCurrent(), query.getSize());
+        java.util.List<ProductionPiece> items = domainProductionPieceService.findProductionPiecesByConditions(manufacturerId,
+                status, material, nodeName, startDate, endDate, (int) query.getCurrent(), query.getSize());
         
         // 查询总数
-        long total = domainProductionPieceService.countProductionPiecesByConditions(status, material, nodeName);
+        long total = domainProductionPieceService.countProductionPiecesByConditions(status, material, nodeName, startDate, endDate);
         
         return new PagedResult<>(items, total, query.getSize(), query.getCurrent());
     }
@@ -52,7 +59,7 @@ public class AppProductionPieceService {
      * @param productionPieceId 生产工件 ID
      * @return 生产工件详情
      */
-    public ProductionPiece findByProductionPieceId(String productionPieceId) {
+    public ProductionPiece findByProductionPieceId(String productionPieceId,String manufacturerId) {
         if (StringUtils.isBlank(productionPieceId)) {
             throw new IllegalArgumentException("生产工件 ID 不能为空");
         }
@@ -65,8 +72,8 @@ public class AppProductionPieceService {
         }
         
         // 如果找不到，尝试通过 productionPieceId 字段查找
-        java.util.List<ProductionPiece> pieces = domainProductionPieceService.findProductionPiecesByConditions(
-                null, null, null, 1, 1000);
+        java.util.List<ProductionPiece> pieces = domainProductionPieceService.findProductionPiecesByConditions(manufacturerId,
+                null, null, null,null,null,1, 1000);
         
         if (pieces != null && !pieces.isEmpty()) {
             return pieces.stream()

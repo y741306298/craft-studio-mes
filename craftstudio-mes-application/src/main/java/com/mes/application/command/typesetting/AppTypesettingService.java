@@ -5,12 +5,14 @@ import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.command.typesetting.enums.TypesettingQueryType;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -20,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -55,26 +58,26 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
 
-        TypesettingQueryType queryType = query.getQueryType();
+        String queryType = query.getQueryType();
         if (queryType == null) {
-            queryType = TypesettingQueryType.ALL;
+            queryType = TypesettingQueryType.ALL.getCode();
         }
 
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
         long total = 0;
 
         switch (queryType) {
-            case ALL:
+            case "ALL":
                 // 查询全部：包括零件和排版
                 items = queryBoth(query);
                 total = countBoth(query);
                 break;
-            case PART:
+            case "PART":
                 // 只查询零件：且只允许查询状态为待排版的零件
                 items = queryPartsOnly(query);
                 total = countPartsOnly(query);
                 break;
-            case TYPESETTING:
+            case "TYPESETTING":
                 // 只查询排版
                 items = queryTypesettingOnly(query);
                 total = countTypesettingOnly(query);
@@ -122,54 +125,22 @@ public class AppTypesettingService {
         int pageSize = query.getPagedQuery().getSize();
 
         // 当类型为"零件"时，只允许查询状态为待排版的零件
-        // ProductionPiece 的 status 是 String 类型，使用"pending"字符串
+        // ProductionPiece 的 status 是 ProductionPieceStatus 的枚举，这里只查 PENDING_TYPESITTING 待排版
         List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
-            "pending",
+                query.getManufacturerId(),
+                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
             query.getMaterial(),
             query.getNodeName(),
+            query.getStartDate(),
+            query.getEndDate(),
             currentPage,
             pageSize
         );
 
-        // 收集所有 orderItemId
-        List<String> orderItemIds = parts.stream()
-            .map(ProductionPiece::getOrderItemId)
-            .filter(StringUtils::isNotBlank)
-            .distinct()
-            .collect(Collectors.toList());
-
-        // 批量查询 OrderItem 信息
-        Map<String, OrderItem> orderItemMap = new HashMap<>();
-        if (!orderItemIds.isEmpty()) {
-            for (String orderItemId : orderItemIds) {
-                OrderItem orderItem = orderItemService.findById(orderItemId);
-                if (orderItem != null) {
-                    orderItemMap.put(orderItemId, orderItem);
-                }
-            }
-        }
-
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
         for (ProductionPiece piece : parts) {
-            TypesettingProductionPieceVO vo = new TypesettingProductionPieceVO();
-            vo.setSourceType("PRODUCTION_PIECE");
-            vo.setSourceId(piece.getId());
-            vo.setQuantity(piece.getQuantity());
-            vo.setCompletedQuantity(0); // 生产工件暂无完成数量
-            vo.setProcedureFlow(piece.getProcedureFlow());
-
-            // 从 OrderItem 获取 material
-            OrderItem orderItem = orderItemMap.get(piece.getOrderItemId());
-            if (orderItem != null && orderItem.getMtoProduct() != null) {
-                vo.setOrderItemInfo(orderItem);
-                // 使用 mtoProduct 而不是 mtsProduct
-                vo.setMaterial(orderItem.getMtoProduct().toString());
-            }
-
-            vo.setPreviewUrl(null); // 生产工件暂无预览 URL
-            vo.setRemark(null); // 生产工件暂无备注
-
+            TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromPiece(piece);
             voList.add(vo);
         }
 
@@ -183,7 +154,9 @@ public class AppTypesettingService {
         return productionPieceService.countProductionPiecesByConditions(
             "pending",
             query.getMaterial(),
-            query.getNodeName()
+            query.getNodeName(),
+            query.getStartDate(),
+            query.getEndDate()
         );
     }
 
@@ -211,10 +184,10 @@ public class AppTypesettingService {
             vo.setQuantity(info.getQuantity());
             vo.setCompletedQuantity(info.getCompletedQuantity());
             vo.setMaterial(info.getMaterial()); // 直接从 TypesettingInfo 获取 material
-            vo.setProcedureFlow(info.getProcedureFlow());
+//            vo.setProcedureFlow(info.getProcedureFlow());
             vo.setPreviewUrl(info.getTypesettingUrl());
             vo.setRemark(null); // 排版暂无备注
-            vo.setOrderItemInfo(null); // 排版不需要 OrderItem 信息
+//            vo.setOrderItemInfo(null); // 排版不需要 OrderItem 信息
 
             voList.add(vo);
         }
@@ -237,10 +210,9 @@ public class AppTypesettingService {
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
      *
      * @param productionPieceIds 生产工件 ID 列表
-     * @param layoutApiUrl 排版 API 地址
      * @return 排版结果
      */
-    public LayoutConfirmResult confirmLayout(List<String> productionPieceIds, String layoutApiUrl) {
+    public LayoutConfirmResult confirmLayout(List<String> productionPieceIds) {
         if (productionPieceIds == null || productionPieceIds.isEmpty()) {
             throw new RuntimeException("生产工件 ID 列表不能为空");
         }
@@ -282,7 +254,7 @@ public class AppTypesettingService {
         }
 
         // 5. 调用排版 API
-        LayoutApiResponse apiResponse = callLayoutApi(productionPieces, orderItems, layoutApiUrl);
+        LayoutApiResponse apiResponse = callLayoutApi(productionPieces, orderItems);
 
         if (apiResponse == null || !apiResponse.isSuccess()) {
             return LayoutConfirmResult.failed("排版 API 调用失败");
@@ -472,14 +444,14 @@ public class AppTypesettingService {
             return "订单项列表不能为空";
         }
 
-        String firstMaterial = orderItems.get(0).getMaterial();
-        if (firstMaterial == null || firstMaterial.trim().isEmpty()) {
+        MaterialConfig firstMaterial = orderItems.get(0).getMaterial();
+        if (firstMaterial == null) {
             return "第一个订单项的材料为空";
         }
 
         for (int i = 1; i < orderItems.size(); i++) {
-            String material = orderItems.get(i).getMaterial();
-            if (material == null || material.trim().isEmpty()) {
+            MaterialConfig material = orderItems.get(i).getMaterial();
+            if (material == null) {
                 return "订单项 " + orderItems.get(i).getOrderItemId() + " 的材料为空";
             }
             if (!firstMaterial.equals(material)) {
@@ -537,8 +509,12 @@ public class AppTypesettingService {
                             " 对应的订单项不存在";
                 }
 
-                String orderItemMaterial = orderItem.getMaterial();
-                if (!procedureMaterial.equals(orderItemMaterial)) {
+                String orderItemMaterial = null;
+                if (orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null) {
+                    orderItemMaterial = orderItem.getMaterial().getMaterialSnapshot().getName();
+                }
+                
+                if (procedureMaterial != null && !procedureMaterial.equals(orderItemMaterial)) {
                     return "生产工件 " + piece.getProductionPieceId() +
                             " 的工序材料与订单项材料不一致：工序材料为 " +
                             procedureMaterial + "，订单项材料为 " + orderItemMaterial;
@@ -562,8 +538,9 @@ public class AppTypesettingService {
         // 可能需要查询工序配置表或者从其他地方获取
         // 这里暂时从订单项获取材料
         OrderItem orderItem = orderItemService.findById(piece.getOrderItemId());
-        if (orderItem != null) {
-            return orderItem.getMaterial();
+        if (orderItem != null && orderItem.getMaterial() != null) {
+            MaterialConfig.MaterialSnapshot snapshot = orderItem.getMaterial().getMaterialSnapshot();
+            return snapshot != null ? snapshot.getName() : null;
         }
         return null;
     }
@@ -573,12 +550,10 @@ public class AppTypesettingService {
      *
      * @param productionPieces 生产工件列表
      * @param orderItems 订单项列表
-     * @param apiUrl API 地址
      * @return API 响应
      */
     private LayoutApiResponse callLayoutApi(List<ProductionPiece> productionPieces,
-                                            List<OrderItem> orderItems,
-                                            String apiUrl) {
+                                            List<OrderItem> orderItems) {
         try {
             // 构建请求参数
             Map<String, Object> requestParams = new HashMap<>();
@@ -595,6 +570,7 @@ public class AppTypesettingService {
             HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestParams, headers);
 
             // 调用 POST 接口
+            String apiUrl = "";
             ResponseEntity<LayoutApiResponse> response = restTemplate.postForEntity(
                     apiUrl,
                     requestEntity,

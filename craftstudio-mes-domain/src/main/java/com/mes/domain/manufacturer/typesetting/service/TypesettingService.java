@@ -27,10 +27,10 @@ public class TypesettingService {
      * @return 排版信息列表
      */
     public List<TypesettingInfo> findTypesettingByConditions(
-            TypesettingStatus status, 
+            String status,
             String material, 
             String nodeName,
-            int current, 
+            int current,
             int size) {
 
         if (size <= 0 || size > 100) {
@@ -40,7 +40,7 @@ public class TypesettingService {
         Map<String, Object> filters = new HashMap<>();
         
         if (status != null) {
-            filters.put("status", status.getCode());
+            filters.put("status", status);
         }
         if (StringUtils.isNotBlank(material)) {
             filters.put("material", material);
@@ -71,13 +71,13 @@ public class TypesettingService {
      * @return 总数
      */
     public long countTypesettingByConditions(
-            TypesettingStatus status, 
+            String status,
             String material, 
             String nodeName) {
         Map<String, Object> filters = new HashMap<>();
         
         if (status != null) {
-            filters.put("status", status.getCode());
+            filters.put("status", status);
         }
         if (StringUtils.isNotBlank(material)) {
             filters.put("material", material);

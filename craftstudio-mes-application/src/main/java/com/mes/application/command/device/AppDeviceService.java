@@ -20,7 +20,7 @@ public class AppDeviceService {
     @Autowired
     private DeviceInfoRepository deviceInfoRepository;
 
-    public PagedResult<Device> findDevices(String deviceName, PagedQuery query) {
+    public PagedResult<Device> findDevices(String deviceName, String deviceType, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -31,12 +31,12 @@ public class AppDeviceService {
         List<Device> items;
         long total;
 
-        if (StringUtils.isBlank(deviceName)) {
+        if (StringUtils.isBlank(deviceName) && StringUtils.isBlank(deviceType)) {
             items = deviceInfoRepository.list(query.getCurrent(), query.getSize());
             total = deviceInfoRepository.total();
         } else {
-            items = domainDeviceService.findDevicesByName(deviceName, (int) query.getCurrent(), query.getSize());
-            total = domainDeviceService.getTotalCount(deviceName);
+            items = domainDeviceService.findDevicesByCondition(deviceName, deviceType, (int) query.getCurrent(), query.getSize());
+            total = domainDeviceService.getTotalCount(deviceName, deviceType);
         }
 
         return new PagedResult<Device>(items, total, query.getSize(), query.getCurrent());

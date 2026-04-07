@@ -4,7 +4,10 @@ import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
+import com.mes.application.command.productionPiece.AppPieceCirculationService;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.procedure.service.ProcedureService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
@@ -44,53 +47,43 @@ public class AppOrderPreprocessingService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private AppPieceCirculationService appPieceCirculationService;
+
     /**
      * 订单预处理：根据 orderId 查询订单下的所有订单项，解析工艺流程并处理裁切和异形工艺
      *
-     * @param orderId 订单 ID
      */
-    public void preprocessOrder(String orderId) {
-        if (StringUtils.isBlank(orderId)) {
-            throw new RuntimeException("订单 ID 不能为空");
+    public void preprocessOrder(List<OrderItem> orderItems) {
+        List<ProductionPiece> resultPieces = new ArrayList<>();
+
+        // 2. 遍历每个订单项进行处理
+        for (OrderItem orderItem : orderItems) {
+            try {
+                //转化成生产零件
+                List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
+
+                // 处理成功，将订单项状态改为生产中
+                updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
+                resultPieces.addAll(pieces);
+            } catch (Exception e) {
+                // 单个订单项处理失败时，标记该订单项为失败状态，但继续处理其他订单项
+                orderItemService.markAsFailed(orderItem.getOrderItemId(), e.getMessage());
+                System.err.println("处理订单项失败：" + orderItem.getOrderItemId() + ", 错误：" + e.getMessage());
+            }
         }
 
-        try {
-            // 1. 根据 orderId 查询该订单下的所有订单项
-            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId, 1, 100);
-            if (orderItems == null || orderItems.isEmpty()) {
-                throw new RuntimeException("订单下没有订单项：" + orderId);
-            }
-
-            List<ProductionPiece> resultPieces = new ArrayList<>();
-
-            // 2. 遍历每个订单项进行处理
-            for (OrderItem orderItem : orderItems) {
-                try {
-                    List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
-
-                    // 处理成功，将订单项状态改为生产中
-                    updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
-
-                    resultPieces.addAll(pieces);
-                } catch (Exception e) {
-                    // 单个订单项处理失败时，标记该订单项为失败状态，但继续处理其他订单项
-                    orderItemService.markAsFailed(orderItem.getOrderItemId(), e.getMessage());
-                    System.err.println("处理订单项失败：" + orderItem.getOrderItemId() + ", 错误：" + e.getMessage());
-                }
-            }
-
-            // 3. 预处理完成后，将新生成的 ProductionPiece 中的数量赋予 procedureFlow
-            assignQuantityToProcedureFlow(resultPieces);
-
-        } catch (Exception e) {
-            // 如果是订单级别的错误（如订单不存在），将订单下所有订单项标记为失败
-            markAllOrderItemsAsFailed(orderId, e.getMessage());
-            throw e;
+        // 3. 预处理完成后，让所有的零件进入第一个节点
+        for (ProductionPiece resultPiece : resultPieces) {
+            appPieceCirculationService.moveToNextNode(resultPiece, 1);
+            //暂时默认将零件状态改为待排版
+            productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
         }
     }
 
     /**
      * 处理单个订单项的工艺流程
+     *
      * @param orderItem 订单项
      * @return 处理后的生产零件列表
      */
@@ -100,8 +93,9 @@ public class AppOrderPreprocessingService {
         if (processingFlow == null || processingFlow.trim().isEmpty()) {
             throw new RuntimeException("工艺流程不能为空：" + orderItem.getOrderItemId());
         }
-
-        List<ProcedureFlowNode> processingNodes = procedureFlowService.parseProcessingFlow(processingFlow);
+        //将订单工艺转化为生产工序
+        ProcedureFlow procedureFlow = procedureFlowService.parseProcessingFlow(orderItem.getProcedureFlow());
+        List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
 
         // 2. 判断是否有"裁切"工艺
         boolean hasCutting = procedureFlowService.hasNodeWithName(processingNodes, "裁切");
@@ -211,7 +205,6 @@ public class AppOrderPreprocessingService {
         ProductionPiece pendingPiece = procedureService.createProductionPiece(
                 orderItem,
                 "PENDING_MASK",
-                orderItem.getQuantity(),
                 productionImgUrl
         );
 
@@ -245,7 +238,6 @@ public class AppOrderPreprocessingService {
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
-                orderItem.getQuantity(),
                 productionImgUrl
         );
 
@@ -329,7 +321,6 @@ public class AppOrderPreprocessingService {
             ProductionPiece piece = procedureService.createProductionPiece(
                     orderItem,
                     "CUT",
-                    orderItem.getQuantity(),
                     cutResult.getImageUrl()
             );
             productionPieceService.addProductionPiece(piece);
@@ -354,7 +345,6 @@ public class AppOrderPreprocessingService {
             ProductionPiece piece = procedureService.createProductionPiece(
                     orderItem,
                     "MASK",
-                    orderItem.getQuantity(),
                     maskResult.getImageUrl()
             );
             productionPieceService.addProductionPiece(piece);
@@ -439,12 +429,12 @@ public class AppOrderPreprocessingService {
 
     /**
      * 将订单下所有订单项标记为失败状态
+     *
      * @param orderId 订单 ID
-     * @param reason 失败原因
      */
-    private void markAllOrderItemsAsFailed(String orderId, String reason) {
+    private void markAllOrderItemsAsFailed(String orderId, String manufacturerId, String reason) {
         try {
-            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId, 1, 100);
+            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId, manufacturerId, 1, 100);
             if (orderItems != null && !orderItems.isEmpty()) {
                 for (OrderItem item : orderItems) {
                     orderItemService.markAsFailed(item.getOrderItemId(), reason);
@@ -459,7 +449,7 @@ public class AppOrderPreprocessingService {
     /**
      * 调用图像分切 API（已废弃，保留用于兼容）
      *
-     * @param productionImgUrl 生产图片 URL
+     * @param productionImgUrl   生产图片 URL
      * @param cuttingCoordinates 切割坐标列表 [x1, y1, x2, y2, ...]
      * @return 分切结果列表
      */
@@ -472,7 +462,7 @@ public class AppOrderPreprocessingService {
      * 调用图像抠图 API（已废弃，保留用于兼容）
      *
      * @param productionImgUrl 生产图片 URL
-     * @param maskImgUrl 蒙版图片 URL
+     * @param maskImgUrl       蒙版图片 URL
      * @return 抠图结果列表
      */
     @Deprecated
@@ -484,7 +474,7 @@ public class AppOrderPreprocessingService {
      * 调用 API 生成 PLT 文件
      *
      * @param orderItemId 订单项 ID
-     * @param pltApiUrl PLT 生成 API 的 URL
+     * @param pltApiUrl   PLT 生成 API 的 URL
      * @return PLT 文件生成结果
      */
     public PltGenerateResult generatePltFile(String orderItemId, String pltApiUrl) {
@@ -501,7 +491,8 @@ public class AppOrderPreprocessingService {
                 throw new RuntimeException("工艺流程不能为空：" + orderItemId);
             }
 
-            List<ProcedureFlowNode> processingNodes = procedureFlowService.parseProcessingFlow(processingFlow);
+            ProcedureFlow procedureFlow = orderItem.getProcedureFlow();
+            List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
 
             // 3. 构建请求参数
             Map<String, Object> requestParams = new HashMap<>();
@@ -513,7 +504,11 @@ public class AppOrderPreprocessingService {
                     : null;
             requestParams.put("productionImgUrl", productionImgUrl);
 
-            requestParams.put("material", orderItem.getMaterial());
+            String materialName = null;
+            if (orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null) {
+                materialName = orderItem.getMaterial().getMaterialSnapshot().getName();
+            }
+            requestParams.put("material", materialName);
             requestParams.put("quantity", orderItem.getQuantity());
             requestParams.put("processingNodes", processingNodes.stream()
                     .map(ProcedureFlowNode::getNodeName)
@@ -547,7 +542,7 @@ public class AppOrderPreprocessingService {
      * 批量生成 PLT 文件
      *
      * @param orderItemIds 订单项 ID 列表
-     * @param pltApiUrl PLT 生成 API 的 URL
+     * @param pltApiUrl    PLT 生成 API 的 URL
      * @return PLT 文件生成结果列表
      */
     public List<PltGenerateResult> batchGeneratePltFiles(List<String> orderItemIds, String pltApiUrl) {
@@ -615,24 +610,5 @@ public class AppOrderPreprocessingService {
         }
     }
 
-    /**
-     * 将 ProductionPiece 中的数量赋予第一个节点的 pieceQuantity
-     * @param pieces 生产零件列表
-     */
-    private void assignQuantityToProcedureFlow(List<ProductionPiece> pieces) {
-        for (ProductionPiece piece : pieces) {
-            if (piece.getProcedureFlow() != null && piece.getQuantity() != null) {
-                Integer quantity = piece.getQuantity();
-                // 设置第一个节点的 pieceQuantity
-                List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
-                if (nodes != null && !nodes.isEmpty()) {
-                    ProcedureFlowNode firstNode = nodes.get(0);
-                    firstNode.setPieceQuantity(quantity);
-                    
-                    // 更新生产工件的工艺流程信息
-                    productionPieceService.updateProductionPiece(piece);
-                }
-            }
-        }
-    }
+
 }

@@ -1,8 +1,14 @@
 package com.mes.application.command.typesetting.vo;
 
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import lombok.Data;
+
+import java.util.List;
 
 /**
  * 排版与生产工件统一返回对象
@@ -11,9 +17,9 @@ import lombok.Data;
 public class TypesettingProductionPieceVO {
 
     /**
-     * 订单项信息
+     * 订单项Id
      */
-    private OrderItem orderItemInfo;
+    private String orderItemId;
 
     /**
      * 数量
@@ -29,11 +35,12 @@ public class TypesettingProductionPieceVO {
      * 材质
      */
     private String material;
+    private String materialCode;
 
     /**
      * 工艺流程
      */
-    private ProcedureFlow procedureFlow;
+    private String processingFlow;
 
     /**
      * 预览 URL
@@ -46,7 +53,7 @@ public class TypesettingProductionPieceVO {
     private String remark;
 
     /**
-     * 来源类型（TYPESetting-排版，PRODUCTION_PIECE-生产工件）
+     * 来源类型TypesettingSourceType
      */
     private String sourceType;
 
@@ -54,4 +61,28 @@ public class TypesettingProductionPieceVO {
      * 来源 ID
      */
     private String sourceId;
+
+    /**
+     * 零件状态ProductionPieceStatus
+     */
+    private String status;
+
+    public static TypesettingProductionPieceVO fromPiece(ProductionPiece piece){
+        TypesettingProductionPieceVO typesettingProductionPieceVO = new TypesettingProductionPieceVO();
+        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
+        for (ProcedureFlowNode node : nodes) {
+            if (node.getNodeName().equals("排版")) {
+                typesettingProductionPieceVO.setQuantity(node.getPieceQuantity());
+            }
+        }
+        typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
+        typesettingProductionPieceVO.setMaterial(piece.getMaterialConfig().getMaterialSnapshot().getName());
+        typesettingProductionPieceVO.setMaterialCode(piece.getMaterialConfig().getMaterialId());
+        typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
+        if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
+        typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());
+        typesettingProductionPieceVO.setSourceId(piece.getProductionPieceId());
+        typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
+        return typesettingProductionPieceVO;
+    }
 }

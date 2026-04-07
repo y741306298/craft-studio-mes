@@ -3,10 +3,12 @@ package com.mes.infra.dal.manufacurer.ProductionPiece.po;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.infra.base.BasePO;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -27,6 +29,7 @@ public class ProcedureFlowNodePo extends BasePO<ProcedureFlowNode> {
     private Integer retryCount;
     private String errorMessage;
     private Integer pieceQuantity;
+    private List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs;
 
     @Override
     public ProcedureFlowNode toDO() {
@@ -50,6 +53,7 @@ public class ProcedureFlowNodePo extends BasePO<ProcedureFlowNode> {
         node.setRetryCount(this.retryCount);
         node.setErrorMessage(this.errorMessage);
         node.setPieceQuantity(this.pieceQuantity);
+        node.setParamConfigs(this.paramConfigs);
 
         return node;
     }
@@ -75,6 +79,7 @@ public class ProcedureFlowNodePo extends BasePO<ProcedureFlowNode> {
         this.retryCount = _do.getRetryCount();
         this.errorMessage = _do.getErrorMessage();
         this.pieceQuantity = _do.getPieceQuantity();
+        this.paramConfigs = _do.getParamConfigs();
 
         return this;
     }

@@ -8,9 +8,12 @@ import java.util.Date;
 
 @Data
 public class OrderQuery {
+    private String id;
     private String orderId;
+    private String manufacturerId;
     private OrderStatus status;
     private Date startTime;
     private Date endTime;
+    private String customerPhone;
     private PagedQuery pagedQuery;
 }

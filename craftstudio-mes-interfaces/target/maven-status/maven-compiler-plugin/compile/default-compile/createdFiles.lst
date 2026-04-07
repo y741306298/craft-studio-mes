@@ -1,4 +1,5 @@
 com\mes\interfaces\api\test\ConfigSideSeedGenerator.class
+com\mes\interfaces\api\dto\req\typesetting\ReleaseLayoutRequest.class
 com\mes\interfaces\api\dto\req\order\OrderAddRequest.class
 com\mes\interfaces\api\dto\resp\order\OrderInfoResponse.class
 com\mes\interfaces\api\dto\req\procedure\ProcedureListRequest.class
@@ -14,6 +15,7 @@ com\mes\interfaces\api\test\SVG2PLTConverter.class
 com\mes\interfaces\api\dto\resp\manufacturerMeta\ManufacturerProcessCfgListResponse$UnitPriceResponse.class
 com\mes\interfaces\api\platform\configSide\delivery\DeliveryRouteController.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerProcessCfgController.class
+com\mes\interfaces\api\dto\req\delivery\DeliveryPkgRequest.class
 com\mes\interfaces\api\dto\resp\order\OrderWithItemsResponse.class
 com\mes\interfaces\api\dto\req\procedure\ProcedureRequest.class
 com\mes\interfaces\api\dto\resp\procedureFlow\ProcedureFlowListResponse.class
@@ -24,8 +26,10 @@ com\mes\interfaces\api\dto\req\manufacturerMeta\ManufacturerMetaRequest.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\WorkshopRequest.class
 com\mes\interfaces\api\dto\resp\device\DeviceListResponse.class
 com\mes\interfaces\api\dto\resp\manufacturerMeta\ManufacturerMetaListResponse.class
+com\mes\interfaces\api\platform\configSide\device\DeviceController$DeviceTypeVO.class
 com\mes\interfaces\api\dto\req\device\DeviceListRequest.class
 com\mes\interfaces\api\dto\req\base\PagedApiRequest.class
+com\mes\interfaces\api\platform\configSide\delivery\DeliveryNetController.class
 com\mes\interfaces\api\test\SvgToPltConverter.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\ManufacturerDeviceRequest.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerMtsProductCfgController.class
@@ -53,9 +57,10 @@ com\mes\interfaces\api\platform\configSide\device\DeviceController.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\UpdateProcessPriceRequest$MaterialProcessPriceRequest.class
 com\mes\interfaces\api\test\ConfigSideSeedGenerator$Config.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\ManufacturerMetaListRequest.class
+com\mes\interfaces\api\dto\req\typesetting\LayoutConfirmRequest.class
 com\mes\interfaces\api\dto\req\delivery\DeliveryRouteListRequest.class
 com\mes\interfaces\api\dto\resp\manufacturerMeta\DeviceCfgSummary.class
-com\mes\interfaces\api\platform\configSide\delivery\DeliveryController.class
+com\mes\interfaces\api\platform\manufacturerSide\typesetting\TypesettingController.class
 com\mes\interfaces\api\dto\req\procedureFlow\ProcedureFlowListRequest.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\UpdateSpecPriceRequest.class
 com\mes\interfaces\api\dto\req\order\OrderListRequest.class
@@ -63,12 +68,16 @@ com\mes\interfaces\api\test\SvgToPltConverter$Point.class
 com\mes\interfaces\api\dto\resp\delivery\DeliveryNetListResponse.class
 com\mes\interfaces\api\platform\manufacturerSide\order\OrderController.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerMetaController$ManufacturerMetaAddRequest.class
+com\mes\interfaces\api\dto\req\typesetting\ConfirmPrintRequest.class
 com\mes\interfaces\api\dto\req\delivery\DeliveryRouteNodeRequest.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerMetaController$ManufacturerTemplateVO.class
+com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerMetaController$AddWorkshopsRequest.class
 com\mes\interfaces\CraftStudioMesApplication.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\ManufacturerDeviceCfgRequest.class
 com\mes\interfaces\api\dto\resp\manufacturerMeta\ManufacturerMtsProductCfgListResponse.class
 com\mes\interfaces\api\dto\req\base\IdOnlyApiRequest.class
+com\mes\interfaces\api\platform\manufacturerSide\delivery\DeliveryNetController.class
+com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerMetaController$ProductUnitVO.class
 com\mes\interfaces\api\test\SvgToPltConverter$PltBuilder.class
 com\mes\interfaces\api\dto\req\manufacturerMeta\ManufacturerProcedure.class
 com\mes\interfaces\api\dto\resp\ApiResponse.class
@@ -76,5 +85,6 @@ com\mes\interfaces\api\dto\resp\productionpiece\ProductionPieceResponse.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerDeviceCfgController.class
 com\mes\interfaces\api\platform\configSide\manufacturerMeta\ManufacturerTypeVO.class
 com\mes\interfaces\api\dto\resp\order\OrderItemResponse.class
+com\mes\interfaces\api\platform\manufacturerSide\delivery\DeliveryController.class
 com\mes\interfaces\api\dto\req\delivery\DeliveryNetListRequest.class
 com\mes\interfaces\api\test\ConfigSideSeedGenerator$Generator.class

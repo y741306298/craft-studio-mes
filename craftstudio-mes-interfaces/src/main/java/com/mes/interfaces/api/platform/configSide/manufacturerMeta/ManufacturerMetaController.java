@@ -2,20 +2,22 @@ package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerMetaListRequest;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerMetaRequest;
+import com.mes.application.dto.req.manufacturerMeta.WorkshopRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
+import com.mes.application.dto.resp.manufacturerMeta.ManufacturerMetaDetailResponse;
+import com.mes.application.dto.resp.manufacturerMeta.ManufacturerMetaListResponse;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaListRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMetaRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.WorkshopRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.DeviceCfgSummary;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerMetaDetailResponse;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerMetaListResponse;
+import com.mes.domain.shared.enums.ProductUnit;
+
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -27,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -163,7 +166,7 @@ public class ManufacturerMetaController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateManufacturerMeta(@Valid @RequestBody ManufacturerMetaRequest request) {
         // 先查询现有数据
         ManufacturerMeta existingMeta = appManufacturerMetaService.findById(request.getId());
@@ -199,7 +202,7 @@ public class ManufacturerMetaController {
      * 获取所有制造商类型
      * @return 制造商类型列表
      */
-    @GetMapping("/getAllManufacturerTypes/types")
+    @GetMapping("/types")
     public ApiResponse<List<ManufacturerTypeVO>> getAllManufacturerTypes() {
         List<ManufacturerTypeVO> typeVOs = Arrays.stream(ManufacturerType.values())
                 .map(type -> new ManufacturerTypeVO(type.getCode(), type.getDescription()))
@@ -229,6 +232,55 @@ public class ManufacturerMetaController {
     }
 
     /**
+     * 获取所有产品单位列表
+     * @param unitType 单位类型（可选），如：面积单位、体积单位、长度单位等
+     * @return 产品单位列表
+     */
+    @GetMapping("/productUnits")
+    public ApiResponse<List<ProductUnitVO>> getProductUnits(
+            @RequestParam(required = false) String unitType) {
+        
+        List<ProductUnitVO> unitList;
+        
+        if (unitType == null || unitType.trim().isEmpty()) {
+            // 返回所有单位
+            unitList = Arrays.stream(ProductUnit.values())
+                    .map(unit -> new ProductUnitVO(
+                            unit.getChineseName(),
+                            unit.getSymbol(),
+                            unit.getUnitType()
+                    ))
+                    .collect(Collectors.toList());
+        } else {
+            // 根据单位类型过滤
+            unitList = Arrays.stream(ProductUnit.values())
+                    .filter(unit -> unit.getUnitType().equals(unitType))
+                    .map(unit -> new ProductUnitVO(
+                            unit.getChineseName(),
+                            unit.getSymbol(),
+                            unit.getUnitType()
+                    ))
+                    .collect(Collectors.toList());
+        }
+        
+        return ApiResponse.success(unitList);
+    }
+
+    /**
+     * 获取所有单位类型列表
+     * @return 单位类型列表
+     */
+    @GetMapping("/unitTypes")
+    public ApiResponse<List<String>> getUnitTypes() {
+        List<String> unitTypes = Arrays.stream(ProductUnit.values())
+                .map(ProductUnit::getUnitType)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        return ApiResponse.success(unitTypes);
+    }
+
+    /**
      * 制造商模板 VO
      */
     @Data
@@ -236,6 +288,17 @@ public class ManufacturerMetaController {
     public static class ManufacturerTemplateVO {
         private final String manufacturerTempId;
         private final String manufacturerTempName;
+    }
+
+    /**
+     * 产品单位 VO
+     */
+    @Data
+    @RequiredArgsConstructor
+    public static class ProductUnitVO {
+        private final String chineseName;
+        private final String symbol;
+        private final String unitType;
     }
 
     /**
@@ -260,4 +323,6 @@ public class ManufacturerMetaController {
         @Valid
         private List<WorkshopRequest> workshops;
     }
+
+
 }

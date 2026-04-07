@@ -1,100 +1,95 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
-import com.mes.application.command.manufacturerMeta.AppManufacturerMtsProductCfgService;
-import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerMtsProductCfgListRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.UpdateSpecPriceRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerMtsProductCfgListResponse;
-import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
-import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.mes.application.command.api.ProductCoreApiService;
+import com.mes.application.command.api.req.ConfigMTSProductSpecRequest;
+import com.mes.application.command.api.resp.MtsProductCategoryResponse;
+import com.mes.application.command.api.resp.MtsProductListResponse;
+import com.mes.application.command.api.resp.MtsProductSpecResponse;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/configSide/mtsProductCfg")
 public class ManufacturerMtsProductCfgController {
 
     @Autowired
-    private AppManufacturerMtsProductCfgService mtsProductCfgService;
+    private ProductCoreApiService productApiService;
 
     /**
-     * 分页查询标品商品配置列表（从外部系统获取）
-     * @param request 分页请求参数
-     * @param manufacturerId 制造商 ID（必填）
-     * @param productName 产品名称（可选）
+     * 根据父分类 ID 查询成品商品分类列表
+     * @param parentId 父分类 ID，null 表示查询首级分类
+     * @return 分类列表
+     */
+    @GetMapping("/categories")
+    public ApiResponse<List<MtsProductCategoryResponse>> findCategoriesByParentId(
+            @RequestParam(required = false) String parentId) {
+        
+        List<MtsProductCategoryResponse> categories = productApiService.findCategoriesByParentId(parentId);
+        return ApiResponse.success(categories);
+    }
+
+    /**
+     * 分页查询成品商品列表
+     * @param rmfId 工厂 ID，不能为空
+     * @param categoryId 产品分类 ID，可为空
+     * @param current 当前页码，从 1 开始
+     * @param size 每页大小
      * @return 分页查询结果
      */
-    @PostMapping("/list")
-    public ApiResponse<PagedApiResponse<ManufacturerMtsProductCfgListResponse>> findMtsProductCfgs(
-            @Valid @RequestBody ManufacturerMtsProductCfgListRequest request) {
+    @GetMapping("/products")
+    public PagedApiResponse<MtsProductListResponse> findMTSProducts(
+            @RequestParam String rmfId,
+            @RequestParam(required = false) String categoryId,
+            @RequestParam int current,
+            @RequestParam int size) {
         
-        PagedQuery query = request.toPagedQuery();
-        String manufacturerId = request.getManufacturerId();
-        String productName = request.getProductName();
-        PagedResult<ManufacturerMtsProductCfg> result = mtsProductCfgService.findMtsProductCfgsByManufacturerId(
-                manufacturerId, productName, query);
+        ProductCoreApiService.PagedResult<MtsProductListResponse> result =
+            productApiService.findMTSProducts(rmfId, categoryId, current, size);
         
-        // 转换为响应 DTO
-        List<ManufacturerMtsProductCfgListResponse> responses = result.items().stream()
-                .map(ManufacturerMtsProductCfgListResponse::from)
-                .collect(Collectors.toList());
-        
-        return ApiResponse.success(PagedApiResponse.success(
-            responses, 
-            query.getCurrent(), 
-            query.getSize(), 
-            result.total()
-        ));
+        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
     }
 
     /**
-     * 更新标品规格价格
-     * @param request 更新请求参数
-     * @return 操作结果
+     * 分页查询成品商品规格列表
+     * @param rmfId 工厂 ID，不能为空
+     * @param productId 成品商品 ID，不能为空
+     * @param current 当前页码，从 1 开始
+     * @param size 每页大小
+     * @return 分页查询结果
      */
-    @PutMapping("/spec/price")
-    public ApiResponse<String> updateSpecPrice(@Valid @RequestBody UpdateSpecPriceRequest request) {
-        mtsProductCfgService.updateSpecPrice(
-                request.getManufacturerId(),
-                request.getProductId(),
-                request.getSpecId(),
-                request.getPrice());
-        return ApiResponse.success("success");
-    }
-
-    /**
-     * 逻辑删除标品规格
-     * @param manufacturerId 制造商 ID
-     * @param productId 产品 ID
-     * @param specId 规格 ID
-     * @return 操作结果
-     */
-    @DeleteMapping("/spec")
-    public ApiResponse<String> deleteSpec(
-            @RequestParam String manufacturerId,
+    @GetMapping("/product-specs")
+    public PagedApiResponse<MtsProductSpecResponse> findMTSProductSpecs(
+            @RequestParam String rmfId,
             @RequestParam String productId,
-            @RequestParam String specId) {
-        mtsProductCfgService.deleteSpec(manufacturerId, productId, specId);
-        return ApiResponse.success("success");
+            @RequestParam int current,
+            @RequestParam int size) {
+        
+        ProductCoreApiService.PagedResult<MtsProductSpecResponse> result =
+            productApiService.findMTSProductSpecs(rmfId, productId, current, size);
+        
+        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
     }
 
     /**
-     * 逻辑删除整个标品商品配置
-     * @param manufacturerId 制造商 ID
-     * @param productId 产品 ID
+     * 配置成品商品规格
+     * @param request 配置请求参数
      * @return 操作结果
      */
-    @DeleteMapping("/product")
-    public ApiResponse<String> deleteProductCfg(
-            @RequestParam String manufacturerId,
-            @RequestParam String productId) {
-        mtsProductCfgService.deleteProductCfg(manufacturerId, productId);
+    @PostMapping("/product-specs/config")
+    public ApiResponse<String> configMTSProductSpec(@Valid @RequestBody ConfigMTSProductSpecRequest request) {
+        
+        productApiService.configMTSProductSpec(
+            request.getRmfId(),
+            request.getMtsProductSpecId(),
+            request.getStock(),
+            request.getUnitPrice(),
+            request.getPrice()
+        );
         return ApiResponse.success("success");
     }
 

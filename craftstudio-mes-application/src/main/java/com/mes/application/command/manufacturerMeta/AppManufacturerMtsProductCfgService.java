@@ -1,5 +1,7 @@
 package com.mes.application.command.manufacturerMeta;
 
+import com.mes.application.command.api.ProductCoreApiService;
+import com.mes.application.command.api.resp.MtsProductCategoryResponse;
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.service.ManufacturerMtsProductCfgService;
@@ -15,9 +17,11 @@ import java.util.List;
 public class AppManufacturerMtsProductCfgService {
 
     private final ManufacturerMtsProductCfgService mtsProductCfgService;
+    private final ProductCoreApiService productApiService;
 
-    public AppManufacturerMtsProductCfgService(ManufacturerMtsProductCfgService mtsProductCfgService) {
+    public AppManufacturerMtsProductCfgService(ManufacturerMtsProductCfgService mtsProductCfgService, ProductCoreApiService productApiService) {
         this.mtsProductCfgService = mtsProductCfgService;
+        this.productApiService = productApiService;
     }
 
     /**
@@ -40,7 +44,7 @@ public class AppManufacturerMtsProductCfgService {
             throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
         }
 
-        List<ManufacturerMtsProductCfg> items = mtsProductCfgService.findByManufacturerIdAndProductName(
+        List<ManufacturerMtsProductCfg> items = productApiService.findMtsProductCfgsByManufacturerId(
                 manufacturerId, productName, (int) query.getCurrent(), query.getSize());
         
         long total = items.size();
@@ -112,5 +116,14 @@ public class AppManufacturerMtsProductCfgService {
         }
 
         mtsProductCfgService.deleteProductCfg(manufacturerId, productId);
+    }
+
+    /**
+     * 根据父分类 ID 查询成品商品分类列表
+     * @param parentId 父分类 ID，null 表示查询首级分类
+     * @return 分类列表
+     */
+    public List<MtsProductCategoryResponse> findCategoriesByParentId(String parentId) {
+        return productApiService.findCategoriesByParentId(parentId);
     }
 }

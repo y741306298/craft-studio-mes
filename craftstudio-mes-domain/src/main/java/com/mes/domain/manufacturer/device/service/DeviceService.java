@@ -29,15 +29,32 @@ public class DeviceService {
         // 参数验证
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在1-100之间");
+            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(deviceName)) {
             throw new BusinessNotAllowException("设备名称不能为空");
         }
 
-        // 根据deviceName进行模糊查询
+        // 根据 deviceName 进行模糊查询
         Map<String, String> searchFilters = new HashMap<>();
         searchFilters.put("deviceInfoName", deviceName);
+        return deviceInfoRepository.fuzzySearch(searchFilters, current, size);
+    }
+
+    public List<Device> findDevicesByCondition(String deviceName, String deviceType, int current, int size) {
+        // 参数验证
+        if (size <= 0 || size > 100) {
+            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+        }
+
+        Map<String, String> searchFilters = new HashMap<>();
+        if (StringUtils.isNotBlank(deviceName)) {
+            searchFilters.put("deviceInfoName", deviceName);
+        }
+        if (StringUtils.isNotBlank(deviceType)) {
+            searchFilters.put("deviceType", deviceType);
+        }
+        
         return deviceInfoRepository.fuzzySearch(searchFilters, current, size);
     }
 
@@ -50,6 +67,21 @@ public class DeviceService {
         if (StringUtils.isNotBlank(deviceName)) {
             Map<String, String> searchFilters = new HashMap<>();
             searchFilters.put("deviceInfoName", deviceName);
+            return deviceInfoRepository.totalByFuzzySearch(searchFilters);
+        } else {
+            return deviceInfoRepository.total();
+        }
+    }
+
+    public long getTotalCount(String deviceName, String deviceType) {
+        if (StringUtils.isNotBlank(deviceName) || StringUtils.isNotBlank(deviceType)) {
+            Map<String, String> searchFilters = new HashMap<>();
+            if (StringUtils.isNotBlank(deviceName)) {
+                searchFilters.put("deviceInfoName", deviceName);
+            }
+            if (StringUtils.isNotBlank(deviceType)) {
+                searchFilters.put("deviceType", deviceType);
+            }
             return deviceInfoRepository.totalByFuzzySearch(searchFilters);
         } else {
             return deviceInfoRepository.total();

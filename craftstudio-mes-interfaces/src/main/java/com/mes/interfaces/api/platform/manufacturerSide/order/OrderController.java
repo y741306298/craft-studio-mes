@@ -1,18 +1,19 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
 import com.mes.application.command.order.AppOrderService;
+import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
-import com.mes.domain.order.orderInfo.entity.OrderInfo;
-import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.mes.interfaces.api.dto.req.order.OrderAddRequest;
-import com.mes.interfaces.api.dto.req.order.OrderListRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.order.OrderInfoResponse;
-import com.mes.interfaces.api.dto.resp.order.OrderItemResponse;
-import com.mes.interfaces.api.dto.resp.order.OrderWithItemsResponse;
+
+import com.mes.application.dto.req.order.OrderAddRequest;
+import com.mes.application.dto.req.order.OrderListRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.order.OrderItemResponse;
+import com.mes.application.dto.resp.order.OrderWithItemsResponse;
+import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,63 +35,83 @@ public class OrderController {
      * @return 分页查询结果
      */
     @PostMapping("/list")
-    public PagedApiResponse<OrderWithItemsResponse> listOrders(
-            @Valid @RequestBody OrderListRequest request) {
+    public PagedApiResponse<OrderItemVO> listOrders(@RequestBody OrderListRequest request) {
         
         // 转换为领域层查询对象
         PagedQuery query = request.toPagedQuery();
         String orderId = request.getOrderId();
         String status = request.getStatus();
+        String customerPhone = request.getCustomerPhone();
+        String createDateStart = request.getCreateDateStart();
+        String createDateEnd = request.getCreateDateEnd();
         
         // 构建查询条件
         OrderQuery orderQuery = new OrderQuery();
         orderQuery.setOrderId(orderId);
+        orderQuery.setManufacturerId(request.getManufacturerId());
         if (status != null && !status.trim().isEmpty()) {
             orderQuery.setStatus(com.mes.domain.order.enums.OrderStatus.valueOf(status));
         }
+        orderQuery.setCustomerPhone(customerPhone);
+        
+        // 处理日期字符串转换为 Date 对象
+        if (createDateStart != null && !createDateStart.trim().isEmpty()) {
+            try {
+                orderQuery.setStartTime(new java.text.SimpleDateFormat("yyyy-MM-dd").parse(createDateStart));
+            } catch (java.text.ParseException e) {
+                throw new IllegalArgumentException("开始日期格式错误，应为 yyyy-MM-dd");
+            }
+        }
+        if (createDateEnd != null && !createDateEnd.trim().isEmpty()) {
+            try {
+                orderQuery.setEndTime(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(createDateEnd + " 23:59:59"));
+            } catch (java.text.ParseException e) {
+                throw new IllegalArgumentException("结束日期格式错误，应为 yyyy-MM-dd");
+            }
+        }
+        
         orderQuery.setPagedQuery(query);
         
         // 调用应用服务查询数据
-        var result = appOrderService.findOrdersWithItems(orderQuery);
-        
-        // 转换为响应 DTO
-        List<OrderWithItemsResponse> responses = result.items().stream()
-                .map(OrderWithItemsResponse::from)
-                .toList();
-        
+        PagedResult<OrderItemVO> ordersWithItems = appOrderService.findOrdersWithItems(orderQuery);
         // 返回分页响应
-        return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
+        return PagedApiResponse.success((List<OrderItemVO>) ordersWithItems.items(), query.getCurrent(), query.getSize(), ordersWithItems.total());
     }
 
+
     /**
-     * 根据 ID 获取订单详情（包含订单项）
-     * @param id 订单 ID
-     * @return 订单详情
+     * 根据订单项 ID 获取详情（包含生产工件）
+     * @param orderItemId 订单项 ID
+     * @return 订单项详情及生产工件
      */
-    @GetMapping("/{id}")
-    public ApiResponse<OrderWithItemsResponse> getOrderWithItemsById(@PathVariable String id) {
-        OrderWithItemsVO vo = appOrderService.getOrderWithItemsById(id);
-        OrderWithItemsResponse response = OrderWithItemsResponse.from(vo);
+    @GetMapping("/item/{orderItemId}")
+    public ApiResponse<OrderItemResponse> getOrderItemWithProductionPieces(@RequestBody String orderItemId) {
+        var orderItem = appOrderService.getOrderItemWithProductionPieces(orderItemId);
+        OrderItemResponse response = OrderItemResponse.from(orderItem);
         return ApiResponse.success(response);
     }
 
     /**
      * 根据订单号获取订单详情 (包含订单项)
-     * @param orderId 订单号
      * @return 订单详情
      */
-    @GetMapping("/byOrderId/{orderId}")
-    public ApiResponse<OrderWithItemsResponse> getOrderWithItemsByOrderId(@PathVariable String orderId) {
-        OrderWithItemsVO vo = appOrderService.getOrderWithItemsByOrderId(orderId);
+    @PostMapping("/byOrderId")
+    public ApiResponse<OrderWithItemsResponse> getOrderWithItemsByOrderId(@PathVariable OrderListRequest request) {
+        OrderQuery orderQuery = new OrderQuery();
+        orderQuery.setOrderId(request.getOrderId());
+        orderQuery.setPagedQuery(request.toPagedQuery());
+        OrderWithItemsVO vo = appOrderService.getOrderWithItemsByOrderId(orderQuery);
         if (vo == null) {
             ApiResponse<OrderWithItemsResponse> response = new ApiResponse<>();
             response.setCode(ApiResponse.RepStatusCode.badParams);
-            response.setMessage("订单不存在：" + orderId);
+            response.setMessage("订单不存在：" + request.getOrderId());
             return response;
         }
         OrderWithItemsResponse response = OrderWithItemsResponse.from(vo);
         return ApiResponse.success(response);
     }
+
+
 
     /**
      * 新增订单及订单项
@@ -99,15 +120,30 @@ public class OrderController {
      */
     @PostMapping("/add")
     public ApiResponse<String> addOrderWithItems(@Valid @RequestBody OrderAddRequest request) {
-        // 转换订单信息
-        OrderInfo orderInfo = request.getOrderInfo();
-        List<OrderItem> orderItems = request.getOrderItems();
-        
         // 调用应用服务添加订单
-        appOrderService.addOrderWithItems(orderInfo, orderItems);
+        appOrderService.addOrderWithItems(request);
         
         return ApiResponse.success("success");
     }
 
+    /**
+     * 切换订单项加急状态（加急/取消加急）
+     * @param id 订单项 ID
+     * @return 操作结果
+     */
+    @GetMapping("/toggleUrgent")
+    public ApiResponse<String> toggleOrderItemUrgent(@RequestParam String id) {
+        appOrderService.toggleOrderItemUrgent(id);
+        return ApiResponse.success("success");
+    }
+
+    /**
+     * 获取所有订单状态枚举
+     * @return 订单状态列表
+     */
+    @GetMapping("/status")
+    public ApiResponse<List<OrderStatus>> getOrderStatusList() {
+        return ApiResponse.success(List.of(OrderStatus.values()));
+    }
 
 }

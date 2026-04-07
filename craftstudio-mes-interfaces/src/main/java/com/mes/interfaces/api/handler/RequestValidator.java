@@ -1,5 +1,5 @@
 package com.mes.interfaces.api.handler;
-import com.mes.interfaces.api.dto.req.base.ApiRequest;
+import com.mes.application.dto.req.base.ApiRequest;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;

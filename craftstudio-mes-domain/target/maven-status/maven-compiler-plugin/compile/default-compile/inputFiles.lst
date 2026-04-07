@@ -63,6 +63,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\repository\ProcedureFlowRepository.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\service\ProcedureFlowService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\service\ProcedureFlowStateMachineService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\vo\MTOProductSpecDTO.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\entity\ProductionCell.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\entity\ProductionPiece.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\enums\ProductionPieceStatus.java
@@ -95,6 +96,7 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\service\OrderInfoService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\service\OrderItemService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\service\OrderPreprocessingService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\vo\MaterialConfig.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\vo\OrderCustomer.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\OrderItemProcedureCfg\entity\OrderItemProcedureCfg.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\algorithm\RegionCodeCompressor.java

@@ -1,9 +1,12 @@
 package com.mes.domain.manufacturer.procedure.service;
 
+import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.procedure.entity.Procedure;
 import com.mes.domain.manufacturer.procedure.repository.ProcedureRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
 import com.mes.domain.shared.util.IdGenerator;
@@ -148,34 +151,38 @@ public class ProcedureService {
         );
     }
 
+
     /**
      * 创建生产工件实体
      * @param orderItem 订单项
      * @param pieceType 工件类型
-     * @param quantity 数量
      * @param imageUrl 图片 URL
      * @return 生产工件实体
      */
-    public ProductionPiece createProductionPiece(OrderItem orderItem,
-                                                 String pieceType, Integer quantity, String imageUrl) {
+    public ProductionPiece createProductionPiece(OrderItem orderItem, String pieceType,  String imageUrl) {
         if (orderItem == null) {
             throw new IllegalArgumentException("订单项不能为空");
         }
-        
+
         ProductionPiece piece = new ProductionPiece();
         piece.setOrderItemId(orderItem.getOrderItemId());
-        
+
         // 从 OrderItem 中获取 ProcedureFlow
         if (orderItem.getProcedureFlow() != null) {
             piece.setProcedureFlow(orderItem.getProcedureFlow());
             piece.setProcedureFlowId(orderItem.getProcedureFlow().getProcedureFlowId());
         }
-        
+
         piece.setProductionPieceType(pieceType);
-        piece.setStatus("PENDING");
-        piece.setQuantity(quantity);
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
+        piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
+        piece.setMaterialConfig(orderItem.getMaterial());
+        piece.setProcessingFlow(orderItem.getProcessingFlow());
+        piece.setManufacturerId(orderItem.getManufacturerId());
+        //再将数量赋予第一节点,其他节点都置零
+        piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
+        piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
         return piece;
     }
-
 }

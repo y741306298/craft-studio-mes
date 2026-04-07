@@ -1,18 +1,21 @@
 package com.mes.interfaces.api.platform.configSide.device;
 
 import com.mes.application.command.device.AppDeviceService;
+import com.mes.application.dto.req.device.DeviceListRequest;
+import com.mes.application.dto.req.device.DeviceRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.device.DeviceListResponse;
 import com.mes.domain.manufacturer.device.entity.Device;
-import com.mes.interfaces.api.dto.req.device.DeviceListRequest;
-import com.mes.interfaces.api.dto.req.device.DeviceRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.device.DeviceListResponse;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
+
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,7 +29,6 @@ public class DeviceController {
     /**
      * 分页查询设备列表
      * @param request 分页请求参数
-     * @param deviceName 设备名称（可选）
      * @return 分页查询结果
      */
     @PostMapping("/list")
@@ -35,8 +37,9 @@ public class DeviceController {
         
         PagedQuery query = request.toPagedQuery();
         String deviceName = request.getDeviceName();
+        String deviceType = request.getDeviceType();
         
-        PagedResult<Device> result = appDeviceService.findDevices(deviceName, query);
+        PagedResult<Device> result = appDeviceService.findDevices(deviceName,deviceType, query);
         
         List<DeviceListResponse> responses = result.items().stream()
                 .map(DeviceListResponse::from)
@@ -58,6 +61,19 @@ public class DeviceController {
     }
 
     /**
+     * 获取所有设备类型
+     * @return 设备类型列表
+     */
+    @GetMapping("/types")
+    public ApiResponse<List<DeviceTypeVO>> getAllDeviceTypes() {
+        List<DeviceTypeVO> typeVOs = Arrays.stream(DeviceType.values())
+                .map(type -> new DeviceTypeVO(type.getCode(), type.getChineseName()))
+                .collect(Collectors.toList());
+        
+        return ApiResponse.success(typeVOs);
+    }
+
+    /**
      * 新增设备
      * @param request 新增请求参数
      * @return 操作结果
@@ -75,7 +91,7 @@ public class DeviceController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateDevice(@Valid @RequestBody DeviceRequest request) {
         Device existingDevice = appDeviceService.findById(request.getId());
         if (existingDevice == null) {
@@ -96,9 +112,41 @@ public class DeviceController {
      * @param id 设备 ID
      * @return 操作结果
      */
-    @DeleteMapping("/{id}")
+    @GetMapping("/delete/{id}")
     public ApiResponse<String> deleteDevice(@PathVariable String id) {
         appDeviceService.deleteDevice(id);
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 设备类型 VO
+     */
+    public static class DeviceTypeVO {
+        private String code;
+        private String name;
+
+        public DeviceTypeVO() {
+        }
+
+        public DeviceTypeVO(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 }

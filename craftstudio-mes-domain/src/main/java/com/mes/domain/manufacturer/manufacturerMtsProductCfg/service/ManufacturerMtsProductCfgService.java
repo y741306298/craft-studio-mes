@@ -7,29 +7,16 @@ import com.mes.domain.manufacturer.manufacturerMtsProductCfg.repository.Manufact
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.vo.ManufacturerMtsProductSpec;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Service
 public class ManufacturerMtsProductCfgService {
 
-    private final RestTemplate restTemplate;
     private final ManufacturerMtsProductCfgRepository repository;
 
-    @Value("${external.api.baseUrl:}")
-    private String externalApiBaseUrl;
-
-    public ManufacturerMtsProductCfgService(RestTemplate restTemplate, ManufacturerMtsProductCfgRepository repository) {
-        this.restTemplate = restTemplate;
+    public ManufacturerMtsProductCfgService(ManufacturerMtsProductCfgRepository repository) {
         this.repository = repository;
     }
 
@@ -54,77 +41,8 @@ public class ManufacturerMtsProductCfgService {
             throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
         }
 
-        try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/mts-products?manufacturerId=%s&current=%d&size=%d",
-                    externalApiBaseUrl, manufacturerId, current, size));
-            
-            if (StringUtils.isNotBlank(productName)) {
-                urlBuilder.append("&productName=").append(productName);
-            }
-            
-            ResponseEntity<ApiResponse<List<ManufacturerMtsProductCfg>>> response = restTemplate.exchange(
-                    urlBuilder.toString(),
-                    HttpMethod.GET,
-                    null,
-                    (Class<ApiResponse<List<ManufacturerMtsProductCfg>>>) (Class<?>) ApiResponse.class
-            );
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return response.getBody().getData();
-            } else {
-                throw new BusinessNotAllowException("获取标品商品配置失败：" + response.getStatusCode());
-            }
-        } catch (Exception e) {
-            throw new BusinessNotAllowException("调用外部系统失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 更新单个标品商品的价格和状态信息（调用外部系统接口）
-     * 
-     * @param productCfgId 标品商品配置 ID，不能为空
-     * @param price 新的价格信息，可为 null（为 null 时不更新价格）
-     * @param status 新的状态信息，可为 null（为 null 时不更新状态）
-     * @throws BusinessNotAllowException 当参数不合法或外部系统调用失败时抛出此异常
-     */
-    public void updateProductPriceAndStatus(String productCfgId, UnitPrice price, String status) {
-        if (StringUtils.isBlank(productCfgId)) {
-            throw new BusinessNotAllowException("标品商品配置 ID 不能为空");
-        }
-
-        if (price == null && status == null) {
-            throw new BusinessNotAllowException("至少需要提供价格或状态中的一个");
-        }
-
-        if (price != null && price.getPrice() == null) {
-            throw new BusinessNotAllowException("价格不能为空");
-        }
-
-        try {
-            String url = String.format("%s/mts-products/%s/price-status",
-                    externalApiBaseUrl, productCfgId);
-
-            UpdatePriceStatusRequest request = new UpdatePriceStatusRequest();
-            request.setPrice(price);
-            request.setStatus(status);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<UpdatePriceStatusRequest> entity = new HttpEntity<>(request, headers);
-
-            ResponseEntity<ApiResponse<Void>> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.PUT,
-                    entity,
-                    (Class<ApiResponse<Void>>) (Class<?>) ApiResponse.class
-            );
-
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new BusinessNotAllowException("更新标品商品信息失败：" + response.getStatusCode());
-            }
-        } catch (Exception e) {
-            throw new BusinessNotAllowException("调用外部系统失败：" + e.getMessage());
-        }
+        // TODO: 需要在 application 层调用 ProductApiService
+        throw new UnsupportedOperationException("此方法已移至 ProductApiService");
     }
 
     /**
@@ -300,30 +218,5 @@ public class ManufacturerMtsProductCfgService {
 
         cfg.setStatus(CfgStatus.INVALID);
         repository.update(cfg);
-    }
-
-    // 内部类用于接收外部 API 响应
-    private static class ApiResponse<T> {
-        private Integer code;
-        private String message;
-        private T data;
-
-        public Integer getCode() { return code; }
-        public void setCode(Integer code) { this.code = code; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public T getData() { return data; }
-        public void setData(T data) { this.data = data; }
-    }
-
-    // 内部类用于发送更新请求
-    private static class UpdatePriceStatusRequest {
-        private UnitPrice price;
-        private String status;
-
-        public UnitPrice getPrice() { return price; }
-        public void setPrice(UnitPrice price) { this.price = price; }
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
     }
 }

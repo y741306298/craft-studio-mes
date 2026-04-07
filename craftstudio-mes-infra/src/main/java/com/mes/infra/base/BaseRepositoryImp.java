@@ -156,10 +156,29 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
         Criteria criteria = null;
         for(String key:filters.keySet()){
             Object value = filters.get(key);
-            if(criteria == null){
-                criteria = Criteria.where(key).is(value);
-            }else {
-                criteria.and(key).is(value);
+            
+            // 处理范围查询：key 格式为 "fieldName_gte" 或 "fieldName_lte"
+            if (key.endsWith("_gte")) {
+                String fieldName = key.substring(0, key.length() - 4);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).gte(value);
+                } else {
+                    criteria.and(fieldName).gte(value);
+                }
+            } else if (key.endsWith("_lte")) {
+                String fieldName = key.substring(0, key.length() - 4);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).lte(value);
+                } else {
+                    criteria.and(fieldName).lte(value);
+                }
+            } else {
+                // 普通等值查询
+                if (criteria == null) {
+                    criteria = Criteria.where(key).is(value);
+                } else {
+                    criteria.and(key).is(value);
+                }
             }
         }
         if(criteria == null){
@@ -179,10 +198,29 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
         Criteria criteria = null;
         for(String key:filters.keySet()){
             Object value = filters.get(key);
-            if(criteria == null){
-                criteria = Criteria.where(key).is(value);
-            }else {
-                criteria.and(key).is(value);
+            
+            // 处理范围查询：key 格式为 "fieldName_gte" 或 "fieldName_lte"
+            if (key.endsWith("_gte")) {
+                String fieldName = key.substring(0, key.length() - 4);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).gte(value);
+                } else {
+                    criteria.and(fieldName).gte(value);
+                }
+            } else if (key.endsWith("_lte")) {
+                String fieldName = key.substring(0, key.length() - 4);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).lte(value);
+                } else {
+                    criteria.and(fieldName).lte(value);
+                }
+            } else {
+                // 普通等值查询
+                if (criteria == null) {
+                    criteria = Criteria.where(key).is(value);
+                } else {
+                    criteria.and(key).is(value);
+                }
             }
         }
         if(criteria == null){

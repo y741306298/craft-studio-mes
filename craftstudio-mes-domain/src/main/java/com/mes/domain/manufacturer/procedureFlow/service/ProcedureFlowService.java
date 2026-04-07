@@ -6,6 +6,7 @@ import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.repository.ProcedureFlowRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
 import com.mes.domain.shared.util.IdGenerator;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -200,27 +201,96 @@ public class ProcedureFlowService {
     }
 
     /**
-     * 解析工艺流程字符串，转换为 ProcedureFlowNode 列表
-     * @param processingFlow 工艺流程字符串，格式如"开料 - 裁切 - 封边 - 异形"
+     * 解析工艺流程，完善生产节点
      * @return 工艺节点列表
      */
-    public List<ProcedureFlowNode> parseProcessingFlow(String processingFlow) {
-        if (StringUtils.isBlank(processingFlow)) {
+    public ProcedureFlow parseProcessingFlow(ProcedureFlow procedureFlow) {
+        // 添加默认的"预处理"节点作为第一个节点
+        ProcedureFlowNode preTreatmentNode = new ProcedureFlowNode();
+        preTreatmentNode.setNodeId("NODE_PRETREATMENT");
+        preTreatmentNode.setNodeName("预处理");
+        preTreatmentNode.setNodeOrder(0);
+        preTreatmentNode.setNodeStatus(NodeStatus.PENDING);
+        procedureFlow.getNodes().add(0,preTreatmentNode);
+        return procedureFlow;
+    }
+
+    /**
+     * 从 MTOProductSpecDTO 中解析工艺流程，转换为 ProcedureFlowNode 列表
+     * @param mtoProduct MTO 产品规格 DTO
+     * @return 工艺节点列表
+     */
+    public List<ProcedureFlowNode> parseProcessingFlow(MTOProductSpecDTO mtoProduct) {
+        if (mtoProduct == null) {
+            throw new BusinessNotAllowException("MTO 产品规格不能为空");
+        }
+
+        // 从 MTOProductSpecDTO 中获取 processFlow
+        Object processFlow = getProcessFlowFromMTOProduct(mtoProduct);
+        if (processFlow == null) {
             throw new BusinessNotAllowException("工艺流程不能为空");
         }
 
-        String[] nodeNames = processingFlow.split("-");
-        List<ProcedureFlowNode> nodes = new java.util.ArrayList<>();
-
-        for (int i = 0; i < nodeNames.length; i++) {
-            ProcedureFlowNode node = new ProcedureFlowNode();
-            node.setNodeId("NODE_" + i);
-            node.setNodeName(nodeNames[i].trim());
-            node.setNodeOrder(i);
-            nodes.add(node);
+        // 获取节点列表
+        List<Object> nodes = getNodesFromProcessFlow(processFlow);
+        if (nodes == null || nodes.isEmpty()) {
+            throw new BusinessNotAllowException("工艺流程节点不能为空");
         }
 
-        return nodes;
+        List<ProcedureFlowNode> procedureFlowNodes = new java.util.ArrayList<>();
+
+        // 添加默认的"预处理"节点作为第一个节点
+        ProcedureFlowNode preTreatmentNode = new ProcedureFlowNode();
+        preTreatmentNode.setNodeId("NODE_PRETREATMENT");
+        preTreatmentNode.setNodeName("预处理");
+        preTreatmentNode.setNodeOrder(0);
+        preTreatmentNode.setNodeStatus(NodeStatus.PENDING);
+        procedureFlowNodes.add(preTreatmentNode);
+
+        // 转换节点
+        for (int i = 0; i < nodes.size(); i++) {
+            Object nodeObj = nodes.get(i);
+            try {
+                java.lang.reflect.Method getNodeNameMethod = nodeObj.getClass().getDeclaredMethod("getNodeName");
+                String nodeName = (String) getNodeNameMethod.invoke(nodeObj);
+                
+                ProcedureFlowNode node = new ProcedureFlowNode();
+                node.setNodeId("NODE_" + (i + 1));
+                node.setNodeName(nodeName != null ? nodeName : "工序" + (i + 1));
+                node.setNodeOrder(i + 1);
+                node.setNodeStatus(NodeStatus.PENDING);
+                procedureFlowNodes.add(node);
+            } catch (Exception e) {
+                throw new BusinessNotAllowException("解析工艺节点失败：" + e.getMessage());
+            }
+        }
+
+        return procedureFlowNodes;
+    }
+
+    /**
+     * 从 MTOProductSpecDTO 中获取 processFlow
+     */
+    private Object getProcessFlowFromMTOProduct(MTOProductSpecDTO mtoProduct) {
+        try {
+            java.lang.reflect.Method getProcessFlowMethod = mtoProduct.getClass().getDeclaredMethod("getProcessFlow");
+            return getProcessFlowMethod.invoke(mtoProduct);
+        } catch (Exception e) {
+            throw new BusinessNotAllowException("无法获取 processFlow 信息：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 从 processFlow 中获取节点列表
+     */
+    @SuppressWarnings("unchecked")
+    private List<Object> getNodesFromProcessFlow(Object processFlow) {
+        try {
+            java.lang.reflect.Method getNodesMethod = processFlow.getClass().getDeclaredMethod("getNodes");
+            return (List<Object>) getNodesMethod.invoke(processFlow);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

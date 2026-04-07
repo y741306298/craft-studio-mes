@@ -1,100 +1,71 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
-import com.mes.application.command.manufacturerMeta.AppManufacturerProcessCfgService;
-import com.mes.domain.base.UnitPrice;
-import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.entity.ManufacturerProcessPriceCfg;
-import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.vo.MaterialProcessPrice;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.ManufacturerProcessCfgListRequest;
-import com.mes.interfaces.api.dto.req.manufacturerMeta.UpdateProcessPriceRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.manufacturerMeta.ManufacturerProcessCfgListResponse;
-import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
-import jakarta.validation.Valid;
+import com.mes.application.command.api.ProductCoreApiService;
+import com.mes.application.command.api.resp.ProcessMetaResponse;
+
+import com.mes.application.dto.req.manufacturerMeta.UpdateProcessPriceRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/configSide/processCfg")
 public class ManufacturerProcessCfgController {
 
     @Autowired
-    private AppManufacturerProcessCfgService processCfgService;
+    private ProductCoreApiService productApiService;
 
     /**
-     * 分页查询工厂的工艺价格配置列表
-     * @param request 分页请求参数
-     * @param manufacturerId 制造商 ID（必填）
+     * 分页查找工艺定义
+     * @param rmfId 工厂 ID，不能为空
+     * @param current 当前页码，从 1 开始
+     * @param size 每页大小
      * @return 分页查询结果
      */
-    @PostMapping("/list")
-    public ApiResponse<PagedApiResponse<ManufacturerProcessCfgListResponse>> findProcessPriceCfgs(
-            @Valid @RequestBody ManufacturerProcessCfgListRequest request) {
-
-        PagedQuery query = request.toPagedQuery();
-        String manufacturerId = request.getManufacturerId();
-        List<ManufacturerProcessPriceCfg> result = processCfgService.getProcessPriceCfgByManufacturerId(
-                manufacturerId, (int) query.getCurrent(), query.getSize());
-
-        // 转换为响应 DTO
-        List<ManufacturerProcessCfgListResponse> responses = result.stream()
-                .map(ManufacturerProcessCfgListResponse::from)
-                .collect(Collectors.toList());
-
-        return ApiResponse.success(PagedApiResponse.success(
-                responses,
-                query.getCurrent(),
-                query.getSize(),
-                result.size()
-        ));
+    @GetMapping("/list")
+    public PagedApiResponse<ProcessMetaResponse> listProcessMetas(
+            @RequestParam String rmfId,
+            @RequestParam int current,
+            @RequestParam int size) {
+        
+        ProductCoreApiService.PagedResult<ProcessMetaResponse> result =
+            productApiService.listProcessMetas(rmfId, current, size);
+        
+        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
     }
 
     /**
-     * 更新工艺价格配置
-     * @param request 更新请求参数
-     * @return 操作结果
+     * 按名字模糊搜索工艺定义
+     * @param rmfId 工厂 ID，不能为空
+     * @param name 名字字段搜索内容，不能为空
+     * @param current 当前页码，从 1 开始
+     * @param size 每页大小
+     * @return 分页查询结果
      */
-    @PutMapping("/price")
-    public ApiResponse<String> updateProcessPrice(@Valid @RequestBody UpdateProcessPriceRequest request) {
-        // 转换 MaterialProcessPriceRequest 到 MaterialProcessPrice
-        List<MaterialProcessPrice> materialProcessPrices = null;
-        if (request.getMaterialProcessPrices() != null && !request.getMaterialProcessPrices().isEmpty()) {
-            materialProcessPrices = request.getMaterialProcessPrices().stream()
-                    .map(dto -> {
-                        MaterialProcessPrice mpp = new MaterialProcessPrice();
-                        mpp.setMaterialId(dto.getMaterialId());
-                        mpp.setMaterialName(dto.getMaterialName());
-                        mpp.setProcessPrice(dto.getProcessPrice());
-                        mpp.setBasePrice(dto.getBasePrice());
-                        return mpp;
-                    })
-                    .collect(Collectors.toList());
-        }
-
-        processCfgService.updateProcessPriceConfig(
-                request.getManufacturerId(),
-                request.getProcessId(),
-                request.getProcessPrice(),
-                request.getBasePrice(),
-                materialProcessPrices);
-
-        return ApiResponse.success("success");
+    @GetMapping("/search")
+    public PagedApiResponse<ProcessMetaResponse> searchProcessMetas(
+            @RequestParam String rmfId,
+            @RequestParam String name,
+            @RequestParam int current,
+            @RequestParam int size) {
+        
+        ProductCoreApiService.PagedResult<ProcessMetaResponse> result =
+            productApiService.searchProcessMetas(rmfId, name, current, size);
+        
+        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
     }
 
     /**
-     * 逻辑删除工艺价格配置
-     * @param manufacturerId 制造商 ID
-     * @param processId 工艺 ID
+     * 配置工艺定义
+
      * @return 操作结果
      */
-    @DeleteMapping("/process")
-    public ApiResponse<String> deleteProcessPriceConfig(
-            @RequestParam String manufacturerId,
-            @RequestParam String processId) {
-        processCfgService.deleteProcessPriceConfig(manufacturerId, processId);
+    @PostMapping("/config")
+    public ApiResponse<String> configProcessMeta(
+            @RequestBody UpdateProcessPriceRequest request) {
+        productApiService.configProcessMeta(request.getRmfId(), request.getProcessMetaId(), request.getProcessPrice());
         return ApiResponse.success("success");
     }
+
 }

@@ -1,14 +1,14 @@
 package com.mes.interfaces.api.platform.configSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryRouteService;
+import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
+import com.mes.application.dto.req.delivery.DeliveryRouteRequest;
+import com.mes.application.dto.resp.ApiResponse;
+import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.delivery.DeliveryRouteListResponse;
+import com.mes.application.dto.resp.delivery.DeliveryRouteNodeRequest;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
-import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteListRequest;
-import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteNodeRequest;
-import com.mes.interfaces.api.dto.req.delivery.DeliveryRouteRequest;
-import com.mes.interfaces.api.dto.resp.ApiResponse;
-import com.mes.interfaces.api.dto.resp.PagedApiResponse;
-import com.mes.interfaces.api.dto.resp.delivery.DeliveryRouteListResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -28,7 +28,6 @@ public class DeliveryRouteController {
     /**
      * 分页查询配送路线列表
      * @param request 分页请求参数
-     * @param routeName 路线名称（可选）
      * @return 分页查询结果
      */
     @PostMapping("/list")
