@@ -1,9 +1,10 @@
 package com.mes.domain.manufacturer.typesetting.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.repository.TypesettingRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,7 @@ public class TypesettingService {
             int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -127,10 +128,10 @@ public class TypesettingService {
     public List<TypesettingInfo> findTypesettingByMaterial(String material, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(material)) {
-            throw new BusinessNotAllowException("材质不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "材质不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -148,10 +149,10 @@ public class TypesettingService {
     public List<TypesettingInfo> findTypesettingByStatus(TypesettingStatus status, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (status == null) {
-            throw new BusinessNotAllowException("排版状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版状态不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -196,10 +197,10 @@ public class TypesettingService {
      */
     public TypesettingInfo addTypesetting(TypesettingInfo typesettingInfo) {
         if (typesettingInfo == null) {
-            throw new BusinessNotAllowException("排版信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不能为空");
         }
         if (StringUtils.isBlank(typesettingInfo.getTypesettingId())) {
-            throw new BusinessNotAllowException("排版文件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版文件 ID 不能为空");
         }
         
         if (typesettingInfo.getStatus() == null) {
@@ -207,11 +208,11 @@ public class TypesettingService {
         }
         
         if (typesettingInfo.getQuantity() != null && typesettingInfo.getQuantity() < 0) {
-            throw new BusinessNotAllowException("数量不能为负数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "数量不能为负数");
         }
         
         if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getCompletedQuantity() < 0) {
-            throw new BusinessNotAllowException("已完成数量不能为负数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能为负数");
         }
         
         return typesettingRepository.add(typesettingInfo);
@@ -223,23 +224,23 @@ public class TypesettingService {
      */
     public void updateTypesetting(TypesettingInfo typesettingInfo) {
         if (typesettingInfo == null) {
-            throw new BusinessNotAllowException("排版信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不能为空");
         }
         if (StringUtils.isBlank(typesettingInfo.getId())) {
-            throw new BusinessNotAllowException("排版信息 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
         }
         
         if (typesettingInfo.getQuantity() != null && typesettingInfo.getQuantity() < 0) {
-            throw new BusinessNotAllowException("数量不能为负数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "数量不能为负数");
         }
         
         if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getCompletedQuantity() < 0) {
-            throw new BusinessNotAllowException("已完成数量不能为负数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能为负数");
         }
         
         if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getQuantity() != null 
             && typesettingInfo.getCompletedQuantity() > typesettingInfo.getQuantity()) {
-            throw new BusinessNotAllowException("已完成数量不能大于总数量");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能大于总数量");
         }
         
         typesettingRepository.update(typesettingInfo);
@@ -252,10 +253,10 @@ public class TypesettingService {
      */
     public void updateTypesettingStatus(String id, TypesettingStatus status) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("排版信息 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
         }
         if (status == null) {
-            throw new BusinessNotAllowException("排版状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版状态不能为空");
         }
         
         TypesettingInfo typesettingInfo = findById(id);
@@ -272,19 +273,19 @@ public class TypesettingService {
      */
     public void updateCompletedQuantity(String id, Integer completedQuantity) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("排版信息 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
         }
         if (completedQuantity == null) {
-            throw new BusinessNotAllowException("完成数量不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能为空");
         }
         if (completedQuantity < 0) {
-            throw new BusinessNotAllowException("完成数量不能为负数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能为负数");
         }
         
         TypesettingInfo typesettingInfo = findById(id);
         if (typesettingInfo != null) {
             if (typesettingInfo.getQuantity() != null && completedQuantity > typesettingInfo.getQuantity()) {
-                throw new BusinessNotAllowException("完成数量不能大于总数量");
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能大于总数量");
             }
             typesettingInfo.setCompletedQuantity(completedQuantity);
             updateTypesetting(typesettingInfo);
@@ -329,7 +330,7 @@ public class TypesettingService {
      */
     public void deleteTypesetting(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         
         TypesettingInfo typesettingInfo = typesettingRepository.findById(id);
@@ -345,7 +346,7 @@ public class TypesettingService {
      */
     public TypesettingInfo findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         return typesettingRepository.findById(id);
     }

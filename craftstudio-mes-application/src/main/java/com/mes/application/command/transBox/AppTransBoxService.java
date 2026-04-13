@@ -1,5 +1,6 @@
 package com.mes.application.command.transBox;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.application.command.transBox.vo.StorageInResult;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -9,7 +10,7 @@ import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageSlotService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -52,35 +53,35 @@ public class AppTransBoxService {
             String operatorName) {
 
         if (StringUtils.isBlank(cellId)) {
-            throw new BusinessNotAllowException("生产单元 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产单元 ID 不能为空");
         }
         if (StringUtils.isBlank(storageTankId)) {
-            throw new BusinessNotAllowException("储存柜 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("入库数量必须为正整数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "入库数量必须为正整数");
         }
         if (StringUtils.isBlank(operatorId)) {
-            throw new BusinessNotAllowException("操作人 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "操作人 ID 不能为空");
         }
 
         ProductionPiece productionPiece = productionPieceService.findById(cellId);
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在");
         }
 
         if (productionPiece.getQuantity() == null || productionPiece.getQuantity() < quantity) {
-            throw new BusinessNotAllowException("生产工件数量不足");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件数量不足");
         }
 
         StorageTank storageTank = storageTankService.findById(storageTankId);
         if (storageTank == null) {
-            throw new BusinessNotAllowException("储存柜不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜不存在");
         }
 
         StorageSlot availableSlot = storageTank.findAvailableSlot();
         if (availableSlot == null) {
-            throw new BusinessNotAllowException("储存柜没有可用储位");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜没有可用储位");
         }
 
         availableSlot.storeItem(
@@ -144,35 +145,35 @@ public class AppTransBoxService {
             String operatorName) {
 
         if (StringUtils.isBlank(pieceId)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
         if (StringUtils.isBlank(storageTankId)) {
-            throw new BusinessNotAllowException("储存柜 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("入库数量必须为正整数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "入库数量必须为正整数");
         }
         if (StringUtils.isBlank(operatorId)) {
-            throw new BusinessNotAllowException("操作人 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "操作人 ID 不能为空");
         }
 
         ProductionPiece productionPiece = productionPieceService.findById(pieceId);
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在");
         }
 
         if (productionPiece.getQuantity() == null || productionPiece.getQuantity() < quantity) {
-            throw new BusinessNotAllowException("生产工件数量不足");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件数量不足");
         }
 
         StorageTank storageTank = storageTankService.findById(storageTankId);
         if (storageTank == null) {
-            throw new BusinessNotAllowException("储存柜不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜不存在");
         }
 
         StorageSlot availableSlot = storageTank.findAvailableSlot();
         if (availableSlot == null) {
-            throw new BusinessNotAllowException("储存柜没有可用储位");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜没有可用储位");
         }
 
         availableSlot.storeItem(
@@ -236,34 +237,34 @@ public class AppTransBoxService {
             String operatorName) {
 
         if (StringUtils.isBlank(storageTankId)) {
-            throw new BusinessNotAllowException("储存柜 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜 ID 不能为空");
         }
         if (StringUtils.isBlank(slotId)) {
-            throw new BusinessNotAllowException("储位 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("出库数量必须为正整数");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "出库数量必须为正整数");
         }
         if (StringUtils.isBlank(operatorId)) {
-            throw new BusinessNotAllowException("操作人 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "操作人 ID 不能为空");
         }
 
         StorageTank storageTank = storageTankService.findById(storageTankId);
         if (storageTank == null) {
-            throw new BusinessNotAllowException("储存柜不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜不存在");
         }
 
         StorageSlot slot = storageTank.getStorageSlots().stream()
                 .filter(s -> slotId.equals(s.getSlotId()))
                 .findFirst()
-                .orElseThrow(() -> new BusinessNotAllowException("储位不存在"));
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位不存在"));
 
         if (!slot.isOccupied()) {
-            throw new BusinessNotAllowException("储位未被占用，无法出库");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位未被占用，无法出库");
         }
 
         if (slot.getQuantity() < quantity) {
-            throw new BusinessNotAllowException("储位物品数量不足");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位物品数量不足");
         }
 
         Integer remainingQuantity = slot.getQuantity() - quantity;
@@ -312,22 +313,22 @@ public class AppTransBoxService {
      */
     public StorageInResult storeProductionPiece(String productionPieceId, Integer quantity, String manufacturerId) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("存放数量必须大于 0");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存放数量必须大于 0");
         }
 
         // 1. 获取生产工件信息
         ProductionPiece piece = productionPieceService.findById(productionPieceId);
         if (piece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         // 2. 查找可用的储存柜（按制造商筛选）
         List<StorageTank> availableTanks = findAvailableStorageTanks(manufacturerId);
         if (availableTanks.isEmpty()) {
-            throw new BusinessNotAllowException("没有可用的储存柜");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "没有可用的储存柜");
         }
 
         // 3. 遍历储存柜，找到合适的储位
@@ -348,7 +349,7 @@ public class AppTransBoxService {
         }
 
         if (selectedTank == null || selectedSlot == null) {
-            throw new BusinessNotAllowException("所有储存柜均无可用储位");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "所有储存柜均无可用储位");
         }
 
         // 4. 分配储位并存储
@@ -411,19 +412,19 @@ public class AppTransBoxService {
      */
     public SlotRecommendResult recommendSlot(String productionPieceId, String manufacturerId) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
 
         // 1. 获取生产工件信息
         ProductionPiece piece = productionPieceService.findById(productionPieceId);
         if (piece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         // 2. 查找所有可用的储存柜
         List<StorageTank> availableTanks = findAvailableStorageTanks(manufacturerId);
         if (availableTanks.isEmpty()) {
-            throw new BusinessNotAllowException("没有可用的储存柜");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "没有可用的储存柜");
         }
 
         List<RecommendedSlotInfo> recommendedSlots = new ArrayList<>();
@@ -500,39 +501,39 @@ public class AppTransBoxService {
     public StorageInResult storeProductionPiece(String productionPieceId, Integer quantity, 
                                                 String storageTankId, String slotId) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("存放数量必须大于 0");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存放数量必须大于 0");
         }
         if (StringUtils.isBlank(storageTankId)) {
-            throw new BusinessNotAllowException("储存柜 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜 ID 不能为空");
         }
         if (StringUtils.isBlank(slotId)) {
-            throw new BusinessNotAllowException("储位 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位 ID 不能为空");
         }
 
         // 1. 获取生产工件信息
         ProductionPiece piece = productionPieceService.findById(productionPieceId);
         if (piece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         // 2. 获取储存柜信息
         StorageTank selectedTank = storageTankService.findById(storageTankId);
         if (selectedTank == null) {
-            throw new BusinessNotAllowException("储存柜不存在：" + storageTankId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储存柜不存在：" + storageTankId);
         }
 
         // 3. 获取储位信息
         StorageSlot selectedSlot = findSlotById(selectedTank, slotId);
         if (selectedSlot == null) {
-            throw new BusinessNotAllowException("储位不存在：" + slotId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位不存在：" + slotId);
         }
 
         // 4. 检查储位是否可用
         if ("OCCUPIED".equals(selectedSlot.getStatus())) {
-            throw new BusinessNotAllowException("储位已被占用：" + slotId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "储位已被占用：" + slotId);
         }
 
         // 5. 分配储位并存储

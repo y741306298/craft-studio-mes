@@ -1,8 +1,9 @@
 package com.mes.domain.delivery.deliveryNet.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.delivery.deliveryNet.entity.DeliveryNet;
 import com.mes.domain.delivery.deliveryNet.repository.DeliveryNetRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,10 +24,10 @@ public class DeliveryNetService {
     public List<DeliveryNet> findDeliveryNetsByName(String deliveryNetName, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(deliveryNetName)) {
-            throw new BusinessNotAllowException("配送网络名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络名称不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -52,10 +53,10 @@ public class DeliveryNetService {
      */
     public DeliveryNet addDeliveryNet(DeliveryNet deliveryNet) {
         if (deliveryNet == null) {
-            throw new BusinessNotAllowException("配送网络不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络不能为空");
         }
         if (StringUtils.isBlank(deliveryNet.getDeliveryNetName())) {
-            throw new BusinessNotAllowException("配送网络名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络名称不能为空");
         }
 
         return deliveryNetRepository.add(deliveryNet);
@@ -66,13 +67,13 @@ public class DeliveryNetService {
      */
     public void updateDeliveryNet(DeliveryNet deliveryNet) {
         if (deliveryNet == null) {
-            throw new BusinessNotAllowException("配送网络不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络不能为空");
         }
         if (StringUtils.isBlank(deliveryNet.getId())) {
-            throw new BusinessNotAllowException("配送网络 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络 ID 不能为空");
         }
         if (StringUtils.isBlank(deliveryNet.getDeliveryNetName())) {
-            throw new BusinessNotAllowException("配送网络名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络名称不能为空");
         }
         
         deliveryNetRepository.update(deliveryNet);
@@ -83,7 +84,7 @@ public class DeliveryNetService {
      */
     public void deleteDeliveryNet(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         
         DeliveryNet deliveryNet = deliveryNetRepository.findById(id);
@@ -97,7 +98,7 @@ public class DeliveryNetService {
      */
     public DeliveryNet findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         return deliveryNetRepository.findById(id);
     }
@@ -108,7 +109,7 @@ public class DeliveryNetService {
     public void activateDeliveryNet(String id) {
         DeliveryNet deliveryNet = findById(id);
         if (deliveryNet == null) {
-            throw new BusinessNotAllowException("配送网络不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络不存在");
         }
         
         deliveryNet.setStatus("ACTIVE");
@@ -121,7 +122,7 @@ public class DeliveryNetService {
     public void deactivateDeliveryNet(String id) {
         DeliveryNet deliveryNet = findById(id);
         if (deliveryNet == null) {
-            throw new BusinessNotAllowException("配送网络不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络不存在");
         }
         
         deliveryNet.setStatus("INACTIVE");
@@ -134,7 +135,7 @@ public class DeliveryNetService {
     public void suspendDeliveryNet(String id) {
         DeliveryNet deliveryNet = findById(id);
         if (deliveryNet == null) {
-            throw new BusinessNotAllowException("配送网络不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送网络不存在");
         }
         
         deliveryNet.setStatus("SUSPENDED");

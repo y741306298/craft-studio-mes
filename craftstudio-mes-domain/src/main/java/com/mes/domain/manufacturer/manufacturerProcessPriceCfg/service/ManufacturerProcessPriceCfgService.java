@@ -1,9 +1,10 @@
 package com.mes.domain.manufacturer.manufacturerProcessPriceCfg.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.entity.ManufacturerProcessPriceCfg;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.repository.ManufacturerProcessPriceCfgRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -29,11 +30,11 @@ public class ManufacturerProcessPriceCfgService {
      */
     public List<ManufacturerProcessPriceCfg> findByManufacturerId(String manufacturerId, int current, int size) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         // TODO: 需要在 application 层调用 ProductApiService

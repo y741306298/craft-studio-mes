@@ -1,9 +1,10 @@
 package com.mes.domain.order.orderInfo.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +25,7 @@ public class OrderItemService {
      */
     public OrderItem findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单项 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
         }
         return orderItemRepository.findById(id);
     }
@@ -36,7 +37,7 @@ public class OrderItemService {
      */
     public OrderItem findByOrderItemId(String orderItemId) {
         if (StringUtils.isBlank(orderItemId)) {
-            throw new BusinessNotAllowException("订单项业务 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项业务 ID 不能为空");
         }
 
         java.util.Map<String, Object> filters = new java.util.HashMap<>();
@@ -60,10 +61,10 @@ public class OrderItemService {
     public java.util.List<OrderItem> findByOrderId(String orderId,String manufacturerId, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(orderId)) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
 
         java.util.Map<String, Object> filters = new java.util.HashMap<>();
@@ -81,7 +82,7 @@ public class OrderItemService {
      */
     public java.util.List<OrderItem> filterList(int current, int size, Map<String, Object> filters) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         return orderItemRepository.filterList(current, size, filters);
     }
@@ -102,13 +103,13 @@ public class OrderItemService {
      */
     public OrderItem addOrderItem(OrderItem orderItem) {
         if (orderItem == null) {
-            throw new BusinessNotAllowException("订单项不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项不能为空");
         }
         if (StringUtils.isBlank(orderItem.getOrderItemId())) {
-            throw new BusinessNotAllowException("订单项 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
         }
         if (StringUtils.isBlank(orderItem.getOrderId())) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
 
         // 如果没有设置 orderItemId，则生成一个
@@ -126,10 +127,10 @@ public class OrderItemService {
      */
     public void updateOrderItem(OrderItem orderItem) {
         if (orderItem == null) {
-            throw new BusinessNotAllowException("订单项不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项不能为空");
         }
         if (StringUtils.isBlank(orderItem.getId())) {
-            throw new BusinessNotAllowException("订单项 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
         }
 
         orderItemRepository.update(orderItem);
@@ -141,7 +142,7 @@ public class OrderItemService {
      */
     public void deleteOrderItem(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单项 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
         }
 
         OrderItem orderItem = findById(id);
@@ -156,7 +157,7 @@ public class OrderItemService {
      */
     public void markAsFailed(String id, String reason) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单项 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
         }
 
         OrderItem orderItem = findById(id);

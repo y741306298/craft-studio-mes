@@ -1,10 +1,11 @@
 package com.mes.domain.order.orderInfo.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.FlowStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
@@ -68,7 +69,7 @@ public class OrderPreprocessingService {
             java.lang.reflect.Method getProcessFlowMethod = mtoProduct.getClass().getDeclaredMethod("getProcessFlow");
             return (MTOProductSpecDTO.ProcessFlowDTO) getProcessFlowMethod.invoke(mtoProduct);
         } catch (Exception e) {
-            throw new BusinessNotAllowException("无法获取 processFlow 信息：" + e.getMessage());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "无法获取 processFlow 信息：" + e.getMessage());
         }
     }
 
@@ -211,7 +212,7 @@ public class OrderPreprocessingService {
             node.setNodeStatus(NodeStatus.PENDING);
             node.setProcessMetaSnapshot(processDTO.getProcessMetaSnapshot());
         } catch (Exception e) {
-            throw new BusinessNotAllowException("转换节点失败：" + e.getMessage());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "转换节点失败：" + e.getMessage());
         }
 
         return node;

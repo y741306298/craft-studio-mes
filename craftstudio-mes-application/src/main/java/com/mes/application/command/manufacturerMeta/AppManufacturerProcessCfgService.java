@@ -1,11 +1,12 @@
 package com.mes.application.command.manufacturerMeta;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.entity.ManufacturerProcessPriceCfg;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.service.ManufacturerProcessPriceCfgService;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.vo.MaterialProcessPrice;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -31,11 +32,11 @@ public class AppManufacturerProcessCfgService {
      */
     public List<ManufacturerProcessPriceCfg> getProcessPriceCfgByManufacturerId(String manufacturerId, int current, int size) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         return processPriceCfgService.findByManufacturerId(manufacturerId, current, size);
@@ -55,23 +56,23 @@ public class AppManufacturerProcessCfgService {
                                          UnitPrice processPrice, Double basePrice,
                                          List<MaterialProcessPrice> materialProcessPrices) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (StringUtils.isBlank(processId)) {
-            throw new BusinessNotAllowException("工艺 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺 ID 不能为空");
         }
 
         ManufacturerProcessPriceCfg cfg = processPriceCfgService.findByManufacturerId(manufacturerId, 1, 100)
                 .stream()
                 .filter(item -> processId.equals(item.getProcessId()))
                 .findFirst()
-                .orElseThrow(() -> new BusinessNotAllowException("未找到对应的工艺价格配置"));
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到对应的工艺价格配置"));
 
         boolean needUpdate = false;
 
         if (processPrice != null) {
             if (processPrice.getPrice() == null) {
-                throw new BusinessNotAllowException("工艺价格不能为空");
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺价格不能为空");
             }
             cfg.setProcessPrice(processPrice);
             needUpdate = true;
@@ -85,7 +86,7 @@ public class AppManufacturerProcessCfgService {
         if (materialProcessPrices != null) {
             for (MaterialProcessPrice mpp : materialProcessPrices) {
                 if (mpp.getProcessPrice() != null && mpp.getProcessPrice().getPrice() == null) {
-                    throw new BusinessNotAllowException("材料工艺价格不能为空");
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "材料工艺价格不能为空");
                 }
             }
             cfg.setMaterialProcessPrices(materialProcessPrices);
@@ -106,17 +107,17 @@ public class AppManufacturerProcessCfgService {
      */
     public void deleteProcessPriceConfig(String manufacturerId, String processId) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (StringUtils.isBlank(processId)) {
-            throw new BusinessNotAllowException("工艺 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺 ID 不能为空");
         }
 
         ManufacturerProcessPriceCfg cfg = processPriceCfgService.findByManufacturerId(manufacturerId, 1, 100)
                 .stream()
                 .filter(item -> processId.equals(item.getProcessId()))
                 .findFirst()
-                .orElseThrow(() -> new BusinessNotAllowException("未找到对应的工艺价格配置"));
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到对应的工艺价格配置"));
 
         cfg.setStatus(CfgStatus.INVALID);
         processPriceCfgService.update(cfg);

@@ -1,10 +1,11 @@
 package com.mes.domain.manufacturer.procedureFlow.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.FlowStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -21,10 +22,10 @@ public class ProcedureFlowStateMachineService {
      */
     public ProcedureFlow addProcedureFlow(ProcedureFlow flow) {
         if (flow == null) {
-            throw new BusinessNotAllowException("工序流程不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程不能为空");
         }
         if (StringUtils.isBlank(flow.getProcedureFlowName())) {
-            throw new BusinessNotAllowException("工序流程名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程名称不能为空");
         }
 
         // 初始化流程状态
@@ -54,20 +55,20 @@ public class ProcedureFlowStateMachineService {
      */
     public void updateProcedureFlow(ProcedureFlow flow) {
         if (flow == null) {
-            throw new BusinessNotAllowException("工序流程不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程不能为空");
         }
         if (StringUtils.isBlank(flow.getId())) {
-            throw new BusinessNotAllowException("工序流程 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程 ID 不能为空");
         }
         if (StringUtils.isBlank(flow.getProcedureFlowName())) {
-            throw new BusinessNotAllowException("工序流程名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程名称不能为空");
         }
 
         // 如果流程已经启动，不允许修改
         if (flow.getFlowStatus() != null &&
             flow.getFlowStatus() != FlowStatus.DRAFT &&
             flow.getFlowStatus() != FlowStatus.NOT_STARTED) {
-            throw new BusinessNotAllowException("已启动的流程不允许修改");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已启动的流程不允许修改");
         }
 
         // 更新节点总数和顺序
@@ -87,7 +88,7 @@ public class ProcedureFlowStateMachineService {
      */
     public void deleteProcedureFlow(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("工序流程 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程 ID 不能为空");
         }
         // 实际删除逻辑需要依赖 Repository
     }
@@ -97,7 +98,7 @@ public class ProcedureFlowStateMachineService {
      */
     public ProcedureFlow findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("工序流程 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程 ID 不能为空");
         }
         // 实际查询逻辑需要依赖 Repository
         return null;
@@ -109,10 +110,10 @@ public class ProcedureFlowStateMachineService {
     public List<ProcedureFlow> findProcedureFlowsByName(String procedureFlowName, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(procedureFlowName)) {
-            throw new BusinessNotAllowException("工序流程名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程名称不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -139,17 +140,17 @@ public class ProcedureFlowStateMachineService {
      */
     public void addNodeToFlow(ProcedureFlow flow, ProcedureFlowNode node) {
         if (flow == null) {
-            throw new BusinessNotAllowException("工序流程不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程不能为空");
         }
         if (node == null) {
-            throw new BusinessNotAllowException("工序节点不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序节点不能为空");
         }
 
         // 检查流程是否已启动
         if (flow.getFlowStatus() != null &&
             flow.getFlowStatus() != FlowStatus.DRAFT &&
             flow.getFlowStatus() != FlowStatus.NOT_STARTED) {
-            throw new BusinessNotAllowException("已启动的流程不允许添加节点");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已启动的流程不允许添加节点");
         }
 
         if (flow.getNodes() == null) {
@@ -170,17 +171,17 @@ public class ProcedureFlowStateMachineService {
      */
     public void removeNodeFromFlow(ProcedureFlow flow, String nodeId) {
         if (flow == null) {
-            throw new BusinessNotAllowException("工序流程不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序流程不能为空");
         }
         if (StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException("节点 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点 ID 不能为空");
         }
 
         // 检查流程是否已启动
         if (flow.getFlowStatus() != null &&
             flow.getFlowStatus() != FlowStatus.DRAFT &&
             flow.getFlowStatus() != FlowStatus.NOT_STARTED) {
-            throw new BusinessNotAllowException("已启动的流程不允许移除节点");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已启动的流程不允许移除节点");
         }
 
         if (flow.getNodes() != null) {
@@ -198,15 +199,15 @@ public class ProcedureFlowStateMachineService {
 
     public void startFlow(ProcedureFlow flow) {
         if (flow == null) {
-            throw new BusinessNotAllowException("流程不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "流程不能为空");
         }
 
         if (flow.getFlowStatus() != null && flow.getFlowStatus() != FlowStatus.NOT_STARTED && flow.getFlowStatus() != FlowStatus.DRAFT) {
-            throw new BusinessNotAllowException("流程已经启动，无法重复启动");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "流程已经启动，无法重复启动");
         }
 
         if (flow.getNodes() == null || flow.getNodes().isEmpty()) {
-            throw new BusinessNotAllowException("流程至少需要一个节点");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "流程至少需要一个节点");
         }
 
         // 初始化所有节点为待处理状态
@@ -235,7 +236,7 @@ public class ProcedureFlowStateMachineService {
         ProcedureFlowNode currentNode = findNodeById(nodes, currentNodeId);
 
         if (currentNode == null) {
-            throw new BusinessNotAllowException("当前节点不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前节点不存在");
         }
 
         Integer currentIndex = currentNode.getNodeOrder();
@@ -257,11 +258,11 @@ public class ProcedureFlowStateMachineService {
     public void completeNode(ProcedureFlow flow, String nodeId, String operatorId, String operatorName) {
         ProcedureFlowNode node = findNodeById(flow.getNodes(), nodeId);
         if (node == null) {
-            throw new BusinessNotAllowException("节点不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点不存在");
         }
 
         if (node.getNodeStatus() != NodeStatus.ACTIVE) {
-            throw new BusinessNotAllowException("只有活动状态的节点才能完成");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有活动状态的节点才能完成");
         }
 
         node.updateStatus(NodeStatus.COMPLETED);
@@ -272,7 +273,7 @@ public class ProcedureFlowStateMachineService {
     public void failNode(ProcedureFlow flow, String nodeId, String errorMessage) {
         ProcedureFlowNode node = findNodeById(flow.getNodes(), nodeId);
         if (node == null) {
-            throw new BusinessNotAllowException("节点不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点不存在");
         }
 
         node.updateStatus(NodeStatus.FAILED);
@@ -285,11 +286,11 @@ public class ProcedureFlowStateMachineService {
     public void skipNode(ProcedureFlow flow, String nodeId, String operatorId, String operatorName) {
         ProcedureFlowNode node = findNodeById(flow.getNodes(), nodeId);
         if (node == null) {
-            throw new BusinessNotAllowException("节点不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点不存在");
         }
 
         if (node.getNodeStatus() != NodeStatus.PENDING && node.getNodeStatus() != NodeStatus.ACTIVE) {
-            throw new BusinessNotAllowException("只能跳过待处理或活动状态的节点");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只能跳过待处理或活动状态的节点");
         }
 
         node.updateStatus(NodeStatus.SKIPPED);
@@ -299,7 +300,7 @@ public class ProcedureFlowStateMachineService {
 
     public void suspendFlow(ProcedureFlow flow) {
         if (flow.getFlowStatus() != FlowStatus.RUNNING) {
-            throw new BusinessNotAllowException("只有运行中的流程才能暂停");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有运行中的流程才能暂停");
         }
 
         flow.setFlowStatus(FlowStatus.SUSPENDED);
@@ -307,7 +308,7 @@ public class ProcedureFlowStateMachineService {
 
     public void resumeFlow(ProcedureFlow flow) {
         if (flow.getFlowStatus() != FlowStatus.SUSPENDED) {
-            throw new BusinessNotAllowException("只有暂停的流程才能恢复");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有暂停的流程才能恢复");
         }
 
         flow.setFlowStatus(FlowStatus.RUNNING);
@@ -315,7 +316,7 @@ public class ProcedureFlowStateMachineService {
 
     public void cancelFlow(ProcedureFlow flow) {
         if (flow.getFlowStatus() == null || flow.getFlowStatus().isTerminal()) {
-            throw new BusinessNotAllowException("终态流程无法取消");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "终态流程无法取消");
         }
 
         flow.setFlowStatus(FlowStatus.CANCELLED);
@@ -334,11 +335,11 @@ public class ProcedureFlowStateMachineService {
     public void retryNode(ProcedureFlow flow, String nodeId) {
         ProcedureFlowNode node = findNodeById(flow.getNodes(), nodeId);
         if (node == null) {
-            throw new BusinessNotAllowException("节点不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点不存在");
         }
 
         if (node.getNodeStatus() != NodeStatus.FAILED) {
-            throw new BusinessNotAllowException("只能重试失败状态的节点");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只能重试失败状态的节点");
         }
 
         node.setRetryCount(node.getRetryCount() != null ? node.getRetryCount() + 1 : 1);

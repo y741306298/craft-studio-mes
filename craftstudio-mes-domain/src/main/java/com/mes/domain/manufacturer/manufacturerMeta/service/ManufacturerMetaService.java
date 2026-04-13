@@ -1,11 +1,12 @@
 package com.mes.domain.manufacturer.manufacturerMeta.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductionLineMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +33,7 @@ public class ManufacturerMetaService {
     public List<ManufacturerMeta> findManufacturerMetasByConditions(String name, String manufacturerType, int current, int size) {
         // 参数验证
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         // 构建查询条件
@@ -77,10 +78,10 @@ public class ManufacturerMetaService {
     public ManufacturerMeta addManufacturerMeta(ManufacturerMeta manufacturerMeta) {
         // 业务验证
         if (manufacturerMeta == null) {
-            throw new BusinessNotAllowException("制造商元数据不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商元数据不能为空");
         }
         if (StringUtils.isBlank(manufacturerMeta.getName())) {
-            throw new BusinessNotAllowException("制造商名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商名称不能为空");
         }
         
         // 生成唯一的 manufacturerMetaId
@@ -124,13 +125,13 @@ public class ManufacturerMetaService {
     public void updateManufacturerMeta(ManufacturerMeta manufacturerMeta) {
         // 业务验证
         if (manufacturerMeta == null) {
-            throw new BusinessNotAllowException("制造商元数据不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商元数据不能为空");
         }
         if (StringUtils.isBlank(manufacturerMeta.getId())) {
-            throw new BusinessNotAllowException("制造商ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商ID不能为空");
         }
         if (StringUtils.isBlank(manufacturerMeta.getName())) {
-            throw new BusinessNotAllowException("制造商名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商名称不能为空");
         }
         
         manufacturerMetaRepository.update(manufacturerMeta);
@@ -142,7 +143,7 @@ public class ManufacturerMetaService {
      */
     public void deleteManufacturerMeta(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         
         ManufacturerMeta manufacturerMeta = manufacturerMetaRepository.findById(id);
@@ -158,7 +159,7 @@ public class ManufacturerMetaService {
      */
     public ManufacturerMeta findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         return manufacturerMetaRepository.findById(id);
     }

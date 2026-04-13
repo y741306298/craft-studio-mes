@@ -4,7 +4,7 @@ import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.device.service.DeviceService;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;

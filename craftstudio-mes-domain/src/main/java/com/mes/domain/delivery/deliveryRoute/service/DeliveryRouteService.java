@@ -1,9 +1,10 @@
 package com.mes.domain.delivery.deliveryRoute.service;
 
+import com.mes.application.dto.resp.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,10 @@ public class DeliveryRouteService {
     public List<DeliveryRoute> findDeliveryRoutesByName(String routeName, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(routeName)) {
-            throw new BusinessNotAllowException("配送路线名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -54,15 +55,15 @@ public class DeliveryRouteService {
      */
     public DeliveryRoute addDeliveryRoute(DeliveryRoute deliveryRoute) {
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不能为空");
         }
         if (StringUtils.isBlank(deliveryRoute.getRouteName())) {
-            throw new BusinessNotAllowException("配送路线名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
         // 验证路线配置
         if (!validateDeliveryRoute(deliveryRoute)) {
-            throw new BusinessNotAllowException("配送路线配置不完整");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线配置不完整");
         }
         
         return deliveryRouteRepository.add(deliveryRoute);
@@ -73,13 +74,13 @@ public class DeliveryRouteService {
      */
     public void updateDeliveryRoute(DeliveryRoute deliveryRoute) {
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不能为空");
         }
         if (StringUtils.isBlank(deliveryRoute.getId())) {
-            throw new BusinessNotAllowException("配送路线 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线 ID 不能为空");
         }
         if (StringUtils.isBlank(deliveryRoute.getRouteName())) {
-            throw new BusinessNotAllowException("配送路线名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
         deliveryRouteRepository.update(deliveryRoute);
@@ -90,7 +91,7 @@ public class DeliveryRouteService {
      */
     public void deleteDeliveryRoute(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         
         DeliveryRoute deliveryRoute = deliveryRouteRepository.findById(id);
@@ -104,7 +105,7 @@ public class DeliveryRouteService {
      */
     public DeliveryRoute findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         return deliveryRouteRepository.findById(id);
     }
@@ -115,7 +116,7 @@ public class DeliveryRouteService {
     public void activateDeliveryRoute(String id) {
         DeliveryRoute deliveryRoute = findById(id);
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
         
         deliveryRoute.setStatus("ACTIVE");
@@ -128,7 +129,7 @@ public class DeliveryRouteService {
     public void deactivateDeliveryRoute(String id) {
         DeliveryRoute deliveryRoute = findById(id);
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
         
         deliveryRoute.setStatus("INACTIVE");
@@ -140,20 +141,20 @@ public class DeliveryRouteService {
      */
     public void addRouteNode(String routeId, DeliveryRouteNode node) {
         if (StringUtils.isBlank(routeId)) {
-            throw new BusinessNotAllowException("路线 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线 ID 不能为空");
         }
         if (node == null) {
-            throw new BusinessNotAllowException("路线节点不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不能为空");
         }
         
         DeliveryRoute deliveryRoute = findById(routeId);
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
         
         // 验证节点信息
         if (!node.validateNodeInfo()) {
-            throw new BusinessNotAllowException("路线节点信息不完整");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点信息不完整");
         }
         
         // 构建地区路径
@@ -178,15 +179,15 @@ public class DeliveryRouteService {
      */
     public void removeRouteNode(String routeId, String nodeId) {
         if (StringUtils.isBlank(routeId)) {
-            throw new BusinessNotAllowException("路线 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线 ID 不能为空");
         }
         if (StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException("节点 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点 ID 不能为空");
         }
         
         DeliveryRoute deliveryRoute = findById(routeId);
         if (deliveryRoute == null) {
-            throw new BusinessNotAllowException("配送路线不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
         
         if (deliveryRoute.getDeliveryRouteNodes() != null) {
