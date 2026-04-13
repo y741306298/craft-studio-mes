@@ -4,6 +4,8 @@ import com.mes.application.dto.req.base.ApiRequest;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Consignee;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -22,6 +24,9 @@ public class ManufacturerMetaRequest extends ApiRequest {
     private String manufacturerMetaId;
 
     private String manufacturerTempId;
+
+    private Consignee consignee;
+    private Address address;
     
     @NotBlank(message = "制造商类型不能为空")
     @Size(max = 100, message = "制造商类型长度不能超过 100 个字符")
@@ -55,6 +60,8 @@ public class ManufacturerMetaRequest extends ApiRequest {
         manufacturerMeta.setManufacturerMetaType(ManufacturerType.getByCode(this.manufacturerMetaType));
         manufacturerMeta.setName(this.name);
         manufacturerMeta.setDescription(this.description);
+        manufacturerMeta.setConsignee(this.consignee);
+        manufacturerMeta.setAddress(this.address);
         
         // 设置状态，默认为 NORMAL
         if (this.status != null && !this.status.trim().isEmpty()) {

@@ -25,14 +25,13 @@ public class ProductCoreApiService {
     @Value("${external.api.productCoreUrl:}")
     private String productCoreUrl;
 
-    @Value("${external.api.baseUrl:}")
-    private String externalApiBaseUrl;
-
     private final RestTemplate restTemplate;
 
     public ProductCoreApiService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
+
+    
 
     /**
      * 根据父分类 ID 查询成品商品分类列表
@@ -41,7 +40,7 @@ public class ProductCoreApiService {
      */
     public List<MtsProductCategoryResponse> findCategoriesByParentId(String parentId) {
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/listCategories", productCoreUrl));
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listCategories", productCoreUrl));
             
             if (parentId != null && !parentId.isEmpty()) {
                 urlBuilder.append("?parentId=").append(parentId);
@@ -84,7 +83,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/listMTSProducts?rmfId=%s&current=%d&size=%d",
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listMTSProducts?rmfId=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, current, size));
             
             if (categoryId != null && !categoryId.isEmpty()) {
@@ -131,7 +130,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/listMTSProductSpecs?rmfId=%s&productId=%s&current=%d&size=%d",
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listMTSProductSpecs?rmfId=%s&productId=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, productId, current, size));
             
             ResponseEntity<ApiResponse<PagedResult<MtsProductSpecResponse>>> response = restTemplate.exchange(
@@ -170,7 +169,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            String url = String.format("%s/product/mts/configMTSProductSpec", productCoreUrl);
+            String url = String.format("%s/api/internal/mes/rmfcfg/configMTSProductSpec", productCoreUrl);
 
             ConfigMTSProductSpecRequest request = new ConfigMTSProductSpecRequest();
             request.setRmfId(rmfId);
@@ -217,7 +216,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/listProcessMetas?rmfId=%s&current=%d&size=%d",
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/listProcessMetas?rmfId=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, current, size));
             
             ResponseEntity<ApiResponse<PagedResult<ProcessMetaResponse>>> response = restTemplate.exchange(
@@ -260,7 +259,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/searchProcessMetas?rmfId=%s&name=%s&current=%d&size=%d",
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/searchProcessMetas?rmfId=%s&name=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, name, current, size));
             
             ResponseEntity<ApiResponse<PagedResult<ProcessMetaResponse>>> response = restTemplate.exchange(
@@ -295,7 +294,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            String url = String.format("%s/product/mts/configProcessMeta", productCoreUrl);
+            String url = String.format("%s/api/internal/mes/rmfcfg/configProcessMeta", productCoreUrl);
 
             ConfigProcessMetaRequest request = new ConfigProcessMetaRequest();
             request.setRmfId(rmfId);
@@ -333,7 +332,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            StringBuilder urlBuilder = new StringBuilder(String.format("%s/product/mts/findLogisticsConfigsByParentRegionCode?rmfId=%s",
+            StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/findLogisticsConfigsByParentRegionCode?rmfId=%s",
                     productCoreUrl, rmfId));
             
             if (parentRegionCode != null && !parentRegionCode.isEmpty()) {
@@ -368,7 +367,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            String url = String.format("%s/logistics/rmfConfigOptions?rmfId=%s", productCoreUrl, rmfId);
+            String url = String.format("%s/api/internal/mes/logistics/rmfConfigOptions?rmfId=%s", productCoreUrl, rmfId);
             
             ResponseEntity<ApiResponse<LogisticsConfigOptionsResponse>> response = restTemplate.exchange(
                     url,
@@ -412,7 +411,7 @@ public class ProductCoreApiService {
         }
 
         try {
-            String url = String.format("%s/product/mts/configLogistics", productCoreUrl);
+            String url = String.format("%s/api/internal/mes/rmfcfg/configLogistics", productCoreUrl);
 
             ConfigLogisticsRequest request = new ConfigLogisticsRequest();
             request.setRmfId(rmfId);
@@ -463,7 +462,7 @@ public class ProductCoreApiService {
 
         try {
             StringBuilder urlBuilder = new StringBuilder(String.format("%s/mts-products?manufacturerId=%s&current=%d&size=%d",
-                    externalApiBaseUrl, manufacturerId, current, size));
+                    productCoreUrl, manufacturerId, current, size));
             
             if (productName != null && !productName.isEmpty()) {
                 urlBuilder.append("&productName=").append(productName);
@@ -501,7 +500,7 @@ public class ProductCoreApiService {
 
         try {
             String url = String.format("%s/process-prices?manufacturerId=%s&current=%d&size=%d",
-                    externalApiBaseUrl, manufacturerId, current, size);
+                    productCoreUrl, manufacturerId, current, size);
             
             ResponseEntity<ApiResponse<List<ManufacturerProcessPriceCfg>>> response = restTemplate.exchange(
                     url,
@@ -538,7 +537,7 @@ public class ProductCoreApiService {
 
         try {
             String url = String.format("%s/mts-products/%s/price-status",
-                    externalApiBaseUrl, productCfgId);
+                    productCoreUrl, productCfgId);
 
             UpdatePriceStatusRequest request = new UpdatePriceStatusRequest();
             request.setPrice(price);
@@ -581,7 +580,7 @@ public class ProductCoreApiService {
 
         try {
             String url = String.format("%s/process-prices/%s/price-status",
-                    externalApiBaseUrl, processPriceId);
+                    productCoreUrl, processPriceId);
 
             UpdatePriceStatusRequest request = new UpdatePriceStatusRequest();
             request.setPrice(price);
@@ -600,6 +599,96 @@ public class ProductCoreApiService {
 
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new RuntimeException("更新工艺价格配置失败：" + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("调用外部系统失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 注册工厂
+     * @param name 工厂名称，不能为空
+     * @param terminalRegionCode 终端地区编码，不能为空
+     * @param detailAddress 详细地址，不能为空
+     * @param consigneeName 收货人姓名，不能为空
+     * @param consigneePhone 收货人电话，不能为空
+     * @return 工厂ID（rmfId）
+     */
+    public String registerManufacturer(String name, String terminalRegionCode, String detailAddress,
+                                       String consigneeName, String consigneePhone) {
+        try {
+            String url = String.format("%s/api/internal/mes/rmf/register", productCoreUrl);
+
+            Map<String, Object> address = new HashMap<>();
+            address.put("terminalRegionCode", terminalRegionCode);
+            address.put("detailAddress", detailAddress);
+
+            Map<String, Object> consignee = new HashMap<>();
+            consignee.put("name", consigneeName);
+            consignee.put("phone", consigneePhone);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("name", name);
+            requestBody.put("address", address);
+            requestBody.put("consignee", consignee);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<ApiResponse<String>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    (Class<ApiResponse<String>>) (Class<?>) ApiResponse.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return response.getBody().getData();
+            } else {
+                throw new RuntimeException("注册工厂失败：" + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("调用外部系统失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改工厂接单状态
+     * @param rmfId 工厂ID，不能为空
+     * @param status 接单状态，ACCEPTING:接单中 PAUSED：暂停接单
+     */
+    public void changeOrderAcceptStatus(String rmfId, String status) {
+        if (rmfId == null || rmfId.isEmpty()) {
+            throw new RuntimeException("工厂ID不能为空");
+        }
+        if (status == null || status.isEmpty()) {
+            throw new RuntimeException("接单状态不能为空");
+        }
+        if (!"ACCEPTING".equals(status) && !"PAUSED".equals(status)) {
+            throw new RuntimeException("接单状态必须为 ACCEPTING 或 PAUSED");
+        }
+
+        try {
+            String url = String.format("%s/api/internal/mes/rmf/changeOrderAcceptStatus", productCoreUrl);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("rmfId", rmfId);
+            requestBody.put("status", status);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<ApiResponse<String>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    entity,
+                    (Class<ApiResponse<String>>) (Class<?>) ApiResponse.class
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("修改工厂接单状态失败：" + response.getStatusCode());
             }
         } catch (Exception e) {
             throw new RuntimeException("调用外部系统失败：" + e.getMessage());

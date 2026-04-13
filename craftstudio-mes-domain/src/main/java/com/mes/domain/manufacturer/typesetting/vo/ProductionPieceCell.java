@@ -1,9 +1,12 @@
 package com.mes.domain.manufacturer.typesetting.vo;
 
-public class OrderItemCell {
+import lombok.Data;
 
+@Data
+public class ProductionPieceCell {
+
+    private String productionPieceId;
     private String orderItemId;
-    private String orderId;
     private Integer quantity;
 
 }

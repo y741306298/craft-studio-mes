@@ -1,7 +1,9 @@
 package com.mes.application.dto.req.typesetting;
 
+import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.base.ApiRequest;
-import jakarta.validation.constraints.NotEmpty;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,8 +13,13 @@ import java.util.List;
 @Data
 public class LayoutConfirmRequest extends ApiRequest {
 
-    @NotEmpty(message = "生产工件 ID 列表不能为空")
-    private List<String> productionPieceIds;
+    private List<TypesettingProductionPieceVO> typesettingCells;
+
+    private List<ProductionPiece> productionPieces;
+
+    private List<TypesettingInfo> typesettingInfos;
+
+    private List<String> materialCodes;
 
 
     @Override
@@ -22,9 +29,6 @@ public class LayoutConfirmRequest extends ApiRequest {
 
     @Override
     public String getValidationMessage() {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            return "生产工件 ID 列表不能为空";
-        }
-        return null;
+        return "";
     }
 }

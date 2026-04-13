@@ -3,7 +3,7 @@ package com.mes.domain.manufacturer.device.service;
 import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

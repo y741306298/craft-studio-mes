@@ -33,8 +33,8 @@ public class ApiResponse<T> {
     }
 
     //失败
-    public static ApiResponse<String> fail(int code, String message) {
-        ApiResponse<String> response = new ApiResponse<>();
+    public static <T> ApiResponse<T> fail(int code, String message) {
+        ApiResponse<T> response = new ApiResponse<>();
         response.setCode(code);
         response.setMessage(message);
         return response;

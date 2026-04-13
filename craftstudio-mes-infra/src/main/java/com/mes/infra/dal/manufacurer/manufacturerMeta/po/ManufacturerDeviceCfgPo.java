@@ -34,7 +34,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         deviceCfg.setDeviceType(DeviceType.getByCode(deviceType));
         deviceCfg.setDeviceCode(deviceCode);
         deviceCfg.setCapacity(capacity);
-        deviceCfg.setCapacityUnit(ProductUnit.getBySymbol(capacityUnit));
+        deviceCfg.setCapacityUnit(ProductUnit.getByChineseName(capacityUnit));
         deviceCfg.setStatus(CfgStatus.getByCode(status));
         return deviceCfg;
     }
@@ -50,7 +50,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         this.deviceType = _do.getDeviceType() != null ? _do.getDeviceType().getCode() : null;
         this.deviceCode = _do.getDeviceCode();
         this.capacity = _do.getCapacity();
-        this.capacityUnit = _do.getCapacityUnit() != null ? _do.getCapacityUnit().getSymbol() : null;
+        this.capacityUnit = _do.getCapacityUnit() != null ? _do.getCapacityUnit().getChineseName() : null;
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }

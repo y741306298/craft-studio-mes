@@ -4,7 +4,7 @@ import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageSlot;
 import com.mes.domain.manufacturer.transBox.storageTank.repository.StorageTankRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

@@ -9,7 +9,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

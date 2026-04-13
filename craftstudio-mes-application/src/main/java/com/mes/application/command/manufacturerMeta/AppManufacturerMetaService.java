@@ -1,5 +1,7 @@
 package com.mes.application.command.manufacturerMeta;
 
+import com.mes.application.command.api.ProductCoreApiService;
+import com.mes.application.dto.resp.manufacturerMeta.ManufacturerSimpleResponse;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
@@ -15,7 +17,7 @@ import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.service.Manufactu
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageSlot;
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.repository.StorageTankRepository;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -23,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +58,9 @@ public class AppManufacturerMetaService {
     @Autowired
     private AppManufacturerDeviceCfgService appDeviceCfgService;
 
+    @Autowired
+    private ProductCoreApiService productCoreApiService;
+
     public PagedResult<ManufacturerMeta> findManufacturerMetas(String name, String manufacturerType, PagedQuery query){
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
@@ -86,9 +90,38 @@ public class AppManufacturerMetaService {
         
         domainManufacturerMetaService.addManufacturerMeta(command);
         
+        registerToProductCenter(command);
+        
         createDefaultStorageTank(command);
         
         saveManufacturerConfigsFromTemplate(command);
+    }
+    
+    private void registerToProductCenter(ManufacturerMeta manufacturerMeta) {
+        if (manufacturerMeta.getAddress() == null || manufacturerMeta.getConsignee() == null) {
+            return;
+        }
+        
+        String terminalRegionCode = manufacturerMeta.getAddress().getTerminalRegionCode();
+        String detailAddress = manufacturerMeta.getAddress().getDetailAddress();
+        String consigneeName = manufacturerMeta.getConsignee().getName();
+        String consigneePhone = manufacturerMeta.getConsignee().getPhone();
+        
+        if (StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress) ||
+            StringUtils.isBlank(consigneeName) || StringUtils.isBlank(consigneePhone)) {
+            return;
+        }
+        
+        String rmfId = productCoreApiService.registerManufacturer(
+                manufacturerMeta.getName(),
+                terminalRegionCode,
+                detailAddress,
+                consigneeName,
+                consigneePhone
+        );
+        
+        manufacturerMeta.setManufacturerMetaId(rmfId);
+        manufacturerMetaRepository.update(manufacturerMeta);
     }
     
     private void saveManufacturerConfigsFromTemplate(ManufacturerMeta manufacturerMeta) {
@@ -155,7 +188,7 @@ public class AppManufacturerMetaService {
         if (command == null) {
             throw new IllegalArgumentException("制造商元数据不能为空");
         }
-        if (StringUtils.isBlank(command.getId())) {
+        if (StringUtils.isBlank(command.getManufacturerMetaId())) {
             throw new IllegalArgumentException("制造商 ID 不能为空");
         }
         domainManufacturerMetaService.updateManufacturerMeta(command);
@@ -174,24 +207,7 @@ public class AppManufacturerMetaService {
         }
         return domainManufacturerMetaService.findById(id);
     }
-    
-    /**
-     * 根据 manufacturerMetaId 查找制造商
-     * @param manufacturerMetaId 制造商业务 ID
-     * @return 制造商实体
-     */
-    public ManufacturerMeta findByManufacturerMetaId(String manufacturerMetaId) {
-        if (StringUtils.isBlank(manufacturerMetaId)) {
-            throw new IllegalArgumentException("制造商 ID 不能为空");
-        }
-        
-        Map<String, Object> filters = new HashMap<>();
-        filters.put("manufacturerMetaId", manufacturerMetaId);
-        List<ManufacturerMeta> results = manufacturerMetaRepository.filterList(1, 1, filters);
-        
-        return results.isEmpty() ? null : results.get(0);
-    }
-    
+
     /**
      * 分页查询制造商元数据（包含设备数量）
      * @param name 制造商名称
@@ -236,6 +252,50 @@ public class AppManufacturerMetaService {
         }
 
         return new PagedResult<>(itemsWithDeviceCount, total, query.getSize(), query.getCurrent());
+    }
+
+    /**
+     * 根据 manufacturerMetaId 查找制造商
+     * @param manufacturerMetaId 制造商业务 ID
+     * @return 制造商实体
+     */
+    public ManufacturerMeta findByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaId", manufacturerMetaId);
+        List<ManufacturerMeta> results = manufacturerMetaRepository.filterList(1, 1, filters);
+
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
+     * 根据制造商类型全量查询工厂列表（不分页）
+     * @param manufacturerType 制造商类型
+     * @return 简化工厂信息列表
+     */
+    public List<ManufacturerSimpleResponse> findByManufacturerType(String manufacturerType) {
+        if (StringUtils.isBlank(manufacturerType)) {
+            throw new IllegalArgumentException("制造商类型不能为空");
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaType", manufacturerType);
+        
+        List<ManufacturerMeta> items = manufacturerMetaRepository.filterList(1, 10000, filters);
+        
+        return items.stream()
+                .map(meta -> {
+                    ManufacturerSimpleResponse response = new ManufacturerSimpleResponse();
+                    response.setManufacturerType(manufacturerType);
+                    response.setId(meta.getId());
+                    response.setManufacturerMetaId(meta.getManufacturerMetaId());
+                    response.setName(meta.getName());
+                    return response;
+                })
+                .collect(Collectors.toList());
     }
 
     /**

@@ -1,20 +1,37 @@
 package com.mes.application.command.typesetting;
 
-import com.mes.application.command.typesetting.vo.*;
+import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.req.NestingRequest;
+import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
+import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
+import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
+import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
+import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.command.typesetting.enums.TypesettingQueryType;
+import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
+import com.mes.domain.manufacturer.typesetting.vo.ProductionPieceCell;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingCell;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,6 +41,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,7 +57,13 @@ public class AppTypesettingService {
     private OrderItemService orderItemService;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private AlgorithmCoreApiService algorithmCoreApiService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
+    private static final long CACHE_EXPIRE_HOURS = 72;
 
 
     /**
@@ -183,9 +207,8 @@ public class AppTypesettingService {
             vo.setSourceId(info.getId());
             vo.setQuantity(info.getQuantity());
             vo.setCompletedQuantity(info.getCompletedQuantity());
-            vo.setMaterial(info.getMaterial()); // 直接从 TypesettingInfo 获取 material
+            vo.setMaterialCode(info.getMaterialCodes().toString()); // 直接从 TypesettingInfo 获取 material
 //            vo.setProcedureFlow(info.getProcedureFlow());
-            vo.setPreviewUrl(info.getTypesettingUrl());
             vo.setRemark(null); // 排版暂无备注
 //            vo.setOrderItemInfo(null); // 排版不需要 OrderItem 信息
 
@@ -208,41 +231,33 @@ public class AppTypesettingService {
 
     /**
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
-     *
-     * @param productionPieceIds 生产工件 ID 列表
      * @return 排版结果
      */
-    public LayoutConfirmResult confirmLayout(List<String> productionPieceIds) {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            throw new RuntimeException("生产工件 ID 列表不能为空");
+    public LayoutConfirmResult confirmLayout(LayoutConfirmRequest request) {
+        List<TypesettingProductionPieceVO> typesettingCellList = request.getTypesettingCells();
+        for (TypesettingProductionPieceVO typesettingCell : typesettingCellList) {
+            String sourceType = typesettingCell.getSourceType();
+            if (sourceType.equals(TypesettingSourceType.PART.getCode())) {
+
+            }
         }
 
         // 1. 根据 productionPieceId 获取所有的生产零件信息
-        List<ProductionPiece> productionPieces = new ArrayList<>();
-        for (String pieceId : productionPieceIds) {
-            ProductionPiece piece = productionPieceService.findById(pieceId);
-            if (piece == null) {
-                throw new RuntimeException("生产工件不存在：" + pieceId);
-            }
-            productionPieces.add(piece);
-        }
-
-        // 2. 获取相对应的 OrderItem 信息
-        List<OrderItem> orderItems = new ArrayList<>();
-        Set<String> orderItemIdSet = new HashSet<>();
-        for (ProductionPiece piece : productionPieces) {
-            if (!orderItemIdSet.contains(piece.getOrderItemId())) {
-                OrderItem orderItem = orderItemService.findById(piece.getOrderItemId());
-                if (orderItem == null) {
-                    throw new RuntimeException("订单项不存在：" + piece.getOrderItemId());
+        List<ProductionPiece> productionPieces = request.getProductionPieces();
+        for (ProductionPiece productionPiece : productionPieces) {
+            Integer quantity = productionPiece.getQuantity();
+            List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+            for (ProcedureFlowNode node : nodes) {
+                if (node.getNodeName().equals("排版")) {
+                    if (node.getPieceQuantity() < quantity){
+                        return LayoutConfirmResult.failed(productionPiece.getProductionPieceId()+"可排版数量不足");
+                    }
                 }
-                orderItems.add(orderItem);
-                orderItemIdSet.add(piece.getOrderItemId());
             }
         }
 
         // 3. 校验材料是否一致
-        String validateMaterialResult = validateMaterials(orderItems);
+        String validateMaterialResult = validateMaterials(productionPieces);
         if (!validateMaterialResult.equals("PASS")) {
             return LayoutConfirmResult.failed(validateMaterialResult);
         }
@@ -252,31 +267,68 @@ public class AppTypesettingService {
         if (!validateProcedureResult.equals("PASS")) {
             return LayoutConfirmResult.failed(validateProcedureResult);
         }
-
+        //记录id，供callback使用
+        String cacheKey = IdGenerator.generateId("LAYOUT");
+        redisTemplate.opsForValue().set(cacheKey, request, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
         // 5. 调用排版 API
-        LayoutApiResponse apiResponse = callLayoutApi(productionPieces, orderItems);
-
-        if (apiResponse == null || !apiResponse.isSuccess()) {
-            return LayoutConfirmResult.failed("排版 API 调用失败");
-        }
+//        NestingRequest nestingRequest = new NestingRequest();
+//        NestingResponse nestingResponse = algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
+//        if (nestingResponse == null || !nestingResponse.getStatus().equals("success")) {
+//            //排版算法调用失败，不更新任何数据
+//            return LayoutConfirmResult.failed(nestingResponse.getError());
+//        }
 
         // 6. 构建返回结果
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
-        result.setLayoutId(apiResponse.getLayoutId());
-        result.setLayoutUrl(apiResponse.getLayoutUrl());
-        result.setProductionPieceCount(productionPieces.size());
-        result.setMessage("排版确认成功");
+        result.setMessage("排版开始,耐心请等待");
 
-        // 7. 更新所有生产工件的状态为排版待确认
+        // 7. 根据实际数量更新零件在排版这一节点的剩余数量，并将该次的数量填入下一个节点"排版中"
         for (ProductionPiece piece : productionPieces) {
             try {
-                productionPieceService.completeTypesetting(piece.getId());
+                Integer quantity = piece.getQuantity();
+                if (quantity == null || quantity <= 0) {
+                    continue;
+                }
+                
+                productionPieceService.transferPieceQuantityBetweenNodes(
+                    piece.getId(),
+                    "NODE_TYPESETTING",
+                    "NODE_TYPESETTING_IN_PROGRESS",
+                    quantity
+                );
             } catch (Exception e) {
                 System.err.println("更新生产工件 " + piece.getId() + " 状态失败：" + e.getMessage());
             }
         }
-
+        //添加排版信息
+        TypesettingInfo typesettingInfo = new TypesettingInfo();
+        typesettingInfo.setTypesettingId(cacheKey);
+        typesettingInfo.setElements(null);
+        typesettingInfo.setMaterialCodes(request.getMaterialCodes());
+        typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
+        typesettingInfo.setQuantity(1);
+        typesettingInfo.setCompletedQuantity(0);
+        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
+        List<TypesettingCell> typesettingCells = typesettingInfos.stream().map(cell -> {
+            TypesettingCell typesettingCell = new TypesettingCell();
+            typesettingCell.setTypesettingId(cell.getTypesettingId());
+            typesettingCell.setQuantity(cell.getQuantity());
+            return typesettingCell;
+        }).collect(Collectors.toList());
+        typesettingInfo.setTypesettingCells(typesettingCells);
+        
+        List<ProductionPieceCell> productionPieceCells = productionPieces.stream()
+                .map(piece -> {
+                    ProductionPieceCell pieceCell = new ProductionPieceCell();
+                    pieceCell.setProductionPieceId(piece.getProductionPieceId());
+                    pieceCell.setOrderItemId(piece.getOrderItemId());
+                    pieceCell.setQuantity(piece.getQuantity());
+                    return pieceCell;
+                })
+                .collect(Collectors.toList());
+        typesettingInfo.setPieceCells(productionPieceCells);
+        domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
     }
 
@@ -436,28 +488,27 @@ public class AppTypesettingService {
     /**
      * 校验所有订单项的材料是否一致
      *
-     * @param orderItems 订单项列表
      * @return "PASS" 表示通过，否则返回错误信息
      */
-    private String validateMaterials(List<OrderItem> orderItems) {
-        if (orderItems.isEmpty()) {
-            return "订单项列表不能为空";
+    private String validateMaterials(List<ProductionPiece> productionPieces) {
+        if (productionPieces.isEmpty()) {
+            return "零件列表不能为空";
         }
 
-        MaterialConfig firstMaterial = orderItems.get(0).getMaterial();
+        MaterialConfig firstMaterial = productionPieces.get(0).getMaterialConfig();
         if (firstMaterial == null) {
-            return "第一个订单项的材料为空";
+            return "第一个零件的材料为空";
         }
 
-        for (int i = 1; i < orderItems.size(); i++) {
-            MaterialConfig material = orderItems.get(i).getMaterial();
+        for (int i = 1; i < productionPieces.size(); i++) {
+            MaterialConfig material = productionPieces.get(i).getMaterialConfig();
             if (material == null) {
-                return "订单项 " + orderItems.get(i).getOrderItemId() + " 的材料为空";
+                return "零件 " + productionPieces.get(i).getProductionPieceId() + " 的材料为空";
             }
             if (!firstMaterial.equals(material)) {
-                return "材料不一致：订单项 " + orderItems.get(0).getOrderItemId() +
+                return "材料不一致：零件 " + productionPieces.get(0).getProductionPieceId() +
                         " 的材料为 " + firstMaterial +
-                        "，订单项 " + orderItems.get(i).getOrderItemId() +
+                        "，零件 " + productionPieces.get(i).getProductionPieceId() +
                         " 的材料为 " + material;
             }
         }
@@ -546,47 +597,43 @@ public class AppTypesettingService {
     }
 
     /**
-     * 调用排版 API
-     *
-     * @param productionPieces 生产工件列表
-     * @param orderItems 订单项列表
-     * @return API 响应
+     * 排版算法回调方法
+     * @param response 排版算法响应
      */
-    private LayoutApiResponse callLayoutApi(List<ProductionPiece> productionPieces,
-                                            List<OrderItem> orderItems) {
-        try {
-            // 构建请求参数
-            Map<String, Object> requestParams = new HashMap<>();
-            requestParams.put("productionPieces", productionPieces);
-            requestParams.put("orderItems", orderItems);
-            requestParams.put("material", orderItems.get(0).getMaterial());
-            requestParams.put("pieceCount", productionPieces.size());
+    public void handleNestingCallback(NestingResponse response) {
+        if (response == null || StringUtils.isBlank(response.getId())) {
+            throw new RuntimeException("回调参数无效");
+        }
 
-            // 设置请求头
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        String typesettingId = response.getId();
+        TypesettingInfo typesettingInfo = domainTypesettingService.findTypesettingByTypesettingId(typesettingId);
+        
+        if (typesettingInfo == null) {
+            throw new RuntimeException("排版信息不存在：" + typesettingId);
+        }
 
-            // 构建请求实体
-            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestParams, headers);
+        if ("success".equals(response.getStatus())) {
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+            
+            if (response.getResults() != null) {
+                List<NestingResponse.Result> results = response.getResults();
+                List<TypesettingElement> typesettingElements = results.stream().map(result -> {
+                    TypesettingElement element = new TypesettingElement();
+                    element.setNestedSvg(result.getNestedSvg());
+                    element.setUtilization(result.getUtilization());
+                    return element;
+                }).collect(Collectors.toList());
 
-            // 调用 POST 接口
-            String apiUrl = "";
-            ResponseEntity<LayoutApiResponse> response = restTemplate.postForEntity(
-                    apiUrl,
-                    requestEntity,
-                    LayoutApiResponse.class
-            );
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return response.getBody();
-            } else {
-                return null;
+                typesettingInfo.setElements(typesettingElements);
             }
-
-        } catch (Exception e) {
-            System.err.println("调用排版 API 异常：" + e.getMessage());
-            return null;
+            
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+        } else {
+            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
+            typesettingInfo.setRemark(response.getError());
+            domainTypesettingService.updateTypesetting(typesettingInfo);
         }
     }
+
 
 }

@@ -11,6 +11,7 @@ import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.application.dto.resp.manufacturerMeta.ManufacturerMetaDetailResponse;
 import com.mes.application.dto.resp.manufacturerMeta.ManufacturerMetaListResponse;
+import com.mes.application.dto.resp.manufacturerMeta.ManufacturerSimpleResponse;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
@@ -168,23 +169,27 @@ public class ManufacturerMetaController {
      */
     @PostMapping("/edit")
     public ApiResponse<String> updateManufacturerMeta(@Valid @RequestBody ManufacturerMetaRequest request) {
-        // 先查询现有数据
-        ManufacturerMeta existingMeta = appManufacturerMetaService.findById(request.getId());
-        if (existingMeta == null) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "制造商不存在");
+        try {
+            // 先查询现有数据
+            ManufacturerMeta existingMeta = appManufacturerMetaService.findById(request.getId());
+            if (existingMeta == null) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "制造商不存在");
+            }
+            // 使用 Request 中的转换方法更新所有字段
+            ManufacturerMeta updatedMeta = request.toDomainEntity();
+
+            // 保留原有 ID 和其他不可更改的字段
+            updatedMeta.setId(existingMeta.getId());
+            updatedMeta.setCreateTime(existingMeta.getCreateTime());
+
+            // 调用应用服务更新
+            appManufacturerMetaService.updateManufacturerMeta(updatedMeta);
+
+            return ApiResponse.success("success");
+        }catch (Exception e) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, e.getMessage());
         }
 
-        // 使用 Request 中的转换方法更新所有字段
-        ManufacturerMeta updatedMeta = request.toDomainEntity();
-
-        // 保留原有 ID 和其他不可更改的字段
-        updatedMeta.setId(existingMeta.getId());
-        updatedMeta.setCreateTime(existingMeta.getCreateTime());
-
-        // 调用应用服务更新
-        appManufacturerMetaService.updateManufacturerMeta(updatedMeta);
-
-        return ApiResponse.success("success");
     }
 
     /**
@@ -278,6 +283,21 @@ public class ManufacturerMetaController {
                 .collect(Collectors.toList());
         
         return ApiResponse.success(unitTypes);
+    }
+
+    /**
+     * 根据制造商类型全量查询工厂列表
+     * @param manufacturerType 制造商类型
+     * @return 工厂列表（包含id、manufacturerMetaId、name和manufacturerType）
+     */
+    @GetMapping("/listByType")
+    public ApiResponse<List<ManufacturerSimpleResponse>> listManufacturersByType(
+            @RequestParam String manufacturerType) {
+        if (StringUtils.isBlank(manufacturerType)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "制造商类型不能为空");
+        }
+        List<ManufacturerSimpleResponse> result = appManufacturerMetaService.findByManufacturerType(manufacturerType);
+        return ApiResponse.success(result);
     }
 
     /**

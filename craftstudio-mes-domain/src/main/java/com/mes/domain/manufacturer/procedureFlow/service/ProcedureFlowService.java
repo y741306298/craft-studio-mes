@@ -5,7 +5,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.repository.ProcedureFlowRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -201,17 +201,42 @@ public class ProcedureFlowService {
     }
 
     /**
-     * 解析工艺流程，完善生产节点
+     * 解析工艺流程，完善生产节点，并将排版和排版中作为第二第三个节点
      * @return 工艺节点列表
      */
     public ProcedureFlow parseProcessingFlow(ProcedureFlow procedureFlow) {
-        // 添加默认的"预处理"节点作为第一个节点
+        List<ProcedureFlowNode> defaultNodes = new java.util.ArrayList<>();
+        
         ProcedureFlowNode preTreatmentNode = new ProcedureFlowNode();
         preTreatmentNode.setNodeId("NODE_PRETREATMENT");
         preTreatmentNode.setNodeName("预处理");
         preTreatmentNode.setNodeOrder(0);
         preTreatmentNode.setNodeStatus(NodeStatus.PENDING);
-        procedureFlow.getNodes().add(0,preTreatmentNode);
+        defaultNodes.add(preTreatmentNode);
+        
+        ProcedureFlowNode typesettingNode = new ProcedureFlowNode();
+        typesettingNode.setNodeId("NODE_TYPESETTING");
+        typesettingNode.setNodeName("排版");
+        typesettingNode.setNodeOrder(1);
+        typesettingNode.setNodeStatus(NodeStatus.PENDING);
+        defaultNodes.add(typesettingNode);
+        
+        ProcedureFlowNode typesettingInProgressNode = new ProcedureFlowNode();
+        typesettingInProgressNode.setNodeId("NODE_TYPESETTING_IN_PROGRESS");
+        typesettingInProgressNode.setNodeName("排版中");
+        typesettingInProgressNode.setNodeOrder(2);
+        typesettingInProgressNode.setNodeStatus(NodeStatus.PENDING);
+        defaultNodes.add(typesettingInProgressNode);
+        
+        if (procedureFlow.getNodes() != null && !procedureFlow.getNodes().isEmpty()) {
+            for (int i = 0; i < procedureFlow.getNodes().size(); i++) {
+                procedureFlow.getNodes().get(i).setNodeOrder(i + 3);
+            }
+            defaultNodes.addAll(procedureFlow.getNodes());
+        }
+        
+        procedureFlow.setNodes(defaultNodes);
+        
         return procedureFlow;
     }
 

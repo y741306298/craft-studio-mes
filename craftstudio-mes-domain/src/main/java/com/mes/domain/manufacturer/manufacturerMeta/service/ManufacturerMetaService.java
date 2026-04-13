@@ -6,7 +6,7 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductio
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

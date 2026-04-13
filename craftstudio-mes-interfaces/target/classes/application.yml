@@ -16,8 +16,8 @@ spring:
 # 外部系统 API 配置
 external:
   api:
-    baseUrl: http://external-system.com/api/v1
-    productCoreUrl: http://external-system.com/api/v1
+    productCoreUrl: http://8.136.34.126:80
+    algorithmUrl: http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run
 
 #logging:
 #  level:

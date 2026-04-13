@@ -90,9 +90,6 @@ public class AppOrderPreprocessingService {
     private List<ProductionPiece> processSingleOrderItem(OrderItem orderItem) {
         // 1. 解析工艺流程
         String processingFlow = orderItem.getProcessingFlow();
-        if (processingFlow == null || processingFlow.trim().isEmpty()) {
-            throw new RuntimeException("工艺流程不能为空：" + orderItem.getOrderItemId());
-        }
         //将订单工艺转化为生产工序
         ProcedureFlow procedureFlow = procedureFlowService.parseProcessingFlow(orderItem.getProcedureFlow());
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();

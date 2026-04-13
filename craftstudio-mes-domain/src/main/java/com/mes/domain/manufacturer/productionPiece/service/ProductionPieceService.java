@@ -191,7 +191,7 @@ public class ProductionPieceService {
 
         // 生成唯一的 productionPieceId
         if (StringUtils.isBlank(productionPiece.getProductionPieceId())) {
-            productionPiece.setProductionPieceId(com.mes.domain.shared.util.IdGenerator.generateId("PP"));
+            productionPiece.setProductionPieceId(com.mes.domain.shared.utils.IdGenerator.generateId("PP"));
         }
 
         return productionPieceRepository.add(productionPiece);
@@ -321,7 +321,7 @@ public class ProductionPieceService {
             }
             // 生成唯一的 productionPieceId
             if (StringUtils.isBlank(piece.getProductionPieceId())) {
-                piece.setProductionPieceId(com.mes.domain.shared.util.IdGenerator.generateId("PP"));
+                piece.setProductionPieceId(com.mes.domain.shared.utils.IdGenerator.generateId("PP"));
             }
         }
 

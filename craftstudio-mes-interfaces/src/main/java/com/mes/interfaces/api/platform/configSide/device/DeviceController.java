@@ -114,7 +114,10 @@ public class DeviceController {
      */
     @GetMapping("/delete/{id}")
     public ApiResponse<String> deleteDevice(@PathVariable String id) {
-        appDeviceService.deleteDevice(id);
+        String errorMsg = appDeviceService.deleteDevice(id);
+        if (errorMsg != null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, errorMsg);
+        }
         return ApiResponse.success("success");
     }
 

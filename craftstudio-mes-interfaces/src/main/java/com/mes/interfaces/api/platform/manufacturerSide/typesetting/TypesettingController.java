@@ -47,19 +47,7 @@ public class TypesettingController {
      */
     @PostMapping("/confirmLayout")
     public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody LayoutConfirmRequest request) {
-        
-        if (request.getProductionPieceIds() == null || request.getProductionPieceIds().isEmpty()) {
-            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
-            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage("生产工件 ID 列表不能为空");
-            return failResponse;
-        }
-
-        
-        LayoutConfirmResult result = appTypesettingService.confirmLayout(
-                request.getProductionPieceIds()
-        );
-        
+        LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
         if (!result.isSuccess()) {
             ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
             failResponse.setMessage(result.getMessage());

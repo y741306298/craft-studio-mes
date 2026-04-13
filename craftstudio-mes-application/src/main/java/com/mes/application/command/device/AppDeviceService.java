@@ -3,6 +3,8 @@ package com.mes.application.command.device;
 import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.device.service.DeviceService;
+import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
+import com.mes.domain.shared.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -19,6 +21,9 @@ public class AppDeviceService {
 
     @Autowired
     private DeviceInfoRepository deviceInfoRepository;
+
+    @Autowired
+    private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
 
     public PagedResult<Device> findDevices(String deviceName, String deviceType, PagedQuery query) {
         if (query == null) {
@@ -59,11 +64,31 @@ public class AppDeviceService {
         domainDeviceService.updateDevice(command);
     }
 
-    public void deleteDevice(String id) {
+    public String deleteDevice(String id) {
         if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("ID 不能为空");
         }
+        Device byId = domainDeviceService.findById(id);
+        String deviceInfoId = byId.getDeviceInfoId();
+        List<com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg> cfgs = 
+            manufacturerDeviceCfgRepository.filterList(1, 100, 
+                java.util.Collections.singletonMap("deviceId", deviceInfoId));
+        
+        if (cfgs != null && !cfgs.isEmpty()) {
+            boolean hasNormalCfg = cfgs.stream()
+                .anyMatch(cfg -> cfg.getStatus() == com.mes.domain.manufacturer.enums.CfgStatus.NORMAL);
+            
+            if (hasNormalCfg) {
+                return "该设备已被制造商设备配置使用，无法删除";
+            }
+            
+            for (com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg cfg : cfgs) {
+                manufacturerDeviceCfgRepository.delete(cfg);
+            }
+        }
+        
         domainDeviceService.deleteDevice(id);
+        return null;
     }
 
     public Device findById(String id) {
@@ -71,5 +96,20 @@ public class AppDeviceService {
             throw new IllegalArgumentException("ID 不能为空");
         }
         return domainDeviceService.findById(id);
+    }
+
+    public Device findByDeviceInfoId(String deviceInfoId) {
+        if (StringUtils.isBlank(deviceInfoId)) {
+            throw new IllegalArgumentException("设备业务ID不能为空");
+        }
+        
+        List<Device> devices = deviceInfoRepository.filterList(1, 1, 
+            java.util.Collections.singletonMap("deviceInfoId", deviceInfoId));
+        
+        if (devices == null || devices.isEmpty()) {
+            return null;
+        }
+        
+        return devices.get(0);
     }
 }

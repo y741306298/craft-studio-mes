@@ -1,7 +1,10 @@
 package com.mes.application.dto.resp.manufacturerMeta;
 
+import com.mes.domain.manufacturer.device.entity.DeviceProcedure;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class DeviceCfgSummary {
@@ -17,6 +20,8 @@ public class DeviceCfgSummary {
     private String capacityUnit;            // 产能单位 code
     private String capacityUnitName;        // 产能单位名称
     private String status;
+    private String brand;
+    private List<DeviceProcedure> deviceProcedures;
 
     /**
      * 从 ManufacturerDeviceCfg 实体转换为响应 DTO

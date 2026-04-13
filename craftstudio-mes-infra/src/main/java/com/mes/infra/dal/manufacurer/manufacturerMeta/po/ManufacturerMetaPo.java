@@ -5,6 +5,8 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
 import com.mes.infra.base.BasePO;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Consignee;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -19,6 +21,8 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
     private String manufacturerMetaId;
     private String manufacturerTempId;
     private String manufacturerMetaType;
+    private Consignee consignee;
+    private Address address;
     private String name;
     private String description;
     private String status;
@@ -36,6 +40,8 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
         manufacturerMeta.setDescription(description);
         manufacturerMeta.setStatus(CfgStatus.getByCode(status));
         manufacturerMeta.setManufacturerWorkshopMetas(manufacturerWorkshopMetas);
+        manufacturerMeta.setConsignee(consignee);
+        manufacturerMeta.setAddress(address);
         return manufacturerMeta;
     }
 
@@ -52,6 +58,8 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
         this.description = _do.getDescription();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         this.manufacturerWorkshopMetas = _do.getManufacturerWorkshopMetas();
+        this.consignee = _do.getConsignee();
+        this.address = _do.getAddress();
         return this;
     }
 }

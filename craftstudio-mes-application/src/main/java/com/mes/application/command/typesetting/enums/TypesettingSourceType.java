@@ -1,7 +1,7 @@
 package com.mes.application.command.typesetting.enums;
 
 public enum TypesettingSourceType {
-    ALL("TYPESETTING", "排版文件"),
+    TYPESETTING("TYPESETTING", "排版文件"),
     PART("PRODUCTION_PIECE", "零件");
 
     private final String code;

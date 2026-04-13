@@ -1,4 +1,4 @@
-package com.mes.domain.shared.util;
+package com.mes.domain.shared.utils;
 
 import java.util.UUID;
 

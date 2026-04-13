@@ -7,9 +7,7 @@ import com.mes.application.dto.resp.PagedApiResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import java.util.List;
-
-public class DeliveryController {
+public class DeliveryPkgController {
 
     /**
      * 统一查询排版和生产工件列表

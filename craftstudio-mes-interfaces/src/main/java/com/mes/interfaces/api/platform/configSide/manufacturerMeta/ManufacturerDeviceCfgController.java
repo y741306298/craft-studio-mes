@@ -1,11 +1,13 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
+import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
 import com.mes.application.dto.resp.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
+import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -13,6 +15,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +27,9 @@ public class ManufacturerDeviceCfgController {
     @Autowired
     private AppManufacturerDeviceCfgService appDeviceCfgService;
 
+    @Autowired
+    private AppDeviceService appDeviceService;
+
     /**
      * 分页查询设备配置列表（根据制造商 ID）
      * @param request 分页请求参数
@@ -31,18 +38,22 @@ public class ManufacturerDeviceCfgController {
     @PostMapping("/list")
     public PagedApiResponse<DeviceCfgSummary> listDeviceCfgs(
             @Valid @RequestBody ManufacturerDeviceCfgListRequest request) {
-        
+
         PagedQuery query = request.toPagedQuery();
         String manufacturerMetaId = request.getManufacturerMetaId();
         PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
-        
-        List<DeviceCfgSummary> responses = result.items().stream()
-                .map(DeviceCfgSummary::from)
-                .collect(Collectors.toList());
-        
+        Collection<ManufacturerDeviceCfg> items = result.items();
+        List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
+        for (ManufacturerDeviceCfg item : items) {
+            String deviceId = item.getDeviceId();
+            DeviceCfgSummary summary = DeviceCfgSummary.from(item);
+            Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceId);
+            summary.setBrand(byDeviceInfoId.getBrand());
+            summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
+            responses.add(summary);
+        }
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
     }
-
     /**
      * 根据 ID 获取设备配置详情
      * @param id 设备 ID

@@ -7,7 +7,7 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -373,22 +373,9 @@ public class OrderInfoService {
      * @return 添加后的订单信息
      */
     public List<OrderItem> addOrderWithItems(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        if (orderInfo == null) {
-            throw new BusinessNotAllowException("订单信息不能为空");
-        }
-        if (StringUtils.isBlank(orderInfo.getOrderId())) {
-            throw new BusinessNotAllowException("订单号不能为空");
-        }
         
         // 检查订单是否已存在
         OrderInfo existingOrder = findByOrderId(orderInfo.getOrderId());
-        if (existingOrder != null) {
-            throw new BusinessNotAllowException("订单号已存在：" + orderInfo.getOrderId());
-        }
-        
-        if (orderItems == null || orderItems.isEmpty()) {
-            throw new BusinessNotAllowException("订单项不能为空");
-        }
 
         // 为每个订单项生成唯一的 orderItemId 并完善 procedureFlow 数据
         for (OrderItem item : orderItems) {

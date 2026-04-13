@@ -118,7 +118,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         deviceCfg.setDeviceType(DeviceType.getByCode(this.deviceType));
         deviceCfg.setDeviceCode(this.deviceCode);
         deviceCfg.setCapacity(this.capacity);
-        deviceCfg.setCapacityUnit(ProductUnit.getBySymbol(this.capacityUnit));
+        deviceCfg.setCapacityUnit(ProductUnit.getByChineseName(this.capacityUnit));
         return deviceCfg;
     }
 }

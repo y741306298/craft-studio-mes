@@ -17,7 +17,7 @@ import java.util.List;
 public class OrderAddRequest {
     private List<OrderItemRequest> orderItems;
     private ConsigneeRequest consignee;
-    private Integer id;
+    private Long id;
     private String state;
 
 

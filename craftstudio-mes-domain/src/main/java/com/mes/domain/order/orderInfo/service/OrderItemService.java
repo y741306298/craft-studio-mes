@@ -1,23 +1,15 @@
 package com.mes.domain.order.orderInfo.service;
 
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
-import com.mes.domain.manufacturer.procedureFlow.enums.FlowStatus;
-import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.exception.BusinessNotAllowException;
-import com.mes.domain.shared.util.IdGenerator;
-import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
+import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class OrderItemService {

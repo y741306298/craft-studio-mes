@@ -22,17 +22,9 @@ import java.util.Map;
 @Service
 public class AlgorithmCoreApiService {
 
-    @Value("${algorithm.service.masker.baseUrl:http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run}")
-    private String maskerServiceBaseUrl;
+    @Value("${external.api.algorithmUrl:}")
+    private String baseUrl;
 
-    @Value("${algorithm.service.nester.baseUrl:http://craftstsvg-nest-lmadlddfst.cn-hangzhou.fcapp.run}")
-    private String nesterServiceBaseUrl;
-
-    @Value("${algorithm.service.imposer.baseUrl:http://craftstposition-gzsupcyncm.cn-hangzhou.fcapp.run}")
-    private String imposerServiceBaseUrl;
-
-    @Value("${algorithm.service.converter.baseUrl:http://craftstonverter-zjjuwhyrfr.cn-hangzhou.fcapp.run}")
-    private String converterServiceBaseUrl;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -140,7 +132,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync(maskerServiceBaseUrl, "/generate_mask_files", request, 
+        return callAlgorithmAsync(baseUrl, "/generate_mask_files", request,
                 request.getCallbackConfig().getCallbackUrl(), ImageMaskResponse.class);
     }
 
@@ -171,7 +163,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync(nesterServiceBaseUrl, "/generate_nested_files", request, 
+        return callAlgorithmAsync(baseUrl, "/generate_nested_files", request,
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
 
@@ -202,7 +194,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync(imposerServiceBaseUrl, "/impose", request, 
+        return callAlgorithmAsync(baseUrl, "/impose", request,
                 request.getCallbackConfig().getCallbackUrl(), ImpositionResponse.class);
     }
 
@@ -222,7 +214,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("SVG文件URL不能为空");
         }
 
-        return callAlgorithmSync(converterServiceBaseUrl, "/svg_to_plt", request, String.class);
+        return callAlgorithmSync(baseUrl, "/svg_to_plt", request, String.class);
     }
 
     

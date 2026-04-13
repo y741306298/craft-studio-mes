@@ -11,10 +11,21 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryNet\repository\DeliveryNetRepository.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryNet\service\DeliveryNetService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryNet\service\DeliveryWayService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\entity\DeliveryMan.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\entity\DeliveryPkg.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\entity\DeliveryRecord.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\entity\DeliveryToken.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\enums\DeliveryPkgStatus.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\repository\DeliveryManRepository.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\repository\DeliveryPkgRepository.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\repository\DeliveryTokenRepository.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\service\DeliveryManService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\service\DeliveryPkgService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\service\DeliveryService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\service\DeliveryTokenService.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\vo\AuthOrderRequest.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\vo\AuthOrderResponse.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\vo\DeliveryManInfo.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryPkg\vo\DeliveryPkgItem.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryRoute\entity\DeliveryRoute.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\delivery\deliveryRoute\entity\DeliveryRouteNode.java
@@ -63,7 +74,6 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\repository\ProcedureFlowRepository.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\service\ProcedureFlowService.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\service\ProcedureFlowStateMachineService.java
-D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\procedureFlow\vo\MTOProductSpecDTO.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\entity\ProductionCell.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\entity\ProductionPiece.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\productionPiece\enums\ProductionPieceStatus.java
@@ -86,8 +96,9 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\enums\TypesettingStatus.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\repository\TypesettingRepository.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\service\TypesettingService.java
-D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\vo\OrderItemCell.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\vo\ProductionPieceCell.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\vo\TypesettingCell.java
+D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\manufacturer\typesetting\vo\TypesettingElement.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\enums\OrderStatus.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\entity\OrderInfo.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\order\orderInfo\entity\OrderItem.java
@@ -104,4 +115,3 @@ D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domai
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\exception\BadModelException.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\exception\BusinessNotAllowException.java
 D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\utils\IdGenerator.java
-D:\work\craft\craftstudio-mes\craftstudio-mes-domain\src\main\java\com\mes\domain\shared\vo\Address.java

@@ -1,6 +1,8 @@
 package com.mes.application.command.api.resp;
 
 import lombok.Data;
+
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -13,6 +15,6 @@ public class NestingResponse {
     @Data
     public static class Result {
         private String nestedSvg;
-        private Double utilization;
+        private BigDecimal utilization;
     }
 }

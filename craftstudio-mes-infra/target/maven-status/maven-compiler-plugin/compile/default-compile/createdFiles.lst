@@ -3,6 +3,7 @@ com\mes\infra\db\mongodb\SoftDeleteQuery.class
 com\mes\infra\dal\manufacurer\transBox\storageTank\StorageTankRepositoryImp.class
 com\mes\infra\dal\manufacurer\transBox\storageSlot\StorageSlotRepositoryImp.class
 com\mes\infra\dal\manufacurer\device\DeviceRepositoryImp.class
+com\mes\infra\dal\delivery\deliveryPkg\po\DeliveryManPO.class
 com\mes\infra\dal\manufacurer\typesetting\po\TypesettingPo.class
 com\mes\infra\dal\manufacurer\typesetting\TypesettingRepositoryImp.class
 com\mes\infra\dal\delivery\deliveryPkg\po\DeliveryPkgPo.class
@@ -25,9 +26,11 @@ com\mes\infra\base\BasePO.class
 com\mes\infra\dal\delivery\deliveryRoute\DeliveryRouteRepositoryImp.class
 com\mes\infra\dal\manufacurer\manufacturerProcessPriceCfg\po\ManufacturerProcessPriceCfgPo.class
 com\mes\infra\dal\manufacurer\procedure\ProcedureRepositoryImp.class
+com\mes\infra\dal\delivery\deliveryPkg\DeliveryManRepositoryImp.class
 com\mes\infra\dal\manufacurer\transBox\storageInventory\po\StorageInventoryPo.class
 com\mes\infra\db\DataBaseException.class
 com\mes\infra\dal\delivery\deliveryNet\DeliveryNetRepositoryImp.class
+com\mes\infra\dal\delivery\deliveryPkg\po\DeliveryTokenPO.class
 com\mes\infra\dal\manufacurer\ProductionPiece\po\ProductionPiecePo.class
 com\mes\infra\dal\delivery\deliveryNet\po\DeliveryWayPo.class
 com\mes\infra\dal\manufacurer\transBox\storageSlot\po\StorageSlotPo.class
@@ -42,6 +45,7 @@ com\mes\infra\db\mongodb\MongoConfig.class
 com\mes\infra\dal\manufacurer\ProductionPiece\ProductionPieceRepositoryImp.class
 com\mes\infra\dal\manufacurer\transBox\storageInventory\StorageInventoryRepositoryImp.class
 com\mes\infra\dal\manufacurer\manufacturerMaterialPriceCfg\ManufacturerMaterialPriceImp.class
+com\mes\infra\dal\delivery\deliveryPkg\DeliveryTokenRepositoryImp.class
 com\mes\infra\dal\manufacurer\manufacturerMeta\po\ManufacturerDeviceCfgPo.class
 com\mes\infra\dal\manufacurer\manufacturerMtsProductCfg\ManufacturerMtsProductCfgImp.class
 com\mes\infra\dal\manufacurer\manufacturerMaterialPriceCfg\po\ManufacturerMaterialPricePo.class

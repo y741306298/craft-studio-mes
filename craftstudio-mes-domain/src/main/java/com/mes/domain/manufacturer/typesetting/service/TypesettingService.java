@@ -102,24 +102,19 @@ public class TypesettingService {
     }
 
     /**
-     * 根据排版文件 ID 查询排版信息（支持分页）
+     * 根据排版文件 ID 查询排版信息
      * @param typesettingId 排版文件 ID
-     * @param current 当前页码
-     * @param size 每页大小
      * @return 排版信息列表
      */
-    public List<TypesettingInfo> findTypesettingByTypesettingId(String typesettingId, int current, int size) {
-
-        if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
-        }
-        if (StringUtils.isBlank(typesettingId)) {
-            throw new BusinessNotAllowException("排版文件 ID 不能为空");
-        }
+    public TypesettingInfo findTypesettingByTypesettingId(String typesettingId) {
 
         Map<String, String> searchFilters = new HashMap<>();
         searchFilters.put("typesettingId", typesettingId);
-        return typesettingRepository.fuzzySearch(searchFilters, current, size);
+        List<TypesettingInfo> typesettingInfos = typesettingRepository.fuzzySearch(searchFilters, 1, 100);
+        if (typesettingInfos.size() > 0) {
+            return typesettingInfos.get(0);
+        }
+        return null;
     }
 
     /**
@@ -208,7 +203,7 @@ public class TypesettingService {
         }
         
         if (typesettingInfo.getStatus() == null) {
-            typesettingInfo.setStatus(TypesettingStatus.PENDING);
+            typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
         }
         
         if (typesettingInfo.getQuantity() != null && typesettingInfo.getQuantity() < 0) {
@@ -265,7 +260,7 @@ public class TypesettingService {
         
         TypesettingInfo typesettingInfo = findById(id);
         if (typesettingInfo != null) {
-            typesettingInfo.setStatus(status);
+            typesettingInfo.setStatus(status.getCode());
             updateTypesetting(typesettingInfo);
         }
     }
