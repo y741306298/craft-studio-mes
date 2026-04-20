@@ -2,10 +2,10 @@ package com.mes.application.dto.req.typesetting;
 
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.base.ApiRequest;
-import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -15,11 +15,7 @@ public class LayoutConfirmRequest extends ApiRequest {
 
     private List<TypesettingProductionPieceVO> typesettingCells;
 
-    private List<ProductionPiece> productionPieces;
-
-    private List<TypesettingInfo> typesettingInfos;
-
-    private List<String> materialCodes;
+    private List<ContainerInfo> containers;
 
     /**
      * 排版方式（用于判断调用异形排版还是网格排版算法）
@@ -34,5 +30,13 @@ public class LayoutConfirmRequest extends ApiRequest {
     @Override
     public String getValidationMessage() {
         return "";
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ContainerInfo {
+        private Integer width;
+        private Integer height;
     }
 }
