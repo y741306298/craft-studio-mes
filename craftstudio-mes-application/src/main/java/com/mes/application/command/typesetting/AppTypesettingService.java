@@ -5,9 +5,13 @@ import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
+import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
+import com.mes.application.command.typesetting.vo.GenerateTempCodeResult;
 import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
 import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
+import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
+import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 
 import com.mes.application.dto.TypesettingQuery;
@@ -29,9 +33,14 @@ import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -39,7 +48,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
+import java.util.Base64;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -64,6 +75,9 @@ public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
+    private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
+    private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
+    private static final int TEMP_CODE_QUEUE_MAX = 100000;
 
 
     /**
@@ -310,6 +324,12 @@ public class AppTypesettingService {
         typesettingInfo.setQuantity(1);
         typesettingInfo.setCompletedQuantity(0);
         List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
+        if (typesettingInfos == null) {
+            typesettingInfos = new ArrayList<>();
+        }
+        if (!typesettingInfos.isEmpty()) {
+            typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
+        }
         List<TypesettingCell> typesettingCells = typesettingInfos.stream().map(cell -> {
             TypesettingCell typesettingCell = new TypesettingCell();
             typesettingCell.setTypesettingId(cell.getTypesettingId());
@@ -621,6 +641,8 @@ public class AppTypesettingService {
                     TypesettingElement element = new TypesettingElement();
                     element.setNestedSvg(result.getNestedSvg());
                     element.setUtilization(result.getUtilization());
+                    element.setWidth(result.getWidth());
+                    element.setHeight(result.getHeight());
                     return element;
                 }).collect(Collectors.toList());
 
@@ -635,5 +657,92 @@ public class AppTypesettingService {
         }
     }
 
+    /**
+     * 仅生成二维码图片（Base64），不上传 OSS
+     */
+    public GenerateQrCodeResult generateQrCode(GenerateQrCodeRequest request) {
+        if (request == null || StringUtils.isBlank(request.getContent())) {
+            throw new IllegalArgumentException("二维码内容不能为空");
+        }
+        if (StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+
+        try {
+            QRCodeWriter writer = new QRCodeWriter();
+            BitMatrix bitMatrix = writer.encode(request.getContent(), BarcodeFormat.QR_CODE, 512, 512);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            byte[] bytes = outputStream.toByteArray();
+            String base64 = Base64.getEncoder().encodeToString(bytes);
+
+            GenerateQrCodeResult result = new GenerateQrCodeResult();
+            result.setManufacturerMetaId(request.getManufacturerMetaId());
+            result.setContent(request.getContent());
+            result.setQrCodeBase64(base64);
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("生成二维码失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 生成临时码:
+     * 1) 每个 manufacturerMetaId 维护 1~100000 的循环序列
+     * 2) 每次取队首数字，使用后放到队尾
+     * 3) 临时码格式: xxx（即号码池中的数字字符串）
+     */
+    public GenerateTempCodeResult generateTempCode(GenerateTempCodeRequest request) {
+        if (request == null || StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        String manufacturerMetaId = request.getManufacturerMetaId();
+        String queueKey = TEMP_CODE_QUEUE_KEY_PREFIX + manufacturerMetaId;
+        initTempCodeQueueIfAbsent(manufacturerMetaId, queueKey);
+
+        Long codeNumber = rotateAndGetCodeNumber(queueKey);
+        if (codeNumber == null) {
+            initTempCodeQueueIfAbsent(manufacturerMetaId, queueKey);
+            codeNumber = rotateAndGetCodeNumber(queueKey);
+        }
+        if (codeNumber == null) {
+            throw new RuntimeException("临时码号码池为空，无法生成");
+        }
+
+        GenerateTempCodeResult result = new GenerateTempCodeResult();
+        result.setManufacturerMetaId(manufacturerMetaId);
+        result.setCodeNumber(codeNumber);
+        result.setTempCode(String.valueOf(codeNumber));
+        return result;
+    }
+
+    private void initTempCodeQueueIfAbsent(String manufacturerMetaId, String queueKey) {
+        String initFlagKey = TEMP_CODE_QUEUE_INIT_KEY_PREFIX + manufacturerMetaId;
+        Boolean firstInit = redisTemplate.opsForValue().setIfAbsent(initFlagKey, "1");
+        if (Boolean.TRUE.equals(firstInit) || redisTemplate.opsForList().size(queueKey) == 0) {
+            List<Object> initialNumbers = new ArrayList<>(TEMP_CODE_QUEUE_MAX);
+            for (long i = 1; i <= TEMP_CODE_QUEUE_MAX; i++) {
+                initialNumbers.add(i);
+            }
+            redisTemplate.delete(queueKey);
+            redisTemplate.opsForList().rightPushAll(queueKey, initialNumbers);
+        }
+    }
+
+    private Long rotateAndGetCodeNumber(String queueKey) {
+        DefaultRedisScript<String> script = new DefaultRedisScript<>();
+        script.setResultType(String.class);
+        script.setScriptText(
+                "local v = redis.call('LPOP', KEYS[1]); " +
+                "if (not v) then return nil end; " +
+                "redis.call('RPUSH', KEYS[1], v); " +
+                "return v;"
+        );
+        String code = redisTemplate.execute(script, Collections.singletonList(queueKey));
+        if (StringUtils.isBlank(code)) {
+            return null;
+        }
+        return Long.parseLong(code);
+    }
 
 }

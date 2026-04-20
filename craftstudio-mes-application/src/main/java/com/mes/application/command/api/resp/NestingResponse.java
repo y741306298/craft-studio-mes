@@ -16,6 +16,8 @@ public class NestingResponse {
     public static class Result {
         private String nestedSvg;
         private BigDecimal utilization;
+        private BigDecimal width;
+        private BigDecimal height;
         private GridLines gridLines;
     }
 

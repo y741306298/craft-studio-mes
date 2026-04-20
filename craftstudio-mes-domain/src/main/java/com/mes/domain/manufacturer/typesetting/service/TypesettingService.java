@@ -214,7 +214,7 @@ public class TypesettingService {
         if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getCompletedQuantity() < 0) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能为负数");
         }
-        
+        typesettingInfo.applyLayoutModeConfig();
         return typesettingRepository.add(typesettingInfo);
     }
 
@@ -242,7 +242,8 @@ public class TypesettingService {
             && typesettingInfo.getCompletedQuantity() > typesettingInfo.getQuantity()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能大于总数量");
         }
-        
+
+        typesettingInfo.applyLayoutModeConfig();
         typesettingRepository.update(typesettingInfo);
     }
 
