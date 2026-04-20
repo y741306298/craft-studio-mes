@@ -17,13 +17,13 @@ public class TypesettingInfo extends BaseEntity {
     //排版文件
     private String typesettingId;
     /**
-     * 排版算法返回结果列表（可持久化）：
+     * 排版算法返回结果（单条）：
      * - nestedSvg
      * - utilization
      * - width
      * - height
      */
-    private List<TypesettingElement> elements;
+    private TypesettingElement elements;
     private List<String> materialCodes;
     private String status;
     private Integer quantity;
@@ -32,6 +32,10 @@ public class TypesettingInfo extends BaseEntity {
     private List<ProductionPieceCell> pieceCells;
     private ProcedureFlow procedureFlow;
     private String remark;
+    /**
+     * 参与排版用的轮廓SVG（来源由上游工序补充）
+     */
+    private String maskSvg;
     /**
      * 排版方式，可编辑：
      * shaped_cutting_plt_qr_circle / shaped_cutting_plt_qr_square /

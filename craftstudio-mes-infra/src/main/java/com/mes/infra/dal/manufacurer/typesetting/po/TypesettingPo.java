@@ -19,7 +19,7 @@ import java.util.List;
 public class TypesettingPo extends BasePO<TypesettingInfo> {
 
     private String typesettingId;
-    private List<TypesettingElement> elements;
+    private TypesettingElement elements;
     private List<String> materialCodes;
     private String status;
     private Integer quantity;
@@ -28,6 +28,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private List<ProductionPieceCell> pieceCells;
     private ProcedureFlow procedureFlow;
     private String remark;
+    private String maskSvg;
     private String layoutMode;
     private String layoutCategory;
     private Boolean requireJsonFile;
@@ -53,6 +54,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setPieceCells(this.pieceCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
         typesettingInfo.setRemark(this.remark);
+        typesettingInfo.setMaskSvg(this.maskSvg);
         typesettingInfo.setLayoutMode(this.layoutMode);
         typesettingInfo.setLayoutCategory(this.layoutCategory);
         typesettingInfo.setRequireJsonFile(this.requireJsonFile);
@@ -76,6 +78,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.pieceCells = _do.getPieceCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();
+        this.maskSvg = _do.getMaskSvg();
         this.layoutMode = _do.getLayoutMode();
         this.layoutCategory = _do.getLayoutCategory();
         this.requireJsonFile = _do.getRequireJsonFile();

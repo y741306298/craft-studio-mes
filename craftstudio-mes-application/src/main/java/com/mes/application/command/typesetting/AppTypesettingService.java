@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting;
 
 import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.NestingRequest;
+import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
@@ -12,8 +13,6 @@ import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
-
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.command.typesetting.enums.TypesettingQueryType;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
@@ -23,6 +22,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.manufacturer.typesetting.vo.ProductionPieceCell;
@@ -39,6 +39,7 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpEntity;
@@ -78,6 +79,9 @@ public class AppTypesettingService {
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
+
+    @Value("${external.callbackApi.generate_nested_files:${external.callbackApi.generate_mask_files:}}")
+    private String generateNestedFilesCallbackUrl;
 
 
     /**
@@ -247,7 +251,7 @@ public class AppTypesettingService {
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
      * @return 排版结果
      */
-    public LayoutConfirmResult confirmLayout(LayoutConfirmRequest request) {
+    public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
         List<TypesettingProductionPieceVO> typesettingCellList = request.getTypesettingCells();
         for (TypesettingProductionPieceVO typesettingCell : typesettingCellList) {
             String sourceType = typesettingCell.getSourceType();
@@ -258,6 +262,9 @@ public class AppTypesettingService {
 
         // 1. 根据 productionPieceId 获取所有的生产零件信息
         List<ProductionPiece> productionPieces = request.getProductionPieces();
+        if (productionPieces == null) {
+            productionPieces = new ArrayList<>();
+        }
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
             List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
@@ -284,13 +291,25 @@ public class AppTypesettingService {
         //记录id，供callback使用
         String cacheKey = IdGenerator.generateId("LAYOUT");
         redisTemplate.opsForValue().set(cacheKey, request, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
+        if (typesettingInfos == null) {
+            typesettingInfos = new ArrayList<>();
+        }
         // 5. 调用排版 API
-//        NestingRequest nestingRequest = new NestingRequest();
-//        NestingResponse nestingResponse = algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
-//        if (nestingResponse == null || !nestingResponse.getStatus().equals("success")) {
-//            //排版算法调用失败，不更新任何数据
-//            return LayoutConfirmResult.failed(nestingResponse.getError());
-//        }
+        NestingRequest nestingRequest;
+        try {
+            nestingRequest = buildNestingRequest(productionPieces, typesettingInfos, cacheKey);
+        } catch (Exception e) {
+            return LayoutConfirmResult.failed(e.getMessage());
+        }
+
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        NestingResponse nestingResponse = "grid_typesetting".equals(layoutMode.getLayoutCategory())
+                ? algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest)
+                : algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
+        if (nestingResponse == null || StringUtils.isBlank(nestingResponse.getStatus())) {
+            return LayoutConfirmResult.failed("排版算法调用失败：返回为空");
+        }
 
         // 6. 构建返回结果
         LayoutConfirmResult result = new LayoutConfirmResult();
@@ -323,11 +342,9 @@ public class AppTypesettingService {
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
         typesettingInfo.setCompletedQuantity(0);
-        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
-        if (typesettingInfos == null) {
-            typesettingInfos = new ArrayList<>();
-        }
-        if (!typesettingInfos.isEmpty()) {
+        if (StringUtils.isNotBlank(request.getLayoutMode())) {
+            typesettingInfo.setLayoutMode(request.getLayoutMode());
+        } else if (!typesettingInfos.isEmpty()) {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
         List<TypesettingCell> typesettingCells = typesettingInfos.stream().map(cell -> {
@@ -350,6 +367,81 @@ public class AppTypesettingService {
         typesettingInfo.setPieceCells(productionPieceCells);
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
+    }
+
+    /**
+     * 确认排版（占位实现）
+     */
+    public LayoutConfirmResult confirmLayout(LayoutConfirmRequest request) {
+        LayoutConfirmResult result = new LayoutConfirmResult();
+        result.setSuccess(true);
+        result.setMessage("确认排版接口待实现");
+        return result;
+    }
+
+    private NestingRequest buildNestingRequest(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos, String cacheKey) {
+        if (StringUtils.isBlank(generateNestedFilesCallbackUrl)) {
+            throw new IllegalArgumentException("排版回调地址未配置");
+        }
+
+        List<NestingRequest.Element> elements = new ArrayList<>();
+        if (productionPieces != null) {
+            for (ProductionPiece piece : productionPieces) {
+                if (piece == null || StringUtils.isBlank(piece.getProductionPieceId())) {
+                    continue;
+                }
+                if (StringUtils.isBlank(piece.getTemplateCode())) {
+                    throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
+                }
+                NestingRequest.Element element = new NestingRequest.Element();
+                element.setId(piece.getProductionPieceId());
+                element.setSvg(piece.getTemplateCode());
+                element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
+                element.setForme(Boolean.TRUE);
+                if (piece.getProductImageFile() != null && piece.getProductImageFile().getUrl() != null) {
+                    element.setImg(piece.getProductImageFile().getUrl());
+                }
+                elements.add(element);
+            }
+        }
+        if (typesettingInfos != null) {
+            for (TypesettingInfo info : typesettingInfos) {
+                if (info == null) {
+                    continue;
+                }
+                if (StringUtils.isBlank(info.getMaskSvg())) {
+                    throw new IllegalArgumentException("排版信息缺少参与排版的maskSvg：" + info.getTypesettingId());
+                }
+                NestingRequest.Element element = new NestingRequest.Element();
+                element.setId(StringUtils.isNotBlank(info.getId()) ? info.getId() : info.getTypesettingId());
+                element.setSvg(info.getMaskSvg());
+                element.setCounts(info.getQuantity() != null && info.getQuantity() > 0 ? info.getQuantity() : 1);
+                element.setForme(Boolean.TRUE);
+                elements.add(element);
+            }
+        }
+
+        if (elements.isEmpty()) {
+            throw new IllegalArgumentException("生产工件和排版信息均无可用于排版的有效元素");
+        }
+
+        NestingRequest.Container container = new NestingRequest.Container();
+        container.setWidth(1500);
+        container.setHeight(1000);
+
+        NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
+        manifest.setSpacing(0);
+        manifest.setContainers(Collections.singletonList(container));
+        manifest.setElements(elements);
+
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(generateNestedFilesCallbackUrl);
+        callbackConfig.setCallbackCustomValue(cacheKey);
+
+        NestingRequest nestingRequest = new NestingRequest();
+        nestingRequest.setNestManifest(manifest);
+        nestingRequest.setCallbackConfig(callbackConfig);
+        return nestingRequest;
     }
 
     /**
@@ -626,35 +718,71 @@ public class AppTypesettingService {
         }
 
         String typesettingId = response.getId();
-        TypesettingInfo typesettingInfo = domainTypesettingService.findTypesettingByTypesettingId(typesettingId);
-        
-        if (typesettingInfo == null) {
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+        if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             throw new RuntimeException("排版信息不存在：" + typesettingId);
         }
 
+        TypesettingInfo baseTypesettingInfo = typesettingInfos.get(0);
         if ("success".equals(response.getStatus())) {
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
-            
-            if (response.getResults() != null) {
-                List<NestingResponse.Result> results = response.getResults();
-                List<TypesettingElement> typesettingElements = results.stream().map(result -> {
-                    TypesettingElement element = new TypesettingElement();
-                    element.setNestedSvg(result.getNestedSvg());
-                    element.setUtilization(result.getUtilization());
-                    element.setWidth(result.getWidth());
-                    element.setHeight(result.getHeight());
-                    return element;
-                }).collect(Collectors.toList());
-
-                typesettingInfo.setElements(typesettingElements);
+            List<NestingResponse.Result> results = response.getResults();
+            if (results == null || results.isEmpty()) {
+                throw new RuntimeException("排版回调成功但未返回结果");
             }
-            
-            domainTypesettingService.updateTypesetting(typesettingInfo);
+            // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
+            for (int i = 0; i < results.size(); i++) {
+                NestingResponse.Result callbackResult = results.get(i);
+                TypesettingElement element = new TypesettingElement();
+                element.setNestedSvg(callbackResult.getNestedSvg());
+                element.setUtilization(callbackResult.getUtilization());
+                if (callbackResult.getWidth() != null || callbackResult.getHeight() != null) {
+                    element.setWidth(callbackResult.getWidth());
+                    element.setHeight(callbackResult.getHeight());
+                } else if (callbackResult.getContainerSize() != null) {
+                    element.setWidth(callbackResult.getContainerSize().getWidth());
+                    element.setHeight(callbackResult.getContainerSize().getHeight());
+                }
+                if (i == 0) {
+                    baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+                    baseTypesettingInfo.setElements(element);
+                    domainTypesettingService.updateTypesetting(baseTypesettingInfo);
+                    continue;
+                }
+                TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
+                newTypesettingInfo.setId(null);
+                newTypesettingInfo.setElements(element);
+                newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+                domainTypesettingService.addTypesetting(newTypesettingInfo);
+            }
         } else {
-            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
-            typesettingInfo.setRemark(response.getError());
-            domainTypesettingService.updateTypesetting(typesettingInfo);
+            for (TypesettingInfo typesettingInfo : typesettingInfos) {
+                typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
+                typesettingInfo.setRemark(response.getError());
+                domainTypesettingService.updateTypesetting(typesettingInfo);
+            }
         }
+    }
+
+    private TypesettingInfo cloneForCallback(TypesettingInfo source) {
+        TypesettingInfo target = new TypesettingInfo();
+        target.setTypesettingId(source.getTypesettingId());
+        target.setMaterialCodes(source.getMaterialCodes());
+        target.setQuantity(source.getQuantity());
+        target.setCompletedQuantity(source.getCompletedQuantity());
+        target.setTypesettingCells(source.getTypesettingCells());
+        target.setPieceCells(source.getPieceCells());
+        target.setProcedureFlow(source.getProcedureFlow());
+        target.setRemark(source.getRemark());
+        target.setMaskSvg(source.getMaskSvg());
+        target.setLayoutMode(source.getLayoutMode());
+        target.setLayoutCategory(source.getLayoutCategory());
+        target.setRequireJsonFile(source.getRequireJsonFile());
+        target.setRequirePltFile(source.getRequirePltFile());
+        target.setRequireSvgFile(source.getRequireSvgFile());
+        target.setCodeGenerateType(source.getCodeGenerateType());
+        target.setTempCodeFormat(source.getTempCodeFormat());
+        target.setAnchorPointShape(source.getAnchorPointShape());
+        return target;
     }
 
     /**
