@@ -27,9 +27,9 @@ public class TypesettingProductionPieceVO {
     private Integer quantity;
 
     /**
-     * 已完成数量
+     * 剩余数量
      */
-    private Integer completedQuantity;
+    private Integer leaveQuantity;
 
     /**
      * 材质
@@ -97,6 +97,7 @@ public class TypesettingProductionPieceVO {
             for (ProcedureFlowNode node : nodes) {
                 if ("排版".equals(node.getNodeName())) {
                     typesettingProductionPieceVO.setQuantity(node.getPieceQuantity());
+                    typesettingProductionPieceVO.setLeaveQuantity(node.getPieceQuantity());
                 }
             }
         }
@@ -128,7 +129,7 @@ public class TypesettingProductionPieceVO {
         vo.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
         vo.setSourceId(info.getId());
         vo.setQuantity(info.getQuantity());
-        vo.setCompletedQuantity(info.getCompletedQuantity());
+        vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
         vo.setMaterialCode(info.getMaterialConfigs() == null ? null : info.getMaterialConfigs().toString());
         vo.setStatus(info.getStatus());
@@ -153,7 +154,7 @@ public class TypesettingProductionPieceVO {
         info.setId(this.sourceId);
         info.setTypesettingId(this.sourceId);
         info.setQuantity(this.quantity);
-        info.setCompletedQuantity(this.completedQuantity);
+        info.setLeaveQuantity(this.leaveQuantity);
         info.setMaterialConfigs(this.materialConfigs == null ? new ArrayList<>() : this.materialConfigs);
         info.setStatus(this.status);
         info.setRemark(this.remark);

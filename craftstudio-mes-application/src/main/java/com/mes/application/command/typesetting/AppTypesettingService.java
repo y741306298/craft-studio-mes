@@ -277,9 +277,7 @@ public class AppTypesettingService {
 
         for (TypesettingInfo typesettingInfo : typesettingInfos) {
             Integer quantity = typesettingInfo.getQuantity() == null ? 0 : typesettingInfo.getQuantity();
-            Integer totalQuantity = typesettingInfo.getTotalQuantity() == null ? 0 : typesettingInfo.getTotalQuantity();
-            Integer completedQuantity = typesettingInfo.getCompletedQuantity() == null ? 0 : typesettingInfo.getCompletedQuantity();
-            Integer leaveQuantity = totalQuantity - completedQuantity;
+            Integer leaveQuantity = typesettingInfo.getLeaveQuantity() == null ? 0 : typesettingInfo.getLeaveQuantity();
             if (quantity > leaveQuantity) {
                 return LayoutConfirmResult.failed(typesettingInfo.getId() + "排版数量超出");
             }
@@ -364,7 +362,7 @@ public class AppTypesettingService {
         typesettingInfo.setMaterialConfigs(materialConfigs);
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
-        typesettingInfo.setCompletedQuantity(0);
+        typesettingInfo.setLeaveQuantity(1);
         if (StringUtils.isNotBlank(request.getLayoutMode())) {
             typesettingInfo.setLayoutMode(request.getLayoutMode());
         } else if (!typesettingInfos.isEmpty()) {
@@ -836,7 +834,7 @@ public class AppTypesettingService {
         target.setTypesettingId(source.getTypesettingId());
         target.setMaterialConfigs(source.getMaterialConfigs());
         target.setQuantity(source.getQuantity());
-        target.setCompletedQuantity(source.getCompletedQuantity());
+        target.setLeaveQuantity(source.getLeaveQuantity());
         target.setTypesettingCells(source.getTypesettingCells());
         target.setPieceCells(source.getPieceCells());
         target.setProcedureFlow(source.getProcedureFlow());
