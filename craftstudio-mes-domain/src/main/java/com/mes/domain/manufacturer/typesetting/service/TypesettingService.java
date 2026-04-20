@@ -225,8 +225,8 @@ public class TypesettingService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "数量不能为负数");
         }
         
-        if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getCompletedQuantity() < 0) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能为负数");
+        if (typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() < 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能为负数");
         }
         typesettingInfo.applyLayoutModeConfig();
         return typesettingRepository.add(typesettingInfo);
@@ -248,13 +248,13 @@ public class TypesettingService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "数量不能为负数");
         }
         
-        if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getCompletedQuantity() < 0) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能为负数");
+        if (typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() < 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能为负数");
         }
         
-        if (typesettingInfo.getCompletedQuantity() != null && typesettingInfo.getQuantity() != null 
-            && typesettingInfo.getCompletedQuantity() > typesettingInfo.getQuantity()) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已完成数量不能大于总数量");
+        if (typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getQuantity() != null
+            && typesettingInfo.getLeaveQuantity() > typesettingInfo.getQuantity()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能大于排版数量");
         }
 
         typesettingInfo.applyLayoutModeConfig();
@@ -282,27 +282,27 @@ public class TypesettingService {
     }
 
     /**
-     * 更新完成数量
+     * 更新剩余数量
      * @param id 排版信息 ID
-     * @param completedQuantity 完成数量
+     * @param leaveQuantity 剩余数量
      */
-    public void updateCompletedQuantity(String id, Integer completedQuantity) {
+    public void updateLeaveQuantity(String id, Integer leaveQuantity) {
         if (StringUtils.isBlank(id)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
         }
-        if (completedQuantity == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能为空");
+        if (leaveQuantity == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能为空");
         }
-        if (completedQuantity < 0) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能为负数");
+        if (leaveQuantity < 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能为负数");
         }
         
         TypesettingInfo typesettingInfo = findById(id);
         if (typesettingInfo != null) {
-            if (typesettingInfo.getQuantity() != null && completedQuantity > typesettingInfo.getQuantity()) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "完成数量不能大于总数量");
+            if (typesettingInfo.getQuantity() != null && leaveQuantity > typesettingInfo.getQuantity()) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能大于排版数量");
             }
-            typesettingInfo.setCompletedQuantity(completedQuantity);
+            typesettingInfo.setLeaveQuantity(leaveQuantity);
             updateTypesetting(typesettingInfo);
         }
     }

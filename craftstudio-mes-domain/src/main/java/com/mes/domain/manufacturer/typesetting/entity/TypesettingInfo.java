@@ -24,11 +24,10 @@ public class TypesettingInfo extends BaseEntity {
      * - height
      */
     private TypesettingElement element;
-    private List<String> materialCodes;
+    private List<String> materialConfigs;
     private String status;
-    private Integer totalQuantity;
     private Integer quantity;
-    private Integer completedQuantity;
+    private Integer leaveQuantity;
     private List<TypesettingCell> typesettingCells;
     private List<ProductionPieceCell> pieceCells;
     private ProcedureFlow procedureFlow;

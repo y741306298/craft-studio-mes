@@ -182,7 +182,7 @@ public class AppTypesettingService {
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
         for (ProductionPiece piece : parts) {
-            TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromPiece(piece);
+            TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
             voList.add(vo);
         }
 
@@ -220,17 +220,7 @@ public class AppTypesettingService {
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
         for (TypesettingInfo info : typesettings) {
-            TypesettingProductionPieceVO vo = new TypesettingProductionPieceVO();
-            vo.setSourceType("TYPESETTING");
-            vo.setSourceId(info.getId());
-            vo.setQuantity(info.getQuantity());
-            vo.setCompletedQuantity(info.getCompletedQuantity());
-            vo.setMaterialCode(info.getMaterialCodes().toString()); // 直接从 TypesettingInfo 获取 material
-//            vo.setProcedureFlow(info.getProcedureFlow());
-            vo.setRemark(null); // 排版暂无备注
-//            vo.setOrderItemInfo(null); // 排版不需要 OrderItem 信息
-
-            voList.add(vo);
+            voList.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
         }
 
         return voList;
@@ -252,23 +242,47 @@ public class AppTypesettingService {
      * @return 排版结果
      */
     public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
-        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
-        if (typesettingInfos == null) {
-            typesettingInfos = new ArrayList<>();
+        List<ProductionPiece> productionPieces = new ArrayList<>();
+        List<TypesettingInfo> typesettingInfos = new ArrayList<>();
+        List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
+        if (typesettingCells == null) {
+            typesettingCells = new ArrayList<>();
         }
-        for (TypesettingInfo typesettingInfo : typesettingInfos) {
-            Integer quantity = typesettingInfo.getQuantity();
-            Integer leaveQuantity = typesettingInfo.getTotalQuantity() - typesettingInfo.getCompletedQuantity();
-            if (quantity> leaveQuantity){
-                return LayoutConfirmResult.failed(typesettingInfo.getId()+"排版数量超出");
+        for (TypesettingProductionPieceVO cell : typesettingCells) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                ProductionPiece productionPiece = cell.toProductionPiece();
+                ProductionPiece dbPiece = productionPieceService.findByProductionPieceId(productionPiece.getProductionPieceId());
+                if (dbPiece == null) {
+                    return LayoutConfirmResult.failed("生产工件不存在：" + productionPiece.getProductionPieceId());
+                }
+                if (productionPiece.getQuantity() != null) {
+                    dbPiece.setQuantity(productionPiece.getQuantity());
+                }
+                productionPieces.add(dbPiece);
+            } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
+                TypesettingInfo dbTypesettingInfo = domainTypesettingService.findById(typesettingInfo.getId());
+                if (dbTypesettingInfo == null) {
+                    return LayoutConfirmResult.failed("排版信息不存在：" + typesettingInfo.getId());
+                }
+                if (typesettingInfo.getQuantity() != null) {
+                    dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
+                }
+                typesettingInfos.add(dbTypesettingInfo);
             }
         }
 
-        // 1. 根据 productionPieceId 获取所有的生产零件信息
-        List<ProductionPiece> productionPieces = request.getProductionPieces();
-        if (productionPieces == null) {
-            productionPieces = new ArrayList<>();
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            Integer quantity = typesettingInfo.getQuantity() == null ? 0 : typesettingInfo.getQuantity();
+            Integer leaveQuantity = typesettingInfo.getLeaveQuantity() == null ? 0 : typesettingInfo.getLeaveQuantity();
+            if (quantity > leaveQuantity) {
+                return LayoutConfirmResult.failed(typesettingInfo.getId() + "排版数量超出");
+            }
         }
+
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
             List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
@@ -298,7 +312,7 @@ public class AppTypesettingService {
         // 5. 调用排版 API
         NestingRequest nestingRequest;
         try {
-            nestingRequest = buildNestingRequest(productionPieces, typesettingInfos, cacheKey);
+            nestingRequest = buildNestingRequest(request, cacheKey);
         } catch (Exception e) {
             return LayoutConfirmResult.failed(e.getMessage());
         }
@@ -338,10 +352,17 @@ public class AppTypesettingService {
         TypesettingInfo typesettingInfo = new TypesettingInfo();
         typesettingInfo.setTypesettingId(cacheKey);
         typesettingInfo.setElement(null);
-        typesettingInfo.setMaterialCodes(request.getMaterialCodes());
+        List<String> materialConfigs = productionPieces.stream()
+                .map(ProductionPiece::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(MaterialConfig::getMaterialId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        typesettingInfo.setMaterialConfigs(materialConfigs);
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
-        typesettingInfo.setCompletedQuantity(0);
+        typesettingInfo.setLeaveQuantity(1);
         if (StringUtils.isNotBlank(request.getLayoutMode())) {
             typesettingInfo.setLayoutMode(request.getLayoutMode());
         } else if (!typesettingInfos.isEmpty()) {
@@ -379,11 +400,41 @@ public class AppTypesettingService {
         return result;
     }
 
-    private NestingRequest buildNestingRequest(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos, String cacheKey) {
+    private NestingRequest buildNestingRequest(LayoutConfirmRequest request, String cacheKey) {
         if (StringUtils.isBlank(generateNestedFilesCallbackUrl)) {
             throw new IllegalArgumentException("排版回调地址未配置");
         }
-
+        List<ProductionPiece> productionPieces = new ArrayList<>();
+        List<TypesettingInfo> typesettingInfos = new ArrayList<>();
+        List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
+        if (typesettingCells != null) {
+            for (TypesettingProductionPieceVO cell : typesettingCells) {
+                if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                    continue;
+                }
+                if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                    ProductionPiece piece = cell.toProductionPiece();
+                    ProductionPiece dbPiece = productionPieceService.findByProductionPieceId(piece.getProductionPieceId());
+                    if (dbPiece == null) {
+                        throw new IllegalArgumentException("生产工件不存在：" + piece.getProductionPieceId());
+                    }
+                    if (piece.getQuantity() != null) {
+                        dbPiece.setQuantity(piece.getQuantity());
+                    }
+                    productionPieces.add(dbPiece);
+                } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                    TypesettingInfo info = cell.toTypesettingInfo();
+                    TypesettingInfo dbInfo = domainTypesettingService.findById(info.getId());
+                    if (dbInfo == null) {
+                        throw new IllegalArgumentException("排版信息不存在：" + info.getId());
+                    }
+                    if (info.getQuantity() != null) {
+                        dbInfo.setQuantity(info.getQuantity());
+                    }
+                    typesettingInfos.add(dbInfo);
+                }
+            }
+        }
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -425,13 +476,28 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("生产工件和排版信息均无可用于排版的有效元素");
         }
 
-        NestingRequest.Container container = new NestingRequest.Container();
-        container.setWidth(1500);
-        container.setHeight(1000);
+        List<NestingRequest.Container> containers = new ArrayList<>();
+        if (request.getContainers() != null && !request.getContainers().isEmpty()) {
+            for (LayoutConfirmRequest.ContainerInfo requestContainer : request.getContainers()) {
+                if (requestContainer == null || requestContainer.getWidth() == null || requestContainer.getHeight() == null) {
+                    continue;
+                }
+                NestingRequest.Container container = new NestingRequest.Container();
+                container.setWidth(requestContainer.getWidth());
+                container.setHeight(requestContainer.getHeight());
+                containers.add(container);
+            }
+        }
+        if (containers.isEmpty()) {
+            NestingRequest.Container defaultContainer = new NestingRequest.Container();
+            defaultContainer.setWidth(1500);
+            defaultContainer.setHeight(1000);
+            containers.add(defaultContainer);
+        }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
         manifest.setSpacing(0);
-        manifest.setContainers(Collections.singletonList(container));
+        manifest.setContainers(containers);
         manifest.setElements(elements);
 
         CallbackConfig callbackConfig = new CallbackConfig();
@@ -766,9 +832,9 @@ public class AppTypesettingService {
     private TypesettingInfo cloneForCallback(TypesettingInfo source) {
         TypesettingInfo target = new TypesettingInfo();
         target.setTypesettingId(source.getTypesettingId());
-        target.setMaterialCodes(source.getMaterialCodes());
+        target.setMaterialConfigs(source.getMaterialConfigs());
         target.setQuantity(source.getQuantity());
-        target.setCompletedQuantity(source.getCompletedQuantity());
+        target.setLeaveQuantity(source.getLeaveQuantity());
         target.setTypesettingCells(source.getTypesettingCells());
         target.setPieceCells(source.getPieceCells());
         target.setProcedureFlow(source.getProcedureFlow());

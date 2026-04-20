@@ -20,11 +20,10 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
 
     private String typesettingId;
     private TypesettingElement element;
-    private List<String> materialCodes;
+    private List<String> materialConfigs;
     private String status;
     private Integer quantity;
-    private Integer totalQuantity;
-    private Integer completedQuantity;
+    private Integer leaveQuantity;
     private List<TypesettingCell> typesettingCells;
     private List<ProductionPieceCell> pieceCells;
     private ProcedureFlow procedureFlow;
@@ -45,13 +44,12 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setId(getId());
         typesettingInfo.setCreateTime(getCreateTime());
         typesettingInfo.setUpdateTime(getUpdateTime());
-        typesettingInfo.setTotalQuantity(this.totalQuantity);
         typesettingInfo.setTypesettingId(this.typesettingId);
         typesettingInfo.setElement(this.element);
-        typesettingInfo.setMaterialCodes(this.materialCodes);
+        typesettingInfo.setMaterialConfigs(this.materialConfigs);
         typesettingInfo.setStatus(this.status);
         typesettingInfo.setQuantity(this.quantity);
-        typesettingInfo.setCompletedQuantity(this.completedQuantity);
+        typesettingInfo.setLeaveQuantity(this.leaveQuantity);
         typesettingInfo.setTypesettingCells(this.typesettingCells);
         typesettingInfo.setPieceCells(this.pieceCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
@@ -72,11 +70,10 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     protected BasePO<TypesettingInfo> fromDO(TypesettingInfo _do) {
         this.typesettingId = _do.getTypesettingId();
         this.element = _do.getElement();
-        this.materialCodes = _do.getMaterialCodes();
+        this.materialConfigs = _do.getMaterialConfigs();
         this.status = _do.getStatus();
-        this.totalQuantity = _do.getTotalQuantity();
         this.quantity = _do.getQuantity();
-        this.completedQuantity = _do.getCompletedQuantity();
+        this.leaveQuantity = _do.getLeaveQuantity();
         this.typesettingCells = _do.getTypesettingCells();
         this.pieceCells = _do.getPieceCells();
         this.procedureFlow = _do.getProcedureFlow();
