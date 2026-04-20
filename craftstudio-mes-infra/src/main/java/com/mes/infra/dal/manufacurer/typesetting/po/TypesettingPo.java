@@ -28,6 +28,14 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private List<ProductionPieceCell> pieceCells;
     private ProcedureFlow procedureFlow;
     private String remark;
+    private String layoutMode;
+    private String layoutCategory;
+    private Boolean requireJsonFile;
+    private Boolean requirePltFile;
+    private Boolean requireSvgFile;
+    private String codeGenerateType;
+    private String tempCodeFormat;
+    private String anchorPointShape;
 
     @Override
     public TypesettingInfo toDO() {
@@ -45,6 +53,14 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setPieceCells(this.pieceCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
         typesettingInfo.setRemark(this.remark);
+        typesettingInfo.setLayoutMode(this.layoutMode);
+        typesettingInfo.setLayoutCategory(this.layoutCategory);
+        typesettingInfo.setRequireJsonFile(this.requireJsonFile);
+        typesettingInfo.setRequirePltFile(this.requirePltFile);
+        typesettingInfo.setRequireSvgFile(this.requireSvgFile);
+        typesettingInfo.setCodeGenerateType(this.codeGenerateType);
+        typesettingInfo.setTempCodeFormat(this.tempCodeFormat);
+        typesettingInfo.setAnchorPointShape(this.anchorPointShape);
         return typesettingInfo;
     }
 
@@ -60,6 +76,14 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.pieceCells = _do.getPieceCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();
+        this.layoutMode = _do.getLayoutMode();
+        this.layoutCategory = _do.getLayoutCategory();
+        this.requireJsonFile = _do.getRequireJsonFile();
+        this.requirePltFile = _do.getRequirePltFile();
+        this.requireSvgFile = _do.getRequireSvgFile();
+        this.codeGenerateType = _do.getCodeGenerateType();
+        this.tempCodeFormat = _do.getTempCodeFormat();
+        this.anchorPointShape = _do.getAnchorPointShape();
         return this;
     }
 }

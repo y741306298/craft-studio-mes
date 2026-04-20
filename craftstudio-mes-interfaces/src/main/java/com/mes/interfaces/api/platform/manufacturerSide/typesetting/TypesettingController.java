@@ -4,6 +4,8 @@ import com.mes.application.command.typesetting.AppTypesettingService;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
+import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
+import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.domain.base.repository.ApiResponse;
@@ -118,5 +120,21 @@ public class TypesettingController {
         ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getProductionPieceIds());
         
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 生成二维码（Base64）
+     */
+    @PostMapping("/generateQrCode")
+    public ApiResponse<GenerateQrCodeResult> generateQrCode(@RequestBody GenerateQrCodeRequest request) {
+        return ApiResponse.success(appTypesettingService.generateQrCode(request));
+    }
+
+    /**
+     * 生成临时码（循环数字）
+     */
+    @PostMapping("/generateTempCode")
+    public ApiResponse<GenerateTempCodeResult> generateTempCode(@RequestBody GenerateTempCodeRequest request) {
+        return ApiResponse.success(appTypesettingService.generateTempCode(request));
     }
 }
