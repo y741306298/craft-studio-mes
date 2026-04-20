@@ -20,7 +20,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
 
     private String typesettingId;
     private TypesettingElement element;
-    private List<String> materialCodes;
+    private List<String> materialConfigs;
     private String status;
     private Integer quantity;
     private Integer totalQuantity;
@@ -48,7 +48,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setTotalQuantity(this.totalQuantity);
         typesettingInfo.setTypesettingId(this.typesettingId);
         typesettingInfo.setElement(this.element);
-        typesettingInfo.setMaterialCodes(this.materialCodes);
+        typesettingInfo.setMaterialConfigs(this.materialConfigs);
         typesettingInfo.setStatus(this.status);
         typesettingInfo.setQuantity(this.quantity);
         typesettingInfo.setCompletedQuantity(this.completedQuantity);
@@ -72,7 +72,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     protected BasePO<TypesettingInfo> fromDO(TypesettingInfo _do) {
         this.typesettingId = _do.getTypesettingId();
         this.element = _do.getElement();
-        this.materialCodes = _do.getMaterialCodes();
+        this.materialConfigs = _do.getMaterialConfigs();
         this.status = _do.getStatus();
         this.totalQuantity = _do.getTotalQuantity();
         this.quantity = _do.getQuantity();
