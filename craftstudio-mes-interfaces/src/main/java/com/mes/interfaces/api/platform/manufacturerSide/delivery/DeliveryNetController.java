@@ -5,7 +5,7 @@ import com.mes.application.command.api.req.ConfigLogisticsRequest;
 import com.mes.application.command.api.resp.LogisticsConfigOptionsResponse;
 import com.mes.application.command.api.resp.LogisticsConfigResponse;
 import com.mes.application.command.delivery.AppDeliveryNetService;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;

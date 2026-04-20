@@ -15,7 +15,7 @@ public class UpdateProcessPriceRequest extends ApiRequest {
 
     private String processMetaId;
 
-    private UnitPrice processPrice;
+    private UnitPrice unitPrice;
 
     private Double basePrice;
 
@@ -47,7 +47,7 @@ public class UpdateProcessPriceRequest extends ApiRequest {
     public static class MaterialProcessPriceRequest {
         private String materialId;
         private String materialName;
-        private UnitPrice processPrice;
+        private UnitPrice unitPrice;
         private Double basePrice;
     }
 }

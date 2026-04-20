@@ -11,7 +11,7 @@ public class DeviceCfgSummary {
 
     private String id;
     private String manufacturerMetaId;      // 所属制造商 ID
-    private String deviceId;                // 设备 ID
+    private String deviceInfoId;                // 设备 ID
     private String deviceName;              // 设备名称
     private String deviceType;              // 设备类型 code
     private String deviceTypeName;          // 设备类型名称
@@ -36,7 +36,7 @@ public class DeviceCfgSummary {
         DeviceCfgSummary response = new DeviceCfgSummary();
         response.setId(deviceCfg.getId());
         response.setManufacturerMetaId(deviceCfg.getManufacturerMetaId());
-        response.setDeviceId(deviceCfg.getDeviceId());
+        response.setDeviceInfoId(deviceCfg.getDeviceInfoId());
         response.setDeviceName(deviceCfg.getDeviceName());
         response.setDeviceType(deviceCfg.getDeviceType() != null ? deviceCfg.getDeviceType().getCode() : null);
         response.setDeviceTypeName(deviceCfg.getDeviceType() != null ? deviceCfg.getDeviceType().getChineseName() : null);

@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.manufacturerCfg;
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.resp.ProcessMetaResponse;
 import com.mes.application.dto.req.manufacturerMeta.UpdateProcessPriceRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -63,7 +63,7 @@ public class ManufacturerProcessCfgController {
     @PostMapping("/config")
     public ApiResponse<String> configProcessMeta(
             @RequestBody UpdateProcessPriceRequest request) {
-        productApiService.configProcessMeta(request.getRmfId(), request.getProcessMetaId(), request.getProcessPrice());
+        productApiService.configProcessMeta(request.getRmfId(), request.getProcessMetaId(), request.getUnitPrice());
         return ApiResponse.success("success");
     }
 

@@ -16,7 +16,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Document(collection = "delivery_pkg")
+@Document(collection = "deliveryPkg")
 public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
 
     private String deliveryPkgId;

@@ -1,8 +1,9 @@
 package com.mes.domain.manufacturer.device.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,10 +30,10 @@ public class DeviceService {
         // 参数验证
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(deviceName)) {
-            throw new BusinessNotAllowException("设备名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
 
         // 根据 deviceName 进行模糊查询
@@ -44,7 +45,7 @@ public class DeviceService {
     public List<Device> findDevicesByCondition(String deviceName, String deviceType, int current, int size) {
         // 参数验证
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -96,10 +97,10 @@ public class DeviceService {
     public Device addDevice(Device device) {
         // 业务验证
         if (device == null) {
-            throw new BusinessNotAllowException("设备不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备不能为空");
         }
         if (StringUtils.isBlank(device.getDeviceInfoName())) {
-            throw new BusinessNotAllowException("设备名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
         
         // 生成唯一的 deviceInfoId
@@ -116,13 +117,13 @@ public class DeviceService {
     public void updateDevice(Device device) {
         // 业务验证
         if (device == null) {
-            throw new BusinessNotAllowException("设备不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备不能为空");
         }
         if (StringUtils.isBlank(device.getId())) {
-            throw new BusinessNotAllowException("设备ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备ID不能为空");
         }
         if (StringUtils.isBlank(device.getDeviceInfoName())) {
-            throw new BusinessNotAllowException("设备名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
         
         deviceInfoRepository.update(device);
@@ -134,7 +135,7 @@ public class DeviceService {
      */
     public void deleteDevice(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         
         Device device = deviceInfoRepository.findById(id);
@@ -150,7 +151,7 @@ public class DeviceService {
      */
     public Device findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         return deviceInfoRepository.findById(id);
     }

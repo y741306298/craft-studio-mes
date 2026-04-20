@@ -16,6 +16,7 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
     
     private String routeId;
     private String routeName;
+    private String manufacturerMetaId;
     private List<DeliveryRouteNode> routeNodes;
     private String status;
 
@@ -28,6 +29,7 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
         deliveryRoute.setRouteName(this.routeName);
         deliveryRoute.setDeliveryRouteNodes(this.routeNodes);
         deliveryRoute.setStatus(this.status);
+        deliveryRoute.setManufacturerMetaId(this.manufacturerMetaId);
         return deliveryRoute;
     }
 
@@ -40,6 +42,7 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
         this.routeName = _do.getRouteName();
         this.routeNodes = _do.getDeliveryRouteNodes();
         this.status = _do.getStatus();
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
         return this;
     }
 }

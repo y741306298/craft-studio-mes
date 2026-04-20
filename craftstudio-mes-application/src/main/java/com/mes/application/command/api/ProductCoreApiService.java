@@ -1,5 +1,6 @@
 package com.mes.application.command.api;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.api.req.ConfigLogisticsRequest;
 import com.mes.application.command.api.req.ConfigMTSProductSpecRequest;
 import com.mes.application.command.api.req.ConfigProcessMetaRequest;
@@ -8,7 +9,9 @@ import com.mes.application.command.api.resp.*;
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
 import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.entity.ManufacturerProcessPriceCfg;
+import lombok.extern.java.Log;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -18,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 @Service
 public class ProductCoreApiService {
@@ -31,6 +35,8 @@ public class ProductCoreApiService {
         this.restTemplate = restTemplate;
     }
 
+    Logger logger = Logger.getLogger(ProductCoreApiService.class.getName());
+
     
 
     /**
@@ -41,16 +47,19 @@ public class ProductCoreApiService {
     public List<MtsProductCategoryResponse> findCategoriesByParentId(String parentId) {
         try {
             StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listCategories", productCoreUrl));
-            
+
             if (parentId != null && !parentId.isEmpty()) {
                 urlBuilder.append("?parentId=").append(parentId);
             }
-            
+
+            ParameterizedTypeReference<ApiResponse<List<MtsProductCategoryResponse>>> typeRef =
+                new ParameterizedTypeReference<ApiResponse<List<MtsProductCategoryResponse>>>() {};
+
             ResponseEntity<ApiResponse<List<MtsProductCategoryResponse>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<List<MtsProductCategoryResponse>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -90,11 +99,14 @@ public class ProductCoreApiService {
                 urlBuilder.append("&categoryId=").append(categoryId);
             }
             
+            ParameterizedTypeReference<ApiResponse<PagedResult<MtsProductListResponse>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<PagedResult<MtsProductListResponse>>>() {};
+            
             ResponseEntity<ApiResponse<PagedResult<MtsProductListResponse>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<PagedResult<MtsProductListResponse>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -133,11 +145,14 @@ public class ProductCoreApiService {
             StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listMTSProductSpecs?rmfId=%s&productId=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, productId, current, size));
             
+            ParameterizedTypeReference<ApiResponse<PagedResult<MtsProductSpecResponse>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<PagedResult<MtsProductSpecResponse>>>() {};
+            
             ResponseEntity<ApiResponse<PagedResult<MtsProductSpecResponse>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<PagedResult<MtsProductSpecResponse>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -219,11 +234,14 @@ public class ProductCoreApiService {
             StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/listProcessMetas?rmfId=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, current, size));
             
+            ParameterizedTypeReference<ApiResponse<PagedResult<ProcessMetaResponse>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<PagedResult<ProcessMetaResponse>>>() {};
+            
             ResponseEntity<ApiResponse<PagedResult<ProcessMetaResponse>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<PagedResult<ProcessMetaResponse>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -262,11 +280,14 @@ public class ProductCoreApiService {
             StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/searchProcessMetas?rmfId=%s&name=%s&current=%d&size=%d",
                     productCoreUrl, rmfId, name, current, size));
             
+            ParameterizedTypeReference<ApiResponse<PagedResult<ProcessMetaResponse>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<PagedResult<ProcessMetaResponse>>>() {};
+            
             ResponseEntity<ApiResponse<PagedResult<ProcessMetaResponse>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<PagedResult<ProcessMetaResponse>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -339,15 +360,18 @@ public class ProductCoreApiService {
                 urlBuilder.append("&parentRegionCode=").append(parentRegionCode);
             }
             
-            ResponseEntity<ApiResponse> response = restTemplate.exchange(
+            ParameterizedTypeReference<ApiResponse<Map<String, List<LogisticsConfigResponse.LogisticsItem>>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<Map<String, List<LogisticsConfigResponse.LogisticsItem>>>>() {};
+            
+            ResponseEntity<ApiResponse<Map<String, List<LogisticsConfigResponse.LogisticsItem>>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                return (Map<String, List<LogisticsConfigResponse.LogisticsItem>>) response.getBody().getData();
+                return response.getBody().getData();
             } else {
                 throw new RuntimeException("获取物流配置列表失败：" + response.getStatusCode());
             }
@@ -369,11 +393,14 @@ public class ProductCoreApiService {
         try {
             String url = String.format("%s/api/internal/mes/logistics/rmfConfigOptions?rmfId=%s", productCoreUrl, rmfId);
             
+            ParameterizedTypeReference<ApiResponse<LogisticsConfigOptionsResponse>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<LogisticsConfigOptionsResponse>>() {};
+            
             ResponseEntity<ApiResponse<LogisticsConfigOptionsResponse>> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<LogisticsConfigOptionsResponse>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -468,11 +495,14 @@ public class ProductCoreApiService {
                 urlBuilder.append("&productName=").append(productName);
             }
             
+            ParameterizedTypeReference<ApiResponse<List<ManufacturerMtsProductCfg>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<List<ManufacturerMtsProductCfg>>>() {};
+            
             ResponseEntity<ApiResponse<List<ManufacturerMtsProductCfg>>> response = restTemplate.exchange(
                     urlBuilder.toString(),
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<List<ManufacturerMtsProductCfg>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -502,11 +532,14 @@ public class ProductCoreApiService {
             String url = String.format("%s/process-prices?manufacturerId=%s&current=%d&size=%d",
                     productCoreUrl, manufacturerId, current, size);
             
+            ParameterizedTypeReference<ApiResponse<List<ManufacturerProcessPriceCfg>>> typeRef = 
+                new ParameterizedTypeReference<ApiResponse<List<ManufacturerProcessPriceCfg>>>() {};
+            
             ResponseEntity<ApiResponse<List<ManufacturerProcessPriceCfg>>> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
                     null,
-                    (Class<ApiResponse<List<ManufacturerProcessPriceCfg>>>) (Class<?>) ApiResponse.class
+                    typeRef
             );
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -642,7 +675,7 @@ public class ProductCoreApiService {
                     entity,
                     (Class<ApiResponse<String>>) (Class<?>) ApiResponse.class
             );
-
+            logger.info("registerManufacturer response ======"+ JSON.toJSONString( response));
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 return response.getBody().getData();
             } else {

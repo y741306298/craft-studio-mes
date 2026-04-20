@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.configSide.delivery;
 import com.mes.application.command.delivery.AppDeliveryRouteService;
 import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteListResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeRequest;
@@ -37,7 +37,7 @@ public class DeliveryRouteController {
         PagedQuery query = request.toPagedQuery();
         String routeName = request.getRouteName();
         
-        PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName, query);
+        PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName,request.getManufacturerMetaId(), query);
         
         List<DeliveryRouteListResponse> responses = result.items().stream()
                 .map(DeliveryRouteListResponse::from)
@@ -76,7 +76,7 @@ public class DeliveryRouteController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateDeliveryRoute(@Valid @RequestBody DeliveryRouteRequest request) {
         DeliveryRoute existingDeliveryRoute = appDeliveryRouteService.findById(request.getId());
         if (existingDeliveryRoute == null) {
@@ -108,7 +108,7 @@ public class DeliveryRouteController {
      * @param id 配送路线 ID
      * @return 操作结果
      */
-    @PutMapping("/{id}/activate")
+    @PostMapping("/{id}/activate")
     public ApiResponse<String> activateDeliveryRoute(@PathVariable String id) {
         appDeliveryRouteService.activateDeliveryRoute(id);
         return ApiResponse.success("success");
@@ -119,7 +119,7 @@ public class DeliveryRouteController {
      * @param id 配送路线 ID
      * @return 操作结果
      */
-    @PutMapping("/{id}/deactivate")
+    @PostMapping("/{id}/deactivate")
     public ApiResponse<String> deactivateDeliveryRoute(@PathVariable String id) {
         appDeliveryRouteService.deactivateDeliveryRoute(id);
         return ApiResponse.success("success");

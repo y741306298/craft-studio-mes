@@ -1,5 +1,7 @@
 package com.mes.application.command.api.req;
 
+import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.application.command.api.vo.UploadConfig;
 import lombok.Data;
 import java.util.List;
 
@@ -42,11 +44,6 @@ public class ImpositionRequest {
         private String svgUrl;
     }
 
-    @Data
-    public static class UploadConfig {
-        private OssConfig ossConfig;
-        private String uploadPath;
-    }
 
     @Data
     public static class OssConfig {
@@ -63,9 +60,4 @@ public class ImpositionRequest {
         private String securityToken;
     }
 
-    @Data
-    public static class CallbackConfig {
-        private String callbackUrl;
-        private Object callbackCustomValue;
-    }
 }

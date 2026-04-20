@@ -1,11 +1,12 @@
 package com.mes.application.dto.resp;
 
+import com.mes.domain.base.repository.ApiResponse;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
-public class PagedApiResponse<T> extends ApiResponse<PagedApiResponse.PageData<T>>{
+public class PagedApiResponse<T> extends ApiResponse<PagedApiResponse.PageData<T>> {
     @Data
     public static class PageData<T> {
         private List<T> items;       // 当前页数据列表

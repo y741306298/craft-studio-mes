@@ -50,4 +50,13 @@ public class DeliveryTokenRepositoryImp extends BaseRepositoryImp<DeliveryToken,
         List<DeliveryTokenPO> pos = mongoTemplate.find(query, poClass());
         return pos.stream().map(DeliveryTokenPO::toDO).toList();
     }
+
+    @Override
+    public DeliveryToken findByCarrierIdAndManufacturerMetaId(String carrierId, String manufacturerMetaId) {
+        Criteria criteria = Criteria.where("carrierId").is(carrierId)
+                .and("manufacturerMetaId").is(manufacturerMetaId);
+        Query query = new Query(criteria);
+        DeliveryTokenPO po = mongoTemplate.findOne(query, poClass());
+        return po != null ? po.toDO() : null;
+    }
 }

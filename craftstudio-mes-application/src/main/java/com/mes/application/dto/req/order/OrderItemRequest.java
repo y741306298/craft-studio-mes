@@ -1,5 +1,6 @@
 package com.mes.application.dto.req.order;
 
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;
 
@@ -11,11 +12,6 @@ public class OrderItemRequest {
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private SpecifyRmfInfo specifyRmfInfo;
 
-    @Data
-    public static class LogisticsCarrierInfo {
-        private String carrierId;
-        private String carrierName;
-    }
 
     @Data
     public static class SpecifyRmfInfo {

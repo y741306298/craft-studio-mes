@@ -1,5 +1,10 @@
 package com.mes.application.command.orderPreprocessing;
 
+import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.req.ImageMaskRequest;
+import com.mes.application.command.api.resp.ImageMaskResponse;
+import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
@@ -15,8 +20,11 @@ import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
+import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -50,6 +58,18 @@ public class AppOrderPreprocessingService {
     @Autowired
     private AppPieceCirculationService appPieceCirculationService;
 
+    @Autowired
+    private AlgorithmCoreApiService algorithmCoreApiService;
+
+    @Autowired
+    private AliCloudAuthService aliCloudAuthService;
+
+    @Value("${oss.bucket-name}")
+    private String ossBucketName;
+    @Value("${external.callbackApi.generate_mask_files}")
+    private String generateMaskFilesApiUrl;
+
+
     /**
      * 订单预处理：根据 orderId 查询订单下的所有订单项，解析工艺流程并处理裁切和异形工艺
      *
@@ -60,12 +80,19 @@ public class AppOrderPreprocessingService {
         // 2. 遍历每个订单项进行处理
         for (OrderItem orderItem : orderItems) {
             try {
-                //转化成生产零件
+                //转化成生产零件，同时判断是否需要调用抠图算法
                 List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
-
                 // 处理成功，将订单项状态改为生产中
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
-                resultPieces.addAll(pieces);
+                if(pieces != null){
+                    resultPieces.addAll(pieces);
+                    //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
+                    for (ProductionPiece resultPiece : resultPieces) {
+                        appPieceCirculationService.moveToNextNode(resultPiece, 1);
+                        //暂时默认将零件状态改为待排版
+                        productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
+                    }
+                }
             } catch (Exception e) {
                 // 单个订单项处理失败时，标记该订单项为失败状态，但继续处理其他订单项
                 orderItemService.markAsFailed(orderItem.getOrderItemId(), e.getMessage());
@@ -73,12 +100,7 @@ public class AppOrderPreprocessingService {
             }
         }
 
-        // 3. 预处理完成后，让所有的零件进入第一个节点
-        for (ProductionPiece resultPiece : resultPieces) {
-            appPieceCirculationService.moveToNextNode(resultPiece, 1);
-            //暂时默认将零件状态改为待排版
-            productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
-        }
+
     }
 
     /**
@@ -95,99 +117,41 @@ public class AppOrderPreprocessingService {
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
 
         // 2. 判断是否有"裁切"工艺
-        boolean hasCutting = procedureFlowService.hasNodeWithName(processingNodes, "裁切");
+        boolean hasCutting = procedureFlowService.hasNodeWithName(processingNodes, "超幅拼接");
 
         // 3. 判断是否有"异形"工艺
-        boolean hasSpecialShape = procedureFlowService.hasNodeWithName(processingNodes, "异形");
+        boolean hasSpecialShape = procedureFlowService.hasNodeWithName(processingNodes, "异形切割");
 
         // 4. 根据不同情况处理
-        if (hasCutting) {
-            // 情况一：需要分切（无论是否有异形）
-            return processWithCutting(orderItem, processingNodes, hasSpecialShape);
-        } else if (hasSpecialShape) {
-            // 情况二：不需要分切但需要抠图
-            return processWithoutCuttingButWithMasking(orderItem);
-        } else {
-            // 情况三：既不需要分切也不需要抠图
-            return processWithoutCuttingAndMasking(orderItem);
+        if (!hasCutting && !hasSpecialShape ) {
+            // 情况一：既不需要分切也不需要抠图,直接生成生产零件
+            return processWithoutCuttingAndMasking(orderItem,procedureFlow);
+        } else{
+            // 情况二：需要分切或抠图, 暂时不生成生产零件
+            ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape,hasCutting);
+            //配置oss信息
+            ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+            objectStorageTempAuthConfig.setBucket(ossBucketName);
+            UploadConfig uploadConfig = new UploadConfig();
+            uploadConfig.setUploadPath("pieceImg");
+            uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+            imageMaskRequest.setUploadConfig(uploadConfig);
+            //配置callback信息
+            CallbackConfig callbackConfig = new CallbackConfig();
+            callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
+            callbackConfig.setCallbackCustomValue(orderItem.getOrderItemId());
+            algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+            return null;
         }
     }
 
-    /**
-     * 情况一：有裁切工艺的处理流程
-     */
-    private List<ProductionPiece> processWithCutting(OrderItem orderItem, List<ProcedureFlowNode> processingNodes, boolean hasSpecialShape) {
-        // 1. 如果有异形工艺，校验 maskImgUrl 是否存在
-        if (hasSpecialShape) {
-            if (orderItem.getMaskImgFile() == null ||
-                    orderItem.getMaskImgFile().getFilePreview() == null ||
-                    orderItem.getMaskImgFile().getFilePreview().getRaw() == null) {
-                throw new RuntimeException("存在异形工艺但蒙版图片不存在：" + orderItem.getOrderItemId());
-            }
-        }
 
-        // 2. 获取切割坐标
-        List<Double> cuttingCoordinates = procedureService.generateCuttingCoordinates(processingNodes);
-
-        // 3. 准备分切的图片 URL 列表
-        List<String> imageUrlsToCut = new ArrayList<>();
-
-        // 如果存在异形工艺，productionImgUrl 和 maskImgUrl 都需要分切
-        if (hasSpecialShape) {
-            String productionImgUrl = orderItem.getProductionImgFile() != null
-                    && orderItem.getProductionImgFile().getFilePreview() != null
-                    ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                    : null;
-            String maskImgUrl = orderItem.getMaskImgFile() != null
-                    && orderItem.getMaskImgFile().getFilePreview() != null
-                    ? orderItem.getMaskImgFile().getFilePreview().getRaw()
-                    : null;
-
-            if (productionImgUrl != null) imageUrlsToCut.add(productionImgUrl);
-            if (maskImgUrl != null) imageUrlsToCut.add(maskImgUrl);
-        } else {
-            // 不存在异形工艺，只需要 productionImgUrl
-            String productionImgUrl = orderItem.getProductionImgFile() != null
-                    && orderItem.getProductionImgFile().getFilePreview() != null
-                    ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                    : null;
-
-            if (productionImgUrl != null) imageUrlsToCut.add(productionImgUrl);
-        }
-
-        // 4. 保存待分切的中间数据
-        List<ProductionPiece> pendingCutPieces = savePendingCutPieces(
-                orderItem,
-                imageUrlsToCut,
-                cuttingCoordinates
-        );
-
-        // 5. 异步调用图像分切接口
-        List<CutResult> cutResults = callImageCuttingApiAsync(pendingCutPieces);
-
-        // 6. 根据分切结果生成新的 ProductionPiece
-        List<ProductionPiece> cutPieces = createPiecesFromCutResults(orderItem, cutResults);
-
-        // 7. 如果存在异形工艺，继续调用抠图接口
-        if (hasSpecialShape && !cutPieces.isEmpty()) {
-            return processMaskingAfterCutting(orderItem, cutPieces);
-        }
-
-        return cutPieces;
-    }
 
     /**
-     * 情况二：不需要分切但需要抠图的处理流程
+     * 情况三：既不需要分切也不需要抠图的处理流程
      */
-    private List<ProductionPiece> processWithoutCuttingButWithMasking(OrderItem orderItem) {
-        // 1. 校验 maskImgUrl 是否存在
-        if (orderItem.getMaskImgFile() == null ||
-                orderItem.getMaskImgFile().getFilePreview() == null ||
-                orderItem.getMaskImgFile().getFilePreview().getRaw() == null) {
-            throw new RuntimeException("存在异形工艺但蒙版图片不存在：" + orderItem.getOrderItemId());
-        }
-
-        // 2. 直接使用 orderItem 的图片信息调用抠图接口
+    private List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem,ProcedureFlow procedureFlow) {
+        // 直接使用 orderItem 信息生成 ProductionPiece
         String productionImgUrl = orderItem.getProductionImgFile() != null
                 && orderItem.getProductionImgFile().getFilePreview() != null
                 ? orderItem.getProductionImgFile().getFilePreview().getRaw()
@@ -196,46 +160,12 @@ public class AppOrderPreprocessingService {
                 && orderItem.getMaskImgFile().getFilePreview() != null
                 ? orderItem.getMaskImgFile().getFilePreview().getRaw()
                 : null;
-
-        // 3. 创建待抠图的 ProductionPiece，将 maskImgUrl 存储在 maskImageFile 字段中
-        List<ProductionPiece> pendingPieces = new ArrayList<>();
-        ProductionPiece pendingPiece = procedureService.createProductionPiece(
-                orderItem,
-                "PENDING_MASK",
-                productionImgUrl
-        );
-
-        // 设置 maskImageFile
-        pendingPiece.setMaskImageFile(orderItem.getMaskImgFile());
-
-        pendingPieces.add(pendingPiece);
-        productionPieceService.addProductionPiece(pendingPiece);
-
-        // 4. 异步调用抠图接口
-        List<MaskResult> maskResults = callImageMaskingApiAsyncForSinglePiece(pendingPiece);
-
-        // 5. 根据抠图结果生成新的 ProductionPiece，并删除老的
-        return createPiecesFromMaskResultsAndDeleteOldOnes(
-                orderItem,
-                pendingPieces,
-                maskResults
-        );
-    }
-
-    /**
-     * 情况三：既不需要分切也不需要抠图的处理流程
-     */
-    private List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem) {
-        // 直接使用 orderItem 信息生成 ProductionPiece
-        String productionImgUrl = orderItem.getProductionImgFile() != null
-                && orderItem.getProductionImgFile().getFilePreview() != null
-                ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                : null;
-
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
-                productionImgUrl
+                productionImgUrl,
+                procedureFlow,
+                maskImgUrl
         );
 
         productionPieceService.addProductionPiece(piece);
@@ -246,168 +176,10 @@ public class AppOrderPreprocessingService {
         return pieces;
     }
 
-    /**
-     * 分切后处理异形工艺（抠图）
-     */
-    private List<ProductionPiece> processMaskingAfterCutting(OrderItem orderItem, List<ProductionPiece> cutPieces) {
-        // 保存待抠图的中间数据
-        List<ProductionPiece> pendingMaskPieces = savePendingMaskPieces(cutPieces);
 
-        // 异步调用抠图接口
-        List<MaskResult> maskResults = callImageMaskingApiAsync(pendingMaskPieces);
 
-        // 根据抠图结果生成新的 ProductionPiece，并删除老的 ProductionPiece
-        return createPiecesFromMaskResultsAndDeleteOldOnes(
-                orderItem,
-                pendingMaskPieces,
-                maskResults
-        );
-    }
 
-    /**
-     * 保存待分切的中间数据
-     */
-    private List<ProductionPiece> savePendingCutPieces(OrderItem orderItem, List<String> imageUrls, List<Double> cuttingCoordinates) {
-        List<ProductionPiece> pendingPieces = new ArrayList<>();
 
-        for (String imageUrl : imageUrls) {
-            ProductionPiece piece = new ProductionPiece();
-            piece.setOrderItemId(orderItem.getOrderItemId());
-            piece.setProductionPieceType("PENDING_CUT");
-            piece.setStatus("PENDING");
-            piece.setQuantity(orderItem.getQuantity());
-            piece.setTemplateCode(imageUrl);
-
-            // 将切割坐标转换为 JSON 字符串存储在 positionCode 字段中
-            StringBuilder coordinatesJson = new StringBuilder("[");
-            for (int i = 0; i < cuttingCoordinates.size(); i++) {
-                coordinatesJson.append(cuttingCoordinates.get(i));
-                if (i < cuttingCoordinates.size() - 1) {
-                    coordinatesJson.append(",");
-                }
-            }
-            coordinatesJson.append("]");
-            piece.setPositionCode(coordinatesJson.toString());
-
-            productionPieceService.addProductionPiece(piece);
-            pendingPieces.add(piece);
-        }
-
-        return pendingPieces;
-    }
-
-    /**
-     * 保存待抠图的中间数据
-     */
-    private List<ProductionPiece> savePendingMaskPieces(List<ProductionPiece> pieces) {
-        for (ProductionPiece piece : pieces) {
-            piece.setProductionPieceType("PENDING_MASK");
-            piece.setStatus("PENDING");
-            productionPieceService.updateProductionPiece(piece);
-        }
-        return pieces;
-    }
-
-    /**
-     * 根据分切结果生成新的 ProductionPiece
-     */
-    private List<ProductionPiece> createPiecesFromCutResults(OrderItem orderItem, List<CutResult> cutResults) {
-        List<ProductionPiece> resultPieces = new ArrayList<>();
-
-        for (CutResult cutResult : cutResults) {
-            ProductionPiece piece = procedureService.createProductionPiece(
-                    orderItem,
-                    "CUT",
-                    cutResult.getImageUrl()
-            );
-            productionPieceService.addProductionPiece(piece);
-            resultPieces.add(piece);
-        }
-
-        return resultPieces;
-    }
-
-    /**
-     * 根据抠图结果生成新的 ProductionPiece，并删除老的 ProductionPiece
-     */
-    private List<ProductionPiece> createPiecesFromMaskResultsAndDeleteOldOnes(
-            OrderItem orderItem,
-            List<ProductionPiece> oldPieces,
-            List<MaskResult> maskResults) {
-
-        List<ProductionPiece> newPieces = new ArrayList<>();
-
-        // 生成新的 ProductionPiece
-        for (MaskResult maskResult : maskResults) {
-            ProductionPiece piece = procedureService.createProductionPiece(
-                    orderItem,
-                    "MASK",
-                    maskResult.getImageUrl()
-            );
-            productionPieceService.addProductionPiece(piece);
-            newPieces.add(piece);
-        }
-
-        // 删除老的用来抠图的 ProductionPiece
-        for (ProductionPiece oldPiece : oldPieces) {
-            productionPieceService.deleteProductionPiece(oldPiece.getId());
-        }
-
-        return newPieces;
-    }
-
-    /**
-     * 异步调用图像分切接口
-     */
-    private List<CutResult> callImageCuttingApiAsync(List<ProductionPiece> pendingPieces) {
-        // TODO: 实现异步调用
-        // 应该使用异步 HTTP 客户端，等待回调
-        // 这里暂时同步返回示例数据
-
-        List<CutResult> results = new ArrayList<>();
-        for (ProductionPiece piece : pendingPieces) {
-            CutResult result = new CutResult();
-            result.setImageUrl(piece.getTemplateCode() + "_cut");
-            results.add(result);
-        }
-
-        return results;
-    }
-
-    /**
-     * 异步调用抠图接口（多个 ProductionPiece）
-     */
-    private List<MaskResult> callImageMaskingApiAsync(List<ProductionPiece> pendingPieces) {
-        // TODO: 实现异步调用
-        // 应该使用异步 HTTP 客户端，等待回调
-        // 这里暂时同步返回示例数据
-
-        List<MaskResult> results = new ArrayList<>();
-        for (ProductionPiece piece : pendingPieces) {
-            MaskResult result = new MaskResult();
-            result.setImageUrl(piece.getTemplateCode() + "_mask");
-            results.add(result);
-        }
-
-        return results;
-    }
-
-    /**
-     * 异步调用抠图接口（单个 ProductionPiece）
-     */
-    private List<MaskResult> callImageMaskingApiAsyncForSinglePiece(ProductionPiece pendingPiece) {
-        // 从 maskImageFile 中获取 maskImgUrl
-        String maskImgUrl = null;
-        if (pendingPiece.getMaskImageFile() != null
-                && pendingPiece.getMaskImageFile().getFilePreview() != null) {
-            maskImgUrl = pendingPiece.getMaskImageFile().getFilePreview().getRaw();
-        }
-
-        // TODO: 实际调用时需要传入 maskImgUrl
-        List<ProductionPiece> pieces = new ArrayList<>();
-        pieces.add(pendingPiece);
-        return callImageMaskingApiAsync(pieces);
-    }
 
     /**
      * 更新订单项状态为生产中
@@ -465,6 +237,86 @@ public class AppOrderPreprocessingService {
     @Deprecated
     private List<MaskResult> callImageMaskingApi(String productionImgUrl, String maskImgUrl) {
         return new ArrayList<>();
+    }
+
+    /**
+     * 处理图像蒙版回调，根据回调结果生成生产零件
+     *
+     * @param response 算法服务返回的蒙版结果
+     * @param orderItemId 订单项ID（从callbackCustomValue传入）
+     */
+    public void handleGenerateMaskFilesCallback(ImageMaskResponse response, String orderItemId) {
+        try {
+            // 1. 验证回调响应
+            if (response == null) {
+                throw new RuntimeException("回调响应不能为空");
+            }
+
+            if ("error".equals(response.getStatus())) {
+                String errorMsg = response.getError() != null ? response.getError() : "未知错误";
+                orderItemService.markAsFailed(orderItemId, "图像蒙版处理失败：" + errorMsg);
+                System.err.println("图像蒙版处理失败，订单项ID：" + orderItemId + "，错误：" + errorMsg);
+                return;
+            }
+
+            // 2. 查询订单项
+            OrderItem orderItem = orderItemService.findById(orderItemId);
+            if (orderItem == null) {
+                throw new RuntimeException("订单项不存在：" + orderItemId);
+            }
+
+            // 3. 检查pairs是否为空
+            if (response.getPairs() == null || response.getPairs().isEmpty()) {
+                orderItemService.markAsFailed(orderItemId, "图像蒙版处理结果为空");
+                System.err.println("图像蒙版处理结果为空，订单项ID：" + orderItemId);
+                return;
+            }
+
+            // 4. 根据pairs生成生产零件
+            List<ProductionPiece> resultPieces = new ArrayList<>();
+            
+            for (ImageMaskResponse.Pair pair : response.getPairs()) {
+                // 使用抠图后的图片URL生成生产零件
+                String rawImageUrl = pair.getImg();
+                String maskedImageUrl = pair.getSvg();
+                ProcedureFlow procedureFlow = procedureFlowService.parseProcessingFlow(orderItem.getProcedureFlow());
+                if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
+                    ProductionPiece piece = procedureService.createProductionPiece(
+                            orderItem,
+                            "ORIGINAL",
+                            maskedImageUrl,
+                            procedureFlow,
+                            maskedImageUrl
+                    );
+                    productionPieceService.addProductionPiece(piece);
+                    resultPieces.add(piece);
+                }
+            }
+
+            // 5. 如果成功生成了零件，更新订单项状态并推进到下一个节点
+            if (!resultPieces.isEmpty()) {
+                updateOrderItemStatusToInProduction(orderItemId);
+                
+                for (ProductionPiece resultPiece : resultPieces) {
+                    appPieceCirculationService.moveToNextNode(resultPiece, 1);
+                    productionPieceService.updateProductionPieceStatusByproductionPieceId(
+                            resultPiece.getProductionPieceId(), 
+                            ProductionPieceStatus.PENDING_TYPESITTING
+                    );
+                }
+                
+                System.out.println("成功为订单项 " + orderItemId + " 生成 " + resultPieces.size() + " 个生产零件");
+            } else {
+                orderItemService.markAsFailed(orderItemId, "未能生成任何生产零件");
+                System.err.println("未能生成任何生产零件，订单项ID：" + orderItemId);
+            }
+
+        } catch (Exception e) {
+            // 处理异常，标记订单项为失败
+            orderItemService.markAsFailed(orderItemId, "处理图像蒙版回调异常：" + e.getMessage());
+            System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
+            throw e;
+        }
     }
 
     /**

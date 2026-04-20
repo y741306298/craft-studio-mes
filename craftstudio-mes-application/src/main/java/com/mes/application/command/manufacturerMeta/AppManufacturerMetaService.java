@@ -2,12 +2,14 @@ package com.mes.application.command.manufacturerMeta;
 
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.dto.resp.manufacturerMeta.ManufacturerSimpleResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerProductionLineMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.service.ManufacturerMetaService;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
@@ -18,6 +20,7 @@ import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageSlot;
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.repository.StorageTankRepository;
 import com.mes.domain.shared.utils.IdGenerator;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -59,6 +62,9 @@ public class AppManufacturerMetaService {
     private AppManufacturerDeviceCfgService appDeviceCfgService;
 
     @Autowired
+    private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
+
+    @Autowired
     private ProductCoreApiService productCoreApiService;
 
     public PagedResult<ManufacturerMeta> findManufacturerMetas(String name, String manufacturerType, PagedQuery query){
@@ -87,30 +93,41 @@ public class AppManufacturerMetaService {
         if (command == null) {
             throw new IllegalArgumentException("制造商元数据不能为空");
         }
+        if (command.getAddress() == null || command.getConsignee() == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址和收货人不能为空");
+        }
+
+        String terminalRegionCode = command.getAddress().getTerminalRegionCode();
+        String detailAddress = command.getAddress().getDetailAddress();
+        String consigneeName = command.getConsignee().getName();
+        String consigneePhone = command.getConsignee().getPhone();
+        if (StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress) ||
+                StringUtils.isBlank(consigneeName) || StringUtils.isBlank(consigneePhone)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址格式不对");
+        }
+        ManufacturerMeta savedManufacturer = domainManufacturerMetaService.addManufacturerMeta(command);
         
-        domainManufacturerMetaService.addManufacturerMeta(command);
+        registerToProductCenter(savedManufacturer);
         
-        registerToProductCenter(command);
+        createDefaultStorageTank(savedManufacturer);
         
-        createDefaultStorageTank(command);
-        
-        saveManufacturerConfigsFromTemplate(command);
+        saveManufacturerConfigsFromTemplate(savedManufacturer);
     }
     
     private void registerToProductCenter(ManufacturerMeta manufacturerMeta) {
         if (manufacturerMeta.getAddress() == null || manufacturerMeta.getConsignee() == null) {
-            return;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址和收货人不能为空");
         }
-        
+
         String terminalRegionCode = manufacturerMeta.getAddress().getTerminalRegionCode();
         String detailAddress = manufacturerMeta.getAddress().getDetailAddress();
         String consigneeName = manufacturerMeta.getConsignee().getName();
         String consigneePhone = manufacturerMeta.getConsignee().getPhone();
-        
         if (StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress) ||
-            StringUtils.isBlank(consigneeName) || StringUtils.isBlank(consigneePhone)) {
-            return;
+                StringUtils.isBlank(consigneeName) || StringUtils.isBlank(consigneePhone)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址和收货人不能为空");
         }
+
         
         String rmfId = productCoreApiService.registerManufacturer(
                 manufacturerMeta.getName(),
@@ -119,7 +136,7 @@ public class AppManufacturerMetaService {
                 consigneeName,
                 consigneePhone
         );
-        
+
         manufacturerMeta.setManufacturerMetaId(rmfId);
         manufacturerMetaRepository.update(manufacturerMeta);
     }
@@ -198,6 +215,22 @@ public class AppManufacturerMetaService {
         if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("ID 不能为空");
         }
+        
+        ManufacturerMeta manufacturerMeta = findById(id);
+        if (manufacturerMeta == null) {
+            throw new IllegalArgumentException("制造商不存在：" + id);
+        }
+        
+        String manufacturerMetaId = manufacturerMeta.getManufacturerMetaId();
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            PagedQuery query = new PagedQuery(1, 10000);
+            PagedResult<ManufacturerDeviceCfg> deviceResult = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
+            
+            for (ManufacturerDeviceCfg deviceCfg : deviceResult.items()) {
+                manufacturerDeviceCfgRepository.delete(deviceCfg);
+            }
+        }
+        
         domainManufacturerMetaService.deleteManufacturerMeta(id);
     }
     

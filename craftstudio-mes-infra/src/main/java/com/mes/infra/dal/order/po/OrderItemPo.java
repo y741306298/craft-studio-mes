@@ -3,6 +3,7 @@ package com.mes.infra.dal.order.po;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.mes.infra.base.BasePO;
@@ -19,6 +20,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String orderItemId;
     private String orderId;
     private String manufacturerId;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
     private MTOProductSpecDTO mtoProduct;
     private MaterialConfig material;
     private ProcedureFlow procedureFlow;
@@ -42,6 +44,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setOrderItemId(this.orderItemId);
         orderItem.setOrderId(this.orderId);
         orderItem.setManufacturerId(this.manufacturerId);
+        orderItem.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
         orderItem.setMtoProduct(this.mtoProduct);
         orderItem.setMaterial(this.material);
         orderItem.setQuantity(this.quantity);
@@ -65,6 +68,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.orderItemId = _do.getOrderItemId();
         this.orderId = _do.getOrderId();
         this.manufacturerId = _do.getManufacturerId();
+        this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
         this.mtoProduct = _do.getMtoProduct();
         this.material = _do.getMaterial();
         this.quantity = _do.getQuantity();

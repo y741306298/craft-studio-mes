@@ -11,8 +11,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Document(collection = "delivery_token")
+@Document(collection = "deliveryToken")
 public class DeliveryTokenPO extends BasePO<DeliveryToken> {
+
+    private String carrierId;
 
     /**
      * 打印类型
@@ -42,7 +44,7 @@ public class DeliveryTokenPO extends BasePO<DeliveryToken> {
     /**
      * 企业
      */
-    private String eid;
+    private String manufacturerMetaId;
 
     /**
      * 网点 ID
@@ -114,7 +116,8 @@ public class DeliveryTokenPO extends BasePO<DeliveryToken> {
         token.setPartnerKey(this.partnerKey);
         token.setPartnerSecret(this.partnerSecret);
         token.setPartnerName(this.partnerName);
-        token.setEid(this.eid);
+        token.setManufacturerMetaId(this.manufacturerMetaId);
+        token.setCarrierId(this.carrierId);
         token.setSiid(this.siid);
         token.setNet(this.net);
         token.setCode(this.code);
@@ -142,7 +145,8 @@ public class DeliveryTokenPO extends BasePO<DeliveryToken> {
         this.partnerKey = _do.getPartnerKey();
         this.partnerSecret = _do.getPartnerSecret();
         this.partnerName = _do.getPartnerName();
-        this.eid = _do.getEid();
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
+        this.carrierId = _do.getCarrierId();
         this.siid = _do.getSiid();
         this.net = _do.getNet();
         this.code = _do.getCode();

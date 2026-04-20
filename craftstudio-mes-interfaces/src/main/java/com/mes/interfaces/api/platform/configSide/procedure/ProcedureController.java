@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.configSide.procedure;
 import com.mes.application.command.procedure.AppProcedureService;
 import com.mes.application.dto.req.procedure.ProcedureListRequest;
 import com.mes.application.dto.req.procedure.ProcedureRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.procedure.ProcedureListResponse;
 import com.mes.domain.manufacturer.procedure.entity.Procedure;
@@ -83,7 +83,7 @@ public class ProcedureController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateProcedure(@Valid @RequestBody ProcedureRequest request) {
         // 先查询现有数据
         Procedure existingProcedure = appProcedureService.findById(request.getId());

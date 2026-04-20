@@ -16,5 +16,12 @@ public class NestingResponse {
     public static class Result {
         private String nestedSvg;
         private BigDecimal utilization;
+        private GridLines gridLines;
+    }
+
+    @Data
+    public static class GridLines {
+        private List<Double> xs;
+        private List<Double> ys;
     }
 }

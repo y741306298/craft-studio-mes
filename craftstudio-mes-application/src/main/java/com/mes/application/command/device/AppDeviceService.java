@@ -4,7 +4,7 @@ import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.device.service.DeviceService;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -72,7 +72,7 @@ public class AppDeviceService {
         String deviceInfoId = byId.getDeviceInfoId();
         List<com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg> cfgs = 
             manufacturerDeviceCfgRepository.filterList(1, 100, 
-                java.util.Collections.singletonMap("deviceId", deviceInfoId));
+                java.util.Collections.singletonMap("deviceInfoId", deviceInfoId));
         
         if (cfgs != null && !cfgs.isEmpty()) {
             boolean hasNormalCfg = cfgs.stream()

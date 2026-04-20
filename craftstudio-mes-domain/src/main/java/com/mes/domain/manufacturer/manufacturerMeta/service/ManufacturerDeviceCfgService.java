@@ -1,9 +1,10 @@
 package com.mes.domain.manufacturer.manufacturerMeta.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,10 +29,10 @@ public class ManufacturerDeviceCfgService {
     public List<ManufacturerDeviceCfg> findDeviceCfgsByManufacturerId(String manufacturerMetaId, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(manufacturerMetaId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -60,16 +61,16 @@ public class ManufacturerDeviceCfgService {
      */
     public ManufacturerDeviceCfg addDeviceCfg(ManufacturerDeviceCfg deviceCfg) {
         if (deviceCfg == null) {
-            throw new BusinessNotAllowException("设备配置不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备配置不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getManufacturerMetaId())) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
-        if (StringUtils.isBlank(deviceCfg.getDeviceId())) {
-            throw new BusinessNotAllowException("设备 ID 不能为空");
+        if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备 ID 不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getDeviceName())) {
-            throw new BusinessNotAllowException("设备名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
         
         // 设置默认状态为 NORMAL
@@ -86,13 +87,13 @@ public class ManufacturerDeviceCfgService {
      */
     public void updateDeviceCfg(ManufacturerDeviceCfg deviceCfg) {
         if (deviceCfg == null) {
-            throw new BusinessNotAllowException("设备配置不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备配置不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getId())) {
-            throw new BusinessNotAllowException("设备 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备 ID 不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getDeviceName())) {
-            throw new BusinessNotAllowException("设备名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
         
         manufacturerDeviceCfgRepository.update(deviceCfg);
@@ -104,7 +105,7 @@ public class ManufacturerDeviceCfgService {
      */
     public void deleteDeviceCfg(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         
         ManufacturerDeviceCfg deviceCfg = manufacturerDeviceCfgRepository.findById(id);
@@ -120,7 +121,7 @@ public class ManufacturerDeviceCfgService {
      */
     public ManufacturerDeviceCfg findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         return manufacturerDeviceCfgRepository.findById(id);
     }

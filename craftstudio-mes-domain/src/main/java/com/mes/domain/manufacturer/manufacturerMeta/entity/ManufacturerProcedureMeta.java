@@ -13,7 +13,7 @@ public class ManufacturerProcedureMeta extends BaseEntity {
 
     private String procedureName;
 
-    private String deviceId;
+    private String deviceInfoId;
 
     private DeviceType deviceType;
 

@@ -2,8 +2,9 @@ package com.mes.infra.base;
 
 
 import com.mes.domain.base.BaseEntity;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.base.repository.BaseRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -114,7 +115,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             }
         }
         if(criteria == null){
-            throw new BusinessNotAllowException("查询条件不能为空！");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
 
         var pos = mongoTemplate.find(
@@ -138,7 +139,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             }
         }
         if(criteria == null){
-            throw new BusinessNotAllowException("查询条件不能为空！");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
         return mongoTemplate.count(
             new SoftDeleteQuery(criteria).with(Sort.by(Sort.Direction.DESC, "updateTime")),
@@ -182,7 +183,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             }
         }
         if(criteria == null){
-            throw new BusinessNotAllowException("查询条件不能为空！");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
         var pos = mongoTemplate.find(
                 new SoftDeleteQuery(criteria)
@@ -224,7 +225,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             }
         }
         if(criteria == null){
-            throw new BusinessNotAllowException("查询条件不能为空！");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
         return mongoTemplate.count(
             new SoftDeleteQuery(criteria),

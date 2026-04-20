@@ -11,6 +11,8 @@ import lombok.EqualsAndHashCode;
 @Data
 public class DeliveryToken extends BaseEntity {
 
+    private String carrierId;
+
     /**
      * 打印类型
      */
@@ -39,7 +41,7 @@ public class DeliveryToken extends BaseEntity {
     /**
      * 企业
      */
-    private String eid;
+    private String manufacturerMetaId;
     
     /**
      * 网点 ID

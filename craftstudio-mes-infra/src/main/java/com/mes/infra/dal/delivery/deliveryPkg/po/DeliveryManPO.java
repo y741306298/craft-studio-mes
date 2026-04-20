@@ -8,7 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Document(collection = "delivery_man")
+@Document(collection = "deliveryMan")
 public class DeliveryManPO extends BasePO<DeliveryMan> {
 
     private String name;
@@ -19,7 +19,9 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
 
     private String printAddr;
 
-    private String company;
+    private String userId;
+
+    private String manufacturerMetaId;
 
     @Override
     public DeliveryMan toDO() {
@@ -30,7 +32,8 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
         deliveryMan.setMobile(this.mobile);
         deliveryMan.setTel(this.tel);
         deliveryMan.setPrintAddr(this.printAddr);
-        deliveryMan.setCompany(this.company);
+        deliveryMan.setUserId(this.userId);
+        deliveryMan.setManufacturerMetaId(this.manufacturerMetaId);
 
         return deliveryMan;
     }
@@ -45,7 +48,8 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
         this.mobile = _do.getMobile();
         this.tel = _do.getTel();
         this.printAddr = _do.getPrintAddr();
-        this.company = _do.getCompany();
+        this.userId = _do.getUserId();
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
 
         return this;
     }

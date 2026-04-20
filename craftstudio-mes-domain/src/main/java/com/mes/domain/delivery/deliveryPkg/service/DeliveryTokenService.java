@@ -1,8 +1,9 @@
 package com.mes.domain.delivery.deliveryPkg.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryToken;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,10 @@ public class DeliveryTokenService {
      */
     public DeliveryToken addDeliveryToken(DeliveryToken token) {
         if (token == null) {
-            throw new BusinessNotAllowException("令牌配置不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "令牌配置不能为空");
         }
         if (StringUtils.isBlank(token.getPartnerId())) {
-            throw new BusinessNotAllowException("月结账号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "月结账号不能为空");
         }
 
         return deliveryTokenRepository.add(token);
@@ -40,13 +41,13 @@ public class DeliveryTokenService {
      */
     public void updateDeliveryToken(DeliveryToken token) {
         if (token == null) {
-            throw new BusinessNotAllowException("令牌配置不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "令牌配置不能为空");
         }
         if (StringUtils.isBlank(token.getId())) {
-            throw new BusinessNotAllowException("令牌ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "令牌ID不能为空");
         }
         if (StringUtils.isBlank(token.getPartnerId())) {
-            throw new BusinessNotAllowException("月结账号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "月结账号不能为空");
         }
 
         deliveryTokenRepository.update(token);
@@ -58,7 +59,7 @@ public class DeliveryTokenService {
      */
     public void deleteDeliveryToken(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
 
         DeliveryToken token = deliveryTokenRepository.findById(id);
@@ -74,7 +75,7 @@ public class DeliveryTokenService {
      */
     public DeliveryToken findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         return deliveryTokenRepository.findById(id);
     }
@@ -87,7 +88,7 @@ public class DeliveryTokenService {
      */
     public List<DeliveryToken> list(int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在1-100之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");
         }
         return deliveryTokenRepository.list(current, size);
     }

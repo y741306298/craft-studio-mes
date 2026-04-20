@@ -5,6 +5,8 @@ spring:
   #多环境配置
   profiles:
     active: dev
+  main:
+    allow-bean-definition-overriding: true
   mongodb:
     host: localhost
     port: 27017
@@ -18,6 +20,15 @@ external:
   api:
     productCoreUrl: http://8.136.34.126:80
     algorithmUrl: http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run
+  callbackApi:
+    generate_mask_files: http://121.40.134.45:8081/api/manufacturerSide/order/callback/generate_mask_files
+    
+oss:
+  endpoint: https://oss-cn-hangzhou.aliyuncs.com
+  bucket-name: craftstudio-mes-test
+  save-path: test
+
+
 
 #logging:
 #  level:

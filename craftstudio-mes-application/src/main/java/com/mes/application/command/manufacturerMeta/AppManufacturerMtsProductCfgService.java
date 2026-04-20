@@ -1,14 +1,16 @@
 package com.mes.application.command.manufacturerMeta;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.resp.MtsProductCategoryResponse;
 import com.mes.domain.base.UnitPrice;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.entity.ManufacturerMtsProductCfg;
 import com.mes.domain.manufacturer.manufacturerMtsProductCfg.service.ManufacturerMtsProductCfgService;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,13 +37,13 @@ public class AppManufacturerMtsProductCfgService {
      */
     public PagedResult<ManufacturerMtsProductCfg> findMtsProductCfgsByManufacturerId(String manufacturerId, String productName, PagedQuery query) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (query == null) {
-            throw new BusinessNotAllowException("分页参数不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "分页参数不能为空");
         }
         if (query.getSize() <= 0 || query.getSize() > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         List<ManufacturerMtsProductCfg> items = productApiService.findMtsProductCfgsByManufacturerId(
@@ -63,16 +65,16 @@ public class AppManufacturerMtsProductCfgService {
      */
     public void updateSpecPrice(String manufacturerId, String productId, String specId, UnitPrice price) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (StringUtils.isBlank(productId)) {
-            throw new BusinessNotAllowException("产品 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "产品 ID 不能为空");
         }
         if (StringUtils.isBlank(specId)) {
-            throw new BusinessNotAllowException("规格 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "规格 ID 不能为空");
         }
         if (price == null || price.getPrice() == null) {
-            throw new BusinessNotAllowException("价格不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "价格不能为空");
         }
 
         mtsProductCfgService.updateSpecPrice(manufacturerId, productId, specId, price);
@@ -88,13 +90,13 @@ public class AppManufacturerMtsProductCfgService {
      */
     public void deleteSpec(String manufacturerId, String productId, String specId) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (StringUtils.isBlank(productId)) {
-            throw new BusinessNotAllowException("产品 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "产品 ID 不能为空");
         }
         if (StringUtils.isBlank(specId)) {
-            throw new BusinessNotAllowException("规格 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "规格 ID 不能为空");
         }
 
         mtsProductCfgService.deleteSpec(manufacturerId, productId, specId);
@@ -109,21 +111,13 @@ public class AppManufacturerMtsProductCfgService {
      */
     public void deleteProductCfg(String manufacturerId, String productId) {
         if (StringUtils.isBlank(manufacturerId)) {
-            throw new BusinessNotAllowException("制造商 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
         if (StringUtils.isBlank(productId)) {
-            throw new BusinessNotAllowException("产品 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "产品 ID 不能为空");
         }
 
         mtsProductCfgService.deleteProductCfg(manufacturerId, productId);
     }
 
-    /**
-     * 根据父分类 ID 查询成品商品分类列表
-     * @param parentId 父分类 ID，null 表示查询首级分类
-     * @return 分类列表
-     */
-    public List<MtsProductCategoryResponse> findCategoriesByParentId(String parentId) {
-        return productApiService.findCategoriesByParentId(parentId);
-    }
 }

@@ -1,5 +1,7 @@
 package com.mes.application.command.api.req;
 
+import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.application.command.api.vo.UploadConfig;
 import lombok.Data;
 import java.util.List;
 
@@ -26,15 +28,11 @@ public class NestingRequest {
     public static class Element {
         private String id;
         private String img;
+        private Boolean forme;
         private String svg;
         private Integer counts;
     }
 
-    @Data
-    public static class UploadConfig {
-        private OssConfig ossConfig;
-        private String uploadPath;
-    }
 
     @Data
     public static class OssConfig {
@@ -51,10 +49,5 @@ public class NestingRequest {
         private String securityToken;
     }
 
-    @Data
-    public static class CallbackConfig {
-        private String callbackUrl;
-        private Object callbackCustomValue;
-    }
 
 }

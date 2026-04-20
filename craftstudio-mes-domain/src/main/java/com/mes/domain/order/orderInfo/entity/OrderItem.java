@@ -4,6 +4,7 @@ import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
@@ -20,6 +21,7 @@ public class OrderItem extends BaseEntity {
     private String orderId;
     private String manufacturerId;
     private MTOProductSpecDTO mtoProduct;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
     private MaterialConfig material;
     private ProcedureFlow procedureFlow;
     private Integer quantity;

@@ -1,13 +1,15 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
+import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
+import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.order.OrderItemResponse;
 import com.mes.application.dto.resp.order.OrderWithItemsResponse;
@@ -15,12 +17,10 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
-import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/order")
@@ -28,6 +28,9 @@ public class OrderController {
 
     @Autowired
     private AppOrderService appOrderService;
+
+    @Autowired
+    private AppOrderPreprocessingService appOrderPreprocessingService;
 
     /**
      * 分页查询订单列表（包含订单项）
@@ -144,6 +147,35 @@ public class OrderController {
     @GetMapping("/status")
     public ApiResponse<List<OrderStatus>> getOrderStatusList() {
         return ApiResponse.success(List.of(OrderStatus.values()));
+    }
+
+    /**
+     * 图像蒙版生成回调接口
+     * 供算法服务异步调用，接收图像处理结果并生成生产零件
+     * 
+     * @param response 算法服务返回的蒙版结果，其中id字段为orderItemId
+     * @return 操作结果
+     */
+    @PostMapping("/callback/generate_mask_files")
+    public ApiResponse<String> handleGenerateMaskFilesCallback(@RequestBody ImageMaskResponse response) {
+        
+        try {
+            // 从response中获取orderItemId
+            String orderItemId = response.getId();
+            
+            if (orderItemId == null || orderItemId.isEmpty()) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项ID不能为空");
+            }
+
+            // 调用服务层处理回调
+            appOrderPreprocessingService.handleGenerateMaskFilesCallback(response, orderItemId);
+            
+            return ApiResponse.success("回调处理成功");
+            
+        } catch (Exception e) {
+            System.err.println("处理图像蒙版回调失败：" + e.getMessage());
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
+        }
     }
 
 }

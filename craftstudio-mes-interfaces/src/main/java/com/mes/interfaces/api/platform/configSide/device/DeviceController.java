@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.configSide.device;
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.dto.req.device.DeviceListRequest;
 import com.mes.application.dto.req.device.DeviceRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.device.DeviceListResponse;
 import com.mes.domain.manufacturer.device.entity.Device;

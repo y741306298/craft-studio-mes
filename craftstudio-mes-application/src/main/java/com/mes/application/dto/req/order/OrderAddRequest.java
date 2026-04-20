@@ -41,6 +41,7 @@ public class OrderAddRequest {
             orderItem.setQuantity(orderItemRequest.getCount());
             orderItem.setStatus(OrderStatus.PENDING);
             orderItem.setIsUrgent(false);
+            orderItem.setLogisticsCarrierInfo(orderItemRequest.getLogisticsCarrierInfo());
             orderItem.setKuaidiWay(orderItemRequest.getLogisticsCarrierInfo().getCarrierId());
             orderItems.add(orderItem);
         }

@@ -43,7 +43,7 @@ public class ConfigSideSeedGenerator {
     private static final class Generator {
         private final ApiClient client;
         private final Config config;
-        private final List<String> deviceIds = new ArrayList<>();
+        private final List<String> deviceInfoIds = new ArrayList<>();
         private final List<String> procedureIds = new ArrayList<>();
 
         private Generator(ApiClient client) {
@@ -61,10 +61,10 @@ public class ConfigSideSeedGenerator {
         private void createDevices(int count) throws Exception {
             for (int index = 1; index <= count; index++) {
                 String deviceType = DEVICE_TYPES.get((index - 1) % DEVICE_TYPES.size());
-                String deviceId = String.format(Locale.ROOT, "dev-%04d", index);
+                String deviceInfoId = String.format(Locale.ROOT, "dev-%04d", index);
 
                 Map<String, Object> payload = orderedMap();
-                payload.put("deviceInfoId", deviceId);
+                payload.put("deviceInfoId", deviceInfoId);
                 payload.put("deviceInfoName", String.format(Locale.ROOT, "设备-%04d", index));
                 payload.put("deviceType", deviceType);
                 payload.put("capacity", String.valueOf(100 + index));
@@ -76,8 +76,8 @@ public class ConfigSideSeedGenerator {
                 payload.put("deviceProcedures", List.of());
                 payload.put("deviceMaterials", List.of());
 
-                client.postJson("/api/configSide/device/add", payload, "创建设备 " + deviceId);
-                deviceIds.add(deviceId);
+                client.postJson("/api/configSide/device/add", payload, "创建设备 " + deviceInfoId);
+                deviceInfoIds.add(deviceInfoId);
                 if (index % 20 == 0 || index == count) {
                     System.out.printf("[device] 已创建 %d/%d%n", index, count);
                 }
@@ -147,7 +147,7 @@ public class ConfigSideSeedGenerator {
         }
 
         private void createFactories(int count) throws Exception {
-            if (deviceIds.isEmpty()) {
+            if (deviceInfoIds.isEmpty()) {
                 throw new IllegalStateException("创建工厂前至少需要先创建设备");
             }
 
@@ -160,12 +160,12 @@ public class ConfigSideSeedGenerator {
 
                 List<Object> factoryDevices = new ArrayList<>();
                 for (int offset = 0; offset < 3; offset++) {
-                    String deviceId = deviceIds.get((devicePointer + offset) % deviceIds.size());
-                    int numericId = Integer.parseInt(deviceId.substring(deviceId.lastIndexOf('-') + 1));
+                    String deviceInfoId = deviceInfoIds.get((devicePointer + offset) % deviceInfoIds.size());
+                    int numericId = Integer.parseInt(deviceInfoId.substring(deviceInfoId.lastIndexOf('-') + 1));
                     String deviceType = DEVICE_TYPES.get((numericId - 1) % DEVICE_TYPES.size());
                     Map<String, Object> factoryDevice = orderedMap();
                     factoryDevice.put("manufacturerMetaId", manufacturerMetaId);
-                    factoryDevice.put("deviceId", deviceId);
+                    factoryDevice.put("deviceInfoId", deviceInfoId);
                     factoryDevice.put("deviceName", String.format(Locale.ROOT, "设备-%04d", numericId));
                     factoryDevice.put("deviceType", deviceType);
                     factoryDevice.put("deviceCode", String.format(Locale.ROOT, "%s-EQ-%d", manufacturerMetaId.toUpperCase(Locale.ROOT), offset + 1));

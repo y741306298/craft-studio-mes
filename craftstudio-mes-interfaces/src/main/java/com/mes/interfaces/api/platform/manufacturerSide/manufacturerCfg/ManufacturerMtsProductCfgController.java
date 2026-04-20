@@ -6,7 +6,7 @@ import com.mes.application.command.api.resp.MtsProductCategoryResponse;
 import com.mes.application.command.api.resp.MtsProductListResponse;
 import com.mes.application.command.api.resp.MtsProductSpecResponse;
 
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -12,11 +12,12 @@ public class DeliveryRouteRequest {
 
     private String id;
 
-    @NotBlank(message = "路线 ID 不能为空")
     private String routeId;
 
     @NotBlank(message = "路线名称不能为空")
     private String routeName;
+
+    private String manufacturerMetaId;
 
     private List<DeliveryRouteNode> deliveryRouteNodes;
 
@@ -28,7 +29,9 @@ public class DeliveryRouteRequest {
         deliveryRoute.setRouteId(this.routeId);
         deliveryRoute.setRouteName(this.routeName);
         deliveryRoute.setDeliveryRouteNodes(this.deliveryRouteNodes);
+        deliveryRoute.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryRoute.setStatus(this.status);
+
         return deliveryRoute;
     }
 }

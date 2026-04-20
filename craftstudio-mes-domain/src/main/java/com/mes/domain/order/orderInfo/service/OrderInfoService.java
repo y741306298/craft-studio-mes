@@ -1,14 +1,23 @@
 package com.mes.domain.order.orderInfo.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
+import com.piliofpala.craftstudio.shared.domain.file.vo.File;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.entity.MTOProductSpec;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.Process;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.ProcessParamConfig;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.FileAssetParam;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,7 +46,7 @@ public class OrderInfoService {
      */
     public OrderInfo findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
         return orderInfoRepository.findById(id);
     }
@@ -49,7 +58,7 @@ public class OrderInfoService {
      */
     public OrderInfo findByOrderId(String orderId) {
         if (StringUtils.isBlank(orderId)) {
-            throw new BusinessNotAllowException("订单号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -67,7 +76,7 @@ public class OrderInfoService {
      */
     public List<OrderInfo> listOrders(int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         return orderInfoRepository.list(current, size);
     }
@@ -81,10 +90,10 @@ public class OrderInfoService {
      */
     public List<OrderInfo> findOrdersByStatus(String status, int current, int size) {
         if (StringUtils.isBlank(status)) {
-            throw new BusinessNotAllowException("订单状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单状态不能为空");
         }
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -101,10 +110,10 @@ public class OrderInfoService {
      */
     public List<OrderInfo> searchOrders(String orderId, int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(orderId)) {
-            throw new BusinessNotAllowException("订单号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -119,10 +128,10 @@ public class OrderInfoService {
      */
     public OrderInfo addOrder(OrderInfo orderInfo) {
         if (orderInfo == null) {
-            throw new BusinessNotAllowException("订单信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单信息不能为空");
         }
         if (StringUtils.isBlank(orderInfo.getOrderId())) {
-            throw new BusinessNotAllowException("订单号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
         }
 
         return orderInfoRepository.add(orderInfo);
@@ -134,10 +143,10 @@ public class OrderInfoService {
      */
     public void updateOrder(OrderInfo orderInfo) {
         if (orderInfo == null) {
-            throw new BusinessNotAllowException("订单信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单信息不能为空");
         }
         if (StringUtils.isBlank(orderInfo.getId())) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
 
         orderInfoRepository.update(orderInfo);
@@ -149,7 +158,7 @@ public class OrderInfoService {
      */
     public void deleteOrder(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
 
         OrderInfo orderInfo = findById(id);
@@ -165,7 +174,7 @@ public class OrderInfoService {
      */
     public List<OrderInfo> batchAddOrders(List<OrderInfo> orders) {
         if (orders == null || orders.isEmpty()) {
-            throw new BusinessNotAllowException("订单列表不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单列表不能为空");
         }
         return (List<OrderInfo>) orderInfoRepository.batchAdd(orders);
     }
@@ -176,7 +185,7 @@ public class OrderInfoService {
      */
     public void batchUpdateOrders(List<OrderInfo> orders) {
         if (orders == null || orders.isEmpty()) {
-            throw new BusinessNotAllowException("订单列表不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单列表不能为空");
         }
         orderInfoRepository.batchUpdate(orders);
     }
@@ -196,7 +205,7 @@ public class OrderInfoService {
      */
     public long countByStatus(String status) {
         if (StringUtils.isBlank(status)) {
-            throw new BusinessNotAllowException("订单状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单状态不能为空");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -211,7 +220,7 @@ public class OrderInfoService {
      */
     public boolean existById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("订单 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
         }
         return orderInfoRepository.existById(id);
     }
@@ -238,7 +247,7 @@ public class OrderInfoService {
      */
     public List<OrderInfo> findOrdersByConditions(String orderId, String status, Date startTime, Date endTime, int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -275,7 +284,7 @@ public class OrderInfoService {
      */
     public List<OrderInfo> findOrdersByConditionsWithCustomerPhone(String orderId, String status, Date startTime, Date endTime, String customerPhone, int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -373,10 +382,6 @@ public class OrderInfoService {
      * @return 添加后的订单信息
      */
     public List<OrderItem> addOrderWithItems(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        
-        // 检查订单是否已存在
-        OrderInfo existingOrder = findByOrderId(orderInfo.getOrderId());
-
         // 为每个订单项生成唯一的 orderItemId 并完善 procedureFlow 数据
         for (OrderItem item : orderItems) {
             if (StringUtils.isBlank(item.getOrderItemId())) {
@@ -388,7 +393,23 @@ public class OrderInfoService {
             // 从 mtoProduct 中获取 processFlow 并转换为 procedureFlow
             String processFlow = "";
             if (item.getMtoProduct() != null) {
-                ProcedureFlow procedureFlow = orderPreprocessingService.convertProcessFlowToProcedureFlow(item.getMtoProduct());
+                MTOProductSpecDTO mtoProductDto = item.getMtoProduct();
+                MTOProductSpec mtoProductSpec = mtoProductDto.toDO();
+                //获取第一个节点下的,默认为FileAssetParam,获取生产图片
+                List<ProcessParamConfig> firstProcessParamConfigs = mtoProductSpec.getFirstProcessParamConfigs();
+                ProcessParamConfig processParamConfig = firstProcessParamConfigs.get(0);
+                if(processParamConfig == null) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "第一个节点的配置参数缺失");
+                FileAssetParam processParam = (FileAssetParam) processParamConfig.getParam();
+                ImageFile file = (ImageFile) processParam.getFile();
+                item.setProductionImgFile(file);
+                //再判断是否存在异形切割图片
+                Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
+                if(processWithContourSliceImg != null){
+                    FileAssetParam maskParam = (FileAssetParam) processWithContourSliceImg.getParamConfigs().get(0).getParam();
+                    ImageFile maskfile = (ImageFile) processParam.getFile();
+                    item.setMaskImgFile(maskfile);
+                }
+                ProcedureFlow procedureFlow = orderPreprocessingService.convertProcessFlowToProcedureFlow(mtoProductDto);
                 MaterialConfig materialConfigFromMTOProduct = this.orderPreprocessingService.getMaterialConfigFromMTOProduct(item.getMtoProduct());
                 if (procedureFlow != null) {
                     List<ProcedureFlowNode> nodes = procedureFlow.getNodes();
@@ -402,6 +423,7 @@ public class OrderInfoService {
 
                     item.setProcedureFlow(procedureFlow);
                 }
+                item.setLogisticsCarrierInfo(item.getLogisticsCarrierInfo());
                 item.setMaterial(materialConfigFromMTOProduct);
             }
             item.setProcessingFlow(processFlow);

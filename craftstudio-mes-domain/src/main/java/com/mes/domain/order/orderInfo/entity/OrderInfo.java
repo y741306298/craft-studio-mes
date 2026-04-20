@@ -4,6 +4,7 @@ import com.mes.domain.base.BaseEntity;
 import com.mes.domain.delivery.deliveryNet.entity.DeliveryWay;
 import com.mes.domain.delivery.deliveryNet.enums.DeliveryWayNUM;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;

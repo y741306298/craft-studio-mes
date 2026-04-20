@@ -2,7 +2,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.productionpiece;
 
 import com.mes.application.command.productionPiece.AppProductionPieceService;
 import com.mes.application.dto.req.productionpiece.ProductionPieceListRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.productionpiece.ProductionPieceResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;

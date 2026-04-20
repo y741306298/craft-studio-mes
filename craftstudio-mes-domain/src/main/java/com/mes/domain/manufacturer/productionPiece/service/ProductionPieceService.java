@@ -1,10 +1,11 @@
 package com.mes.domain.manufacturer.productionPiece.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,7 @@ public class ProductionPieceService {
             int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
 
         Map<String, Object> filters = new HashMap<>();
@@ -134,10 +135,10 @@ public class ProductionPieceService {
     public List<ProductionPiece> findProductionPiecesByOrderItemId(String orderItemId, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(orderItemId)) {
-            throw new BusinessNotAllowException("订单项目 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项目 ID 不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -151,10 +152,10 @@ public class ProductionPieceService {
     public List<ProductionPiece> findProductionPiecesByProcedureFlowId(String procedureFlowId, int current, int size) {
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在 1-100 之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         if (StringUtils.isBlank(procedureFlowId)) {
-            throw new BusinessNotAllowException("工艺路线 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺路线 ID 不能为空");
         }
 
         Map<String, String> searchFilters = new HashMap<>();
@@ -180,13 +181,13 @@ public class ProductionPieceService {
      */
     public ProductionPiece addProductionPiece(ProductionPiece productionPiece) {
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不能为空");
         }
         if (StringUtils.isBlank(productionPiece.getOrderItemId())) {
-            throw new BusinessNotAllowException("订单项目 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项目 ID 不能为空");
         }
         if (StringUtils.isBlank(productionPiece.getProductionPieceType())) {
-            throw new BusinessNotAllowException("生产工件类型不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
         }
 
         // 生成唯一的 productionPieceId
@@ -202,10 +203,10 @@ public class ProductionPieceService {
      */
     public void updateProductionPiece(ProductionPiece productionPiece) {
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不能为空");
         }
         if (StringUtils.isBlank(productionPiece.getId())) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
 
         productionPieceRepository.update(productionPiece);
@@ -216,7 +217,7 @@ public class ProductionPieceService {
      */
     public void deleteProductionPiece(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
 
         ProductionPiece productionPiece = productionPieceRepository.findById(id);
@@ -230,7 +231,7 @@ public class ProductionPieceService {
      */
     public ProductionPiece findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
         return productionPieceRepository.findById(id);
     }
@@ -243,7 +244,7 @@ public class ProductionPieceService {
      */
     public ProductionPiece findByProductionPieceId(String productionPieceId) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件唯一标识不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件唯一标识不能为空");
         }
 
         List<ProductionPiece> pieces = productionPieceRepository.filterList(1, 1, 
@@ -264,15 +265,15 @@ public class ProductionPieceService {
      */
     public void updateProductionPieceByProductionPieceId(String productionPieceId, ProductionPiece productionPiece) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件唯一标识不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件唯一标识不能为空");
         }
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件对象不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件对象不能为空");
         }
 
         ProductionPiece existingPiece = findByProductionPieceId(productionPieceId);
         if (existingPiece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         // 复制要更新的字段
@@ -309,15 +310,15 @@ public class ProductionPieceService {
      */
     public List<ProductionPiece> batchAddProductionPieces(List<ProductionPiece> productionPieces) {
         if (productionPieces == null || productionPieces.isEmpty()) {
-            throw new BusinessNotAllowException("生产工件列表不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件列表不能为空");
         }
 
         for (ProductionPiece piece : productionPieces) {
             if (StringUtils.isBlank(piece.getOrderItemId())) {
-                throw new BusinessNotAllowException("订单项目 ID 不能为空");
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项目 ID 不能为空");
             }
             if (StringUtils.isBlank(piece.getProductionPieceType())) {
-                throw new BusinessNotAllowException("生产工件类型不能为空");
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
             }
             // 生成唯一的 productionPieceId
             if (StringUtils.isBlank(piece.getProductionPieceId())) {
@@ -333,15 +334,15 @@ public class ProductionPieceService {
      */
     public void updateProductionPieceStatus(String id, ProductionPieceStatus status) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
         if (status == null) {
-            throw new BusinessNotAllowException("状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "状态不能为空");
         }
 
         ProductionPiece productionPiece = findById(id);
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不存在");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在");
         }
 
         productionPiece.setStatus(status.getCode());
@@ -356,15 +357,15 @@ public class ProductionPieceService {
      */
     public void updateProductionPieceStatusByproductionPieceId(String productionPieceId, ProductionPieceStatus status) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件唯一标识不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件唯一标识不能为空");
         }
         if (status == null) {
-            throw new BusinessNotAllowException("状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "状态不能为空");
         }
 
         ProductionPiece productionPiece = findByProductionPieceId(productionPieceId);
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         productionPiece.setStatus(status.getCode());
@@ -382,7 +383,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (!currentStatus.canTypeset()) {
-            throw new BusinessNotAllowException("当前状态不能开始排版，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始排版，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING.getCode());
@@ -400,7 +401,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus != ProductionPieceStatus.TYPESITTING) {
-            throw new BusinessNotAllowException("只有排版中的工件才能完成排版，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有排版中的工件才能完成排版，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getCode());
@@ -418,7 +419,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus != ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM) {
-            throw new BusinessNotAllowException("只有排版待确认的工件才能确认排版，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有排版待确认的工件才能确认排版，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getCode());
@@ -436,7 +437,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (!currentStatus.canPrint()) {
-            throw new BusinessNotAllowException("当前状态不能开始打印，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始打印，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.PRINTING.getCode());
@@ -454,7 +455,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus != ProductionPieceStatus.PRINTING) {
-            throw new BusinessNotAllowException("只有打印中的工件才能完成打印，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有打印中的工件才能完成打印，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getCode());
@@ -472,7 +473,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (!currentStatus.canCut()) {
-            throw new BusinessNotAllowException("当前状态不能开始切割，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始切割，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.CUTTING.getCode());
@@ -490,7 +491,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus != ProductionPieceStatus.CUTTING) {
-            throw new BusinessNotAllowException("只有切割中的工件才能完成切割，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有切割中的工件才能完成切割，当前状态：" + currentStatus.getDescription());
         }
 
         boolean hasFuBanProcedure = checkHasFuBanProcedure(piece);
@@ -513,7 +514,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (!currentStatus.canFuBan()) {
-            throw new BusinessNotAllowException("当前状态不能开始覆板，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始覆板，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.FUBAN.getCode());
@@ -531,7 +532,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus != ProductionPieceStatus.FUBAN) {
-            throw new BusinessNotAllowException("只有覆板中的工件才能完成覆板，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有覆板中的工件才能完成覆板，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
@@ -549,7 +550,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (!currentStatus.canPack()) {
-            throw new BusinessNotAllowException("当前状态不能开始打包，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始打包，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getCode());
@@ -567,7 +568,7 @@ public class ProductionPieceService {
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
         if (currentStatus.isFinalState()) {
-            throw new BusinessNotAllowException("终态订单不能退单，当前状态：" + currentStatus.getDescription());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "终态订单不能退单，当前状态：" + currentStatus.getDescription());
         }
 
         piece.setStatus(ProductionPieceStatus.RETURNED.getCode());
@@ -597,7 +598,7 @@ public class ProductionPieceService {
      */
     private void validatePieceExists(ProductionPiece piece, String id) {
         if (piece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + id);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + id);
         }
     }
 
@@ -627,27 +628,27 @@ public class ProductionPieceService {
      */
     public void transferPieceQuantityBetweenNodes(String productionPieceId, String fromNodeId, String toNodeId, Integer quantity) {
         if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException("生产工件 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
         if (StringUtils.isBlank(fromNodeId)) {
-            throw new BusinessNotAllowException("源节点 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点 ID 不能为空");
         }
         if (StringUtils.isBlank(toNodeId)) {
-            throw new BusinessNotAllowException("目标节点 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "目标节点 ID 不能为空");
         }
         if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException("划转数量必须大于 0");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "划转数量必须大于 0");
         }
 
         // 查询生产工件
         ProductionPiece piece = findById(productionPieceId);
         if (piece == null) {
-            throw new BusinessNotAllowException("生产工件不存在：" + productionPieceId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
         }
 
         // 获取工艺路线和节点列表
         if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
-            throw new BusinessNotAllowException("该生产工件没有工艺路线或节点信息");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该生产工件没有工艺路线或节点信息");
         }
 
         List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
@@ -666,15 +667,15 @@ public class ProductionPieceService {
         }
 
         if (fromNode == null) {
-            throw new BusinessNotAllowException("源节点不存在：" + fromNodeId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点不存在：" + fromNodeId);
         }
         if (toNode == null) {
-            throw new BusinessNotAllowException("目标节点不存在：" + toNodeId);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "目标节点不存在：" + toNodeId);
         }
 
         // 检查源节点数量是否足够
         if (fromNode.getPieceQuantity() == null || fromNode.getPieceQuantity() < quantity) {
-            throw new BusinessNotAllowException("源节点数量不足，当前数量：" +
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点数量不足，当前数量：" +
                 (fromNode.getPieceQuantity() != null ? fromNode.getPieceQuantity() : 0));
         }
 

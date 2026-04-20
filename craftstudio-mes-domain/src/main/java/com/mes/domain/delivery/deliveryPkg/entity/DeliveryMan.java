@@ -8,6 +8,10 @@ import lombok.EqualsAndHashCode;
 @Data
 public class DeliveryMan extends BaseEntity {
 
+    private String userId;
+
+    private String manufacturerMetaId;
+
     private String name;
 
     private String mobile;
@@ -15,6 +19,4 @@ public class DeliveryMan extends BaseEntity {
     private String tel;
 
     private String printAddr;
-
-    private String company;
 }

@@ -3,7 +3,7 @@ package com.mes.interfaces.api.platform.configSide.procedureFlow;
 import com.mes.application.command.procedureFlow.AppProcedureFlowService;
 import com.mes.application.dto.req.procedureFlow.ProcedureFlowListRequest;
 import com.mes.application.dto.req.procedureFlow.ProcedureFlowRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.procedureFlow.ProcedureFlowListResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -75,7 +75,7 @@ public class ProcedureFlowController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateProcedureFlow(@Valid @RequestBody ProcedureFlowRequest request) {
         ProcedureFlow existingFlow = appProcedureFlowService.findById(request.getId());
         if (existingFlow == null) {

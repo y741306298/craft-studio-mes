@@ -1,11 +1,12 @@
 package com.mes.application.command.productionPiece;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -28,17 +29,17 @@ public class AppPieceCirculationService {
      */
     public ProductionPiece moveToNextNode(ProductionPiece productionPiece, int nextNodeIndex) {
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产件不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产件不能为空");
         }
 
         ProcedureFlow procedureFlow = productionPiece.getProcedureFlow();
         if (procedureFlow == null || procedureFlow.getNodes() == null) {
-            throw new BusinessNotAllowException("工艺流程或节点列表为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺流程或节点列表为空");
         }
 
         List<ProcedureFlowNode> nodes = procedureFlow.getNodes();
         if (nextNodeIndex < 0 || nextNodeIndex >= nodes.size()) {
-            throw new BusinessNotAllowException("节点索引超出范围");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点索引超出范围");
         }
 
 
@@ -75,20 +76,20 @@ public class AppPieceCirculationService {
      */
     public ProductionPiece moveToNextNodeWithQuantity(ProductionPiece productionPiece, int nextNodeIndex, Integer completeQuantity) {
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产件不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产件不能为空");
         }
         if (completeQuantity == null || completeQuantity <= 0) {
-            throw new BusinessNotAllowException("转移数量必须大于 0");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "转移数量必须大于 0");
         }
 
         ProcedureFlow procedureFlow = productionPiece.getProcedureFlow();
         if (procedureFlow == null || procedureFlow.getNodes() == null) {
-            throw new BusinessNotAllowException("工艺流程或节点列表为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺流程或节点列表为空");
         }
 
         List<ProcedureFlowNode> nodes = procedureFlow.getNodes();
         if (nextNodeIndex < 0 || nextNodeIndex >= nodes.size()) {
-            throw new BusinessNotAllowException("节点索引超出范围");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点索引超出范围");
         }
 
         // 获取前一个节点和当前节点
@@ -99,7 +100,7 @@ public class AppPieceCirculationService {
         // 检查前一个节点数量是否足够
         Integer previousQuantity = previousNode.getPieceQuantity() != null ? previousNode.getPieceQuantity() : 0;
         if (previousQuantity < completeQuantity) {
-            throw new BusinessNotAllowException("前一个节点数量不足，当前数量：" + previousQuantity);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "前一个节点数量不足，当前数量：" + previousQuantity);
         }
 
         // 将前一个节点减少指定数量,如果全部指定则置为 COMPLETED
@@ -129,20 +130,20 @@ public class AppPieceCirculationService {
      */
     public ProductionPiece updateNodeStatus(ProductionPiece productionPiece, int nodeIndex, NodeStatus newStatus) {
         if (productionPiece == null) {
-            throw new BusinessNotAllowException("生产件不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产件不能为空");
         }
         if (newStatus == null) {
-            throw new BusinessNotAllowException("新状态不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "新状态不能为空");
         }
 
         ProcedureFlow procedureFlow = productionPiece.getProcedureFlow();
         if (procedureFlow == null || procedureFlow.getNodes() == null) {
-            throw new BusinessNotAllowException("工艺流程或节点列表为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工艺流程或节点列表为空");
         }
 
         List<ProcedureFlowNode> nodes = procedureFlow.getNodes();
         if (nodeIndex < 0 || nodeIndex >= nodes.size()) {
-            throw new BusinessNotAllowException("节点索引超出范围");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点索引超出范围");
         }
 
         // 获取指定节点并更新状态

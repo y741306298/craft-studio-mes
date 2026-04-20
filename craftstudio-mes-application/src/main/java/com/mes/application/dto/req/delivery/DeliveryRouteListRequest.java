@@ -8,4 +8,5 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class DeliveryRouteListRequest extends PagedApiRequest {
     private String routeName;
+    private String manufacturerMetaId;
 }

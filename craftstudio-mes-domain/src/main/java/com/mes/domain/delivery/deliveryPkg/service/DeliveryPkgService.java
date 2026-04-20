@@ -1,9 +1,10 @@
 package com.mes.domain.delivery.deliveryPkg.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryPkgRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,23 +27,23 @@ public class DeliveryPkgService {
      */
     public DeliveryPkg createDeliveryPkg(DeliveryPkg deliveryPkg) {
         if (deliveryPkg == null) {
-            throw new BusinessNotAllowException("包裹信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹信息不能为空");
         }
 
         if (StringUtils.isBlank(deliveryPkg.getRecipientName())) {
-            throw new BusinessNotAllowException("收件人姓名不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "收件人姓名不能为空");
         }
 
         if (StringUtils.isBlank(deliveryPkg.getRecipientPhone())) {
-            throw new BusinessNotAllowException("收件人电话不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "收件人电话不能为空");
         }
 
         if (StringUtils.isBlank(deliveryPkg.getRecipientAddress())) {
-            throw new BusinessNotAllowException("收件地址不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "收件地址不能为空");
         }
 
         if (deliveryPkg.getDeliveryPkgItems() == null || deliveryPkg.getDeliveryPkgItems().isEmpty()) {
-            throw new BusinessNotAllowException("包裹物品不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹物品不能为空");
         }
 
         deliveryPkg.setDeliveryPkgStatus(DeliveryPkgStatus.PENDING_PACKING);
@@ -57,7 +58,7 @@ public class DeliveryPkgService {
      */
     public DeliveryPkg findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("包裹 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹 ID 不能为空");
         }
         return deliveryPkgRepository.findById(id);
     }
@@ -67,7 +68,7 @@ public class DeliveryPkgService {
      */
     public List<DeliveryPkg> findByDeliveryPkgCode(String deliveryPkgCode) {
         if (StringUtils.isBlank(deliveryPkgCode)) {
-            throw new BusinessNotAllowException("包裹编码不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹编码不能为空");
         }
         return deliveryPkgRepository.findByDeliveryPkgCode(deliveryPkgCode);
     }
@@ -77,7 +78,7 @@ public class DeliveryPkgService {
      */
     public List<DeliveryPkg> findByTrackingNumber(String trackingNumber) {
         if (StringUtils.isBlank(trackingNumber)) {
-            throw new BusinessNotAllowException("运单号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "运单号不能为空");
         }
         return deliveryPkgRepository.findByTrackingNumber(trackingNumber);
     }
@@ -87,12 +88,12 @@ public class DeliveryPkgService {
      */
     public DeliveryPkg updateDeliveryPkg(DeliveryPkg deliveryPkg) {
         if (deliveryPkg == null || StringUtils.isBlank(deliveryPkg.getId())) {
-            throw new BusinessNotAllowException("包裹信息或 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹信息或 ID 不能为空");
         }
 
         DeliveryPkg existingPkg = findById(deliveryPkg.getId());
         if (existingPkg == null) {
-            throw new BusinessNotAllowException("包裹不存在：" + deliveryPkg.getId());
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在：" + deliveryPkg.getId());
         }
 
         deliveryPkg.setUpdateTime(new Date());
@@ -105,16 +106,16 @@ public class DeliveryPkgService {
      */
     public void deleteDeliveryPkg(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("包裹 ID 不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹 ID 不能为空");
         }
 
         DeliveryPkg deliveryPkg = findById(id);
         if (deliveryPkg == null) {
-            throw new BusinessNotAllowException("包裹不存在：" + id);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在：" + id);
         }
 
         if (deliveryPkg.getDeliveryPkgStatus() == DeliveryPkgStatus.DELIVERED) {
-            throw new BusinessNotAllowException("已发货的包裹不能删除");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已发货的包裹不能删除");
         }
 
         deliveryPkgRepository.delete(deliveryPkg);
@@ -126,11 +127,11 @@ public class DeliveryPkgService {
     public void startPacking(String id) {
         DeliveryPkg deliveryPkg = findById(id);
         if (deliveryPkg == null) {
-            throw new BusinessNotAllowException("包裹不存在：" + id);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在：" + id);
         }
 
         if (!deliveryPkg.getDeliveryPkgStatus().canStartPacking()) {
-            throw new BusinessNotAllowException("当前状态不能开始打包，当前状态：" +
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始打包，当前状态：" +
                     deliveryPkg.getDeliveryPkgStatus().getDescription());
         }
 
@@ -146,11 +147,11 @@ public class DeliveryPkgService {
     public void completePacking(String id) {
         DeliveryPkg deliveryPkg = findById(id);
         if (deliveryPkg == null) {
-            throw new BusinessNotAllowException("包裹不存在：" + id);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在：" + id);
         }
 
         if (!deliveryPkg.getDeliveryPkgStatus().canCompletePacking()) {
-            throw new BusinessNotAllowException("当前状态不能完成打包，当前状态：" +
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能完成打包，当前状态：" +
                     deliveryPkg.getDeliveryPkgStatus().getDescription());
         }
 
@@ -166,16 +167,16 @@ public class DeliveryPkgService {
     public void confirmDelivery(String id, String trackingNumber) {
         DeliveryPkg deliveryPkg = findById(id);
         if (deliveryPkg == null) {
-            throw new BusinessNotAllowException("包裹不存在：" + id);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在：" + id);
         }
 
         if (!deliveryPkg.getDeliveryPkgStatus().canDeliver()) {
-            throw new BusinessNotAllowException("当前状态不能发货，当前状态：" +
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能发货，当前状态：" +
                     deliveryPkg.getDeliveryPkgStatus().getDescription());
         }
 
         if (StringUtils.isBlank(trackingNumber)) {
-            throw new BusinessNotAllowException("运单号不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "运单号不能为空");
         }
 
         deliveryPkg.setDeliveryPkgStatus(DeliveryPkgStatus.DELIVERED);

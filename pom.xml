@@ -127,6 +127,12 @@
         </dependency>
         <dependency>
             <groupId>com.piliofpala.craftstudio.shared</groupId>
+            <artifactId>craftstudio-shared-infra</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.piliofpala.craftstudio.shared</groupId>
             <artifactId>craftstudio-shared-application</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>

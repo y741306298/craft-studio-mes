@@ -1,8 +1,9 @@
 package com.mes.domain.delivery.deliveryPkg.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryMan;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryManRepository;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,10 @@ public class DeliveryManService {
 
     public DeliveryMan addDeliveryMan(DeliveryMan deliveryMan) {
         if (deliveryMan == null) {
-            throw new BusinessNotAllowException("快递员信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员信息不能为空");
         }
         if (StringUtils.isBlank(deliveryMan.getName())) {
-            throw new BusinessNotAllowException("快递员姓名不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员姓名不能为空");
         }
 
         return deliveryManRepository.add(deliveryMan);
@@ -28,10 +29,10 @@ public class DeliveryManService {
 
     public void updateDeliveryMan(DeliveryMan deliveryMan) {
         if (deliveryMan == null) {
-            throw new BusinessNotAllowException("快递员信息不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员信息不能为空");
         }
         if (StringUtils.isBlank(deliveryMan.getId())) {
-            throw new BusinessNotAllowException("快递员ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员ID不能为空");
         }
 
         deliveryManRepository.update(deliveryMan);
@@ -39,7 +40,7 @@ public class DeliveryManService {
 
     public void deleteDeliveryMan(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
 
         DeliveryMan deliveryMan = deliveryManRepository.findById(id);
@@ -50,14 +51,21 @@ public class DeliveryManService {
 
     public DeliveryMan findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         return deliveryManRepository.findById(id);
     }
 
+    public List<DeliveryMan> findByUserId(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "用户ID不能为空");
+        }
+        return deliveryManRepository.findByUserId(userId);
+    }
+
     public List<DeliveryMan> list(int current, int size) {
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在1-100之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");
         }
         return deliveryManRepository.list(current, size);
     }

@@ -10,12 +10,15 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.w3c.dom.Node;
 
+import java.util.List;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ProductionPiece extends BaseEntity {
 
     private String productionPieceId;
     private String orderItemId;
+    private String carrierId;
     private String manufacturerId;
     private String procedureFlowId;
     private String status;
@@ -29,5 +32,6 @@ public class ProductionPiece extends BaseEntity {
     private ImageFile maskImageFile;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
+    private List<DeliveryPkgInfo> deliveryPkgInfos;
 
 }

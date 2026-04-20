@@ -4,11 +4,12 @@ import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -18,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/configSide/deviceCfg")
@@ -45,9 +45,10 @@ public class ManufacturerDeviceCfgController {
         Collection<ManufacturerDeviceCfg> items = result.items();
         List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
         for (ManufacturerDeviceCfg item : items) {
-            String deviceId = item.getDeviceId();
+            String deviceInfoId = item.getDeviceInfoId();
             DeviceCfgSummary summary = DeviceCfgSummary.from(item);
-            Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceId);
+            Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceInfoId);
+            if (byDeviceInfoId == null) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,"设备不存在");
             summary.setBrand(byDeviceInfoId.getBrand());
             summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
             responses.add(summary);
@@ -83,7 +84,7 @@ public class ManufacturerDeviceCfgController {
      * @param request 编辑请求参数
      * @return 操作结果
      */
-    @PutMapping("/edit")
+    @PostMapping("/edit")
     public ApiResponse<String> updateDeviceCfg(@Valid @RequestBody ManufacturerDeviceCfgRequest request) {
         ManufacturerDeviceCfg existingCfg = appDeviceCfgService.findById(request.getId());
         if (existingCfg == null) {

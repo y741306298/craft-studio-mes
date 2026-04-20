@@ -1,5 +1,6 @@
 package com.mes.infra.dal.manufacurer.ProductionPiece.po;
 
+import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.infra.base.BasePO;
@@ -9,6 +10,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
+
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Document(collection = "productionPiece")
@@ -17,6 +20,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String productionPieceId;
     private String orderItemId;
     private String procedureFlowId;
+    private String carrierId;
     private String manufacturerId;
     private String status;
     private String productionPieceType;
@@ -29,6 +33,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private ImageFile maskImageFile;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
+    private List<DeliveryPkgInfo> deliveryPkgInfos;
 
     @Override
     public ProductionPiece toDO() {
@@ -38,6 +43,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setUpdateTime(getUpdateTime());
 
         piece.setProductionPieceId(this.productionPieceId);
+        piece.setCarrierId(this.carrierId);
         piece.setOrderItemId(this.orderItemId);
         piece.setProcedureFlowId(this.procedureFlowId);
         piece.setManufacturerId(this.manufacturerId);
@@ -52,6 +58,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setMaskImageFile(this.maskImageFile);
         piece.setProcessingFlow(this.processingFlow);
         piece.setProcedureFlow(this.procedureFlow);
+        piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
 
         return piece;
     }
@@ -64,6 +71,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
 
         this.productionPieceId = _do.getProductionPieceId();
         this.orderItemId = _do.getOrderItemId();
+        this.carrierId = _do.getCarrierId();
         this.procedureFlowId = _do.getProcedureFlowId();
         this.manufacturerId = _do.getManufacturerId();
         this.status = _do.getStatus();
@@ -77,6 +85,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.maskImageFile = _do.getMaskImageFile();
         this.processingFlow = _do.getProcessingFlow();
         this.procedureFlow = _do.getProcedureFlow();
+        this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
 
         return this;
     }

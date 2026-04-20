@@ -21,7 +21,7 @@ public class AppDeliveryRouteService {
     @Autowired
     private DeliveryRouteRepository deliveryRouteRepository;
 
-    public PagedResult<DeliveryRoute> findDeliveryRoutes(String routeName, PagedQuery query) {
+    public PagedResult<DeliveryRoute> findDeliveryRoutes(String routeName, String manufacturerId, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -30,15 +30,19 @@ public class AppDeliveryRouteService {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
 
+        if (StringUtils.isBlank(manufacturerId)) {
+            throw new IllegalArgumentException("厂商 ID 不能为空");
+        }
+
         List<DeliveryRoute> items;
         long total;
 
         if (StringUtils.isBlank(routeName)) {
-            items = deliveryRouteRepository.list(query.getCurrent(), query.getSize());
-            total = deliveryRouteRepository.total();
+            items = deliveryRouteRepository.listByManufacturerId(manufacturerId, query.getCurrent(), query.getSize());
+            total = deliveryRouteRepository.totalByManufacturerId(manufacturerId);
         } else {
-            items = domainDeliveryRouteService.findDeliveryRoutesByName(routeName, (int) query.getCurrent(), query.getSize());
-            total = domainDeliveryRouteService.getTotalCount(routeName);
+            items = domainDeliveryRouteService.findDeliveryRoutesByName(routeName, manufacturerId, (int) query.getCurrent(), query.getSize());
+            total = domainDeliveryRouteService.getTotalCount(routeName, manufacturerId);
         }
 
         return new PagedResult<DeliveryRoute>(items, total, query.getSize(), query.getCurrent());
@@ -47,6 +51,9 @@ public class AppDeliveryRouteService {
     public DeliveryRoute addDeliveryRoute(DeliveryRoute command) {
         if (command == null) {
             throw new IllegalArgumentException("配送路线不能为空");
+        }
+        if (StringUtils.isBlank(command.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("厂商 ID 不能为空");
         }
         return domainDeliveryRouteService.addDeliveryRoute(command);
     }

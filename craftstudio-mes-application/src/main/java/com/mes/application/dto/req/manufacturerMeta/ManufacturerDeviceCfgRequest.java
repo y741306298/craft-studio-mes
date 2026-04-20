@@ -21,7 +21,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
     
     @NotBlank(message = "设备 ID 不能为空")
     @Size(max = 50, message = "设备 ID 长度不能超过 50 个字符")
-    private String deviceId;
+    private String deviceInfoId;
     
     @NotBlank(message = "设备名称不能为空")
     @Size(max = 100, message = "设备名称长度不能超过 100 个字符")
@@ -44,7 +44,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
             return false;
         }
-        if (deviceId == null || deviceId.trim().isEmpty()) {
+        if (deviceInfoId == null || deviceInfoId.trim().isEmpty()) {
             return false;
         }
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -56,7 +56,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         if (manufacturerMetaId.length() > 50) {
             return false;
         }
-        if (deviceId.length() > 50) {
+        if (deviceInfoId.length() > 50) {
             return false;
         }
         if (deviceName.length() > 100) {
@@ -79,7 +79,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
             return "制造商 ID 不能为空";
         }
-        if (deviceId == null || deviceId.trim().isEmpty()) {
+        if (deviceInfoId == null || deviceInfoId.trim().isEmpty()) {
             return "设备 ID 不能为空";
         }
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -91,7 +91,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         if (manufacturerMetaId.length() > 50) {
             return "制造商 ID 长度不能超过 50 个字符";
         }
-        if (deviceId.length() > 50) {
+        if (deviceInfoId.length() > 50) {
             return "设备 ID 长度不能超过 50 个字符";
         }
         if (deviceName.length() > 100) {
@@ -113,7 +113,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         ManufacturerDeviceCfg deviceCfg = new ManufacturerDeviceCfg();
         deviceCfg.setId(this.id);
         deviceCfg.setManufacturerMetaId(this.manufacturerMetaId);
-        deviceCfg.setDeviceId(this.deviceId);
+        deviceCfg.setDeviceInfoId(this.deviceInfoId);
         deviceCfg.setDeviceName(this.deviceName);
         deviceCfg.setDeviceType(DeviceType.getByCode(this.deviceType));
         deviceCfg.setDeviceCode(this.deviceCode);

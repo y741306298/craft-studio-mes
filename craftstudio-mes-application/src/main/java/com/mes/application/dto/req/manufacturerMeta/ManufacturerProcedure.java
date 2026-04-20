@@ -16,7 +16,7 @@ public class ManufacturerProcedure {
     private String procedureName;
 
     @Size(max = 50, message = "设备 ID 长度不能超过 50 个字符")
-    private String deviceId;
+    private String deviceInfoId;
 
     @Size(max = 50, message = "设备类型长度不能超过 50 个字符")
     private String deviceType;
@@ -29,7 +29,7 @@ public class ManufacturerProcedure {
         ManufacturerProcedureMeta procedureMeta = new ManufacturerProcedureMeta();
         procedureMeta.setProcedureId(this.procedureId);
         procedureMeta.setProcedureName(this.procedureName);
-        procedureMeta.setDeviceId(this.deviceId);
+        procedureMeta.setDeviceInfoId(this.deviceInfoId);
         procedureMeta.setDeviceType(DeviceType.getByCode(this.deviceType));
         return procedureMeta;
     }
@@ -47,7 +47,7 @@ public class ManufacturerProcedure {
         if (procedureName.length() > 100) {
             return false;
         }
-        if (deviceId != null && deviceId.length() > 50) {
+        if (deviceInfoId != null && deviceInfoId.length() > 50) {
             return false;
         }
         if (deviceType != null && deviceType.length() > 50) {
@@ -69,7 +69,7 @@ public class ManufacturerProcedure {
         if (procedureName.length() > 100) {
             return "工序名称长度不能超过 100 个字符";
         }
-        if (deviceId != null && deviceId.length() > 50) {
+        if (deviceInfoId != null && deviceInfoId.length() > 50) {
             return "设备 ID 长度不能超过 50 个字符";
         }
         if (deviceType != null && deviceType.length() > 50) {
@@ -95,12 +95,12 @@ public class ManufacturerProcedure {
         this.procedureName = procedureName;
     }
 
-    public String getDeviceId() {
-        return deviceId;
+    public String getDeviceInfoId() {
+        return deviceInfoId;
     }
 
-    public void setDeviceId(String deviceId) {
-        this.deviceId = deviceId;
+    public void setDeviceInfoId(String deviceInfoId) {
+        this.deviceInfoId = deviceInfoId;
     }
 
     public String getDeviceType() {

@@ -6,7 +6,7 @@ import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
-import com.mes.application.dto.resp.ApiResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;

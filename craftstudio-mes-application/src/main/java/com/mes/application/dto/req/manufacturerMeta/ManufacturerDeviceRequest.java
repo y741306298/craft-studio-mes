@@ -15,7 +15,7 @@ public class ManufacturerDeviceRequest extends ApiRequest {
     
     @NotBlank(message = "设备 ID 不能为空")
     @Size(max = 50, message = "设备 ID 长度不能超过 50 个字符")
-    private String deviceId;
+    private String deviceInfoId;
     
     @Size(max = 100, message = "设备名称长度不能超过 100 个字符")
     private String deviceName;
@@ -46,8 +46,8 @@ public class ManufacturerDeviceRequest extends ApiRequest {
      */
     public ManufacturerDeviceCfg toDomainEntity() {
         ManufacturerDeviceCfg deviceCfg = new ManufacturerDeviceCfg();
-        deviceCfg.setId(this.deviceId);
-        deviceCfg.setDeviceId(this.deviceId);
+        deviceCfg.setId(this.deviceInfoId);
+        deviceCfg.setDeviceInfoId(this.deviceInfoId);
         deviceCfg.setDeviceName(this.deviceName);
         deviceCfg.setDeviceType(DeviceType.getByCode(this.deviceType));
         deviceCfg.setDeviceCode(this.deviceCode);
@@ -58,10 +58,10 @@ public class ManufacturerDeviceRequest extends ApiRequest {
 
     @Override
     public boolean isValid() {
-        if (deviceId == null || deviceId.trim().isEmpty()) {
+        if (deviceInfoId == null || deviceInfoId.trim().isEmpty()) {
             return false;
         }
-        if (deviceId.length() > 50) {
+        if (deviceInfoId.length() > 50) {
             return false;
         }
         if (deviceName != null && deviceName.length() > 100) {
@@ -84,10 +84,10 @@ public class ManufacturerDeviceRequest extends ApiRequest {
 
     @Override
     public String getValidationMessage() {
-        if (deviceId == null || deviceId.trim().isEmpty()) {
+        if (deviceInfoId == null || deviceInfoId.trim().isEmpty()) {
             return "设备ID不能为空";
         }
-        if (deviceId.length() > 50) {
+        if (deviceInfoId.length() > 50) {
             return "设备ID长度不能超过50个字符";
         }
         if (deviceName != null && deviceName.length() > 100) {

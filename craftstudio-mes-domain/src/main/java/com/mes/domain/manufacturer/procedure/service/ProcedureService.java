@@ -1,14 +1,16 @@
 package com.mes.domain.manufacturer.procedure.service;
 
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.enums.CfgStatus;
 import com.mes.domain.manufacturer.procedure.entity.Procedure;
 import com.mes.domain.manufacturer.procedure.repository.ProcedureRepository;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.mes.domain.shared.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +38,10 @@ public class ProcedureService {
         // 参数验证
 
         if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException("每页大小必须在1-100之间");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");
         }
         if (StringUtils.isBlank(procedureName)) {
-            throw new BusinessNotAllowException("工序名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序名称不能为空");
         }
 
         // 根据procedureName进行模糊查询
@@ -71,10 +73,10 @@ public class ProcedureService {
     public Procedure addProcedure(Procedure procedure) {
         // 业务验证
         if (procedure == null) {
-            throw new BusinessNotAllowException("工序不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序不能为空");
         }
         if (StringUtils.isBlank(procedure.getProcedureName())) {
-            throw new BusinessNotAllowException("工序名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序名称不能为空");
         }
 
         // 生成唯一的 procedureId
@@ -91,13 +93,13 @@ public class ProcedureService {
     public void updateProcedure(Procedure procedure) {
         // 业务验证
         if (procedure == null) {
-            throw new BusinessNotAllowException("工序不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序不能为空");
         }
         if (StringUtils.isBlank(procedure.getId())) {
-            throw new BusinessNotAllowException("工序ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序ID不能为空");
         }
         if (StringUtils.isBlank(procedure.getProcedureName())) {
-            throw new BusinessNotAllowException("工序名称不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工序名称不能为空");
         }
 
         procedureRepository.update(procedure);
@@ -109,7 +111,7 @@ public class ProcedureService {
      */
     public void deleteProcedure(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
 
         Procedure procedure = procedureRepository.findById(id);
@@ -125,7 +127,7 @@ public class ProcedureService {
      */
     public Procedure findById(String id) {
         if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException("ID不能为空");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
         return procedureRepository.findById(id);
     }
@@ -159,7 +161,7 @@ public class ProcedureService {
      * @param imageUrl 图片 URL
      * @return 生产工件实体
      */
-    public ProductionPiece createProductionPiece(OrderItem orderItem, String pieceType,  String imageUrl) {
+    public ProductionPiece createProductionPiece(OrderItem orderItem, String pieceType,  String imageUrl,ProcedureFlow procedureFlow,String maskUrl) {
         if (orderItem == null) {
             throw new IllegalArgumentException("订单项不能为空");
         }
@@ -177,9 +179,11 @@ public class ProcedureService {
         piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
+        piece.setCarrierId(orderItem.getLogisticsCarrierInfo().getCarrierId());
         piece.setMaterialConfig(orderItem.getMaterial());
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
+        piece.setProcedureFlow(procedureFlow);
         //再将数量赋予第一节点,其他节点都置零
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());

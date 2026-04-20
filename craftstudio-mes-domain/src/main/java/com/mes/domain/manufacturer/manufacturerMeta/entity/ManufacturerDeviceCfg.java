@@ -12,7 +12,7 @@ import lombok.EqualsAndHashCode;
 public class ManufacturerDeviceCfg extends BaseEntity {
 
     private String manufacturerMetaId;        // 所属制造商 ID（关联关系）
-    private String deviceId;                  // 设备 ID（同一类设备共享）
+    private String deviceInfoId;                  // 设备 ID（同一类设备共享）
     private String deviceName;                // 设备名称
     private DeviceType deviceType;            // 设备类型
     private String deviceCode;                // 设备编号（与制造商关联时生成）
