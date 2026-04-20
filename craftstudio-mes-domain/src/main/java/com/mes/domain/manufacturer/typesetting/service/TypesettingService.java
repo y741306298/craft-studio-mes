@@ -119,6 +119,20 @@ public class TypesettingService {
     }
 
     /**
+     * 根据排版文件 ID 查询排版信息列表
+     * @param typesettingId 排版文件 ID
+     * @return 排版信息列表
+     */
+    public List<TypesettingInfo> findTypesettingListByTypesettingId(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return Collections.emptyList();
+        }
+        Map<String, String> searchFilters = new HashMap<>();
+        searchFilters.put("typesettingId", typesettingId);
+        return typesettingRepository.fuzzySearch(searchFilters, 1, 1000);
+    }
+
+    /**
      * 根据材质查询排版信息（支持分页）
      * @param material 材质
      * @param current 当前页码

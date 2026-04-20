@@ -8,6 +8,7 @@ import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
+import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -47,15 +48,24 @@ public class TypesettingController {
      * @param request 确认排版请求，包含生产工件 ID 列表和排版 API 地址
      * @return 排版结果
      */
-    @PostMapping("/confirmLayout")
-    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody LayoutConfirmRequest request) {
-        LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
+    @PostMapping("/toLayout")
+    public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+        LayoutConfirmResult result = appTypesettingService.toLayout(request);
         if (!result.isSuccess()) {
             ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
             failResponse.setMessage(result.getMessage());
             return failResponse;
         }
         
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 确认排版（暂未实现具体业务）
+     */
+    @PostMapping("/confirmLayout")
+    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+        LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
         return ApiResponse.success(result);
     }
 
@@ -136,5 +146,23 @@ public class TypesettingController {
     @PostMapping("/generateTempCode")
     public ApiResponse<GenerateTempCodeResult> generateTempCode(@RequestBody GenerateTempCodeRequest request) {
         return ApiResponse.success(appTypesettingService.generateTempCode(request));
+    }
+
+    /**
+     * 异形排版算法异步回调
+     */
+    @PostMapping("/callback/generate_nested_files")
+    public ApiResponse<String> handleGenerateNestedFilesCallback(@RequestBody NestingResponse response) {
+        appTypesettingService.handleNestingCallback(response);
+        return ApiResponse.success("回调处理成功");
+    }
+
+    /**
+     * 网格排版算法异步回调
+     */
+    @PostMapping("/callback/generate_grid_nested_files")
+    public ApiResponse<String> handleGenerateGridNestedFilesCallback(@RequestBody NestingResponse response) {
+        appTypesettingService.handleNestingCallback(response);
+        return ApiResponse.success("回调处理成功");
     }
 }

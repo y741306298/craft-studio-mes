@@ -19,6 +19,13 @@ public class NestingResponse {
         private BigDecimal width;
         private BigDecimal height;
         private GridLines gridLines;
+        private ContainerSize containerSize;
+    }
+
+    @Data
+    public static class ContainerSize {
+        private BigDecimal width;
+        private BigDecimal height;
     }
 
     @Data

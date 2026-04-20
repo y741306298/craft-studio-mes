@@ -21,6 +21,10 @@ public class LayoutConfirmRequest extends ApiRequest {
 
     private List<String> materialCodes;
 
+    /**
+     * 排版方式（用于判断调用异形排版还是网格排版算法）
+     */
+    private String layoutMode;
 
     @Override
     public boolean isValid() {
