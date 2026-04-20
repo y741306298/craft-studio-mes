@@ -252,11 +252,15 @@ public class AppTypesettingService {
      * @return 排版结果
      */
     public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
-        List<TypesettingProductionPieceVO> typesettingCellList = request.getTypesettingCells();
-        for (TypesettingProductionPieceVO typesettingCell : typesettingCellList) {
-            String sourceType = typesettingCell.getSourceType();
-            if (sourceType.equals(TypesettingSourceType.PART.getCode())) {
-
+        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
+        if (typesettingInfos == null) {
+            typesettingInfos = new ArrayList<>();
+        }
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            Integer quantity = typesettingInfo.getQuantity();
+            Integer leaveQuantity = typesettingInfo.getTotalQuantity() - typesettingInfo.getCompletedQuantity();
+            if (quantity> leaveQuantity){
+                return LayoutConfirmResult.failed(typesettingInfo.getId()+"排版数量超出");
             }
         }
 
@@ -291,10 +295,6 @@ public class AppTypesettingService {
         //记录id，供callback使用
         String cacheKey = IdGenerator.generateId("LAYOUT");
         redisTemplate.opsForValue().set(cacheKey, request, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
-        List<TypesettingInfo> typesettingInfos = request.getTypesettingInfos();
-        if (typesettingInfos == null) {
-            typesettingInfos = new ArrayList<>();
-        }
         // 5. 调用排版 API
         NestingRequest nestingRequest;
         try {
@@ -337,7 +337,7 @@ public class AppTypesettingService {
         //添加排版信息
         TypesettingInfo typesettingInfo = new TypesettingInfo();
         typesettingInfo.setTypesettingId(cacheKey);
-        typesettingInfo.setElements(null);
+        typesettingInfo.setElement(null);
         typesettingInfo.setMaterialCodes(request.getMaterialCodes());
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
@@ -398,8 +398,8 @@ public class AppTypesettingService {
                 element.setSvg(piece.getTemplateCode());
                 element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
                 element.setForme(Boolean.TRUE);
-                if (piece.getProductImageFile() != null && piece.getProductImageFile().getUrl() != null) {
-                    element.setImg(piece.getProductImageFile().getUrl());
+                if (piece.getProductImageFile() != null && piece.getProductImageFile().getRawFile() != null) {
+                    element.setImg(piece.getProductImageFile().getRawFile());
                 }
                 elements.add(element);
             }
@@ -744,13 +744,13 @@ public class AppTypesettingService {
                 }
                 if (i == 0) {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
-                    baseTypesettingInfo.setElements(element);
+                    baseTypesettingInfo.setElement(element);
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                     continue;
                 }
                 TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
                 newTypesettingInfo.setId(null);
-                newTypesettingInfo.setElements(element);
+                newTypesettingInfo.setElement(element);
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                 domainTypesettingService.addTypesetting(newTypesettingInfo);
             }

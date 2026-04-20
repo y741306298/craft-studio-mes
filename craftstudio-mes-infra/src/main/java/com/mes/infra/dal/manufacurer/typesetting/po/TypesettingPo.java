@@ -19,10 +19,11 @@ import java.util.List;
 public class TypesettingPo extends BasePO<TypesettingInfo> {
 
     private String typesettingId;
-    private TypesettingElement elements;
+    private TypesettingElement element;
     private List<String> materialCodes;
     private String status;
     private Integer quantity;
+    private Integer totalQuantity;
     private Integer completedQuantity;
     private List<TypesettingCell> typesettingCells;
     private List<ProductionPieceCell> pieceCells;
@@ -44,8 +45,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setId(getId());
         typesettingInfo.setCreateTime(getCreateTime());
         typesettingInfo.setUpdateTime(getUpdateTime());
+        typesettingInfo.setTotalQuantity(this.totalQuantity);
         typesettingInfo.setTypesettingId(this.typesettingId);
-        typesettingInfo.setElements(this.elements);
+        typesettingInfo.setElement(this.element);
         typesettingInfo.setMaterialCodes(this.materialCodes);
         typesettingInfo.setStatus(this.status);
         typesettingInfo.setQuantity(this.quantity);
@@ -69,9 +71,10 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     @Override
     protected BasePO<TypesettingInfo> fromDO(TypesettingInfo _do) {
         this.typesettingId = _do.getTypesettingId();
-        this.elements = _do.getElements();
+        this.element = _do.getElement();
         this.materialCodes = _do.getMaterialCodes();
         this.status = _do.getStatus();
+        this.totalQuantity = _do.getTotalQuantity();
         this.quantity = _do.getQuantity();
         this.completedQuantity = _do.getCompletedQuantity();
         this.typesettingCells = _do.getTypesettingCells();

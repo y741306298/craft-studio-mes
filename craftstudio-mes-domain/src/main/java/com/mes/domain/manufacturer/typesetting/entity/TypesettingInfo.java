@@ -23,9 +23,10 @@ public class TypesettingInfo extends BaseEntity {
      * - width
      * - height
      */
-    private TypesettingElement elements;
+    private TypesettingElement element;
     private List<String> materialCodes;
     private String status;
+    private Integer totalQuantity;
     private Integer quantity;
     private Integer completedQuantity;
     private List<TypesettingCell> typesettingCells;
