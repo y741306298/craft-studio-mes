@@ -2,9 +2,7 @@ package com.mes.infra.dal.manufacurer.typesetting.po;
 
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
-import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
-import com.mes.domain.manufacturer.typesetting.vo.ProductionPieceCell;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingCell;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.infra.base.BasePO;
 import lombok.Data;
@@ -24,8 +22,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String status;
     private Integer quantity;
     private Integer leaveQuantity;
-    private List<TypesettingCell> typesettingCells;
-    private List<ProductionPieceCell> pieceCells;
+    private List<TypesettingSourceCell> typesettingCells;
     private ProcedureFlow procedureFlow;
     private String remark;
     private String maskSvg;
@@ -51,7 +48,6 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setQuantity(this.quantity);
         typesettingInfo.setLeaveQuantity(this.leaveQuantity);
         typesettingInfo.setTypesettingCells(this.typesettingCells);
-        typesettingInfo.setPieceCells(this.pieceCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
         typesettingInfo.setRemark(this.remark);
         typesettingInfo.setMaskSvg(this.maskSvg);
@@ -75,7 +71,6 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.quantity = _do.getQuantity();
         this.leaveQuantity = _do.getLeaveQuantity();
         this.typesettingCells = _do.getTypesettingCells();
-        this.pieceCells = _do.getPieceCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();
         this.maskSvg = _do.getMaskSvg();

@@ -16,9 +16,15 @@ public class NestingResponse {
     public static class Result {
         private String nestedSvg;
         private BigDecimal utilization;
+        /**
+         * 兼容历史返回：部分算法版本会直接回传 width/height。
+         */
         private BigDecimal width;
         private BigDecimal height;
         private GridLines gridLines;
+        /**
+         * 当前主返回格式：容器实际尺寸（即 nestedSvg 的宽高）。
+         */
         private ContainerSize containerSize;
     }
 
