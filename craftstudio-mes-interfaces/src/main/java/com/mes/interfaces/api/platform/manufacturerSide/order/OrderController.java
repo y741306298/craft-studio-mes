@@ -22,6 +22,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -29,6 +33,7 @@ import java.util.logging.Logger;
 @RestController
 @RequestMapping("/api/manufacturerSide/order")
 public class OrderController {
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Autowired
     private AppOrderService appOrderService;
@@ -66,15 +71,19 @@ public class OrderController {
         // 处理日期字符串转换为 Date 对象
         if (createDateStart != null && !createDateStart.trim().isEmpty()) {
             try {
-                orderQuery.setStartTime(new java.text.SimpleDateFormat("yyyy-MM-dd").parse(createDateStart));
-            } catch (java.text.ParseException e) {
+                LocalDate startDate = LocalDate.parse(createDateStart);
+                LocalDateTime startDateTime = startDate.atStartOfDay();
+                orderQuery.setStartTime(java.util.Date.from(startDateTime.atZone(BEIJING_ZONE).toInstant()));
+            } catch (java.time.format.DateTimeParseException e) {
                 throw new IllegalArgumentException("开始日期格式错误，应为 yyyy-MM-dd");
             }
         }
         if (createDateEnd != null && !createDateEnd.trim().isEmpty()) {
             try {
-                orderQuery.setEndTime(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(createDateEnd + " 23:59:59"));
-            } catch (java.text.ParseException e) {
+                LocalDate endDate = LocalDate.parse(createDateEnd);
+                LocalDateTime endDateTime = endDate.atTime(LocalTime.of(23, 59, 59));
+                orderQuery.setEndTime(java.util.Date.from(endDateTime.atZone(BEIJING_ZONE).toInstant()));
+            } catch (java.time.format.DateTimeParseException e) {
                 throw new IllegalArgumentException("结束日期格式错误，应为 yyyy-MM-dd");
             }
         }

@@ -16,24 +16,24 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO<DO>> implements BaseRepository<DO> {
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
+
     @Autowired
     protected MongoTemplate mongoTemplate;
     public abstract Class<PO> poClass();
 
     @Override
     public DO add(DO _do) {
-        Date now = convertToBeijingTime(new Date());
+        Date now = currentBeijingTime();
         if (_do.getCreateTime() == null) {
             _do.setCreateTime(now);
-        } else {
-            _do.setCreateTime(convertToBeijingTime(_do.getCreateTime()));
         }
         if (_do.getUpdateTime() == null) {
             _do.setUpdateTime(now);
-        } else {
-            _do.setUpdateTime(convertToBeijingTime(_do.getUpdateTime()));
         }
         PO po = mongoTemplate.insert(BasePO.fromDO(_do, poClass()));
         return po.toDO();
@@ -41,17 +41,13 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public Collection<DO> batchAdd(List<DO> items) {
-        Date now = convertToBeijingTime(new Date());
+        Date now = currentBeijingTime();
         Collection<PO> pos = mongoTemplate.insertAll(items.stream().map(item -> {
             if (item.getCreateTime() == null) {
                 item.setCreateTime(now);
-            } else {
-                item.setCreateTime(convertToBeijingTime(item.getCreateTime()));
             }
             if (item.getUpdateTime() == null) {
                 item.setUpdateTime(now);
-            } else {
-                item.setUpdateTime(convertToBeijingTime(item.getUpdateTime()));
             }
             return BasePO.fromDO(item, poClass());
         }).toList());
@@ -73,10 +69,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public void update(DO _do) {
-        _do.setUpdateTime(convertToBeijingTime(new Date()));
-        if (_do.getCreateTime() != null) {
-            _do.setCreateTime(convertToBeijingTime(_do.getCreateTime()));
-        }
+        _do.setUpdateTime(currentBeijingTime());
         mongoTemplate.save(BasePO.fromDO(_do, poClass()));
     }
 
@@ -329,29 +322,10 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
     }
 
     /**
-     * 将日期转换为北京时间（UTC+8）并截断到天粒度
-     * @param date 原始日期
-     * @return 北京时间格式的日期（只保留年月日，时分秒为0）
+     * 以北京时间（Asia/Shanghai）获取当前时间并保留完整时分秒。
      */
-    private Date convertToBeijingTime(Date date) {
-        if (date == null) {
-            return null;
-        }
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTime(date);
-        
-        // 转换为北京时间（UTC+8）
-        int offset = calendar.get(Calendar.ZONE_OFFSET) + calendar.get(Calendar.DST_OFFSET);
-        calendar.add(Calendar.MILLISECOND, -offset);
-        calendar.add(Calendar.HOUR_OF_DAY, 8);
-        
-        // 截断到天粒度
-        calendar.set(Calendar.HOUR_OF_DAY, 0);
-        calendar.set(Calendar.MINUTE, 0);
-        calendar.set(Calendar.SECOND, 0);
-        calendar.set(Calendar.MILLISECOND, 0);
-        
-        return calendar.getTime();
+    private Date currentBeijingTime() {
+        return Date.from(ZonedDateTime.now(BEIJING_ZONE).toInstant());
     }
 
 }
