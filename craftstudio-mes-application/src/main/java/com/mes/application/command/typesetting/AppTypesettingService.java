@@ -516,7 +516,15 @@ public class AppTypesettingService {
         if (response == null || StringUtils.isBlank(response.getStatus())) {
             return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
         }
-        //更新印版信息为“待排版”
+        if (!"success".equalsIgnoreCase(response.getStatus())) {
+            String errorMessage = StringUtils.isNotBlank(response.getError()) ? response.getError() : "确认排版失败：印版生成服务处理失败";
+            return LayoutConfirmResult.failed(errorMessage);
+        }
+
+        // 更新印版信息为“待排版”，并保存印版生成结果（json/plt/formeSvg）
+        typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
+        applyFormeGenerationResult(typesettingInfo, response.getResult());
+        domainTypesettingService.updateTypesetting(typesettingInfo);
 
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
@@ -1242,6 +1250,31 @@ public class AppTypesettingService {
             return normalizedPath;
         }
         return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
+    }
+
+    private void applyFormeGenerationResult(TypesettingInfo typesettingInfo, FormeGenerationResponse.Result formeResult) {
+        if (typesettingInfo == null || formeResult == null) {
+            return;
+        }
+        TypesettingElement element = typesettingInfo.getElement();
+        if (element == null) {
+            element = new TypesettingElement();
+            typesettingInfo.setElement(element);
+        }
+
+        element.setJson(buildCompleteOssUrl(formeResult.getJson()));
+        element.setFormeSvg(buildCompleteOssUrl(formeResult.getFormeSvg()));
+        element.setPlt(convertPltObjectName(formeResult.getPlt()));
+    }
+
+    private TypesettingElement.PltObjectName convertPltObjectName(FormeGenerationResponse.PltObjectName plt) {
+        if (plt == null) {
+            return null;
+        }
+        return new TypesettingElement.PltObjectName(
+                buildCompleteOssUrl(plt.getNormal()),
+                buildCompleteOssUrl(plt.getReverse())
+        );
     }
 
     /**

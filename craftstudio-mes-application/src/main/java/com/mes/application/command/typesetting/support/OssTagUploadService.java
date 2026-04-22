@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.model.ObjectMetadata;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,14 @@ public class OssTagUploadService {
     }
 
     public String uploadTagSvg(String businessId, byte[] bytes) {
+        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml");
+    }
+
+    public String uploadTagPng(String businessId, byte[] bytes) {
+        return uploadTagFile(businessId, bytes, "png", "image/png");
+    }
+
+    private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType) {
         Object tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         JSONObject tempAuthJson = JSON.parseObject(JSON.toJSONString(tempAuthConfig));
         JSONObject stsToken = tempAuthJson.getJSONObject("stsToken");
@@ -37,11 +46,15 @@ public class OssTagUploadService {
         String accessKeySecret = stsToken.getString("accessKeySecret");
         String securityToken = stsToken.getString("securityToken");
         String bucket = defaultBucket;
-        String objectKey = buildTagObjectKey();
+        String objectKey = buildTagObjectKey(extension);
         OSS ossClient = null;
         try {
             ossClient = new OSSClientBuilder().build("https://" + ossEndpoint, accessKeyId, accessKeySecret, securityToken);
-            ossClient.putObject(bucket, objectKey, new ByteArrayInputStream(bytes));
+            ObjectMetadata metadata = new ObjectMetadata();
+            if (StringUtils.isNotBlank(contentType)) {
+                metadata.setContentType(contentType);
+            }
+            ossClient.putObject(bucket, objectKey, new ByteArrayInputStream(bytes), metadata);
             return buildCompleteOssUrl(objectKey);
         } catch (Exception e) {
             throw new IllegalStateException("上传标签条到 OSS 失败", e);
@@ -52,12 +65,12 @@ public class OssTagUploadService {
         }
     }
 
-    private String buildTagObjectKey() {
+    private String buildTagObjectKey(String extension) {
         StringBuilder keyBuilder = new StringBuilder();
         if (StringUtils.isNotBlank(ossSavePath)) {
             keyBuilder.append(trimSlashes(ossSavePath)).append("/");
         }
-        keyBuilder.append("tag/").append(UUID.randomUUID()).append(".svg");
+        keyBuilder.append("tag/").append(UUID.randomUUID()).append(".").append(extension);
         return keyBuilder.toString();
     }
 
