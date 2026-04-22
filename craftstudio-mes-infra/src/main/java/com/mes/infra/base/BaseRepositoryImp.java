@@ -24,12 +24,16 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public DO add(DO _do) {
-        Date now = new Date();
+        Date now = convertToBeijingTime(new Date());
         if (_do.getCreateTime() == null) {
             _do.setCreateTime(now);
+        } else {
+            _do.setCreateTime(convertToBeijingTime(_do.getCreateTime()));
         }
         if (_do.getUpdateTime() == null) {
             _do.setUpdateTime(now);
+        } else {
+            _do.setUpdateTime(convertToBeijingTime(_do.getUpdateTime()));
         }
         PO po = mongoTemplate.insert(BasePO.fromDO(_do, poClass()));
         return po.toDO();
@@ -37,13 +41,17 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public Collection<DO> batchAdd(List<DO> items) {
-        Date now = new Date();
+        Date now = convertToBeijingTime(new Date());
         Collection<PO> pos = mongoTemplate.insertAll(items.stream().map(item -> {
             if (item.getCreateTime() == null) {
                 item.setCreateTime(now);
+            } else {
+                item.setCreateTime(convertToBeijingTime(item.getCreateTime()));
             }
             if (item.getUpdateTime() == null) {
                 item.setUpdateTime(now);
+            } else {
+                item.setUpdateTime(convertToBeijingTime(item.getUpdateTime()));
             }
             return BasePO.fromDO(item, poClass());
         }).toList());
@@ -65,6 +73,10 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public void update(DO _do) {
+        _do.setUpdateTime(convertToBeijingTime(new Date()));
+        if (_do.getCreateTime() != null) {
+            _do.setCreateTime(convertToBeijingTime(_do.getCreateTime()));
+        }
         mongoTemplate.save(BasePO.fromDO(_do, poClass()));
     }
 
@@ -171,26 +183,20 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
     @Override
     public List<DO> filterList(long current, int size, Map<String, Object> filters) {
         Criteria criteria = null;
-        for(String key:filters.keySet()){
+        Map<String, RangeCondition> rangeConditions = new HashMap<>();
+        
+        for(String key : filters.keySet()){
             Object value = filters.get(key);
             
-            // 处理范围查询：key 格式为 "fieldName_gte" 或 "fieldName_lte"
             if (key.endsWith("_gte")) {
                 String fieldName = key.substring(0, key.length() - 4);
-                if (criteria == null) {
-                    criteria = Criteria.where(fieldName).gte(value);
-                } else {
-                    criteria.and(fieldName).gte(value);
-                }
+                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
+                              .setGte(value);
             } else if (key.endsWith("_lte")) {
                 String fieldName = key.substring(0, key.length() - 4);
-                if (criteria == null) {
-                    criteria = Criteria.where(fieldName).lte(value);
-                } else {
-                    criteria.and(fieldName).lte(value);
-                }
+                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
+                              .setLte(value);
             } else {
-                // 普通等值查询
                 if (criteria == null) {
                     criteria = Criteria.where(key).is(value);
                 } else {
@@ -198,6 +204,27 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 }
             }
         }
+        
+        for (Map.Entry<String, RangeCondition> entry : rangeConditions.entrySet()) {
+            String fieldName = entry.getKey();
+            RangeCondition rangeCondition = entry.getValue();
+            Criteria rangeCriteria = Criteria.where(fieldName);
+            
+            if (rangeCondition.getGte() != null && rangeCondition.getLte() != null) {
+                rangeCriteria.gte(rangeCondition.getGte()).lte(rangeCondition.getLte());
+            } else if (rangeCondition.getGte() != null) {
+                rangeCriteria.gte(rangeCondition.getGte());
+            } else if (rangeCondition.getLte() != null) {
+                rangeCriteria.lte(rangeCondition.getLte());
+            }
+            
+            if (criteria == null) {
+                criteria = rangeCriteria;
+            } else {
+                criteria.andOperator(rangeCriteria);
+            }
+        }
+        
         if(criteria == null){
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
@@ -213,26 +240,20 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
     @Override
     public long filterTotal(Map<String, Object> filters) {
         Criteria criteria = null;
-        for(String key:filters.keySet()){
+        Map<String, RangeCondition> rangeConditions = new HashMap<>();
+        
+        for(String key : filters.keySet()){
             Object value = filters.get(key);
             
-            // 处理范围查询：key 格式为 "fieldName_gte" 或 "fieldName_lte"
             if (key.endsWith("_gte")) {
                 String fieldName = key.substring(0, key.length() - 4);
-                if (criteria == null) {
-                    criteria = Criteria.where(fieldName).gte(value);
-                } else {
-                    criteria.and(fieldName).gte(value);
-                }
+                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
+                              .setGte(value);
             } else if (key.endsWith("_lte")) {
                 String fieldName = key.substring(0, key.length() - 4);
-                if (criteria == null) {
-                    criteria = Criteria.where(fieldName).lte(value);
-                } else {
-                    criteria.and(fieldName).lte(value);
-                }
+                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
+                              .setLte(value);
             } else {
-                // 普通等值查询
                 if (criteria == null) {
                     criteria = Criteria.where(key).is(value);
                 } else {
@@ -240,6 +261,27 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 }
             }
         }
+        
+        for (Map.Entry<String, RangeCondition> entry : rangeConditions.entrySet()) {
+            String fieldName = entry.getKey();
+            RangeCondition rangeCondition = entry.getValue();
+            Criteria rangeCriteria = Criteria.where(fieldName);
+            
+            if (rangeCondition.getGte() != null && rangeCondition.getLte() != null) {
+                rangeCriteria.gte(rangeCondition.getGte()).lte(rangeCondition.getLte());
+            } else if (rangeCondition.getGte() != null) {
+                rangeCriteria.gte(rangeCondition.getGte());
+            } else if (rangeCondition.getLte() != null) {
+                rangeCriteria.lte(rangeCondition.getLte());
+            }
+            
+            if (criteria == null) {
+                criteria = rangeCriteria;
+            } else {
+                criteria.andOperator(rangeCriteria);
+            }
+        }
+        
         if(criteria == null){
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
@@ -247,6 +289,27 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             new SoftDeleteQuery(criteria),
             poClass()
         );
+    }
+
+    private static class RangeCondition {
+        private Object gte;
+        private Object lte;
+
+        public Object getGte() {
+            return gte;
+        }
+
+        public void setGte(Object gte) {
+            this.gte = gte;
+        }
+
+        public Object getLte() {
+            return lte;
+        }
+
+        public void setLte(Object lte) {
+            this.lte = lte;
+        }
     }
 
     @Override
@@ -264,4 +327,31 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
         return  count == ids.size();
 
     }
+
+    /**
+     * 将日期转换为北京时间（UTC+8）并截断到天粒度
+     * @param date 原始日期
+     * @return 北京时间格式的日期（只保留年月日，时分秒为0）
+     */
+    private Date convertToBeijingTime(Date date) {
+        if (date == null) {
+            return null;
+        }
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        
+        // 转换为北京时间（UTC+8）
+        int offset = calendar.get(Calendar.ZONE_OFFSET) + calendar.get(Calendar.DST_OFFSET);
+        calendar.add(Calendar.MILLISECOND, -offset);
+        calendar.add(Calendar.HOUR_OF_DAY, 8);
+        
+        // 截断到天粒度
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        
+        return calendar.getTime();
+    }
+
 }
