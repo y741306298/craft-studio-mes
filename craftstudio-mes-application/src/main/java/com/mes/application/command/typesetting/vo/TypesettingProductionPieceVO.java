@@ -16,6 +16,8 @@ import java.util.List;
 @Data
 public class TypesettingProductionPieceVO {
 
+    private String id;
+
     /**
      * 订单项Id
      */
@@ -95,7 +97,7 @@ public class TypesettingProductionPieceVO {
         if (piece.getProcedureFlow() != null && piece.getProcedureFlow().getNodes() != null) {
             List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
             for (ProcedureFlowNode node : nodes) {
-                if ("排版".equals(node.getNodeName())) {
+                if ("待排版".equals(node.getNodeName())) {
                     typesettingProductionPieceVO.setQuantity(node.getPieceQuantity());
                     typesettingProductionPieceVO.setLeaveQuantity(node.getPieceQuantity());
                 }
@@ -112,6 +114,7 @@ public class TypesettingProductionPieceVO {
         if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());
         typesettingProductionPieceVO.setSourceId(piece.getProductionPieceId());
+        typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         return typesettingProductionPieceVO;
@@ -127,7 +130,8 @@ public class TypesettingProductionPieceVO {
             return vo;
         }
         vo.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
-        vo.setSourceId(info.getId());
+        vo.setSourceId(info.getTypesettingId());
+        vo.setId(info.getId());
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
@@ -146,6 +150,7 @@ public class TypesettingProductionPieceVO {
         piece.setQuantity(this.quantity);
         piece.setTemplateCode(this.templateCode);
         piece.setStatus(this.status);
+        piece.setId(this.id);
         return piece;
     }
 
@@ -160,6 +165,7 @@ public class TypesettingProductionPieceVO {
         info.setRemark(this.remark);
         info.setMaskSvg(this.maskSvg);
         info.setLayoutMode(this.layoutMode);
+        info.setId(this.id);
         return info;
     }
 }

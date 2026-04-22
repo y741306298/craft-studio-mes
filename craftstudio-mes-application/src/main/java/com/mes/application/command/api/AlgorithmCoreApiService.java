@@ -1,6 +1,7 @@
 package com.mes.application.command.api;
 
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.req.ImpositionRequest;
@@ -129,7 +130,8 @@ public class AlgorithmCoreApiService {
         if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
-
+        String jsonString = JSON.toJSONString(request);
+        System.out.println(jsonString);
         return callAlgorithmAsync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request,
                 request.getCallbackConfig().getCallbackUrl(), ImageMaskResponse.class);
     }

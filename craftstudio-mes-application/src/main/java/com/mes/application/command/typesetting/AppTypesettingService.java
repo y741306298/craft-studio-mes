@@ -1,9 +1,12 @@
 package com.mes.application.command.typesetting;
 
+import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.api.vo.CallbackCustomValue;
+import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -37,6 +40,8 @@ import com.google.zxing.BarcodeFormat;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
+import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
+import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,14 +79,19 @@ public class AppTypesettingService {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    @Autowired
+    private AliCloudAuthService aliCloudAuthService;
+
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
 
-    @Value("${external.callbackApi.generate_nested_files:${external.callbackApi.generate_mask_files:}}")
+    @Value("${external.callbackApi.generate_nested_files}")
     private String generateNestedFilesCallbackUrl;
+    @Value("${external.callbackApi.generate_grid_nested_files}")
+    private String generateGridNestedFilesCallbackUrl;
 
 
     /**
@@ -254,7 +264,7 @@ public class AppTypesettingService {
             }
             if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                 ProductionPiece productionPiece = cell.toProductionPiece();
-                ProductionPiece dbPiece = productionPieceService.findByProductionPieceId(productionPiece.getProductionPieceId());
+                ProductionPiece dbPiece = productionPieceService.findById(productionPiece.getId());
                 if (dbPiece == null) {
                     return LayoutConfirmResult.failed("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
@@ -308,7 +318,12 @@ public class AppTypesettingService {
         }
         //记录id，供callback使用
         String cacheKey = IdGenerator.generateId("LAYOUT");
-        redisTemplate.opsForValue().set(cacheKey, request, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        try {
+            String requestJson = JSON.toJSONString(request);
+            redisTemplate.opsForValue().set(cacheKey, requestJson, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
+        } catch (Exception e) {
+            return LayoutConfirmResult.failed("缓存请求数据失败：" + e.getMessage());
+        }
         // 5. 调用排版 API
         NestingRequest nestingRequest;
         try {
@@ -316,14 +331,14 @@ public class AppTypesettingService {
         } catch (Exception e) {
             return LayoutConfirmResult.failed(e.getMessage());
         }
-
+        System.out.println("nestingRequest========:"+JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse = "grid_typesetting".equals(layoutMode.getLayoutCategory())
                 ? algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest)
                 : algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
-        if (nestingResponse == null || StringUtils.isBlank(nestingResponse.getStatus())) {
-            return LayoutConfirmResult.failed("排版算法调用失败：返回为空");
-        }
+//        if (nestingResponse == null || StringUtils.isBlank(nestingResponse.getStatus())) {
+//            return LayoutConfirmResult.failed("排版算法调用失败：返回为空");
+//        }
 
         // 6. 构建返回结果
         LayoutConfirmResult result = new LayoutConfirmResult();
@@ -368,14 +383,6 @@ public class AppTypesettingService {
         } else if (!typesettingInfos.isEmpty()) {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
-        List<TypesettingCell> typesettingCells = typesettingInfos.stream().map(cell -> {
-            TypesettingCell typesettingCell = new TypesettingCell();
-            typesettingCell.setTypesettingId(cell.getTypesettingId());
-            typesettingCell.setQuantity(cell.getQuantity());
-            return typesettingCell;
-        }).collect(Collectors.toList());
-        typesettingInfo.setTypesettingCells(typesettingCells);
-        
         List<ProductionPieceCell> productionPieceCells = productionPieces.stream()
                 .map(piece -> {
                     ProductionPieceCell pieceCell = new ProductionPieceCell();
@@ -445,10 +452,12 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
                 NestingRequest.Element element = new NestingRequest.Element();
-                element.setId(piece.getProductionPieceId());
-                element.setSvg(piece.getTemplateCode());
+                element.setId(piece.getId());
+                if (piece.getMaskImageFile() != null && piece.getMaskImageFile().getRawFile() != null) {
+                    element.setSvg(piece.getMaskImageFile().getRawFile());
+                }
                 element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
-                element.setForme(Boolean.TRUE);
+                element.setForme(Boolean.FALSE);
                 if (piece.getProductImageFile() != null && piece.getProductImageFile().getRawFile() != null) {
                     element.setImg(piece.getProductImageFile().getRawFile());
                 }
@@ -464,7 +473,7 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("排版信息缺少参与排版的maskSvg：" + info.getTypesettingId());
                 }
                 NestingRequest.Element element = new NestingRequest.Element();
-                element.setId(StringUtils.isNotBlank(info.getId()) ? info.getId() : info.getTypesettingId());
+                element.setId(info.getId());
                 element.setSvg(info.getMaskSvg());
                 element.setCounts(info.getQuantity() != null && info.getQuantity() > 0 ? info.getQuantity() : 1);
                 element.setForme(Boolean.TRUE);
@@ -496,16 +505,30 @@ public class AppTypesettingService {
         }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
-        manifest.setSpacing(0);
+        manifest.setSpacing(10);
         manifest.setContainers(containers);
         manifest.setElements(elements);
 
         CallbackConfig callbackConfig = new CallbackConfig();
-        callbackConfig.setCallbackUrl(generateNestedFilesCallbackUrl);
-        callbackConfig.setCallbackCustomValue(cacheKey);
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        if ("grid_typesetting".equals(layoutMode.getLayoutCategory())) {
+            callbackConfig.setCallbackUrl(generateGridNestedFilesCallbackUrl);
+        } else {
+            callbackConfig.setCallbackUrl(generateNestedFilesCallbackUrl);
+        }
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(cacheKey);
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(cacheKey);
+        UploadConfig uploadConfig = new UploadConfig();
+        uploadConfig.setUploadPath("layout/");
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        //配置callback信息
 
         NestingRequest nestingRequest = new NestingRequest();
         nestingRequest.setNestManifest(manifest);
+        nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
     }
@@ -677,17 +700,18 @@ public class AppTypesettingService {
         if (firstMaterial == null) {
             return "第一个零件的材料为空";
         }
-
+        String firstMaterialId = firstMaterial.getMaterialId();
         for (int i = 1; i < productionPieces.size(); i++) {
             MaterialConfig material = productionPieces.get(i).getMaterialConfig();
             if (material == null) {
                 return "零件 " + productionPieces.get(i).getProductionPieceId() + " 的材料为空";
             }
-            if (!firstMaterial.equals(material)) {
+            String materialId = material.getMaterialId();
+            if (!firstMaterialId.equals(materialId)) {
                 return "材料不一致：零件 " + productionPieces.get(0).getProductionPieceId() +
-                        " 的材料为 " + firstMaterial +
+                        " 的材料为 " + firstMaterial.getMaterialSnapshot().getName() +
                         "，零件 " + productionPieces.get(i).getProductionPieceId() +
-                        " 的材料为 " + material;
+                        " 的材料为 " + material.getMaterialSnapshot().getName();
             }
         }
 

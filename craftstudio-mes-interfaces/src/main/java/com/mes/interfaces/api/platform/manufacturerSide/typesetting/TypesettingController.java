@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.typesetting;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.typesetting.AppTypesettingService;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.TypesettingQuery;
@@ -14,11 +15,14 @@ import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.logging.Logger;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/manufacturerSide/typesetting")
 @RequiredArgsConstructor
@@ -26,6 +30,8 @@ public class TypesettingController {
 
     @Autowired
     private AppTypesettingService appTypesettingService;
+
+    Logger logger = Logger.getLogger(TypesettingController.class.getName());
 
     /**
      * 统一查询排版和生产工件列表
@@ -153,6 +159,9 @@ public class TypesettingController {
      */
     @PostMapping("/callback/generate_nested_files")
     public ApiResponse<String> handleGenerateNestedFilesCallback(@RequestBody NestingResponse response) {
+        logger.info("========== handleGenerateNestedFilesCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleGenerateNestedFilesCallback 入参结束 ==========");
         appTypesettingService.handleNestingCallback(response);
         return ApiResponse.success("回调处理成功");
     }

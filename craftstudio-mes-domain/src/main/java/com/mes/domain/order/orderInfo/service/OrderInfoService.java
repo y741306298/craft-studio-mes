@@ -406,7 +406,13 @@ public class OrderInfoService {
                 Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
                 if(processWithContourSliceImg != null){
                     FileAssetParam maskParam = (FileAssetParam) processWithContourSliceImg.getParamConfigs().get(0).getParam();
-                    ImageFile maskfile = (ImageFile) processParam.getFile();
+                    File file1 = maskParam.getFile();
+                    ImageFile maskfile;
+                    if (file1 instanceof ImageFile) {
+                        maskfile = (ImageFile) file1;
+                    } else {
+                        maskfile = ImageFile.cloneFromFile(file1);
+                    }
                     item.setMaskImgFile(maskfile);
                 }
                 ProcedureFlow procedureFlow = orderPreprocessingService.convertProcessFlowToProcedureFlow(mtoProductDto);

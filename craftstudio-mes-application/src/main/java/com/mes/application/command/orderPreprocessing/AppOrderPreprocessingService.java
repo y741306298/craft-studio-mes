@@ -4,6 +4,7 @@ import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
@@ -64,8 +65,6 @@ public class AppOrderPreprocessingService {
     @Autowired
     private AliCloudAuthService aliCloudAuthService;
 
-    @Value("${oss.bucket-name}")
-    private String ossBucketName;
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
 
@@ -131,16 +130,18 @@ public class AppOrderPreprocessingService {
             ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape,hasCutting);
             //配置oss信息
             ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
-            objectStorageTempAuthConfig.setBucket(ossBucketName);
             UploadConfig uploadConfig = new UploadConfig();
-            uploadConfig.setUploadPath("pieceImg");
+            uploadConfig.setUploadPath("pieceImg/");
             uploadConfig.setOssConfig(objectStorageTempAuthConfig);
             imageMaskRequest.setUploadConfig(uploadConfig);
             //配置callback信息
             CallbackConfig callbackConfig = new CallbackConfig();
             callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
-            callbackConfig.setCallbackCustomValue(orderItem.getOrderItemId());
-            algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+            CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+            callbackCustomValue.setId(orderItem.getOrderItemId());
+            callbackConfig.setCallbackCustomValue(callbackCustomValue);
+            imageMaskRequest.setCallbackConfig(callbackConfig);
+            ImageMaskResponse imageMaskResponse = algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
             return null;
         }
     }
@@ -260,7 +261,7 @@ public class AppOrderPreprocessingService {
             }
 
             // 2. 查询订单项
-            OrderItem orderItem = orderItemService.findById(orderItemId);
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
             if (orderItem == null) {
                 throw new RuntimeException("订单项不存在：" + orderItemId);
             }
@@ -274,22 +275,46 @@ public class AppOrderPreprocessingService {
 
             // 4. 根据pairs生成生产零件
             List<ProductionPiece> resultPieces = new ArrayList<>();
-            
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
-                // 使用抠图后的图片URL生成生产零件
-                String rawImageUrl = pair.getImg();
-                String maskedImageUrl = pair.getSvg();
-                ProcedureFlow procedureFlow = procedureFlowService.parseProcessingFlow(orderItem.getProcedureFlow());
-                if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
-                    ProductionPiece piece = procedureService.createProductionPiece(
-                            orderItem,
-                            "ORIGINAL",
-                            maskedImageUrl,
-                            procedureFlow,
-                            maskedImageUrl
-                    );
-                    productionPieceService.addProductionPiece(piece);
-                    resultPieces.add(piece);
+                try {
+                    String rawImageUrl = pair.getImg();
+                    String maskedImageUrl = pair.getSvg();
+                    
+                    ProcedureFlow originalFlow = orderItem.getProcedureFlow();
+                    ProcedureFlow newProcedureFlow = new ProcedureFlow();
+                    newProcedureFlow.setProcedureFlowId(originalFlow.getProcedureFlowId());
+                    newProcedureFlow.setProcedureFlowName(originalFlow.getProcedureFlowName());
+                    newProcedureFlow.setFlowStatus(originalFlow.getFlowStatus());
+                    if (originalFlow.getNodes() != null) {
+                        List<ProcedureFlowNode> newNodes = new ArrayList<>();
+                        for (ProcedureFlowNode node : originalFlow.getNodes()) {
+                            ProcedureFlowNode newNode = new ProcedureFlowNode();
+                            newNode.setNodeId(node.getNodeId());
+                            newNode.setNodeName(node.getNodeName());
+                            newNode.setNodeOrder(node.getNodeOrder());
+                            newNode.setNodeStatus(node.getNodeStatus());
+                            newNode.setPieceQuantity(node.getPieceQuantity());
+                            newNodes.add(newNode);
+                        }
+                        newProcedureFlow.setNodes(newNodes);
+                    }
+                    
+                    ProcedureFlow parsedFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
+                    
+                    if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
+                        ProductionPiece piece = procedureService.createProductionPiece(
+                                orderItem,
+                                "ORIGINAL",
+                                rawImageUrl,
+                                parsedFlow,
+                                maskedImageUrl
+                        );
+                        productionPieceService.addProductionPiece(piece);
+                        resultPieces.add(piece);
+                    }
+                } catch (Exception e) {
+                    System.err.println("生成生产零件失败：" + e.getMessage());
+                    throw e;
                 }
             }
 

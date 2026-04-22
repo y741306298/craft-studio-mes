@@ -15,14 +15,15 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
         GenericToStringSerializer<Object> objectSerializer = new GenericToStringSerializer<>(Object.class);
+        StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
 
-        template.setKeySerializer(stringSerializer);
-        template.setHashKeySerializer(stringSerializer);
+        template.setKeySerializer(stringRedisSerializer);
+        template.setHashKeySerializer(stringRedisSerializer);
         template.setValueSerializer(objectSerializer);
         template.setHashValueSerializer(objectSerializer);
 
+        template.afterPropertiesSet();
         return template;
     }
 }

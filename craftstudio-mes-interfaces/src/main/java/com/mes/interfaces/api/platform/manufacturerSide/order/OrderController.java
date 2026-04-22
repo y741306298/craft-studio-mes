@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
@@ -17,11 +18,14 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.logging.Logger;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/manufacturerSide/order")
 public class OrderController {
@@ -31,6 +35,8 @@ public class OrderController {
 
     @Autowired
     private AppOrderPreprocessingService appOrderPreprocessingService;
+
+    Logger logger = Logger.getLogger(OrderController.class.getName());
 
     /**
      * 分页查询订单列表（包含订单项）
@@ -123,6 +129,10 @@ public class OrderController {
      */
     @PostMapping("/add")
     public ApiResponse<String> addOrderWithItems(@Valid @RequestBody OrderAddRequest request) {
+        logger.info("========== addOrderWithItems 入参开始 ==========");
+        logger.info("request: " + JSON.toJSONString(request));
+        logger.info("========== addOrderWithItems 入参结束 ==========");
+
         // 调用应用服务添加订单
         appOrderService.addOrderWithItems(request);
         
@@ -158,7 +168,9 @@ public class OrderController {
      */
     @PostMapping("/callback/generate_mask_files")
     public ApiResponse<String> handleGenerateMaskFilesCallback(@RequestBody ImageMaskResponse response) {
-        
+        logger.info("========== handleGenerateMaskFilesCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleGenerateMaskFilesCallback 入参结束 ==========");
         try {
             // 从response中获取orderItemId
             String orderItemId = response.getId();

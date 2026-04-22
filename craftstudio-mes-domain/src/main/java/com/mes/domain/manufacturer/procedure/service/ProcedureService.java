@@ -12,8 +12,12 @@ import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
+import com.piliofpala.craftstudio.shared.domain.file.vo.File;
+import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -26,6 +30,12 @@ public class ProcedureService {
 
     @Autowired
     private ProcedureRepository procedureRepository;
+
+    @Value("${ali-cloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}")
+    private String ossEndpoint;
+
+    @Value("${ali-cloud.oss.raw-bucket:craftstudio-mes-test}")
+    private String ossBucket;
 
     /**
      * 根据工序名称查询工序（支持分页）
@@ -169,7 +179,6 @@ public class ProcedureService {
         ProductionPiece piece = new ProductionPiece();
         piece.setOrderItemId(orderItem.getOrderItemId());
 
-        // 从 OrderItem 中获取 ProcedureFlow
         if (orderItem.getProcedureFlow() != null) {
             piece.setProcedureFlow(orderItem.getProcedureFlow());
             piece.setProcedureFlowId(orderItem.getProcedureFlow().getProcedureFlowId());
@@ -184,9 +193,59 @@ public class ProcedureService {
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
         piece.setProcedureFlow(procedureFlow);
-        //再将数量赋予第一节点,其他节点都置零
+        
+        String completeImageUrl = buildCompleteOssUrl(imageUrl);
+        ImageFile imageFile = new ImageFile();
+        imageFile.setRawFile(completeImageUrl);
+        FilePreview filePreview = new FilePreview();
+        filePreview.setPreview(completeImageUrl);
+        filePreview.setRaw(completeImageUrl);
+        filePreview.setThumbnail(completeImageUrl);
+        imageFile.setFilePreview(filePreview);
+        imageFile.setRawFile(completeImageUrl);
+        piece.setProductImageFile(imageFile);
+        
+        if (StringUtils.isNotBlank(maskUrl)){
+            String completeMaskUrl = buildCompleteOssUrl(maskUrl);
+            ImageFile maskFile = new ImageFile();
+            maskFile.setRawFile(completeMaskUrl);
+            FilePreview maskPreview = new FilePreview();
+            maskPreview.setPreview(completeMaskUrl);
+            maskPreview.setRaw(completeMaskUrl);
+            maskPreview.setThumbnail(completeMaskUrl);
+            maskFile.setFilePreview(maskPreview);
+            maskFile.setRawFile(completeMaskUrl);
+            piece.setMaskImageFile(maskFile);
+        }
+
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
         return piece;
+    }
+
+    /**
+     * 构建完整的 OSS URL
+     * 如果 URL 已经是完整路径（包含 endpoint），则直接返回
+     * 如果只有相对路径，则补充完整的 OSS 地址
+     *
+     * @param url 原始 URL 或路径
+     * @return 完整的 OSS URL
+     */
+    private String buildCompleteOssUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return url;
+        }
+        
+        url = url.trim();
+        
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+        
+        if (url.startsWith("/")) {
+            url = url.substring(1);
+        }
+        
+        return "https://" + ossBucket + "." + ossEndpoint + "/" + url;
     }
 }

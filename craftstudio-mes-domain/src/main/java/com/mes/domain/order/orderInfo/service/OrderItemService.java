@@ -155,12 +155,12 @@ public class OrderItemService {
      * 标记订单项为失败状态
      * @param reason 失败原因
      */
-    public void markAsFailed(String id, String reason) {
-        if (StringUtils.isBlank(id)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
+    public void markAsFailed(String orderItemId, String reason) {
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "orderItemId 不能为空");
         }
 
-        OrderItem orderItem = findById(id);
+        OrderItem orderItem = findByOrderItemId(orderItemId);
         if (orderItem != null) {
             orderItem.setStatus(OrderStatus.FAILED);
             orderItem.setFailureReason(reason);
