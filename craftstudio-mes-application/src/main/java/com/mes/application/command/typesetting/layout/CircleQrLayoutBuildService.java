@@ -5,8 +5,13 @@ import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Arrays;
 
 @Service
@@ -108,33 +113,52 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         String qrDataUri,
                                         BigDecimal stripWidth,
                                         BigDecimal stripHeight) {
-        // 生成标签条 SVG 并上传至 OSS 的 /tag 路径，返回可访问 URL
+        // 生成标签条 PNG 并上传至 OSS 的 /tag 路径，返回可访问 URL
         int spacing = 40;
         int stripHeightInt = stripHeight.intValue();
+        int stripWidthInt = stripWidth.intValue();
         int qrSize = Math.max(stripHeightInt - 20, 20);
-        int textY = (stripHeightInt / 2) + 8;
+        int textY = (stripHeightInt / 2) + 12;
         int qrY = (stripHeightInt - qrSize) / 2;
         int bX = spacing + qrSize + spacing;
         int aX = bX + 300 + spacing;
 
-        String stripSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + stripWidth.toPlainString() + "' height='" + stripHeight.toPlainString() + "'>"
-                + "<rect width='100%' height='100%' fill='white'/>"
-                + "<image href='" + qrDataUri + "' x='" + spacing + "' y='" + qrY + "' width='" + qrSize + "' height='" + qrSize + "'/>"
-                + "<text x='" + bX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementB) + "</text>"
-                + "<text x='" + aX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementA) + "</text>"
-                + "</svg>";
-        return ossTagUploadService.uploadTagSvg(businessId, stripSvg.getBytes(StandardCharsets.UTF_8));
+        BufferedImage canvas = new BufferedImage(stripWidthInt, stripHeightInt, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = canvas.createGraphics();
+        try {
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, stripWidthInt, stripHeightInt);
+            g.setColor(Color.BLACK);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 32));
+
+            BufferedImage qrImage = decodePngDataUri(qrDataUri);
+            if (qrImage != null) {
+                g.drawImage(qrImage, spacing, qrY, qrSize, qrSize, null);
+            }
+            g.drawString(elementB == null ? "" : elementB, bX, textY);
+            g.drawString(elementA == null ? "" : elementA, aX, textY);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(canvas, "png", outputStream);
+            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("生成并上传标签条PNG失败", e);
+        } finally {
+            g.dispose();
+        }
     }
 
-    private String escapeXml(String value) {
-        // 保护文本节点，避免特殊字符破坏 SVG
-        if (value == null) {
-            return "";
+    private BufferedImage decodePngDataUri(String dataUri) {
+        if (dataUri == null || !dataUri.startsWith("data:image/png;base64,")) {
+            return null;
         }
-        return value.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&apos;");
+        try {
+            String base64 = dataUri.substring("data:image/png;base64,".length());
+            byte[] bytes = Base64.getDecoder().decode(base64);
+            return ImageIO.read(new ByteArrayInputStream(bytes));
+        } catch (Exception e) {
+            throw new IllegalStateException("解析二维码 PNG Data URI 失败", e);
+        }
     }
 }
