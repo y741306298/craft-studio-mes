@@ -696,7 +696,7 @@ public class AppTypesettingService {
                 element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
                 element.setForme(Boolean.FALSE);
                 if (piece.getProductImageFile() != null && piece.getProductImageFile().getRawFile() != null) {
-                    element.setImg(piece.getProductImageFile().getRawFile());
+                    element.setImg(piece.getTemplateCode());
                 }
                 elements.add(element);
             }
@@ -706,12 +706,13 @@ public class AppTypesettingService {
                 if (info == null) {
                     continue;
                 }
-                if (StringUtils.isBlank(info.getMaskSvg())) {
+                if (StringUtils.isBlank(info.getElement().getFormeSvg())) {
                     throw new IllegalArgumentException("排版信息缺少参与排版的maskSvg：" + info.getTypesettingId());
                 }
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(info.getId());
-                element.setSvg(info.getMaskSvg());
+                element.setImg(info.getElement().getFormeSvg());
+                element.setSvg(info.getElement().getFormeSvg());
                 element.setCounts(info.getQuantity() != null && info.getQuantity() > 0 ? info.getQuantity() : 1);
                 element.setForme(Boolean.TRUE);
                 elements.add(element);
