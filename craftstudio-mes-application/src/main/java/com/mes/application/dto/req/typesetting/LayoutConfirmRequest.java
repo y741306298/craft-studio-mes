@@ -13,6 +13,8 @@ import java.util.List;
 @Data
 public class LayoutConfirmRequest extends ApiRequest {
 
+    private String manufacturerMetaId;
+
     private List<TypesettingProductionPieceVO> typesettingCells;
 
     private List<ContainerInfo> containers;

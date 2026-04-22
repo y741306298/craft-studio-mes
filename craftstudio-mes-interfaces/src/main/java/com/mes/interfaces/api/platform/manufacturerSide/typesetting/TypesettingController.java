@@ -13,6 +13,7 @@ import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,17 +36,37 @@ public class TypesettingController {
 
     /**
      * 统一查询排版和生产工件列表
+     *
      * @param request 查询请求参数
      * @return 分页查询结果
      */
     @PostMapping("/list")
-    public PagedApiResponse<TypesettingProductionPieceVO> listTypesettingAndProductionPieces(
-            @Valid @RequestBody TypesettingQuery request) {
+    public ApiResponse<List<TypesettingProductionPieceVO>> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
         
         PagedResult<TypesettingProductionPieceVO> result = 
                 appTypesettingService.findTypesettingAndProductionPieces(request);
         
-        return PagedApiResponse.success((List<TypesettingProductionPieceVO>) result.items(), request.getPagedQuery().getCurrent(), request.getPagedQuery().getSize(), result.total());
+        return ApiResponse.success((List<TypesettingProductionPieceVO>) result.items());
+    }
+
+    /**
+     * 查询状态为待确认（confirming）的排版信息列表（分页）
+     *
+     * @param manufacturerMetaId 厂商元数据ID
+     * @param current 当前页码（默认1）
+     * @param size 每页大小（默认20，最大100）
+     * @return 分页查询结果
+     */
+    @GetMapping("/confirming/list")
+    public ApiResponse<PagedResult<TypesettingInfo>> listConfirmingTypesetting(
+            @RequestParam String manufacturerMetaId,
+            @RequestParam(required = false, defaultValue = "1") int current,
+            @RequestParam(required = false, defaultValue = "20") int size) {
+        
+        PagedResult<TypesettingInfo> result = 
+                appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, current, size);
+        
+        return ApiResponse.success(result);
     }
 
     /**

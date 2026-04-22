@@ -34,7 +34,7 @@ public class ProductionPieceController {
         
         PagedResult<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> result = 
                 appProductionPieceService.findProductionPieces(
-                        request.getManufacturerId(),
+                        request.getManufacturerMetaId(),
                         request.getStatus(),
                         request.getMaterial(),
                         request.getNodeName(),
@@ -55,7 +55,7 @@ public class ProductionPieceController {
      */
     @PostMapping("/{productionPieceId}")
     public ApiResponse<ProductionPieceResponse> getProductionPieceById(@RequestBody ProductionPieceListRequest request) {
-        String manufacturerId = request.getManufacturerId();
+        String manufacturerId = request.getManufacturerMetaId();
         String productionPieceId = request.getProductionPieceId();
         if (StringUtils.isBlank(productionPieceId)) {
             ApiResponse<ProductionPieceResponse> failResponse = new ApiResponse<>();

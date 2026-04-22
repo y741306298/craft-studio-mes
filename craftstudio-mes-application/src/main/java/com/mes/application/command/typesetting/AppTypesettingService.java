@@ -89,7 +89,7 @@ public class AppTypesettingService {
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
-    private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("data-source-index\\s*=\\s*\"(\\d+)\"");
+    private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
 
     @Value("${external.callbackApi.generate_nested_files}")
     private String generateNestedFilesCallbackUrl;
@@ -110,17 +110,15 @@ public class AppTypesettingService {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
-        if (StringUtils.isBlank(query.getManufacturerId())) {
-            throw new IllegalArgumentException("manufacturerId 不能为空");
+        if (StringUtils.isBlank(query.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
         }
 
-        // 直接全量返回：不再按原查询分支和分页思路处理
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
 
-        // 1) 查询 productionPiece：仅返回“待排版”节点数量 > 0
         List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
-                query.getManufacturerId(),
-                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
+                query.getManufacturerMetaId(),
+                null,
                 null,
                 null,
                 null,
@@ -134,8 +132,8 @@ public class AppTypesettingService {
             }
         }
 
-        // 2) 查询 typesettingInfo：仅返回 leaveQuantity > 0
         List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                query.getManufacturerMetaId(),
                 null,
                 null,
                 null,
@@ -151,6 +149,42 @@ public class AppTypesettingService {
 
         long total = items.size();
         return new PagedResult<>(items, total, items.size(), 1);
+    }
+
+    /**
+     * 查询状态为待确认（confirming）的排版信息列表（分页）
+     * @param manufacturerMetaId 厂商元数据ID
+     * @param current 当前页码
+     * @param size 每页大小
+     * @return 分页结果
+     */
+    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, int current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        if (current < 1) {
+            current = 1;
+        }
+        if (size < 1 || size > 100) {
+            size = 20;
+        }
+
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.CONFIRMING.getCode(),
+                null,
+                null,
+                current,
+                size
+        );
+
+        long total = domainTypesettingService.countTypesettingByConditions(
+                TypesettingStatus.CONFIRMING.getCode(),
+                null,
+                null
+        );
+
+        return new PagedResult<>(typesettingInfos, total, typesettingInfos.size(), current);
     }
 
     /**
@@ -181,7 +215,7 @@ public class AppTypesettingService {
     private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
         // 不走分页查询：先按 manufacturerId 查询符合基础条件的全部零件，再在内存中过滤“待排版数量>0”
         List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
-                query.getManufacturerId(),
+                query.getManufacturerMetaId(),
                 ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
                 query.getMaterial(),
                 query.getNodeName(),
@@ -217,6 +251,7 @@ public class AppTypesettingService {
     private List<TypesettingProductionPieceVO> queryTypesettingOnly(TypesettingQuery query) {
         // 不走分页查询：先查全量排版记录，再在内存中过滤 leaveQuantity > 0
         List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByConditions(
+                query.getManufacturerMetaId(),
                 query.getStatus(),
                 query.getMaterial(),
                 query.getNodeName(),
@@ -392,6 +427,7 @@ public class AppTypesettingService {
                 .distinct()
                 .collect(Collectors.toList());
         typesettingInfo.setMaterialConfigs(materialConfigs);
+        typesettingInfo.setManufacturerMetaId(request.getManufacturerMetaId());
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
         typesettingInfo.setLeaveQuantity(1);
@@ -849,6 +885,7 @@ public class AppTypesettingService {
                 }
                 TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
                 newTypesettingInfo.setId(null);
+                newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                 newTypesettingInfo.setElement(element);
                 newTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
@@ -926,31 +963,34 @@ public class AppTypesettingService {
                 return Collections.emptyList();
             }
 
-            Map<Integer, Integer> sourceIndexCountMap = new LinkedHashMap<>();
+            Map<String, Integer> sourceIdCountMap = new LinkedHashMap<>();
             Matcher matcher = SVG_SOURCE_INDEX_PATTERN.matcher(svgContent);
             while (matcher.find()) {
-                Integer index = Integer.parseInt(matcher.group(1));
-                sourceIndexCountMap.put(index, sourceIndexCountMap.getOrDefault(index, 0) + 1);
+                String sourceId = matcher.group(1);
+                sourceIdCountMap.put(sourceId, sourceIdCountMap.getOrDefault(sourceId, 0) + 1);
             }
-            if (sourceIndexCountMap.isEmpty()) {
+            if (sourceIdCountMap.isEmpty()) {
                 return Collections.emptyList();
             }
 
             List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
             List<TypesettingSourceCell> usedCells = new ArrayList<>();
-            for (Map.Entry<Integer, Integer> entry : sourceIndexCountMap.entrySet()) {
-                int sourceIndex = entry.getKey();
-                if (sourceIndex < 0 || sourceIndex >= sourceCells.size()) {
-                    continue;
+            for (Map.Entry<String, Integer> entry : sourceIdCountMap.entrySet()) {
+                String sourceId = entry.getKey();
+                TypesettingProductionPieceVO matchedCell = null;
+                for (TypesettingProductionPieceVO cell : sourceCells) {
+                    if (cell != null && sourceId.equals(cell.getId())) {
+                        matchedCell = cell;
+                        break;
+                    }
                 }
-                TypesettingProductionPieceVO sourceCell = sourceCells.get(sourceIndex);
-                if (sourceCell == null || StringUtils.isBlank(sourceCell.getSourceType()) || StringUtils.isBlank(sourceCell.getSourceId())) {
+                if (matchedCell == null || StringUtils.isBlank(matchedCell.getSourceType()) || StringUtils.isBlank(matchedCell.getSourceId())) {
                     continue;
                 }
                 TypesettingSourceCell usedCell = new TypesettingSourceCell();
-                usedCell.setSourceType(sourceCell.getSourceType());
-                usedCell.setSourceId(sourceCell.getSourceId());
-                usedCell.setOrderItemId(sourceCell.getOrderItemId());
+                usedCell.setSourceType(matchedCell.getSourceType());
+                usedCell.setSourceId(matchedCell.getSourceId());
+                usedCell.setOrderItemId(matchedCell.getOrderItemId());
                 usedCell.setQuantity(entry.getValue());
                 usedCells.add(usedCell);
             }

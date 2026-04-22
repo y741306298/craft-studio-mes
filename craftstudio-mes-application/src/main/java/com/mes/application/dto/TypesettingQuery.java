@@ -9,12 +9,11 @@ import java.util.Date;
 
 @Data
 public class TypesettingQuery {
-    private String manufacturerId;
+    private String manufacturerMetaId;
     private String queryType;
     private String status;
     private String material;
     private String nodeName;
     private Date startDate;
     private Date endDate;
-    private PagedQuery pagedQuery;
 }

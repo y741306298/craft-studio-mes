@@ -13,6 +13,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class TypesettingInfo extends BaseEntity {
+    private String manufacturerMetaId;
     //排版文件
     private String typesettingId;
     /**

@@ -15,7 +15,7 @@ import java.util.List;
 @Data
 @Document(collection = "typesetting")
 public class TypesettingPo extends BasePO<TypesettingInfo> {
-
+    private String manufacturerMetaId;
     private String typesettingId;
     private TypesettingElement element;
     private List<String> materialConfigs;
@@ -41,6 +41,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setId(getId());
         typesettingInfo.setCreateTime(getCreateTime());
         typesettingInfo.setUpdateTime(getUpdateTime());
+        typesettingInfo.setManufacturerMetaId(this.manufacturerMetaId);
         typesettingInfo.setTypesettingId(this.typesettingId);
         typesettingInfo.setElement(this.element);
         typesettingInfo.setMaterialConfigs(this.materialConfigs);
@@ -70,6 +71,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.status = _do.getStatus();
         this.quantity = _do.getQuantity();
         this.leaveQuantity = _do.getLeaveQuantity();
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.typesettingCells = _do.getTypesettingCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();

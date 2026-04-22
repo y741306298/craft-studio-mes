@@ -43,9 +43,6 @@ public class ProductionPieceService {
             int current,
             int size) {
 
-        if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
-        }
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId",manufacturerId);

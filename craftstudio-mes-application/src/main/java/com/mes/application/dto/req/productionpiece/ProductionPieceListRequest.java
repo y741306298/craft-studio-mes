@@ -14,7 +14,7 @@ public class ProductionPieceListRequest extends ApiRequest {
 
     private String productionPieceId;
 
-    private String manufacturerId;
+    private String manufacturerMetaId;
 
     private String status;
 
