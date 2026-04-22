@@ -109,21 +109,24 @@ public class TypesettingController {
     /**
      * 确认打印：将排版数据根据状态机改为待打印状态
      *
-     * @param request 确认打印请求，包含生产工件 ID 列表
+     * @param request 确认打印请求，包含排版ID、设备编号
      * @return 操作结果
      */
     @PostMapping("/confirmPrint")
     public ApiResponse<ConfirmPrintResult> confirmPrint(@Valid @RequestBody ConfirmPrintRequest request) {
-        
-        if (request.getProductionPieceIds() == null || request.getProductionPieceIds().isEmpty()) {
+        if (request.getId() == null || request.getId().isBlank()) {
             ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage("生产工件 ID 列表不能为空");
+            failResponse.setMessage("排版ID不能为空");
             return failResponse;
         }
-        
-        ConfirmPrintResult result = appTypesettingService.confirmPrint(request.getProductionPieceIds());
-        
+        if (request.getDeviceCode() == null || request.getDeviceCode().isBlank()) {
+            ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
+            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
+            failResponse.setMessage("设备编号不能为空");
+            return failResponse;
+        }
+        ConfirmPrintResult result = appTypesettingService.confirmPrint(request);
         return ApiResponse.success(result);
     }
 
