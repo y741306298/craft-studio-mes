@@ -1,0 +1,133 @@
+package com.mes.application.command.typesetting.layout;
+
+import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import org.springframework.stereotype.Service;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
+
+@Service
+public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
+    /**
+     * 圆形二维码排版模式构建器：
+     * - 上下 margin 固定 30mm；
+     * - marks 使用 C+B+A 拼接生成的标签条；
+     * - 定位点使用 basetag/circle.svg。
+     */
+    @Override
+    public TypesettingLayoutMode supportMode() {
+        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE;
+    }
+
+    @Override
+    public FormeLayoutBuildResult build(FormeBuildContext context) {
+        // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
+        FormeLayoutBuildResult result = new FormeLayoutBuildResult();
+        int marginHeight = context.getMarginHeight();
+        int marginLeft = 0;
+        int marginTop = marginHeight;
+        int marginRight = 0;
+        int marginBottom = marginHeight;
+        int elementOriginX = marginLeft;
+        int elementOriginY = marginTop;
+
+        FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
+        margin.setLeft(marginLeft);
+        margin.setTop(marginTop);
+        margin.setRight(marginRight);
+        margin.setBottom(marginBottom);
+        result.setMargin(margin);
+
+        // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
+        String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
+        String elementB = context.getPlateNameSupplier().get();
+        String elementC = context.getQrDataUriGenerator().apply(elementB);
+        String elementF = buildTagStripDataUri(elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
+
+        // 3) 将标签条放置在上/下 margin 区域
+        FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
+        top.setImg(elementF);
+        top.setSize(createSize(context.getNestedWidth(), marginHeight));
+        top.setPosition(createPosition(elementOriginX, 0));
+
+        FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
+        bottom.setImg(elementF);
+        bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
+        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
+        result.setMarks(Arrays.asList(top, bottom));
+
+        // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 30mm）
+        int sideOffset = 30;
+        int topY = marginTop / 2;
+        int bottomY = elementOriginY + context.getNestedHeight() + (marginBottom / 2);
+        int rightX = Math.max(elementOriginX + context.getNestedWidth() - sideOffset - 10, elementOriginX + sideOffset);
+        String circleSvgUrl = "https://craftstudio-ordering-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
+
+        FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
+        tl.setImg("circle.png");
+        tl.setSvg(circleSvgUrl);
+        tl.setSize(createSize(10, 10));
+        tl.setPosition(createPosition(elementOriginX + sideOffset, topY));
+
+        FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
+        tr.setImg("circle.png");
+        tr.setSvg(circleSvgUrl);
+        tr.setSize(createSize(10, 10));
+        tr.setPosition(createPosition(rightX, topY));
+
+        FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
+        bl.setImg("circle.png");
+        bl.setSvg(circleSvgUrl);
+        bl.setSize(createSize(10, 10));
+        bl.setPosition(createPosition(elementOriginX + sideOffset, bottomY));
+
+        FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
+        br.setImg("circle.png");
+        br.setSvg(circleSvgUrl);
+        br.setSize(createSize(10, 10));
+        br.setPosition(createPosition(rightX, bottomY));
+        result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
+
+        // 5) 输出配置与上传目录
+        result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
+        result.setUploadPath("printingplate/" + context.getBusinessId() + "/");
+        return result;
+    }
+
+    private String buildTagStripDataUri(String elementA,
+                                        String elementB,
+                                        String qrDataUri,
+                                        int stripWidth,
+                                        int stripHeight) {
+        // 使用 SVG 文本拼接标签条后转为 data URI，供 mark.img 直接引用
+        int spacing = 40;
+        int qrSize = Math.max(stripHeight - 20, 20);
+        int textY = (stripHeight / 2) + 8;
+        int qrY = (stripHeight - qrSize) / 2;
+        int bX = spacing + qrSize + spacing;
+        int aX = bX + 300 + spacing;
+
+        String stripSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + stripWidth + "' height='" + stripHeight + "'>"
+                + "<rect width='100%' height='100%' fill='white'/>"
+                + "<image href='" + qrDataUri + "' x='" + spacing + "' y='" + qrY + "' width='" + qrSize + "' height='" + qrSize + "'/>"
+                + "<text x='" + bX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementB) + "</text>"
+                + "<text x='" + aX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementA) + "</text>"
+                + "</svg>";
+        String base64 = Base64.getEncoder().encodeToString(stripSvg.getBytes(StandardCharsets.UTF_8));
+        return "data:image/svg+xml;base64," + base64;
+    }
+
+    private String escapeXml(String value) {
+        // 保护文本节点，避免特殊字符破坏 SVG
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&apos;");
+    }
+}

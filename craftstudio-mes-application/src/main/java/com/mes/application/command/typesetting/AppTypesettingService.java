@@ -2,11 +2,16 @@ package com.mes.application.command.typesetting;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
+import com.mes.application.command.typesetting.layout.FormeBuildContext;
+import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
+import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -47,6 +52,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -84,17 +90,40 @@ public class AppTypesettingService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Autowired
+    private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+
+    /**
+     * layoutMode -> builder 的运行时映射表。
+     * 在容器初始化完成后由 initLayoutModeBuilders 填充。
+     */
+    private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
+    private static final int TAG_STRIP_HEIGHT_MM = 30;
+
+    @PostConstruct
+    public void initLayoutModeBuilders() {
+        // 将所有模式构建器注册到 map，供 confirmLayout 阶段按 mode 分发调用
+        if (layoutModeBuildServices == null) {
+            return;
+        }
+        for (TypesettingLayoutModeBuildService buildService : layoutModeBuildServices) {
+            layoutModeBuildServiceMap.put(buildService.supportMode(), buildService);
+        }
+    }
 
     @Value("${external.callbackApi.generate_nested_files}")
     private String generateNestedFilesCallbackUrl;
     @Value("${external.callbackApi.generate_grid_nested_files}")
     private String generateGridNestedFilesCallbackUrl;
+    @Value("${external.callbackApi.generate_forme_files:}")
+    private String generateFormeFilesCallbackUrl;
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
     private String ossEndpoint;
     @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:}}")
@@ -442,14 +471,170 @@ public class AppTypesettingService {
     }
 
     /**
-     * 确认排版（占位实现）
+     * 确认排版主流程。
+     *
+     * <p>业务目标：把“待确认”的排版记录转换为一条可提交给算法服务的印版生成任务。
+     * 当前关键步骤如下：
+     * <ol>
+     *   <li>参数校验：必须传入排版记录 ID；</li>
+     *   <li>数据库读取：按 ID 查询最新 TypesettingInfo；</li>
+     *   <li>业务校验：要求存在 nestedSvg；</li>
+     *   <li>模式确定：优先使用本次请求 layoutMode，否则回退到数据库记录；</li>
+     *   <li>模式派生：调用 applyLayoutModeConfig 回填 requireJson/requirePlt/anchor 等派生字段；</li>
+     *   <li>构建 FormeGenerationRequest 并异步提交给算法服务。</li>
+     * </ol>
+     *
+     * <p>说明：圆形二维码模式（shaped_cutting_plt_qr_circle）依赖 manufacturerMetaId 生成队列码与二维码。
      */
-    public LayoutConfirmResult confirmLayout(LayoutConfirmRequest request) {
+    public LayoutConfirmResult confirmLayout(TypesettingInfo request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            return LayoutConfirmResult.failed("确认排版参数不能为空，且必须包含排版ID");
+        }
+        TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
+        if (typesettingInfo == null) {
+            return LayoutConfirmResult.failed("排版信息不存在：" + request.getId());
+        }
+        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
+        }
+
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
+                StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
+        );
+        if (TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
+                && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+            return LayoutConfirmResult.failed("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+        }
+        typesettingInfo.setLayoutMode(layoutMode.getCode());
+        typesettingInfo.applyLayoutModeConfig();
+
+        String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+
+        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
+        if (response == null || StringUtils.isBlank(response.getStatus())) {
+            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
+        }
+
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
-        result.setMessage("确认排版接口待实现");
+        result.setLayoutId(response.getId());
+        result.setLayoutUrl(typesettingInfo.getElement().getNestedSvg());
+        result.setMessage("确认排版任务已提交，等待回调");
         return result;
     }
+
+    /**
+     * 组装印版生成请求（FormeGenerationRequest）。
+     *
+     * <p>请求包含四部分：
+     * <ul>
+     *   <li>forme：输入的 nestedSvg、margin、marks、anchorPoints；</li>
+     *   <li>outputs：算法需要输出的 json/plt/svg 文件配置；</li>
+     *   <li>uploadConfig：上传 OSS 的 STS 与目录；</li>
+     *   <li>callbackConfig：异步回调地址与业务透传 ID。</li>
+     * </ul>
+     */
+    private FormeGenerationRequest buildFormeGenerationRequest(TypesettingInfo typesettingInfo,
+                                                               TypesettingLayoutMode layoutMode,
+                                                               String businessId) {
+        FormeGenerationRequest request = new FormeGenerationRequest();
+        // element 原始宽高（单位 mm），若算法回调中缺失则给默认值兜底
+        Integer nestedWidth = typesettingInfo.getElement() != null && typesettingInfo.getElement().getWidth() != null
+                ? typesettingInfo.getElement().getWidth() : 1200;
+        Integer nestedHeight = typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null
+                ? typesettingInfo.getElement().getHeight() : 800;
+        int marginHeight = TAG_STRIP_HEIGHT_MM;
+
+        // 1) 选择当前 mode 对应的独立构建 service
+        TypesettingLayoutModeBuildService modeBuildService = layoutModeBuildServiceMap.get(layoutMode);
+        if (modeBuildService == null) {
+            throw new IllegalArgumentException("未找到排版模式构建服务: " + layoutMode.getCode());
+        }
+        // 2) 组装构建上下文（统一单位：mm）
+        FormeBuildContext buildContext = new FormeBuildContext();
+        buildContext.setTypesettingInfo(typesettingInfo);
+        buildContext.setBusinessId(businessId);
+        buildContext.setNestedWidth(nestedWidth);
+        buildContext.setNestedHeight(nestedHeight);
+        buildContext.setMarginHeight(marginHeight);
+        buildContext.setElementAResolver(this::extractElementA);
+        buildContext.setPlateNameSupplier(() -> generatePrintingPlateName(typesettingInfo.getManufacturerMetaId()));
+        buildContext.setQrDataUriGenerator(content -> buildQrCodeDataUri(typesettingInfo.getManufacturerMetaId(), content));
+        // 3) 获取模式构建结果（margin/marks/anchors/outputs/uploadPath）
+        FormeLayoutBuildResult modeResult = modeBuildService.build(buildContext);
+
+        // 4) 回填 forme 基础输入
+        FormeGenerationRequest.FormeInfo formeInfo = new FormeGenerationRequest.FormeInfo();
+        formeInfo.setSvgUrl(buildCompleteOssUrl(typesettingInfo.getElement().getNestedSvg()));
+        formeInfo.setMargin(modeResult.getMargin());
+        formeInfo.setMarks(modeResult.getMarks());
+        formeInfo.setAnchorPoints(modeResult.getAnchorPoints());
+        request.setForme(formeInfo);
+        request.setOutputs(modeResult.getOutputs());
+
+        // 5) 注入上传配置（STS + mode 专属上传路径）
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
+        UploadConfig uploadConfig = new UploadConfig();
+        uploadConfig.setUploadPath(modeResult.getUploadPath());
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        request.setUploadConfig(uploadConfig);
+
+        // 6) 配置异步回调
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(StringUtils.isNotBlank(generateFormeFilesCallbackUrl) ? generateFormeFilesCallbackUrl : generateNestedFilesCallbackUrl);
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(typesettingInfo.getId());
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        request.setCallbackConfig(callbackConfig);
+        return request;
+    }
+
+    /**
+     * 提取元素 A（typesetting 来源标识）。
+     *
+     * <p>优先读取 typesettingCells 中 sourceType=typesetting 的 sourceId；
+     * 兜底 typesettingId，再兜底当前记录 id。
+     */
+    private String extractElementA(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo.getTypesettingCells() != null) {
+            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+                if (cell == null) {
+                    continue;
+                }
+                if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId())) {
+                    return cell.getSourceId();
+                }
+            }
+        }
+        return StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+    }
+
+    /**
+     * 生成元素 B（xxx.plt 文件名）。
+     *
+     * <p>号码来源：复用现有临时码队列（循环 1~100000）。
+     */
+    private String generatePrintingPlateName(String manufacturerMetaId) {
+        GenerateTempCodeRequest request = new GenerateTempCodeRequest();
+        request.setManufacturerMetaId(manufacturerMetaId);
+        GenerateTempCodeResult tempCodeResult = generateTempCode(request);
+        return tempCodeResult.getTempCode() + ".plt";
+    }
+
+    /**
+     * 生成元素 C（二位码 data URI）。
+     *
+     * <p>这里不直接落 OSS，先返回 data URI 参与标签条 SVG 组装。
+     */
+    private String buildQrCodeDataUri(String manufacturerMetaId, String content) {
+        GenerateQrCodeRequest qrCodeRequest = new GenerateQrCodeRequest();
+        qrCodeRequest.setManufacturerMetaId(manufacturerMetaId);
+        qrCodeRequest.setContent(content);
+        GenerateQrCodeResult qrCodeResult = generateQrCode(qrCodeRequest);
+        return "data:image/png;base64," + qrCodeResult.getQrCodeBase64();
+    }
+
 
     private NestingRequest buildNestingRequest(LayoutConfirmRequest request, String cacheKey) {
         if (StringUtils.isBlank(generateNestedFilesCallbackUrl)) {
