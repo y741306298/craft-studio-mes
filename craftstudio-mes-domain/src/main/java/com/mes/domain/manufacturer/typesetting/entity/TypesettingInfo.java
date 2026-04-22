@@ -3,8 +3,7 @@ package com.mes.domain.manufacturer.typesetting.entity;
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
-import com.mes.domain.manufacturer.typesetting.vo.ProductionPieceCell;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingCell;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -28,8 +27,7 @@ public class TypesettingInfo extends BaseEntity {
     private String status;
     private Integer quantity;
     private Integer leaveQuantity;
-    private List<TypesettingCell> typesettingCells;
-    private List<ProductionPieceCell> pieceCells;
+    private List<TypesettingSourceCell> typesettingCells;
     private ProcedureFlow procedureFlow;
     private String remark;
     /**

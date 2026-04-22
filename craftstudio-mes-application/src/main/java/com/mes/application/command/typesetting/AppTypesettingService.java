@@ -17,10 +17,8 @@ import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
-import com.mes.application.command.typesetting.enums.TypesettingQueryType;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
-import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -28,9 +26,8 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
-import com.mes.domain.manufacturer.typesetting.vo.ProductionPieceCell;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingCell;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.shared.utils.IdGenerator;
@@ -47,17 +44,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.net.URI;
 import java.util.Base64;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -82,16 +81,24 @@ public class AppTypesettingService {
     @Autowired
     private AliCloudAuthService aliCloudAuthService;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
+    private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("data-source-index\\s*=\\s*\"(\\d+)\"");
 
     @Value("${external.callbackApi.generate_nested_files}")
     private String generateNestedFilesCallbackUrl;
     @Value("${external.callbackApi.generate_grid_nested_files}")
     private String generateGridNestedFilesCallbackUrl;
+    @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
+    private String ossEndpoint;
+    @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:}}")
+    private String ossBucket;
 
 
     /**
@@ -103,48 +110,47 @@ public class AppTypesettingService {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
-        if (query.getPagedQuery() == null) {
-            throw new IllegalArgumentException("分页参数不能为空");
-        }
-        if (query.getPagedQuery().getSize() <= 0 || query.getPagedQuery().getSize() > 100) {
-            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        if (StringUtils.isBlank(query.getManufacturerId())) {
+            throw new IllegalArgumentException("manufacturerId 不能为空");
         }
 
-        String queryType = query.getQueryType();
-        if (queryType == null) {
-            queryType = TypesettingQueryType.ALL.getCode();
-        }
-
+        // 直接全量返回：不再按原查询分支和分页思路处理
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
-        long total = 0;
 
-        switch (queryType) {
-            case "ALL":
-                // 查询全部：包括零件和排版
-                items = queryBoth(query);
-                total = countBoth(query);
-                break;
-            case "PART":
-                // 只查询零件：且只允许查询状态为待排版的零件
-                items = queryPartsOnly(query);
-                total = countPartsOnly(query);
-                break;
-            case "TYPESETTING":
-                // 只查询排版
-                items = queryTypesettingOnly(query);
-                total = countTypesettingOnly(query);
-                break;
+        // 1) 查询 productionPiece：仅返回“待排版”节点数量 > 0
+        List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                query.getManufacturerId(),
+                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
+                null,
+                null,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        for (ProductionPiece piece : productionPieces) {
+            if (getPendingTypesettingQuantity(piece) > 0) {
+                items.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+            }
         }
 
-        // 分页处理
-        int pageSize = query.getPagedQuery().getSize();
-        int currentPage = Math.toIntExact(query.getPagedQuery().getCurrent());
-        int fromIndex = (currentPage - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, items.size());
+        // 2) 查询 typesettingInfo：仅返回 leaveQuantity > 0
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                null,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        for (TypesettingInfo info : typesettingInfos) {
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            if (leaveQuantity > 0) {
+                items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+            }
+        }
 
-        List<TypesettingProductionPieceVO> pagedItems = fromIndex < items.size() ? items.subList(fromIndex, toIndex) : Collections.emptyList();
-
-        return new PagedResult<>(pagedItems, total, pageSize, currentPage);
+        long total = items.size();
+        return new PagedResult<>(items, total, items.size(), 1);
     }
 
     /**
@@ -173,25 +179,24 @@ public class AppTypesettingService {
      * 只查询零件（待排版状态）
      */
     private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
-        int currentPage = Math.toIntExact(query.getPagedQuery().getCurrent());
-        int pageSize = query.getPagedQuery().getSize();
-
-        // 当类型为"零件"时，只允许查询状态为待排版的零件
-        // ProductionPiece 的 status 是 ProductionPieceStatus 的枚举，这里只查 PENDING_TYPESITTING 待排版
+        // 不走分页查询：先按 manufacturerId 查询符合基础条件的全部零件，再在内存中过滤“待排版数量>0”
         List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
                 query.getManufacturerId(),
                 ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
-            query.getMaterial(),
-            query.getNodeName(),
-            query.getStartDate(),
-            query.getEndDate(),
-            currentPage,
-            pageSize
+                query.getMaterial(),
+                query.getNodeName(),
+                query.getStartDate(),
+                query.getEndDate(),
+                1,
+                Integer.MAX_VALUE
         );
 
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
         for (ProductionPiece piece : parts) {
+            if (getPendingTypesettingQuantity(piece) <= 0) {
+                continue;
+            }
             TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
             voList.add(vo);
         }
@@ -203,33 +208,29 @@ public class AppTypesettingService {
      * 统计零件数量
      */
     private long countPartsOnly(TypesettingQuery query) {
-        return productionPieceService.countProductionPiecesByConditions(
-            "pending",
-            query.getMaterial(),
-            query.getNodeName(),
-            query.getStartDate(),
-            query.getEndDate()
-        );
+        return queryPartsOnly(query).size();
     }
 
     /**
      * 只查询排版
      */
     private List<TypesettingProductionPieceVO> queryTypesettingOnly(TypesettingQuery query) {
-        int currentPage = Math.toIntExact(query.getPagedQuery().getCurrent());
-        int pageSize = query.getPagedQuery().getSize();
-
+        // 不走分页查询：先查全量排版记录，再在内存中过滤 leaveQuantity > 0
         List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByConditions(
-            query.getStatus(),
-            query.getMaterial(),
-            query.getNodeName(),
-            currentPage,
-            pageSize
+                query.getStatus(),
+                query.getMaterial(),
+                query.getNodeName(),
+                1,
+                Integer.MAX_VALUE
         );
 
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
         for (TypesettingInfo info : typesettings) {
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            if (leaveQuantity <= 0) {
+                continue;
+            }
             voList.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
         }
 
@@ -240,11 +241,19 @@ public class AppTypesettingService {
      * 统计排版数量
      */
     private long countTypesettingOnly(TypesettingQuery query) {
-        return domainTypesettingService.countTypesettingByConditions(
-            query.getStatus(),
-            query.getMaterial(),
-            query.getNodeName()
-        );
+        return queryTypesettingOnly(query).size();
+    }
+
+    private int getPendingTypesettingQuantity(ProductionPiece piece) {
+        if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            return 0;
+        }
+        for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+            if ("待排版".equals(node.getNodeName())) {
+                return node.getPieceQuantity() == null ? 0 : node.getPieceQuantity();
+            }
+        }
+        return 0;
     }
 
     /**
@@ -345,23 +354,31 @@ public class AppTypesettingService {
         result.setSuccess(true);
         result.setMessage("排版开始,耐心请等待");
 
-        // 7. 根据实际数量更新零件在排版这一节点的剩余数量，并将该次的数量填入下一个节点"排版中"
+        // 7. 异步排版任务受理后，按本次数量更新零件/模板的剩余数量与工序流转
         for (ProductionPiece piece : productionPieces) {
             try {
                 Integer quantity = piece.getQuantity();
                 if (quantity == null || quantity <= 0) {
                     continue;
                 }
-                
                 productionPieceService.transferPieceQuantityBetweenNodes(
-                    piece.getId(),
-                    "NODE_TYPESETTING",
-                    "NODE_TYPESETTING_IN_PROGRESS",
-                    quantity
+                        piece.getId(),
+                        "NODE_TYPESETTING",
+                        "NODE_TYPESETTING_IN_PROGRESS",
+                        quantity
                 );
             } catch (Exception e) {
-                System.err.println("更新生产工件 " + piece.getId() + " 状态失败：" + e.getMessage());
+                System.err.println("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage());
             }
+        }
+        for (TypesettingInfo info : typesettingInfos) {
+            Integer quantity = info.getQuantity();
+            if (quantity == null || quantity <= 0) {
+                continue;
+            }
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            info.setLeaveQuantity(Math.max(leaveQuantity - quantity, 0));
+            domainTypesettingService.updateTypesetting(info);
         }
         //添加排版信息
         TypesettingInfo typesettingInfo = new TypesettingInfo();
@@ -383,16 +400,7 @@ public class AppTypesettingService {
         } else if (!typesettingInfos.isEmpty()) {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
-        List<ProductionPieceCell> productionPieceCells = productionPieces.stream()
-                .map(piece -> {
-                    ProductionPieceCell pieceCell = new ProductionPieceCell();
-                    pieceCell.setProductionPieceId(piece.getProductionPieceId());
-                    pieceCell.setOrderItemId(piece.getOrderItemId());
-                    pieceCell.setQuantity(piece.getQuantity());
-                    return pieceCell;
-                })
-                .collect(Collectors.toList());
-        typesettingInfo.setPieceCells(productionPieceCells);
+        typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
     }
@@ -823,24 +831,26 @@ public class AppTypesettingService {
             for (int i = 0; i < results.size(); i++) {
                 NestingResponse.Result callbackResult = results.get(i);
                 TypesettingElement element = new TypesettingElement();
-                element.setNestedSvg(callbackResult.getNestedSvg());
+                element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
                 element.setUtilization(callbackResult.getUtilization());
-                if (callbackResult.getWidth() != null || callbackResult.getHeight() != null) {
-                    element.setWidth(callbackResult.getWidth());
-                    element.setHeight(callbackResult.getHeight());
-                } else if (callbackResult.getContainerSize() != null) {
+                if (callbackResult.getContainerSize() != null) {
                     element.setWidth(callbackResult.getContainerSize().getWidth());
                     element.setHeight(callbackResult.getContainerSize().getHeight());
+                } else if (callbackResult.getWidth() != null || callbackResult.getHeight() != null) {
+                    element.setWidth(callbackResult.getWidth());
+                    element.setHeight(callbackResult.getHeight());
                 }
                 if (i == 0) {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     baseTypesettingInfo.setElement(element);
+                    baseTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                     continue;
                 }
                 TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
                 newTypesettingInfo.setId(null);
                 newTypesettingInfo.setElement(element);
+                newTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                 domainTypesettingService.addTypesetting(newTypesettingInfo);
             }
@@ -860,7 +870,6 @@ public class AppTypesettingService {
         target.setQuantity(source.getQuantity());
         target.setLeaveQuantity(source.getLeaveQuantity());
         target.setTypesettingCells(source.getTypesettingCells());
-        target.setPieceCells(source.getPieceCells());
         target.setProcedureFlow(source.getProcedureFlow());
         target.setRemark(source.getRemark());
         target.setMaskSvg(source.getMaskSvg());
@@ -873,6 +882,141 @@ public class AppTypesettingService {
         target.setTempCodeFormat(source.getTempCodeFormat());
         target.setAnchorPointShape(source.getAnchorPointShape());
         return target;
+    }
+
+    private List<TypesettingSourceCell> toSourceCells(List<TypesettingProductionPieceVO> sourceCells) {
+        if (sourceCells == null || sourceCells.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return sourceCells.stream()
+                .filter(Objects::nonNull)
+                .filter(cell -> StringUtils.isNotBlank(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId()))
+                .map(cell -> {
+                    TypesettingSourceCell sourceCell = new TypesettingSourceCell();
+                    sourceCell.setSourceType(cell.getSourceType());
+                    sourceCell.setSourceId(cell.getSourceId());
+                    sourceCell.setOrderItemId(cell.getOrderItemId());
+                    sourceCell.setQuantity(cell.getQuantity());
+                    return sourceCell;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<TypesettingSourceCell> extractUsedSourceCells(String typesettingId, String nestedSvgUrl) {
+        if (StringUtils.isBlank(typesettingId) || StringUtils.isBlank(nestedSvgUrl)) {
+            return Collections.emptyList();
+        }
+        Object requestObj = redisTemplate.opsForValue().get(typesettingId);
+        if (!(requestObj instanceof String)) {
+            return Collections.emptyList();
+        }
+        LayoutConfirmRequest request = JSON.parseObject((String) requestObj, LayoutConfirmRequest.class);
+        if (request == null || request.getTypesettingCells() == null || request.getTypesettingCells().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Path tempSvgPath = null;
+        try {
+            tempSvgPath = downloadNestedSvgToTempFile(nestedSvgUrl);
+            if (tempSvgPath == null || !Files.exists(tempSvgPath)) {
+                return Collections.emptyList();
+            }
+            String svgContent = Files.readString(tempSvgPath, StandardCharsets.UTF_8);
+            if (StringUtils.isBlank(svgContent)) {
+                return Collections.emptyList();
+            }
+
+            Map<Integer, Integer> sourceIndexCountMap = new LinkedHashMap<>();
+            Matcher matcher = SVG_SOURCE_INDEX_PATTERN.matcher(svgContent);
+            while (matcher.find()) {
+                Integer index = Integer.parseInt(matcher.group(1));
+                sourceIndexCountMap.put(index, sourceIndexCountMap.getOrDefault(index, 0) + 1);
+            }
+            if (sourceIndexCountMap.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
+            List<TypesettingSourceCell> usedCells = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> entry : sourceIndexCountMap.entrySet()) {
+                int sourceIndex = entry.getKey();
+                if (sourceIndex < 0 || sourceIndex >= sourceCells.size()) {
+                    continue;
+                }
+                TypesettingProductionPieceVO sourceCell = sourceCells.get(sourceIndex);
+                if (sourceCell == null || StringUtils.isBlank(sourceCell.getSourceType()) || StringUtils.isBlank(sourceCell.getSourceId())) {
+                    continue;
+                }
+                TypesettingSourceCell usedCell = new TypesettingSourceCell();
+                usedCell.setSourceType(sourceCell.getSourceType());
+                usedCell.setSourceId(sourceCell.getSourceId());
+                usedCell.setOrderItemId(sourceCell.getOrderItemId());
+                usedCell.setQuantity(entry.getValue());
+                usedCells.add(usedCell);
+            }
+            return usedCells;
+        } catch (Exception e) {
+            System.err.println("解析 nestedSvg 失败: " + nestedSvgUrl + ", error=" + e.getMessage());
+            return Collections.emptyList();
+        } finally {
+            if (tempSvgPath != null) {
+                try {
+                    Files.deleteIfExists(tempSvgPath);
+                } catch (Exception ignore) {
+                    System.err.println("删除临时 nestedSvg 文件失败: " + tempSvgPath);
+                }
+            }
+        }
+    }
+
+    private Path downloadNestedSvgToTempFile(String nestedSvg) {
+        if (StringUtils.isBlank(nestedSvg)) {
+            return null;
+        }
+        try {
+            String completeUrl = buildCompleteOssUrl(nestedSvg);
+            if (completeUrl.startsWith("http://") || completeUrl.startsWith("https://")) {
+                try {
+                    byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
+                    if (svgBytes != null && svgBytes.length > 0) {
+                        Path tempFile = Files.createTempFile("nested-svg-", ".svg");
+                        Files.write(tempFile, svgBytes, StandardOpenOption.TRUNCATE_EXISTING);
+                        return tempFile;
+                    }
+                } catch (Exception ex) {
+                    System.err.println("下载 nestedSvg 失败，尝试按本地文件读取: " + completeUrl + ", error=" + ex.getMessage());
+                }
+            }
+            Path localPath = Path.of(nestedSvg);
+            if (Files.exists(localPath)) {
+                byte[] svgBytes = Files.readAllBytes(localPath);
+                if (svgBytes.length > 0) {
+                    Path tempFile = Files.createTempFile("nested-svg-", ".svg");
+                    Files.write(tempFile, svgBytes, StandardOpenOption.TRUNCATE_EXISTING);
+                    return tempFile;
+                }
+            }
+            System.err.println("nestedSvg 不是可下载URL且本地文件不存在: " + nestedSvg);
+            return null;
+        } catch (Exception e) {
+            System.err.println("读取 nestedSvg 失败: " + nestedSvg + ", error=" + e.getMessage());
+            return null;
+        }
+    }
+
+    private String buildCompleteOssUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return url;
+        }
+        String trimmed = url.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        String normalizedPath = trimmed.startsWith("/") ? trimmed.substring(1) : trimmed;
+        if (StringUtils.isBlank(ossBucket) || StringUtils.isBlank(ossEndpoint)) {
+            return normalizedPath;
+        }
+        return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
     }
 
     /**
