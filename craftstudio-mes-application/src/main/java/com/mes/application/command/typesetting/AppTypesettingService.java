@@ -17,7 +17,6 @@ import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
-import com.mes.application.command.typesetting.enums.TypesettingQueryType;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -111,48 +110,47 @@ public class AppTypesettingService {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
-        if (query.getPagedQuery() == null) {
-            throw new IllegalArgumentException("分页参数不能为空");
-        }
-        if (query.getPagedQuery().getSize() <= 0 || query.getPagedQuery().getSize() > 100) {
-            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        if (StringUtils.isBlank(query.getManufacturerId())) {
+            throw new IllegalArgumentException("manufacturerId 不能为空");
         }
 
-        String queryType = query.getQueryType();
-        if (queryType == null) {
-            queryType = TypesettingQueryType.ALL.getCode();
-        }
-
+        // 直接全量返回：不再按原查询分支和分页思路处理
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
-        long total = 0;
 
-        switch (queryType) {
-            case "ALL":
-                // 查询全部：包括零件和排版
-                items = queryBoth(query);
-                total = countBoth(query);
-                break;
-            case "PART":
-                // 只查询零件：且只允许查询状态为待排版的零件
-                items = queryPartsOnly(query);
-                total = countPartsOnly(query);
-                break;
-            case "TYPESETTING":
-                // 只查询排版
-                items = queryTypesettingOnly(query);
-                total = countTypesettingOnly(query);
-                break;
+        // 1) 查询 productionPiece：仅返回“待排版”节点数量 > 0
+        List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                query.getManufacturerId(),
+                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
+                null,
+                null,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        for (ProductionPiece piece : productionPieces) {
+            if (getPendingTypesettingQuantity(piece) > 0) {
+                items.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+            }
         }
 
-        // 分页处理
-        int pageSize = query.getPagedQuery().getSize();
-        int currentPage = Math.toIntExact(query.getPagedQuery().getCurrent());
-        int fromIndex = (currentPage - 1) * pageSize;
-        int toIndex = Math.min(fromIndex + pageSize, items.size());
+        // 2) 查询 typesettingInfo：仅返回 leaveQuantity > 0
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                null,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        for (TypesettingInfo info : typesettingInfos) {
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            if (leaveQuantity > 0) {
+                items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+            }
+        }
 
-        List<TypesettingProductionPieceVO> pagedItems = fromIndex < items.size() ? items.subList(fromIndex, toIndex) : Collections.emptyList();
-
-        return new PagedResult<>(pagedItems, total, pageSize, currentPage);
+        long total = items.size();
+        return new PagedResult<>(items, total, items.size(), 1);
     }
 
     /**
