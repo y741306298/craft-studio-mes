@@ -88,11 +88,20 @@ public class TypesettingController {
     }
 
     /**
-     * 确认排版（暂未实现具体业务）
+     * 确认排版。
+     *
+     * <p>入参直接使用 TypesettingInfo（至少包含 id，layoutMode 可选覆盖）。
+     * 服务层会按 id 读取最新排版记录并构建 Forme 生成请求。
      */
     @PostMapping("/confirmLayout")
-    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody TypesettingInfo request) {
         LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
+        if (!result.isSuccess()) {
+            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
+            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
+            failResponse.setMessage(result.getMessage());
+            return failResponse;
+        }
         return ApiResponse.success(result);
     }
 
