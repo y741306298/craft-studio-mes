@@ -5,7 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
-import org.apache.commons.lang3.StringUtils;
+import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -36,10 +36,7 @@ public class OssTagUploadService {
         String accessKeyId = stsToken.getString("accessKeyId");
         String accessKeySecret = stsToken.getString("accessKeySecret");
         String securityToken = stsToken.getString("securityToken");
-        String bucket = StringUtils.defaultIfBlank(tempAuthJson.getString("bucket"), defaultBucket);
-        if (StringUtils.isAnyBlank(accessKeyId, accessKeySecret, securityToken, bucket, ossEndpoint)) {
-            throw new IllegalStateException("OSS 上传参数不完整");
-        }
+        String bucket = defaultBucket;
         String objectKey = buildTagObjectKey();
         OSS ossClient = null;
         try {

@@ -69,7 +69,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topY = marginTop / 2;
         int bottomY = elementOriginY + context.getNestedHeight().intValue() + (marginBottom / 2);
         int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 10, elementOriginX + sideOffset);
-        String circleSvgUrl = "https://craftstudio-ordering-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
+        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");

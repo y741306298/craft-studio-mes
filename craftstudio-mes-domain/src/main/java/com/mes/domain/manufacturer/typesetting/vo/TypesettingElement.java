@@ -1,6 +1,8 @@
 package com.mes.domain.manufacturer.typesetting.vo;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
@@ -23,4 +25,22 @@ public class TypesettingElement {
      * 排版结果高度
      */
     private BigDecimal height;
+
+    private String json;
+
+    private PltObjectName plt;
+
+    private String formeSvg;
+
+
+    /**
+     * PLT 文件对象名配置（支持正常和旋转180度两种）
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PltObjectName {
+        private String normal;
+        private String reverse;
+    }
 }

@@ -1,6 +1,8 @@
 package com.mes.application.command.api.resp;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 public class FormeGenerationResponse {
@@ -12,7 +14,15 @@ public class FormeGenerationResponse {
     @Data
     public static class Result {
         private String json;
-        private String plt;
+        private PltObjectName plt;
         private String formeSvg;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PltObjectName {
+        private String normal;
+        private String reverse;
     }
 }

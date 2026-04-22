@@ -229,6 +229,33 @@ public class AlgorithmCoreApiService {
                 request.getCallbackConfig().getCallbackUrl(), FormeGenerationResponse.class);
     }
 
+    /**
+     * 印版生成 - 同步模式
+     * 根据排版SVG生成印版文件，包括JSON、PLT和印版SVG格式
+     * 支持添加标记信息（二维码、辅助线等）和定位点
+     * 请求发起方需一直等处理结束才释放连接
+     *
+     * @param request 印版生成请求参数
+     * @return 印版生成结果，包含JSON、PLT和formeSvg的URL
+     */
+    public FormeGenerationResponse generateForme(FormeGenerationRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getForme() == null) {
+            throw new RuntimeException("印版信息不能为空");
+        }
+        if (request.getForme().getSvgUrl() == null || request.getForme().getSvgUrl().isEmpty()) {
+            throw new RuntimeException("印版SVG URL不能为空");
+        }
+        if (request.getOutputs() == null) {
+            throw new RuntimeException("输出配置不能为空");
+        }
+
+        return callAlgorithmSync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", request,
+                FormeGenerationResponse.class);
+    }
+
 
     /**
      * SVG转PLT格式转换 - 同步模式（仅支持同步）

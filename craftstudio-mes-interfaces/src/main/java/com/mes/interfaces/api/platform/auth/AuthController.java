@@ -8,11 +8,7 @@ import com.mes.domain.base.repository.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -96,7 +92,7 @@ public class AuthController {
      * @param token 登录令牌
      * @return 用户所属工厂ID
      */
-    @PostMapping("/token/manufacturerMetaId")
+    @GetMapping("/token/manufacturerMetaId")
     public ApiResponse<String> getManufacturerMetaIdByToken(@RequestParam @NotBlank(message = "token不能为空") String token) {
         return ApiResponse.success(appLoginService.getManufacturerMetaIdByToken(token));
     }

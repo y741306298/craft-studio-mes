@@ -512,15 +512,14 @@ public class AppTypesettingService {
         String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         System.out.println(JSON.toJSONString(formeRequest));
-        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-//        if (response == null || StringUtils.isBlank(response.getStatus())) {
-//            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
-//        }
+        FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
+        if (response == null || StringUtils.isBlank(response.getStatus())) {
+            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
+        }
+        //更新印版信息为“待排版”
 
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
-        result.setLayoutId(response.getId());
-        result.setLayoutUrl(typesettingInfo.getElement().getNestedSvg());
         result.setMessage("确认排版任务已提交，等待回调");
         return result;
     }

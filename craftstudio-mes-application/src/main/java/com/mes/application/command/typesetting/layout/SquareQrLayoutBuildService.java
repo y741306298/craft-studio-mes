@@ -44,7 +44,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setMarks(Arrays.asList(top, bottom));
 
         // 3) 方形定位点示例：位于上 margin 区域的左右两侧
-        String anchorSvg = "https://craftstudio-ordering-test.oss-cn-hangzhou.aliyuncs.com/common/anchor/square.svg";
+        String anchorSvg = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/common/anchor/square.svg";
         FormeGenerationRequest.AnchorPoint leftTop = new FormeGenerationRequest.AnchorPoint();
         leftTop.setImg("square.png");
         leftTop.setSvg(anchorSvg);
