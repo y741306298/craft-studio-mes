@@ -1,7 +1,6 @@
 package com.mes.application.dto.req.typesetting;
 
 import com.mes.application.dto.req.base.ApiRequest;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -11,18 +10,32 @@ import java.util.List;
 @Data
 public class ConfirmPrintRequest extends ApiRequest {
 
-    @NotEmpty(message = "生产工件 ID 列表不能为空")
+    /**
+     * 开始打印接口沿用该字段。
+     */
     private List<String> productionPieceIds;
+
+    private String id;
+
+    /**
+     * 可选：覆盖排版方式。
+     */
+    private String layoutMode;
+
+    private String deviceCode;
 
     @Override
     public boolean isValid() {
-        return productionPieceIds != null && !productionPieceIds.isEmpty();
+        return id != null && !id.isBlank() && deviceCode != null && !deviceCode.isBlank();
     }
 
     @Override
     public String getValidationMessage() {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            return "生产工件 ID 列表不能为空";
+        if (id == null || id.isBlank()) {
+            return "排版ID不能为空";
+        }
+        if (deviceCode == null || deviceCode.isBlank()) {
+            return "设备编号不能为空";
         }
         return null;
     }

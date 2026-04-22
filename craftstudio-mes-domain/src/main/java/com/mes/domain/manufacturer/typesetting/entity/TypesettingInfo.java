@@ -60,7 +60,6 @@ public class TypesettingInfo extends BaseEntity {
      * 定位点形状（circle / square / none）
      */
     private String anchorPointShape;
-
     public void applyLayoutModeConfig() {
         TypesettingLayoutMode mode = TypesettingLayoutMode.fromCode(this.layoutMode);
         this.layoutCategory = mode.getLayoutCategory();
