@@ -13,11 +13,15 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AppLoginService {
+
+    private static final Map<String, LoginTokenInfo> LOGIN_TOKEN_STORE = new ConcurrentHashMap<>();
 
     @Autowired
     private ManufacturerUserService manufacturerUserService;
@@ -38,7 +42,23 @@ public class AppLoginService {
         response.setToken(token);
         response.setManufacturerMetaId(user.getManufacturerMetaId());
         response.setTokenExpireAt(expireAt);
+
+        LOGIN_TOKEN_STORE.put(token, new LoginTokenInfo(user.getManufacturerMetaId(), expireAt));
         return response;
+    }
+
+    public String getManufacturerMetaIdByToken(String token) {
+        LoginTokenInfo tokenInfo = LOGIN_TOKEN_STORE.get(token);
+        if (tokenInfo == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "token无效");
+        }
+
+        if (tokenInfo.getExpireAt().before(new Date())) {
+            LOGIN_TOKEN_STORE.remove(token);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "token已过期");
+        }
+
+        return tokenInfo.getManufacturerMetaId();
     }
 
     public void addUser(AddUserRequest request) {
@@ -53,5 +73,23 @@ public class AppLoginService {
 
     private String generateToken() {
         return UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
+    }
+
+    private static class LoginTokenInfo {
+        private final String manufacturerMetaId;
+        private final Date expireAt;
+
+        private LoginTokenInfo(String manufacturerMetaId, Date expireAt) {
+            this.manufacturerMetaId = manufacturerMetaId;
+            this.expireAt = expireAt;
+        }
+
+        public String getManufacturerMetaId() {
+            return manufacturerMetaId;
+        }
+
+        public Date getExpireAt() {
+            return expireAt;
+        }
     }
 }

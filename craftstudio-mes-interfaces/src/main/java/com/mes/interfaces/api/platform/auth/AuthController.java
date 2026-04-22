@@ -6,10 +6,12 @@ import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -73,5 +75,29 @@ public class AuthController {
     public ApiResponse<String> addUser(@Valid @RequestBody AddUserRequest request) {
         appLoginService.addUser(request);
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 根据 token 查询用户所属工厂ID接口文档
+     * <p>
+     * URL: {@code POST /api/auth/token/manufacturerMetaId}
+     * </p>
+     * <p>
+     * 请求参数：
+     * <ul>
+     *     <li>token: 登录令牌（必填）</li>
+     * </ul>
+     * 返回字段：
+     * <ul>
+     *     <li>data: manufacturerMetaId</li>
+     * </ul>
+     * </p>
+     *
+     * @param token 登录令牌
+     * @return 用户所属工厂ID
+     */
+    @PostMapping("/token/manufacturerMetaId")
+    public ApiResponse<String> getManufacturerMetaIdByToken(@RequestParam @NotBlank(message = "token不能为空") String token) {
+        return ApiResponse.success(appLoginService.getManufacturerMetaIdByToken(token));
     }
 }

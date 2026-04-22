@@ -1,6 +1,6 @@
 # AuthController 接口文档
 
-本文档描述 `AuthController` 提供的两个接口：登录与新增用户。
+本文档描述 `AuthController` 提供的三个接口：登录、新增用户、根据 token 查询 `manufacturerMetaId`。
 
 - Controller 路径前缀：`/api/auth`
 - 返回结构：统一为 `ApiResponse<T>`
@@ -97,6 +97,40 @@
 
 ---
 
+## 3. 根据 token 查询 manufacturerMetaId
+
+- **URL**：`POST /api/auth/token/manufacturerMetaId`
+- **描述**：根据登录后获取的 token 查询用户所属工厂 `manufacturerMetaId`。
+
+### 请求参数（Query）
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| token | string | 是 | 登录令牌 |
+
+### 请求示例
+
+```http
+POST /api/auth/token/manufacturerMetaId?token=c5f4f5f3d0...
+```
+
+### 响应说明
+
+- 成功时 `data` 为对应的 `manufacturerMetaId`
+
+### 响应示例
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": "RMF_10001",
+  "timestamp": 1713760000000
+}
+```
+
+---
+
 ## 错误码说明（常见）
 
 | code | 含义 |
@@ -104,4 +138,3 @@
 | 400 | 参数错误 |
 | 401 | 未授权（账号或密码错误） |
 | 500 | 服务异常 |
-
