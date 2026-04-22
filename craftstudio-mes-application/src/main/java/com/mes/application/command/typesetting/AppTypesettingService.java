@@ -123,8 +123,8 @@ public class AppTypesettingService {
     private String generateNestedFilesCallbackUrl;
     @Value("${external.callbackApi.generate_grid_nested_files}")
     private String generateGridNestedFilesCallbackUrl;
-    @Value("${external.callbackApi.generate_forme_files:}")
-    private String generateFormeFilesCallbackUrl;
+    @Value("${external.callbackApi.generate_forme}")
+    private String generateFormeUrl;
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
     private String ossEndpoint;
     @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:}}")
@@ -511,11 +511,11 @@ public class AppTypesettingService {
 
         String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-
+        System.out.println(JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-        if (response == null || StringUtils.isBlank(response.getStatus())) {
-            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
-        }
+//        if (response == null || StringUtils.isBlank(response.getStatus())) {
+//            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
+//        }
 
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
@@ -583,7 +583,7 @@ public class AppTypesettingService {
 
         // 6) 配置异步回调
         CallbackConfig callbackConfig = new CallbackConfig();
-        callbackConfig.setCallbackUrl(StringUtils.isNotBlank(generateFormeFilesCallbackUrl) ? generateFormeFilesCallbackUrl : generateNestedFilesCallbackUrl);
+        callbackConfig.setCallbackUrl(generateFormeUrl);
         CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
         callbackCustomValue.setId(typesettingInfo.getId());
         callbackConfig.setCallbackCustomValue(callbackCustomValue);

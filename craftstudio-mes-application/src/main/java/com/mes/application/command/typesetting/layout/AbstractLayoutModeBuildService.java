@@ -52,7 +52,10 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         if (mode.isRequirePltFile()) {
             FormeGenerationRequest.OutputConfig plt = new FormeGenerationRequest.OutputConfig();
             plt.setDirection("h");
-            plt.setObjectName(businessId + "-1.plt," + businessId + "-2.plt");
+            FormeGenerationRequest.PltObjectName pltObjectName = new FormeGenerationRequest.PltObjectName();
+            pltObjectName.setNormal(businessId + "-1.plt");
+            pltObjectName.setReverse(businessId + "-2.plt");
+            plt.setObjectName(pltObjectName);
             outputs.setPlt(plt);
         }
         if (mode.isRequireSvgFile()) {

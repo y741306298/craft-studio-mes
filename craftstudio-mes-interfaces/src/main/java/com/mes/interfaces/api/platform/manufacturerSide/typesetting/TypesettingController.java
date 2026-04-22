@@ -10,6 +10,7 @@ import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -94,7 +95,7 @@ public class TypesettingController {
      * 服务层会按 id 读取最新排版记录并构建 Forme 生成请求。
      */
     @PostMapping("/confirmLayout")
-    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody TypesettingInfo request) {
+    public ApiResponse<LayoutConfirmResult> confirmLayout(@RequestBody TypesettingInfo request) {
         LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
         if (!result.isSuccess()) {
             ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
@@ -201,7 +202,21 @@ public class TypesettingController {
      */
     @PostMapping("/callback/generate_grid_nested_files")
     public ApiResponse<String> handleGenerateGridNestedFilesCallback(@RequestBody NestingResponse response) {
+        logger.info("========== handleGenerateNestedFilesCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleGenerateNestedFilesCallback 入参结束 ==========");
         appTypesettingService.handleNestingCallback(response);
         return ApiResponse.success("回调处理成功");
+    }
+
+    /**
+     * 版式生成算法异步回调
+     */
+    @PostMapping("/callback/generate_forme")
+    public ApiResponse<String> handleGenerateFormeCallback(@RequestBody FormeGenerationResponse response) {
+        logger.info("========== handleGenerateFormeCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleGenerateFormeCallback 入参结束 ==========");
+        return ApiResponse.success("回调处理待续");
     }
 }

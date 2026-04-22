@@ -93,7 +93,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
         // 5) 输出配置与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
-        result.setUploadPath("printingplate/" + context.getBusinessId() + "/");
+        result.setUploadPath("printingplate/");
         return result;
     }
 

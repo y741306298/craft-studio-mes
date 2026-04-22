@@ -2,7 +2,10 @@ package com.mes.application.command.api.req;
 
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.UploadConfig;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -65,9 +68,20 @@ public class FormeGenerationRequest {
 
     @Data
     public static class OutputConfig {
-        private String objectName;
+        private Object objectName;
         private String direction;
         private EnvConfig env;
+    }
+
+    /**
+     * PLT 文件对象名配置（支持正常和旋转180度两种）
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PltObjectName {
+        private String normal;
+        private String reverse;
     }
 
     @Data

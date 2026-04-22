@@ -3,10 +3,10 @@ package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 import com.mes.application.command.delivery.AppDeliveryRouteService;
 import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteRequest;
-import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteListResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeRequest;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -36,9 +36,8 @@ public class DeliveryRouteController {
         
         PagedQuery query = request.toPagedQuery();
         String routeName = request.getRouteName();
-        String manufacturerId = request.getManufacturerMetaId();
-
-        PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName,manufacturerId, query);
+        
+        PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName,request.getManufacturerMetaId(), query);
         
         List<DeliveryRouteListResponse> responses = result.items().stream()
                 .map(DeliveryRouteListResponse::from)
@@ -78,7 +77,7 @@ public class DeliveryRouteController {
      * @return 操作结果
      */
     @PostMapping("/edit")
-    public ApiResponse<String> updateDeliveryRoute(@RequestBody DeliveryRouteRequest request) {
+    public ApiResponse<String> updateDeliveryRoute(@Valid @RequestBody DeliveryRouteRequest request) {
         DeliveryRoute existingDeliveryRoute = appDeliveryRouteService.findById(request.getId());
         if (existingDeliveryRoute == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "配送路线不存在");

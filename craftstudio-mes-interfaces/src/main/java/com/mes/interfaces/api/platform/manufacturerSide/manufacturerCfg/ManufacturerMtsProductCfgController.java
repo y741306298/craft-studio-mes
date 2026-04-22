@@ -2,17 +2,16 @@ package com.mes.interfaces.api.platform.manufacturerSide.manufacturerCfg;
 
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.req.ConfigMTSProductSpecRequest;
-import com.mes.application.command.api.resp.MtsProductCategoryResponse;
-import com.mes.application.command.api.resp.MtsProductListResponse;
-import com.mes.application.command.api.resp.MtsProductSpecResponse;
-
-import com.mes.domain.base.repository.ApiResponse;
-import com.mes.application.dto.resp.PagedApiResponse;
+import com.piliofpala.craftstudio.shared.infra.http.HttpProxy;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/mtsProductCfg")
@@ -21,77 +20,116 @@ public class ManufacturerMtsProductCfgController {
     @Autowired
     private ProductCoreApiService productApiService;
 
+    @Autowired
+    private HttpProxy httpProxy;
+
+    @Value("${external.api.productCoreUrl:}")
+    private String productCoreUrl;
+
     /**
      * 根据父分类 ID 查询成品商品分类列表
-     * @param parentId 父分类 ID，null 表示查询首级分类
-     * @return 分类列表
      */
     @GetMapping("/categories")
-    public ApiResponse<List<MtsProductCategoryResponse>> findCategoriesByParentId(
-            @RequestParam(required = false) String parentId) {
+    public ResponseEntity<byte[]> findCategoriesByParentId(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listCategories", productCoreUrl));
+
         
-        List<MtsProductCategoryResponse> categories = productApiService.findCategoriesByParentId(parentId);
-        return ApiResponse.success(categories);
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
+
+        // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
     }
 
     /**
      * 分页查询成品商品列表
-     * @param rmfId 工厂 ID，不能为空
-     * @param categoryId 产品分类 ID，可为空
-     * @param current 当前页码，从 1 开始
-     * @param size 每页大小
+     *
      * @return 分页查询结果
      */
     @GetMapping("/products")
-    public PagedApiResponse<MtsProductListResponse> findMTSProducts(
-            @RequestParam String rmfId,
-            @RequestParam(required = false) String categoryId,
-            @RequestParam int current,
-            @RequestParam int size) {
+    public ResponseEntity<byte[]> findMTSProducts(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listMTSProducts", productCoreUrl));
+
         
-        ProductCoreApiService.PagedResult<MtsProductListResponse> result =
-            productApiService.findMTSProducts(rmfId, categoryId, current, size);
-        
-        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
+
+        // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
     }
 
     /**
      * 分页查询成品商品规格列表
-     * @param rmfId 工厂 ID，不能为空
-     * @param productId 成品商品 ID，不能为空
-     * @param current 当前页码，从 1 开始
-     * @param size 每页大小
+     *
      * @return 分页查询结果
      */
     @GetMapping("/product-specs")
-    public PagedApiResponse<MtsProductSpecResponse> findMTSProductSpecs(
-            @RequestParam String rmfId,
-            @RequestParam String productId,
-            @RequestParam int current,
-            @RequestParam int size) {
+    public ResponseEntity<byte[]> findMTSProductSpecs(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/product/mts/listMTSProductSpecs", productCoreUrl));
+
         
-        ProductCoreApiService.PagedResult<MtsProductSpecResponse> result =
-            productApiService.findMTSProductSpecs(rmfId, productId, current, size);
-        
-        return PagedApiResponse.success(result.getItems(), result.getCurrent(), result.getSize(), result.getTotal());
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
+
+        // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
     }
 
     /**
      * 配置成品商品规格
-     * @param request 配置请求参数
+     *
+     * @param configRequest 配置请求参数
      * @return 操作结果
      */
     @PostMapping("/product-specs/config")
-    public ApiResponse<String> configMTSProductSpec(@Valid @RequestBody ConfigMTSProductSpecRequest request) {
+    public ResponseEntity<byte[]> configMTSProductSpec(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody ConfigMTSProductSpecRequest configRequest) {
+
+        String targetUrl = String.format("%s/api/internal/mes/rmfcfg/configMTSProductSpec", productCoreUrl);
         
-        productApiService.configMTSProductSpec(
-            request.getRmfId(),
-            request.getMtsProductSpecId(),
-            request.getStock(),
-            request.getUnitPrice(),
-            request.getPrice()
-        );
-        return ApiResponse.success("success");
+        // 将请求对象转换为 JSON 字节数组
+        byte[] requestBody = null;
+        try {
+            requestBody = com.alibaba.fastjson.JSON.toJSONString(configRequest).getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("Failed to serialize request: " + e.getMessage());
+        }
+        
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, requestBody, targetUrl, paramMap);
+
+        // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
     }
 
 }
