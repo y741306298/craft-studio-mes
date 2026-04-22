@@ -760,7 +760,7 @@ public class AppTypesettingService {
 
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(cacheKey);
         UploadConfig uploadConfig = new UploadConfig();
-        uploadConfig.setUploadPath("layout/");
+        uploadConfig.setUploadPath("layout/"+cacheKey+"/");
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         //配置callback信息
 
