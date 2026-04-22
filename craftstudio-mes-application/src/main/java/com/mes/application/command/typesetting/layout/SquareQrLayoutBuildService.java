@@ -8,6 +8,7 @@ import java.util.Arrays;
 
 @Service
 public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
+    /** 方形二维码模式构建器。 */
     @Override
     public TypesettingLayoutMode supportMode() {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
@@ -15,6 +16,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
+        // 1) 定义 margin 与元素原点（扩展矩形坐标系）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         int marginLeft = 100;
         int marginTop = 100;
@@ -29,6 +31,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         margin.setBottom(marginBottom);
         result.setMargin(margin);
 
+        // 2) top/bottom 标记放置在上下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(context.getBusinessId() + "_top.tif");
         top.setSize(createSize(800, 10));
@@ -39,6 +42,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
         result.setMarks(Arrays.asList(top, bottom));
 
+        // 3) 方形定位点示例：位于上 margin 区域的左右两侧
         String anchorSvg = "https://craftstudio-ordering-test.oss-cn-hangzhou.aliyuncs.com/common/anchor/square.svg";
         FormeGenerationRequest.AnchorPoint leftTop = new FormeGenerationRequest.AnchorPoint();
         leftTop.setImg("square.png");
@@ -52,6 +56,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         rightTop.setPosition(createPosition(Math.max(elementOriginX + context.getNestedWidth() - 15, elementOriginX + 5), marginTop / 2));
         result.setAnchorPoints(Arrays.asList(leftTop, rightTop));
 
+        // 4) 输出与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;

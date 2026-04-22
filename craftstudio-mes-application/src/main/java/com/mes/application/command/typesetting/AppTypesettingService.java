@@ -93,6 +93,10 @@ public class AppTypesettingService {
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
 
+    /**
+     * layoutMode -> builder 的运行时映射表。
+     * 在容器初始化完成后由 initLayoutModeBuilders 填充。
+     */
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
@@ -105,6 +109,7 @@ public class AppTypesettingService {
 
     @PostConstruct
     public void initLayoutModeBuilders() {
+        // 将所有模式构建器注册到 map，供 confirmLayout 阶段按 mode 分发调用
         if (layoutModeBuildServices == null) {
             return;
         }
@@ -534,16 +539,19 @@ public class AppTypesettingService {
                                                                TypesettingLayoutMode layoutMode,
                                                                String businessId) {
         FormeGenerationRequest request = new FormeGenerationRequest();
+        // element 原始宽高（单位 mm），若算法回调中缺失则给默认值兜底
         Integer nestedWidth = typesettingInfo.getElement() != null && typesettingInfo.getElement().getWidth() != null
                 ? typesettingInfo.getElement().getWidth() : 1200;
         Integer nestedHeight = typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null
                 ? typesettingInfo.getElement().getHeight() : 800;
         int marginHeight = TAG_STRIP_HEIGHT_MM;
 
+        // 1) 选择当前 mode 对应的独立构建 service
         TypesettingLayoutModeBuildService modeBuildService = layoutModeBuildServiceMap.get(layoutMode);
         if (modeBuildService == null) {
             throw new IllegalArgumentException("未找到排版模式构建服务: " + layoutMode.getCode());
         }
+        // 2) 组装构建上下文（统一单位：mm）
         FormeBuildContext buildContext = new FormeBuildContext();
         buildContext.setTypesettingInfo(typesettingInfo);
         buildContext.setBusinessId(businessId);
@@ -553,8 +561,10 @@ public class AppTypesettingService {
         buildContext.setElementAResolver(this::extractElementA);
         buildContext.setPlateNameSupplier(() -> generatePrintingPlateName(typesettingInfo.getManufacturerMetaId()));
         buildContext.setQrDataUriGenerator(content -> buildQrCodeDataUri(typesettingInfo.getManufacturerMetaId(), content));
+        // 3) 获取模式构建结果（margin/marks/anchors/outputs/uploadPath）
         FormeLayoutBuildResult modeResult = modeBuildService.build(buildContext);
 
+        // 4) 回填 forme 基础输入
         FormeGenerationRequest.FormeInfo formeInfo = new FormeGenerationRequest.FormeInfo();
         formeInfo.setSvgUrl(buildCompleteOssUrl(typesettingInfo.getElement().getNestedSvg()));
         formeInfo.setMargin(modeResult.getMargin());
@@ -563,12 +573,14 @@ public class AppTypesettingService {
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
+        // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         UploadConfig uploadConfig = new UploadConfig();
         uploadConfig.setUploadPath(modeResult.getUploadPath());
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         request.setUploadConfig(uploadConfig);
 
+        // 6) 配置异步回调
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(StringUtils.isNotBlank(generateFormeFilesCallbackUrl) ? generateFormeFilesCallbackUrl : generateNestedFilesCallbackUrl);
         CallbackCustomValue callbackCustomValue = new CallbackCustomValue();

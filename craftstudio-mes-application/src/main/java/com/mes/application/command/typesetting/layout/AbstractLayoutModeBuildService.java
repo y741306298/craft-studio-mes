@@ -3,8 +3,15 @@ package com.mes.application.command.typesetting.layout;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 
+/**
+ * 模式构建抽象基类。
+ *
+ * <p>封装各模式共享的低层拼装能力，避免重复代码：
+ * createSize / createPosition / default outputs。
+ */
 public abstract class AbstractLayoutModeBuildService implements TypesettingLayoutModeBuildService {
 
+    /** 构建尺寸对象。 */
     protected FormeGenerationRequest.Size createSize(int width, int height) {
         FormeGenerationRequest.Size size = new FormeGenerationRequest.Size();
         size.setWidth(width);
@@ -12,6 +19,7 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         return size;
     }
 
+    /** 构建坐标对象（坐标系原点：扩展矩形左上角）。 */
     protected FormeGenerationRequest.Position createPosition(int x, int y) {
         FormeGenerationRequest.Position position = new FormeGenerationRequest.Position();
         position.setX(x);
@@ -19,6 +27,11 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         return position;
     }
 
+    /**
+     * 构建通用 outputs。
+     *
+     * <p>依据 mode 的 requireJson/requirePlt/requireSvg 决定输出项。
+     */
     protected FormeGenerationRequest.Outputs buildDefaultOutputs(TypesettingLayoutMode mode, String businessId) {
         FormeGenerationRequest.Outputs outputs = new FormeGenerationRequest.Outputs();
         if (mode.isRequireJsonFile()) {

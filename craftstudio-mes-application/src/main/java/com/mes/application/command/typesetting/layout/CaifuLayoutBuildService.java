@@ -9,6 +9,7 @@ import java.util.Collections;
 
 @Service
 public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
+    /** XY切割-裁赋模式构建器。 */
     @Override
     public TypesettingLayoutMode supportMode() {
         return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU;
@@ -16,6 +17,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
+        // 1) margin 与原点定义（单位 mm）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         int marginLeft = 100;
         int marginTop = 100;
@@ -30,6 +32,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         margin.setBottom(marginBottom);
         result.setMargin(margin);
 
+        // 2) 标记位于上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(context.getBusinessId() + "_top.tif");
         top.setSize(createSize(800, 10));
@@ -40,7 +43,9 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
         result.setMarks(Arrays.asList(top, bottom));
 
+        // 3) 该模式默认不输出定位点
         result.setAnchorPoints(Collections.emptyList());
+        // 4) 输出与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;

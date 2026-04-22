@@ -88,7 +88,10 @@ public class TypesettingController {
     }
 
     /**
-     * 确认排版
+     * 确认排版。
+     *
+     * <p>入参直接使用 TypesettingInfo（至少包含 id，layoutMode 可选覆盖）。
+     * 服务层会按 id 读取最新排版记录并构建 Forme 生成请求。
      */
     @PostMapping("/confirmLayout")
     public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody TypesettingInfo request) {
