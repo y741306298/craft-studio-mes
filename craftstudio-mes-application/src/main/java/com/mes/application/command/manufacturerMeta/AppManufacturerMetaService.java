@@ -2,6 +2,8 @@ package com.mes.application.command.manufacturerMeta;
 
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.dto.resp.manufacturerMeta.ManufacturerSimpleResponse;
+import com.mes.domain.auth.entity.ManufacturerUser;
+import com.mes.domain.auth.service.ManufacturerUserService;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.repository.DeviceInfoRepository;
 import com.mes.domain.manufacturer.enums.CfgStatus;
@@ -67,6 +69,9 @@ public class AppManufacturerMetaService {
     @Autowired
     private ProductCoreApiService productCoreApiService;
 
+    @Autowired
+    private ManufacturerUserService manufacturerUserService;
+
     public PagedResult<ManufacturerMeta> findManufacturerMetas(String name, String manufacturerType, PagedQuery query){
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
@@ -112,6 +117,8 @@ public class AppManufacturerMetaService {
         createDefaultStorageTank(savedManufacturer);
         
         saveManufacturerConfigsFromTemplate(savedManufacturer);
+
+        createFactoryUserByConsignee(savedManufacturer);
     }
     
     private void registerToProductCenter(ManufacturerMeta manufacturerMeta) {
@@ -199,6 +206,26 @@ public class AppManufacturerMetaService {
         storageTank.setDescription("系统自动创建的默认 3*3 储存柜");
         
         storageTankRepository.add(storageTank);
+    }
+
+    private void createFactoryUserByConsignee(ManufacturerMeta manufacturerMeta) {
+        if (manufacturerMeta.getConsignee() == null) {
+            return;
+        }
+        String account = manufacturerMeta.getConsignee().getPhone();
+        if (StringUtils.isBlank(account)) {
+            return;
+        }
+        if (manufacturerUserService.findByAccount(account) != null) {
+            return;
+        }
+        ManufacturerUser user = new ManufacturerUser();
+        user.setAccount(account);
+        user.setPassword("123456");
+        user.setManufacturerMetaId(manufacturerMeta.getManufacturerMetaId());
+        user.setName(manufacturerMeta.getConsignee().getName());
+        user.setPhone(account);
+        manufacturerUserService.add(user);
     }
     
     public void updateManufacturerMeta(ManufacturerMeta command){

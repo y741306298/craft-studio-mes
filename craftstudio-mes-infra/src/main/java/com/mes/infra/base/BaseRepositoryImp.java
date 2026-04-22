@@ -24,13 +24,29 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public DO add(DO _do) {
+        Date now = new Date();
+        if (_do.getCreateTime() == null) {
+            _do.setCreateTime(now);
+        }
+        if (_do.getUpdateTime() == null) {
+            _do.setUpdateTime(now);
+        }
         PO po = mongoTemplate.insert(BasePO.fromDO(_do, poClass()));
         return po.toDO();
     }
 
     @Override
     public Collection<DO> batchAdd(List<DO> items) {
-        Collection<PO> pos = mongoTemplate.insertAll(items.stream().map(item->BasePO.fromDO(item, poClass())).toList());
+        Date now = new Date();
+        Collection<PO> pos = mongoTemplate.insertAll(items.stream().map(item -> {
+            if (item.getCreateTime() == null) {
+                item.setCreateTime(now);
+            }
+            if (item.getUpdateTime() == null) {
+                item.setUpdateTime(now);
+            }
+            return BasePO.fromDO(item, poClass());
+        }).toList());
         return pos.stream().map(PO::toDO).toList();
     }
 
