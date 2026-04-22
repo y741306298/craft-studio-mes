@@ -4,6 +4,7 @@ import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 
 @Service
@@ -34,12 +35,12 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) top/bottom 标记放置在上下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(context.getBusinessId() + "_top.tif");
-        top.setSize(createSize(800, 10));
+        top.setSize(createSize(BigDecimal.valueOf(800), BigDecimal.TEN));
         top.setPosition(createPosition(elementOriginX, 0));
         FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
         bottom.setImg(context.getBusinessId() + "_bottom.tif");
-        bottom.setSize(createSize(10, 1000));
-        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
+        bottom.setSize(createSize(BigDecimal.TEN, BigDecimal.valueOf(1000)));
+        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
 
         // 3) 方形定位点示例：位于上 margin 区域的左右两侧
@@ -47,13 +48,13 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         FormeGenerationRequest.AnchorPoint leftTop = new FormeGenerationRequest.AnchorPoint();
         leftTop.setImg("square.png");
         leftTop.setSvg(anchorSvg);
-        leftTop.setSize(createSize(10, 10));
+        leftTop.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
         leftTop.setPosition(createPosition(elementOriginX + 5, marginTop / 2));
         FormeGenerationRequest.AnchorPoint rightTop = new FormeGenerationRequest.AnchorPoint();
         rightTop.setImg("square.png");
         rightTop.setSvg(anchorSvg);
-        rightTop.setSize(createSize(10, 10));
-        rightTop.setPosition(createPosition(Math.max(elementOriginX + context.getNestedWidth() - 15, elementOriginX + 5), marginTop / 2));
+        rightTop.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        rightTop.setPosition(createPosition(Math.max(elementOriginX + context.getNestedWidth().intValue() - 15, elementOriginX + 5), marginTop / 2));
         result.setAnchorPoints(Arrays.asList(leftTop, rightTop));
 
         // 4) 输出与上传目录

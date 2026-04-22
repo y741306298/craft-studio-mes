@@ -3,6 +3,7 @@ package com.mes.application.command.api.req;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.UploadConfig;
 import lombok.Data;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -45,8 +46,8 @@ public class FormeGenerationRequest {
 
     @Data
     public static class Size {
-        private Integer width;
-        private Integer height;
+        private BigDecimal width;
+        private BigDecimal height;
     }
 
     @Data

@@ -4,6 +4,7 @@ import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -35,12 +36,12 @@ public class NineSegmentLayoutBuildService extends AbstractLayoutModeBuildServic
         // 2) 标记位于上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(context.getBusinessId() + "_top.tif");
-        top.setSize(createSize(800, 10));
+        top.setSize(createSize(BigDecimal.valueOf(800), BigDecimal.TEN));
         top.setPosition(createPosition(elementOriginX, 0));
         FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
         bottom.setImg(context.getBusinessId() + "_bottom.tif");
-        bottom.setSize(createSize(10, 1000));
-        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
+        bottom.setSize(createSize(BigDecimal.TEN, BigDecimal.valueOf(1000)));
+        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
 
         // 3) 该模式默认不输出定位点

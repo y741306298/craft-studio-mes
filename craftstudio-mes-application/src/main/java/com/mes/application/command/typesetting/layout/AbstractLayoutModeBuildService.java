@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import java.math.BigDecimal;
 
 /**
  * 模式构建抽象基类。
@@ -12,7 +13,7 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 public abstract class AbstractLayoutModeBuildService implements TypesettingLayoutModeBuildService {
 
     /** 构建尺寸对象。 */
-    protected FormeGenerationRequest.Size createSize(int width, int height) {
+    protected FormeGenerationRequest.Size createSize(BigDecimal width, BigDecimal height) {
         FormeGenerationRequest.Size size = new FormeGenerationRequest.Size();
         size.setWidth(width);
         size.setHeight(height);

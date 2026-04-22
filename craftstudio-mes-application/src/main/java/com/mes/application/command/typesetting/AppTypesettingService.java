@@ -54,6 +54,7 @@ import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -540,11 +541,11 @@ public class AppTypesettingService {
                                                                String businessId) {
         FormeGenerationRequest request = new FormeGenerationRequest();
         // element 原始宽高（单位 mm），若算法回调中缺失则给默认值兜底
-        Integer nestedWidth = typesettingInfo.getElement() != null && typesettingInfo.getElement().getWidth() != null
-                ? typesettingInfo.getElement().getWidth() : 1200;
-        Integer nestedHeight = typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null
-                ? typesettingInfo.getElement().getHeight() : 800;
-        int marginHeight = TAG_STRIP_HEIGHT_MM;
+        BigDecimal nestedWidth = typesettingInfo.getElement() != null && typesettingInfo.getElement().getWidth() != null
+                ? typesettingInfo.getElement().getWidth() : BigDecimal.valueOf(1200);
+        BigDecimal nestedHeight = typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null
+                ? typesettingInfo.getElement().getHeight() : BigDecimal.valueOf(800);
+        BigDecimal marginHeight = BigDecimal.valueOf(TAG_STRIP_HEIGHT_MM);
 
         // 1) 选择当前 mode 对应的独立构建 service
         TypesettingLayoutModeBuildService modeBuildService = layoutModeBuildServiceMap.get(layoutMode);

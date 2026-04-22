@@ -3,6 +3,7 @@ package com.mes.application.command.typesetting.layout;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -13,11 +14,11 @@ public class FormeBuildContext {
     /** 本次业务主键（优先 typesettingId，兜底 record id）。 */
     private String businessId;
     /** 原始 element 宽度，单位 mm。 */
-    private int nestedWidth;
+    private BigDecimal nestedWidth;
     /** 原始 element 高度，单位 mm。 */
-    private int nestedHeight;
+    private BigDecimal nestedHeight;
     /** 约定的上下边距高度，单位 mm。 */
-    private int marginHeight;
+    private BigDecimal marginHeight;
     /** 生成元素 B（xxx.plt 名称）的提供器。 */
     private Supplier<String> plateNameSupplier;
     /** 二维码生成器：入参为内容，返回 data URI。 */

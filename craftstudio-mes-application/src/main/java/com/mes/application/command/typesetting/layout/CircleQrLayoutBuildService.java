@@ -4,6 +4,7 @@ import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -25,11 +26,11 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     public FormeLayoutBuildResult build(FormeBuildContext context) {
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
-        int marginHeight = context.getMarginHeight();
+        BigDecimal marginHeight = context.getMarginHeight();
         int marginLeft = 0;
-        int marginTop = marginHeight;
+        int marginTop = marginHeight.intValue();
         int marginRight = 0;
-        int marginBottom = marginHeight;
+        int marginBottom = marginHeight.intValue();
         int elementOriginX = marginLeft;
         int elementOriginY = marginTop;
 
@@ -55,38 +56,38 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
         bottom.setImg(elementF);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
-        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight()));
+        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
 
         // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 30mm）
         int sideOffset = 30;
         int topY = marginTop / 2;
-        int bottomY = elementOriginY + context.getNestedHeight() + (marginBottom / 2);
-        int rightX = Math.max(elementOriginX + context.getNestedWidth() - sideOffset - 10, elementOriginX + sideOffset);
+        int bottomY = elementOriginY + context.getNestedHeight().intValue() + (marginBottom / 2);
+        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 10, elementOriginX + sideOffset);
         String circleSvgUrl = "https://craftstudio-ordering-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
         tl.setSvg(circleSvgUrl);
-        tl.setSize(createSize(10, 10));
+        tl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
         tl.setPosition(createPosition(elementOriginX + sideOffset, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("circle.png");
         tr.setSvg(circleSvgUrl);
-        tr.setSize(createSize(10, 10));
+        tr.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
         tr.setPosition(createPosition(rightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("circle.png");
         bl.setSvg(circleSvgUrl);
-        bl.setSize(createSize(10, 10));
+        bl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
         bl.setPosition(createPosition(elementOriginX + sideOffset, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("circle.png");
         br.setSvg(circleSvgUrl);
-        br.setSize(createSize(10, 10));
+        br.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
         br.setPosition(createPosition(rightX, bottomY));
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
@@ -99,17 +100,18 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private String buildTagStripDataUri(String elementA,
                                         String elementB,
                                         String qrDataUri,
-                                        int stripWidth,
-                                        int stripHeight) {
+                                        BigDecimal stripWidth,
+                                        BigDecimal stripHeight) {
         // 使用 SVG 文本拼接标签条后转为 data URI，供 mark.img 直接引用
         int spacing = 40;
-        int qrSize = Math.max(stripHeight - 20, 20);
-        int textY = (stripHeight / 2) + 8;
-        int qrY = (stripHeight - qrSize) / 2;
+        int stripHeightInt = stripHeight.intValue();
+        int qrSize = Math.max(stripHeightInt - 20, 20);
+        int textY = (stripHeightInt / 2) + 8;
+        int qrY = (stripHeightInt - qrSize) / 2;
         int bX = spacing + qrSize + spacing;
         int aX = bX + 300 + spacing;
 
-        String stripSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + stripWidth + "' height='" + stripHeight + "'>"
+        String stripSvg = "<svg xmlns='http://www.w3.org/2000/svg' width='" + stripWidth.toPlainString() + "' height='" + stripHeight.toPlainString() + "'>"
                 + "<rect width='100%' height='100%' fill='white'/>"
                 + "<image href='" + qrDataUri + "' x='" + spacing + "' y='" + qrY + "' width='" + qrSize + "' height='" + qrSize + "'/>"
                 + "<text x='" + bX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementB) + "</text>"
