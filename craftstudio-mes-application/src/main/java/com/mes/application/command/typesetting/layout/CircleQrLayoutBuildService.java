@@ -1,16 +1,21 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Base64;
 
 @Service
 public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
+    private final OssTagUploadService ossTagUploadService;
+
+    public CircleQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
+        this.ossTagUploadService = ossTagUploadService;
+    }
     /**
      * 圆形二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
@@ -45,7 +50,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         String elementB = context.getPlateNameSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
-        String elementF = buildTagStripDataUri(elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
@@ -97,12 +102,13 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return result;
     }
 
-    private String buildTagStripDataUri(String elementA,
+    private String buildTagStripDataUri(String businessId,
+                                        String elementA,
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
                                         BigDecimal stripHeight) {
-        // 使用 SVG 文本拼接标签条后转为 data URI，供 mark.img 直接引用
+        // 生成标签条 SVG 并上传至 OSS 的 /tag 路径，返回可访问 URL
         int spacing = 40;
         int stripHeightInt = stripHeight.intValue();
         int qrSize = Math.max(stripHeightInt - 20, 20);
@@ -117,8 +123,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 + "<text x='" + bX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementB) + "</text>"
                 + "<text x='" + aX + "' y='" + textY + "' font-size='32' fill='black'>" + escapeXml(elementA) + "</text>"
                 + "</svg>";
-        String base64 = Base64.getEncoder().encodeToString(stripSvg.getBytes(StandardCharsets.UTF_8));
-        return "data:image/svg+xml;base64," + base64;
+        return ossTagUploadService.uploadTagSvg(businessId, stripSvg.getBytes(StandardCharsets.UTF_8));
     }
 
     private String escapeXml(String value) {
