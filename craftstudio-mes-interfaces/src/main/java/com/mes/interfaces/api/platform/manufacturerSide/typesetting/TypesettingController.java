@@ -88,11 +88,17 @@ public class TypesettingController {
     }
 
     /**
-     * 确认排版（暂未实现具体业务）
+     * 确认排版
      */
     @PostMapping("/confirmLayout")
-    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+    public ApiResponse<LayoutConfirmResult> confirmLayout(@Valid @RequestBody TypesettingInfo request) {
         LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
+        if (!result.isSuccess()) {
+            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
+            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
+            failResponse.setMessage(result.getMessage());
+            return failResponse;
+        }
         return ApiResponse.success(result);
     }
 
