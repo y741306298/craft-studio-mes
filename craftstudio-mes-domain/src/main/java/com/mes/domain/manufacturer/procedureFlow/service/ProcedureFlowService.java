@@ -202,7 +202,7 @@ public class ProcedureFlowService {
     }
 
     /**
-     * 解析工艺流程，完善生产节点，并将排版和排版中作为第二第三个节点
+     * 解析工艺流程，完善生产节点，并将待排版、排版中、打印中作为前置节点
      * @return 工艺节点列表
      */
     public ProcedureFlow parseProcessingFlow(ProcedureFlow procedureFlow) {
@@ -228,10 +228,17 @@ public class ProcedureFlowService {
         typesettingInProgressNode.setNodeOrder(2);
         typesettingInProgressNode.setNodeStatus(NodeStatus.PENDING);
         defaultNodes.add(typesettingInProgressNode);
+
+        ProcedureFlowNode printingInProgressNode = new ProcedureFlowNode();
+        printingInProgressNode.setNodeId("NODE_PRINTING_IN_PROGRESS");
+        printingInProgressNode.setNodeName("打印中");
+        printingInProgressNode.setNodeOrder(3);
+        printingInProgressNode.setNodeStatus(NodeStatus.PENDING);
+        defaultNodes.add(printingInProgressNode);
         
         if (procedureFlow.getNodes() != null && !procedureFlow.getNodes().isEmpty()) {
             for (int i = 0; i < procedureFlow.getNodes().size(); i++) {
-                procedureFlow.getNodes().get(i).setNodeOrder(i + 3);
+                procedureFlow.getNodes().get(i).setNodeOrder(i + 4);
             }
             defaultNodes.addAll(procedureFlow.getNodes());
         }

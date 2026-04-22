@@ -34,7 +34,6 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String codeGenerateType;
     private String tempCodeFormat;
     private String anchorPointShape;
-
     @Override
     public TypesettingInfo toDO() {
         TypesettingInfo typesettingInfo = new TypesettingInfo();

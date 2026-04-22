@@ -22,16 +22,21 @@ import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
+import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
@@ -75,6 +80,9 @@ public class AppTypesettingService {
 
     @Autowired
     private ProductionPieceService productionPieceService;
+
+    @Autowired
+    private TypesettingPrintTaskService typesettingPrintTaskService;
 
     @Autowired
     private OrderItemService orderItemService;
@@ -774,39 +782,193 @@ public class AppTypesettingService {
     /**
      * 确认打印：将排版数据根据状态机改为待打印状态
      *
-     * @param productionPieceIds 生产工件 ID 列表
+     * @param request 确认打印请求（排版ID、可选layoutMode、deviceCode）
      * @return 操作结果
      */
-    public ConfirmPrintResult confirmPrint(List<String> productionPieceIds) {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            throw new RuntimeException("生产工件 ID 列表不能为空");
+    public ConfirmPrintResult confirmPrint(ConfirmPrintRequest request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new RuntimeException("排版ID不能为空");
+        }
+        if (StringUtils.isBlank(request.getDeviceCode())) {
+            throw new RuntimeException("设备编号不能为空");
+        }
+        TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
+        if (typesettingInfo == null) {
+            throw new RuntimeException("排版信息不存在：" + request.getId());
+        }
+        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+            throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
 
-        List<ProductionPiece> productionPieces = new ArrayList<>();
-        
-        for (String pieceId : productionPieceIds) {
-            try {
-                // 使用状态机方法更新为待打印状态
-                productionPieceService.confirmTypesetting(pieceId);
-                
-                // 获取更新后的工件信息
-                ProductionPiece piece = productionPieceService.findById(pieceId);
-                productionPieces.add(piece);
-                
-            } catch (Exception e) {
-                System.err.println("更新生产工件 " + pieceId + " 状态失败：" + e.getMessage());
-            }
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
+                StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
+        );
+        typesettingInfo.setLayoutMode(layoutMode.getCode());
+        typesettingInfo.applyLayoutModeConfig();
+
+        String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+        FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
+        if (response == null || StringUtils.isBlank(response.getStatus())) {
+            throw new RuntimeException("确认打印失败：印版生成服务返回为空");
         }
+        if (!"success".equalsIgnoreCase(response.getStatus())) {
+            String errorMessage = StringUtils.isNotBlank(response.getError()) ? response.getError() : "确认打印失败：印版生成服务处理失败";
+            throw new RuntimeException(errorMessage);
+        }
+
+        applyFormeGenerationResult(typesettingInfo, response.getResult());
+        typesettingInfo.setStatus("待打印");
+
+        Set<String> visitedTypesettingIds = new HashSet<>();
+        Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
+        collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingIds, productionPieceUsage);
+        int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
+                ? typesettingInfo.getLeaveQuantity() : 1;
+        transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
+
+        Set<String> productionPieceIds = productionPieceUsage.keySet();
+        TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
+                typesettingInfo.getId(),
+                request.getDeviceCode(),
+                typesettingInfo.getElement(),
+                productionPieceIds
+        );
+        domainTypesettingService.updateTypesetting(typesettingInfo);
+        savePrintTask(typesettingInfo.getId(), request.getDeviceCode(), downloadTaskData);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
-        result.setMessage("确认打印成功，共更新 " + productionPieces.size() + " 个工件为待打印状态");
-        result.setUpdatedPieceCount(productionPieces.size());
-        result.setUpdatedPieceIds(productionPieces.stream()
-                .map(ProductionPiece::getId)
-                .collect(Collectors.toList()));
-
+        result.setMessage("确认打印成功，共生成图片任务 " + downloadTaskData.getImamges().size()
+                + " 条、plt任务 " + downloadTaskData.getPlts().size()
+                + " 条、json任务 " + downloadTaskData.getJsons().size() + " 条");
+        result.setUpdatedPieceCount(productionPieceIds.size());
+        result.setUpdatedPieceIds(new ArrayList<>(productionPieceIds));
         return result;
+    }
+
+    private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
+                                             int multiplier,
+                                             Set<String> visitedTypesettingIds,
+                                             Map<String, Integer> productionPieceUsage) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId())) {
+            return;
+        }
+        if (!visitedTypesettingIds.add(typesettingInfo.getId())) {
+            return;
+        }
+        if (typesettingInfo.getTypesettingCells() == null) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            int cellQuantity = cell.getQuantity() != null && cell.getQuantity() > 0 ? cell.getQuantity() : 1;
+            int currentMultiplier = multiplier * cellQuantity;
+            if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                productionPieceUsage.merge(cell.getSourceId(), currentMultiplier, Integer::sum);
+                continue;
+            }
+            if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                continue;
+            }
+            TypesettingInfo child = domainTypesettingService.findById(cell.getSourceId());
+            if (child == null) {
+                child = domainTypesettingService.findTypesettingByTypesettingId(cell.getSourceId());
+            }
+            collectProductionPieceUsage(child, currentMultiplier, visitedTypesettingIds, productionPieceUsage);
+        }
+    }
+
+    private void transferTypesettingQuantityToPrinting(Map<String, Integer> productionPieceUsage, int plateUseCount) {
+        if (productionPieceUsage == null || productionPieceUsage.isEmpty() || plateUseCount <= 0) {
+            return;
+        }
+        for (Map.Entry<String, Integer> entry : productionPieceUsage.entrySet()) {
+            String productionPieceId = entry.getKey();
+            int requiredQuantity = entry.getValue() * plateUseCount;
+            if (requiredQuantity <= 0) {
+                continue;
+            }
+            ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+            if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+                continue;
+            }
+            ProcedureFlowNode typesettingNode = null;
+            ProcedureFlowNode printingNode = null;
+            for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+                if (node == null || StringUtils.isBlank(node.getNodeName())) {
+                    continue;
+                }
+                if ("排版中".equals(node.getNodeName())) {
+                    typesettingNode = node;
+                } else if ("打印中".equals(node.getNodeName())) {
+                    printingNode = node;
+                }
+            }
+            if (typesettingNode == null || printingNode == null) {
+                continue;
+            }
+            int typesettingQuantity = typesettingNode.getPieceQuantity() == null ? 0 : typesettingNode.getPieceQuantity();
+            if (typesettingQuantity < requiredQuantity) {
+                throw new RuntimeException("零件 " + productionPieceId + " 的“排版中”数量不足，需求="
+                        + requiredQuantity + "，当前=" + typesettingQuantity);
+            }
+            typesettingNode.setPieceQuantity(typesettingQuantity - requiredQuantity);
+            if (typesettingNode.getPieceQuantity() <= 0) {
+                typesettingNode.setNodeStatus(NodeStatus.COMPLETED);
+            }
+            int printingQuantity = printingNode.getPieceQuantity() == null ? 0 : printingNode.getPieceQuantity();
+            printingNode.setPieceQuantity(printingQuantity + requiredQuantity);
+            printingNode.setNodeStatus(NodeStatus.PENDING);
+            productionPieceService.updateProductionPiece(piece);
+        }
+    }
+
+    private TypesettingDownloadTaskData buildDownloadTaskData(String typesettingInfoId,
+                                                              String deviceCode,
+                                                              TypesettingElement typesettingElement,
+                                                              Set<String> productionPieceIds) {
+        LinkedHashSet<String> imageSet = new LinkedHashSet<>();
+        for (String productionPieceId : productionPieceIds) {
+            ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+            if (piece == null) {
+                continue;
+            }
+            appendRawFile(imageSet, piece.getProductImageFile() == null ? null : piece.getProductImageFile().getRawFile());
+            appendRawFile(imageSet, piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
+        }
+        LinkedHashSet<String> pltSet = new LinkedHashSet<>();
+        LinkedHashSet<String> jsonSet = new LinkedHashSet<>();
+        if (typesettingElement != null) {
+            if (typesettingElement.getPlt() != null) {
+                appendRawFile(pltSet, typesettingElement.getPlt().getNormal());
+                appendRawFile(pltSet, typesettingElement.getPlt().getReverse());
+            }
+            appendRawFile(jsonSet, typesettingElement.getJson());
+        }
+        TypesettingDownloadTaskData data = new TypesettingDownloadTaskData();
+        data.setId(typesettingInfoId);
+        data.setDeviceCode(deviceCode);
+        data.setImamges(new ArrayList<>(imageSet));
+        data.setPlts(new ArrayList<>(pltSet));
+        data.setJsons(new ArrayList<>(jsonSet));
+        return data;
+    }
+
+    private void appendRawFile(Set<String> container, String fileUrl) {
+        if (StringUtils.isNotBlank(fileUrl)) {
+            container.add(fileUrl);
+        }
+    }
+
+    private void savePrintTask(String typesettingInfoId, String deviceCode, TypesettingDownloadTaskData data) {
+        TypesettingPrintTask task = new TypesettingPrintTask();
+        task.setTypesettingInfoId(typesettingInfoId);
+        task.setDeviceCode(deviceCode);
+        task.setData(data);
+        typesettingPrintTaskService.saveOrUpdate(task);
     }
 
     /**
