@@ -9,6 +9,6 @@ import lombok.EqualsAndHashCode;
 @Data
 public class TypesettingPrintTask extends BaseEntity {
     private String typesettingInfoId;
-    private String deviceCode;
+    private String deviceInfoId;
     private TypesettingDownloadTaskData data;
 }

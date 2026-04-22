@@ -22,11 +22,11 @@ public class ConfirmPrintRequest extends ApiRequest {
      */
     private String layoutMode;
 
-    private String deviceCode;
+    private String deviceInfoId;
 
     @Override
     public boolean isValid() {
-        return id != null && !id.isBlank() && deviceCode != null && !deviceCode.isBlank();
+        return id != null && !id.isBlank() && deviceInfoId != null && !deviceInfoId.isBlank();
     }
 
     @Override
@@ -34,7 +34,7 @@ public class ConfirmPrintRequest extends ApiRequest {
         if (id == null || id.isBlank()) {
             return "排版ID不能为空";
         }
-        if (deviceCode == null || deviceCode.isBlank()) {
+        if (deviceInfoId == null || deviceInfoId.isBlank()) {
             return "设备编号不能为空";
         }
         return null;

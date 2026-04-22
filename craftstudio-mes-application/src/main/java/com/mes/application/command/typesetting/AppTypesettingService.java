@@ -789,7 +789,7 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
         }
-        if (StringUtils.isBlank(request.getDeviceCode())) {
+        if (StringUtils.isBlank(request.getDeviceInfoId())) {
             throw new RuntimeException("设备编号不能为空");
         }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
@@ -818,8 +818,9 @@ public class AppTypesettingService {
         }
 
         applyFormeGenerationResult(typesettingInfo, response.getResult());
-        typesettingInfo.setStatus("待打印");
-
+        //进入打印版模式，leaveQuantity重新回到1
+        typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
+        typesettingInfo.setLeaveQuantity(1);
         Set<String> visitedTypesettingIds = new HashSet<>();
         Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
         collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingIds, productionPieceUsage);
@@ -830,12 +831,12 @@ public class AppTypesettingService {
         Set<String> productionPieceIds = productionPieceUsage.keySet();
         TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
                 typesettingInfo.getId(),
-                request.getDeviceCode(),
+                request.getDeviceInfoId(),
                 typesettingInfo.getElement(),
                 productionPieceIds
         );
         domainTypesettingService.updateTypesetting(typesettingInfo);
-        savePrintTask(typesettingInfo.getId(), request.getDeviceCode(), downloadTaskData);
+        savePrintTask(typesettingInfo.getId(), request.getDeviceInfoId(), downloadTaskData);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
@@ -927,7 +928,7 @@ public class AppTypesettingService {
     }
 
     private TypesettingDownloadTaskData buildDownloadTaskData(String typesettingInfoId,
-                                                              String deviceCode,
+                                                              String deviceInfoId,
                                                               TypesettingElement typesettingElement,
                                                               Set<String> productionPieceIds) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
@@ -950,7 +951,7 @@ public class AppTypesettingService {
         }
         TypesettingDownloadTaskData data = new TypesettingDownloadTaskData();
         data.setId(typesettingInfoId);
-        data.setDeviceCode(deviceCode);
+        data.setDeviceInfoId(deviceInfoId);
         data.setImamges(new ArrayList<>(imageSet));
         data.setPlts(new ArrayList<>(pltSet));
         data.setJsons(new ArrayList<>(jsonSet));
@@ -963,10 +964,10 @@ public class AppTypesettingService {
         }
     }
 
-    private void savePrintTask(String typesettingInfoId, String deviceCode, TypesettingDownloadTaskData data) {
+    private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
-        task.setDeviceCode(deviceCode);
+        task.setDeviceInfoId(deviceInfoId);
         task.setData(data);
         typesettingPrintTaskService.saveOrUpdate(task);
     }

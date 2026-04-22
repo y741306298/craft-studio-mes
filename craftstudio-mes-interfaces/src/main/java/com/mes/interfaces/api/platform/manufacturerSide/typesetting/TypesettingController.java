@@ -120,7 +120,7 @@ public class TypesettingController {
             failResponse.setMessage("排版ID不能为空");
             return failResponse;
         }
-        if (request.getDeviceCode() == null || request.getDeviceCode().isBlank()) {
+        if (request.getDeviceInfoId() == null || request.getDeviceInfoId().isBlank()) {
             ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);
             failResponse.setMessage("设备编号不能为空");

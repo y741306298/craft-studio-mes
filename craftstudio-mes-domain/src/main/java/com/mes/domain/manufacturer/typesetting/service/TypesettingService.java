@@ -332,8 +332,8 @@ public class TypesettingService {
      * 将排版状态更新为已下达
      * @param id 排版信息 ID
      */
-    public void markAsCompleted(String id) {
-        updateTypesettingStatus(id, TypesettingStatus.COMPLETED);
+    public void markAsPrinting(String id) {
+        updateTypesettingStatus(id, TypesettingStatus.PRINTING);
     }
 
     /**
