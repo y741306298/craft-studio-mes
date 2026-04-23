@@ -1235,6 +1235,12 @@ public class AppTypesettingService {
                     element.setWidth(callbackResult.getWidth());
                     element.setHeight(callbackResult.getHeight());
                 }
+                if (callbackResult.getGridLines() != null) {
+                    element.setGridLines(new TypesettingElement.GridLines(
+                            callbackResult.getGridLines().getXs(),
+                            callbackResult.getGridLines().getYs()
+                    ));
+                }
                 if (i == 0) {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     baseTypesettingInfo.setElement(element);

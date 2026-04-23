@@ -47,7 +47,7 @@ public class NineSegmentLayoutBuildService extends AbstractLayoutModeBuildServic
         // 3) 该模式默认不输出定位点
         result.setAnchorPoints(Collections.emptyList());
         // 4) 输出与上传目录
-        result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
+        result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
     }

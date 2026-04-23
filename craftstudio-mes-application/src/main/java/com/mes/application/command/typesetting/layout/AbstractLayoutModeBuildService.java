@@ -112,7 +112,8 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
      *
      * <p>依据 mode 的 requireJson/requirePlt/requireSvg 决定输出项。
      */
-    protected FormeGenerationRequest.Outputs buildDefaultOutputs(TypesettingLayoutMode mode, String businessId) {
+    protected FormeGenerationRequest.Outputs buildDefaultOutputs(TypesettingLayoutMode mode, FormeBuildContext context) {
+        String businessId = context.getBusinessId();
         FormeGenerationRequest.Outputs outputs = new FormeGenerationRequest.Outputs();
         if (mode.isRequireJsonFile()) {
             FormeGenerationRequest.OutputConfig json = new FormeGenerationRequest.OutputConfig();
@@ -132,8 +133,16 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
             FormeGenerationRequest.OutputConfig plt = new FormeGenerationRequest.OutputConfig();
             plt.setDirection("h");
             FormeGenerationRequest.PltObjectName pltObjectName = new FormeGenerationRequest.PltObjectName();
-            pltObjectName.setNormal(businessId + "-1.plt");
-            pltObjectName.setReverse(businessId + "-2.plt");
+            String normal = context.getPlateNameBBSupplier() != null ? context.getPlateNameBBSupplier().get() : null;
+            String reverse = context.getPlateNameBBSupplier() != null ? context.getPlateNameBBSupplier().get() : null;
+            if (StringUtils.isBlank(normal) && context.getPlateNameSupplier() != null) {
+                normal = context.getPlateNameSupplier().get();
+            }
+            if (StringUtils.isBlank(reverse) && context.getPlateNameSupplier() != null) {
+                reverse = context.getPlateNameSupplier().get();
+            }
+            pltObjectName.setNormal(StringUtils.isNotBlank(normal) ? normal : businessId + "-1.plt");
+            pltObjectName.setReverse(StringUtils.isNotBlank(reverse) ? reverse : businessId + "-2.plt");
             plt.setObjectName(pltObjectName);
             outputs.setPlt(plt);
         }
