@@ -43,7 +43,7 @@ public class LiuduSmallGraphLayoutBuildService extends AbstractLayoutModeBuildSe
         result.setMarks(Arrays.asList(top, bottom));
 
         result.setAnchorPoints(Collections.emptyList());
-        result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
+        result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
     }

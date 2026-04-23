@@ -94,7 +94,7 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
 
         result.setMarks(marks);
         result.setAnchorPoints(Collections.emptyList());
-        result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
+        result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
     }
