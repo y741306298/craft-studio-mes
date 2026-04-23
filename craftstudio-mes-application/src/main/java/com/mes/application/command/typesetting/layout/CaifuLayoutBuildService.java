@@ -1,15 +1,38 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 @Service
 public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
+    private static final int EXPAND_LEFT_MM = 10;
+    private static final int EXPAND_RIGHT_MM = 13;
+
+    private static final int MARK_B_WIDTH_MM = 8;
+    private static final int MARK_B_HEIGHT_MM = 3;
+    private static final int MARK_B_OFFSET_Y_MM = 255;
+
+    private static final int MARK_C_WIDTH_MM = 3;
+    private static final int MARK_C_OFFSET_X_MM = 20;
+
+    private final OssTagUploadService ossTagUploadService;
+
+    public CaifuLayoutBuildService(OssTagUploadService ossTagUploadService) {
+        this.ossTagUploadService = ossTagUploadService;
+    }
+
     /** XY切割-裁赋模式构建器。 */
     @Override
     public TypesettingLayoutMode supportMode() {
@@ -18,37 +41,83 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        // 1) margin 与原点定义（单位 mm）
+        int originalWidth = context.getNestedWidth().intValue();
+        int originalHeight = context.getNestedHeight().intValue();
+        int expandedHeight = originalHeight;
+
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
-        int marginLeft = 100;
-        int marginTop = 100;
-        int marginRight = 100;
-        int marginBottom = 100;
-        int elementOriginX = marginLeft;
-        int elementOriginY = marginTop;
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
-        margin.setLeft(marginLeft);
-        margin.setTop(marginTop);
-        margin.setRight(marginRight);
-        margin.setBottom(marginBottom);
+        margin.setLeft(EXPAND_LEFT_MM);
+        margin.setTop(0);
+        margin.setRight(EXPAND_RIGHT_MM);
+        margin.setBottom(0);
         result.setMargin(margin);
 
-        // 2) 标记位于上/下 margin 区域
-        FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
-        top.setImg(context.getBusinessId() + "_top.tif");
-        top.setSize(createSize(BigDecimal.valueOf(800), BigDecimal.TEN));
-        top.setPosition(createPosition(elementOriginX, 0));
-        FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
-        bottom.setImg(context.getBusinessId() + "_bottom.tif");
-        bottom.setSize(createSize(BigDecimal.TEN, BigDecimal.valueOf(1000)));
-        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
-        result.setMarks(Arrays.asList(top, bottom));
+        String elementB = ossTagUploadService.uploadTagPng(
+                context.getBusinessId(),
+                createBlackPng(MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM)
+        );
+        String elementC = ossTagUploadService.uploadTagPng(
+                context.getBusinessId(),
+                createBlackPng(MARK_C_WIDTH_MM, expandedHeight)
+        );
 
-        // 3) 该模式默认不输出定位点
+        List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
+
+        List<Double> ys = Collections.emptyList();
+        TypesettingElement.GridLines gridLines = context.getTypesettingInfo() != null
+                && context.getTypesettingInfo().getElement() != null
+                ? context.getTypesettingInfo().getElement().getGridLines()
+                : null;
+        if (gridLines != null && gridLines.getYs() != null) {
+            ys = gridLines.getYs();
+        }
+
+        int rightBMarkX = EXPAND_LEFT_MM + originalWidth;
+        for (Double y : ys) {
+            if (y == null) {
+                continue;
+            }
+            int bMarkY = (int) Math.round(y + MARK_B_OFFSET_Y_MM);
+            marks.add(createMark(elementB, MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM, 0, bMarkY));
+            marks.add(createMark(elementB, MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM, rightBMarkX, bMarkY));
+        }
+
+        marks.add(createMark(
+                elementC,
+                MARK_C_WIDTH_MM,
+                expandedHeight,
+                MARK_C_OFFSET_X_MM + originalWidth,
+                0
+        ));
+
+        result.setMarks(marks);
         result.setAnchorPoints(Collections.emptyList());
-        // 4) 输出与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    private FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
+        FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
+        mark.setImg(img);
+        mark.setSize(createSize(BigDecimal.valueOf(width), BigDecimal.valueOf(height)));
+        mark.setPosition(createPosition(Math.max(0, x), Math.max(0, y)));
+        return mark;
+    }
+
+    private byte[] createBlackPng(int width, int height) {
+        try {
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = image.createGraphics();
+            g.setColor(Color.BLACK);
+            g.fillRect(0, 0, width, height);
+            g.dispose();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("生成黑色 PNG 失败", e);
+        }
     }
 }
