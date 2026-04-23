@@ -34,6 +34,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
+        BigDecimal anchorSize = BigDecimal.valueOf(4);
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
@@ -73,31 +74,31 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int sideOffset = 30;
         int topY = marginTop / 2;
         int bottomY = elementOriginY + context.getNestedHeight().intValue() + (marginBottom / 2);
-        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 10, elementOriginX + sideOffset);
+        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 4, elementOriginX + sideOffset);
         String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
         tl.setSvg(circleSvgUrl);
-        tl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(elementOriginX + sideOffset, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("circle.png");
         tr.setSvg(circleSvgUrl);
-        tr.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(rightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("circle.png");
         bl.setSvg(circleSvgUrl);
-        bl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(elementOriginX + sideOffset, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("circle.png");
         br.setSvg(circleSvgUrl);
-        br.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(rightX, bottomY));
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
@@ -117,7 +118,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int spacing = 40;
         int stripHeightInt = stripHeight.intValue();
         int stripWidthInt = stripWidth.intValue();
-        int qrSize = Math.max(stripHeightInt - 20, 20);
+        int qrSize = 20;
         int textY = (stripHeightInt / 2) + 12;
         int qrY = (stripHeightInt - qrSize) / 2;
         int bX = spacing + qrSize + spacing;

@@ -35,7 +35,15 @@ public class OssTagUploadService {
         return uploadTagFile(businessId, bytes, "png", "image/png");
     }
 
+    public String uploadLagPng(String businessId, byte[] bytes) {
+        return uploadTagFile(businessId, bytes, "png", "image/png", "lag");
+    }
+
     private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType) {
+        return uploadTagFile(businessId, bytes, extension, contentType, "tag");
+    }
+
+    private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType, String subDir) {
         Object tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         JSONObject tempAuthJson = JSON.parseObject(JSON.toJSONString(tempAuthConfig));
         JSONObject stsToken = tempAuthJson.getJSONObject("stsToken");
@@ -46,7 +54,7 @@ public class OssTagUploadService {
         String accessKeySecret = stsToken.getString("accessKeySecret");
         String securityToken = stsToken.getString("securityToken");
         String bucket = defaultBucket;
-        String objectKey = buildTagObjectKey(extension);
+        String objectKey = buildTagObjectKey(extension, subDir);
         OSS ossClient = null;
         try {
             ossClient = new OSSClientBuilder().build("https://" + ossEndpoint, accessKeyId, accessKeySecret, securityToken);
@@ -65,12 +73,12 @@ public class OssTagUploadService {
         }
     }
 
-    private String buildTagObjectKey(String extension) {
+    private String buildTagObjectKey(String extension, String subDir) {
         StringBuilder keyBuilder = new StringBuilder();
         if (StringUtils.isNotBlank(ossSavePath)) {
             keyBuilder.append(trimSlashes(ossSavePath)).append("/");
         }
-        keyBuilder.append("tag/").append(UUID.randomUUID()).append(".").append(extension);
+        keyBuilder.append(trimSlashes(subDir)).append("/").append(UUID.randomUUID()).append(".").append(extension);
         return keyBuilder.toString();
     }
 

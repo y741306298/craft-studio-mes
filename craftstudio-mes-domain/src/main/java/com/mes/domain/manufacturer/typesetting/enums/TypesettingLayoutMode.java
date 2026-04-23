@@ -61,12 +61,38 @@ public enum TypesettingLayoutMode {
             "none"
     ),
     /**
-     * xy切割(切割辅助线-六渡）：
+     * xy切割(切割辅助线-六渡大板模式）：
      * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
      */
-    XY_CUTTING_AUX_LINE_LIUDU(
-            "xy_cutting_aux_line_liudu",
-            "xy切割(切割辅助线-六渡）",
+    XY_CUTTING_AUX_LINE_LIUDU_LARGE_BOARD(
+            "xy_cutting_aux_line_liudu_large_board",
+            "xy切割(切割辅助线-六渡大板模式）",
+            "grid_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none"
+    ),
+    /**
+     * xy切割(切割辅助线-六渡小图模式）：
+     * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
+     */
+    XY_CUTTING_AUX_LINE_LIUDU_SMALL_GRAPH(
+            "xy_cutting_aux_line_liudu_small_graph",
+            "xy切割(切割辅助线-六渡小图模式）",
+            "grid_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none"
+    ),
+    /**
+     * xy切割(切割辅助线-全自动打扣）：
+     * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
+     */
+    XY_CUTTING_AUX_LINE_FULL_AUTO_BUCKLE(
+            "xy_cutting_aux_line_full_auto_buckle",
+            "xy切割(切割辅助线-全自动打扣）",
             "grid_typesetting",
             true, false, true,
             "side_aux_line",
@@ -106,6 +132,9 @@ public enum TypesettingLayoutMode {
             if (mode.code.equalsIgnoreCase(code)) {
                 return mode;
             }
+        }
+        if ("xy_cutting_aux_line_liudu".equalsIgnoreCase(code)) {
+            return XY_CUTTING_AUX_LINE_LIUDU_LARGE_BOARD;
         }
         throw new IllegalArgumentException("未知排版方式：" + code);
     }
