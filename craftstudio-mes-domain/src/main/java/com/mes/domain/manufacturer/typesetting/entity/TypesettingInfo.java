@@ -38,7 +38,10 @@ public class TypesettingInfo extends BaseEntity {
     /**
      * 排版方式，可编辑：
      * shaped_cutting_plt_qr_circle / shaped_cutting_plt_qr_square /
-     * xy_cutting_aux_line_caifu / xy_cutting_aux_line_nine_segment /
+     * xy_cutting_aux_line_caifu_a20pr0 / xy_cutting_aux_line_caifu_a30_small_graph /
+ * xy_cutting_aux_line_caifu_a30_large_board /
+ * xy_cutting_aux_line_caifu_open_back_a30h_film / xy_cutting_aux_line_caifu_open_back_a30h_no_film /
+ * xy_cutting_aux_line_nine_segment /
      * xy_cutting_aux_line_liudu_large_board / xy_cutting_aux_line_liudu_small_graph /
      * xy_cutting_aux_line_full_auto_buckle
      */

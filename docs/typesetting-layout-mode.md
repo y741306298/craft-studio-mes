@@ -44,7 +44,11 @@
 |---|---|---|---|---:|---:|---:|---|---|---|
 | `SHAPED_CUTTING_PLT_QR_CIRCLE` | `shaped_cutting_plt_qr_circle` | `shaped_typesetting`（异形排版） | 异形切割（plt二维码）-圆形定位点 | ✅ | ✅ | ✅ | `plt_qr` | `xxx` | `circle` |
 | `SHAPED_CUTTING_PLT_QR_SQUARE` | `shaped_cutting_plt_qr_square` | `shaped_typesetting`（异形排版） | 异形切割（plt二维码）-方形定位点 | ✅ | ✅ | ✅ | `plt_qr` | `xxx` | `square` |
-| `XY_CUTTING_AUX_LINE_CAIFU` | `xy_cutting_aux_line_caifu` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_A20PR0` | `xy_cutting_aux_line_caifu_a20pr0` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋A20PR0） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_A30_SMALL_GRAPH` | `xy_cutting_aux_line_caifu_a30_small_graph` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋A30小图） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_A30_LARGE_BOARD` | `xy_cutting_aux_line_caifu_a30_large_board` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋A30大板） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM` | `xy_cutting_aux_line_caifu_open_back_a30h_film` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋开背A30H覆膜） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM` | `xy_cutting_aux_line_caifu_open_back_a30h_no_film` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋开背A30H不覆膜） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_NINE_SEGMENT` | `xy_cutting_aux_line_nine_segment` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-九段） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_LIUDU` | `xy_cutting_aux_line_liudu` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-六渡） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 
