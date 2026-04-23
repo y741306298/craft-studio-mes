@@ -555,11 +555,12 @@ public class AppTypesettingService {
                                                                TypesettingLayoutMode layoutMode,
                                                                String businessId) {
         FormeGenerationRequest request = new FormeGenerationRequest();
-        // element 原始宽高（单位 mm），若算法回调中缺失则给默认值兜底
-        BigDecimal nestedWidth = typesettingInfo.getElement() != null && typesettingInfo.getElement().getWidth() != null
-                ? typesettingInfo.getElement().getWidth() : BigDecimal.valueOf(1200);
-        BigDecimal nestedHeight = typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null
-                ? typesettingInfo.getElement().getHeight() : BigDecimal.valueOf(800);
+        // element 原始宽高（单位 mm），必须由入参提供
+        BigDecimal nestedWidth = typesettingInfo.getElement() != null ? typesettingInfo.getElement().getWidth() : null;
+        BigDecimal nestedHeight = typesettingInfo.getElement() != null ? typesettingInfo.getElement().getHeight() : null;
+        if (nestedWidth == null || nestedHeight == null) {
+            throw new IllegalArgumentException("buildFormeGenerationRequest 缺少必要参数：nestedWidth 和 nestedHeight 必须有入参");
+        }
         BigDecimal marginHeight = BigDecimal.valueOf(TAG_STRIP_HEIGHT_MM);
 
         // 1) 选择当前 mode 对应的独立构建 service

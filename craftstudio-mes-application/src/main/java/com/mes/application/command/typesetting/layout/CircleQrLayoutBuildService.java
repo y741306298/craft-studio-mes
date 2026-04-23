@@ -11,6 +11,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.net.URL;
 import java.util.Base64;
 import java.util.Arrays;
 
@@ -34,6 +35,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
+        BigDecimal anchorSize = BigDecimal.valueOf(4);
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
@@ -56,6 +58,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementB = context.getPlateNameSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
+        String elementFRotated = rotateTagStrip180AndUpload(context.getBusinessId(), elementF);
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
@@ -64,7 +67,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         top.setPosition(createPosition(elementOriginX, 0));
 
         FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
-        bottom.setImg(elementF);
+        bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
         bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
@@ -73,31 +76,31 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int sideOffset = 30;
         int topY = marginTop / 2;
         int bottomY = elementOriginY + context.getNestedHeight().intValue() + (marginBottom / 2);
-        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 10, elementOriginX + sideOffset);
+        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 4, elementOriginX + sideOffset);
         String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
         tl.setSvg(circleSvgUrl);
-        tl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(elementOriginX + sideOffset, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("circle.png");
         tr.setSvg(circleSvgUrl);
-        tr.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(rightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("circle.png");
         bl.setSvg(circleSvgUrl);
-        bl.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(elementOriginX + sideOffset, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("circle.png");
         br.setSvg(circleSvgUrl);
-        br.setSize(createSize(BigDecimal.TEN, BigDecimal.TEN));
+        br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(rightX, bottomY));
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
@@ -117,11 +120,11 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int spacing = 40;
         int stripHeightInt = stripHeight.intValue();
         int stripWidthInt = stripWidth.intValue();
-        int qrSize = Math.max(stripHeightInt - 20, 20);
-        int textY = (stripHeightInt / 2) + 12;
+        int qrSize = 20;
         int qrY = (stripHeightInt - qrSize) / 2;
         int bX = spacing + qrSize + spacing;
         int aX = bX + 300 + spacing;
+        int textHeight = 15;
 
         BufferedImage canvas = new BufferedImage(stripWidthInt, stripHeightInt, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -130,14 +133,17 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             g.fillRect(0, 0, stripWidthInt, stripHeightInt);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font("SansSerif", Font.PLAIN, 32));
+            g.setFont(new Font("SansSerif", Font.PLAIN, textHeight));
+            FontMetrics fontMetrics = g.getFontMetrics();
+            int textTopY = (stripHeightInt - textHeight) / 2;
+            int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
 
             BufferedImage qrImage = decodePngDataUri(qrDataUri);
             if (qrImage != null) {
                 g.drawImage(qrImage, spacing, qrY, qrSize, qrSize, null);
             }
-            g.drawString(elementB == null ? "" : elementB, bX, textY);
-            g.drawString(elementA == null ? "" : elementA, aX, textY);
+            g.drawString(elementB == null ? "" : elementB, bX, textBaseLineY);
+            g.drawString(elementA == null ? "" : elementA, aX, textBaseLineY);
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(canvas, "png", outputStream);
@@ -159,6 +165,29 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             return ImageIO.read(new ByteArrayInputStream(bytes));
         } catch (Exception e) {
             throw new IllegalStateException("解析二维码 PNG Data URI 失败", e);
+        }
+    }
+
+    private String rotateTagStrip180AndUpload(String businessId, String imageUrl) {
+        try {
+            BufferedImage source = ImageIO.read(new URL(imageUrl));
+            if (source == null) {
+                throw new IllegalStateException("读取标签条图片失败");
+            }
+            int width = source.getWidth();
+            int height = source.getHeight();
+            BufferedImage rotated = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rotated.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, width, height);
+            g.rotate(Math.PI, width / 2.0, height / 2.0);
+            g.drawImage(source, 0, 0, null);
+            g.dispose();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(rotated, "png", outputStream);
+            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray());
+        } catch (Exception e) {
+            throw new IllegalStateException("生成旋转180度标签条失败", e);
         }
     }
 }
