@@ -577,6 +577,7 @@ public class AppTypesettingService {
         buildContext.setMarginHeight(marginHeight);
         buildContext.setElementAResolver(this::extractElementA);
         buildContext.setPlateNameSupplier(() -> generatePrintingPlateName(typesettingInfo.getManufacturerMetaId()));
+        buildContext.setPlateNameBBSupplier(() -> generatePrintingPlateName(typesettingInfo.getManufacturerMetaId()));
         buildContext.setQrDataUriGenerator(content -> buildQrCodeDataUri(typesettingInfo.getManufacturerMetaId(), content));
         // 3) 获取模式构建结果（margin/marks/anchors/outputs/uploadPath）
         FormeLayoutBuildResult modeResult = modeBuildService.build(buildContext);
