@@ -192,7 +192,7 @@ public class AppOrderService {
         }
 
         // 查询订单项
-        OrderItem orderItem = domainOrderItemService.findById(orderItemId);
+        OrderItem orderItem = domainOrderItemService.findByOrderItemId(orderItemId);
         if (orderItem == null) {
             throw new IllegalArgumentException("订单项不存在：" + orderItemId);
         }

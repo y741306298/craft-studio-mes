@@ -103,7 +103,7 @@ public class OrderController {
      * @return 订单项详情及生产工件
      */
     @GetMapping("/item/{orderItemId}")
-    public ApiResponse<OrderItemResponse> getOrderItemWithProductionPieces(@RequestBody String orderItemId) {
+    public ApiResponse<OrderItemResponse> getOrderItemWithProductionPieces(@PathVariable String orderItemId) {
         var orderItem = appOrderService.getOrderItemWithProductionPieces(orderItemId);
         OrderItemResponse response = OrderItemResponse.from(orderItem);
         return ApiResponse.success(response);

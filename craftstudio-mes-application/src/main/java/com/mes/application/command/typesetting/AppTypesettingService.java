@@ -114,7 +114,7 @@ public class AppTypesettingService {
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
-    private static final int TAG_STRIP_HEIGHT_MM = 30;
+    private static final int TAG_STRIP_HEIGHT_MM = 20;
 
     @PostConstruct
     public void initLayoutModeBuilders() {
@@ -751,7 +751,7 @@ public class AppTypesettingService {
         }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
-        manifest.setSpacing(10);
+        manifest.setSpacing(5);
         manifest.setContainers(containers);
         manifest.setElements(elements);
 
