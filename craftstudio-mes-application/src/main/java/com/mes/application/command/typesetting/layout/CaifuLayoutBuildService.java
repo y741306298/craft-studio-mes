@@ -13,7 +13,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
     /** XY切割-裁赋模式构建器。 */
     @Override
     public TypesettingLayoutMode supportMode() {
-        return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU;
+        return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A20PR0;
     }
 
     @Override

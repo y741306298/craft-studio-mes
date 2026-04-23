@@ -56,7 +56,7 @@
 
 1. `shaped_cutting_plt_qr_circle`（异形排版）
 2. `shaped_cutting_plt_qr_square`（异形排版）
-3. `xy_cutting_aux_line_caifu`（网格排版）
+3. `xy_cutting_aux_line_caifu_a20pr0` / `xy_cutting_aux_line_caifu_a30_small_graph` / `xy_cutting_aux_line_caifu_a30_large_board` / `xy_cutting_aux_line_caifu_open_back_a30h_film` / `xy_cutting_aux_line_caifu_open_back_a30h_no_film`（网格排版）
 4. `xy_cutting_aux_line_nine_segment`（网格排版）
 5. `xy_cutting_aux_line_liudu`（网格排版）
 
