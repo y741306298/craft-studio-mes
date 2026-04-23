@@ -11,7 +11,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.util.Base64;
 import java.util.Arrays;
 
@@ -56,9 +55,11 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         String elementB = context.getPlateNameSupplier().get();
+        String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
+        String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
-        String elementFRotated = rotateTagStrip180AndUpload(context.getBusinessId(), elementF);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight);
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
@@ -168,26 +169,4 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
     }
 
-    private String rotateTagStrip180AndUpload(String businessId, String imageUrl) {
-        try {
-            BufferedImage source = ImageIO.read(new URL(imageUrl));
-            if (source == null) {
-                throw new IllegalStateException("读取标签条图片失败");
-            }
-            int width = source.getWidth();
-            int height = source.getHeight();
-            BufferedImage rotated = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = rotated.createGraphics();
-            g.setColor(Color.WHITE);
-            g.fillRect(0, 0, width, height);
-            g.rotate(Math.PI, width / 2.0, height / 2.0);
-            g.drawImage(source, 0, 0, null);
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(rotated, "png", outputStream);
-            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray());
-        } catch (Exception e) {
-            throw new IllegalStateException("生成旋转180度标签条失败", e);
-        }
-    }
 }

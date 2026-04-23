@@ -21,6 +21,8 @@ public class FormeBuildContext {
     private BigDecimal marginHeight;
     /** 生成元素 B（xxx.plt 名称）的提供器。 */
     private Supplier<String> plateNameSupplier;
+    /** 生成元素 BB（第二个 xxx.plt 名称）的提供器。 */
+    private Supplier<String> plateNameBBSupplier;
     /** 二维码生成器：入参为内容，返回 data URI。 */
     private Function<String, String> qrDataUriGenerator;
     /** 元素 A 解析器：从 typesettingInfo 提取 typesetting 关联标识。 */
