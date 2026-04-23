@@ -6,19 +6,18 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 
 @Service
-public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
-    /** 方形二维码模式构建器。 */
+public class FullAutoBuckleLayoutBuildService extends AbstractLayoutModeBuildService {
+    /** XY切割-全自动打扣模式构建器。 */
     @Override
     public TypesettingLayoutMode supportMode() {
-        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
+        return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_FULL_AUTO_BUCKLE;
     }
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        BigDecimal anchorSize = BigDecimal.valueOf(4);
-        // 1) 定义 margin 与元素原点（扩展矩形坐标系）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         int marginLeft = 100;
         int marginTop = 100;
@@ -33,7 +32,6 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         margin.setBottom(marginBottom);
         result.setMargin(margin);
 
-        // 2) top/bottom 标记放置在上下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(context.getBusinessId() + "_top.tif");
         top.setSize(createSize(BigDecimal.valueOf(800), BigDecimal.TEN));
@@ -44,21 +42,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
 
-        // 3) 方形定位点示例：位于上 margin 区域的左右两侧
-        String anchorSvg = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/common/anchor/square.svg";
-        FormeGenerationRequest.AnchorPoint leftTop = new FormeGenerationRequest.AnchorPoint();
-        leftTop.setImg("square.png");
-        leftTop.setSvg(anchorSvg);
-        leftTop.setSize(createSize(anchorSize, anchorSize));
-        leftTop.setPosition(createPosition(elementOriginX + 5, marginTop / 2));
-        FormeGenerationRequest.AnchorPoint rightTop = new FormeGenerationRequest.AnchorPoint();
-        rightTop.setImg("square.png");
-        rightTop.setSvg(anchorSvg);
-        rightTop.setSize(createSize(anchorSize, anchorSize));
-        rightTop.setPosition(createPosition(Math.max(elementOriginX + context.getNestedWidth().intValue() - 9, elementOriginX + 5), marginTop / 2));
-        result.setAnchorPoints(Arrays.asList(leftTop, rightTop));
-
-        // 4) 输出与上传目录
+        result.setAnchorPoints(Collections.emptyList());
         result.setOutputs(buildDefaultOutputs(supportMode(), context.getBusinessId()));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
