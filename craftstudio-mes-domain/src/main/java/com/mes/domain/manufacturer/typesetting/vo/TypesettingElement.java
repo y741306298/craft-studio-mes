@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 public class TypesettingElement {
@@ -25,6 +26,10 @@ public class TypesettingElement {
      * 排版结果高度
      */
     private BigDecimal height;
+    /**
+     * 网格排版线信息
+     */
+    private GridLines gridLines;
 
     private String json;
 
@@ -42,5 +47,13 @@ public class TypesettingElement {
     public static class PltObjectName {
         private String normal;
         private String reverse;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GridLines {
+        private List<Double> xs;
+        private List<Double> ys;
     }
 }
