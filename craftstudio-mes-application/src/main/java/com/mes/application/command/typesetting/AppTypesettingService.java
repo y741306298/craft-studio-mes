@@ -827,9 +827,9 @@ public class AppTypesettingService {
         // 进入待打印模式，leaveQuantity 重新回到 1
         typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
         typesettingInfo.setLeaveQuantity(1);
-        Set<String> visitedTypesettingIds = new HashSet<>();
+        Set<String> visitedTypesettingKeys = new HashSet<>();
         Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-        collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingIds, productionPieceUsage);
+        collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
         int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                 ? typesettingInfo.getLeaveQuantity() : 1;
         transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
@@ -859,15 +859,18 @@ public class AppTypesettingService {
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
                                              int multiplier,
-                                             Set<String> visitedTypesettingIds,
+                                             Set<String> visitedTypesettingKeys,
                                              Map<String, Integer> productionPieceUsage) {
         if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId())) {
             return;
         }
-        if (!visitedTypesettingIds.add(typesettingInfo.getId())) {
+        String currentKey = "id:" + typesettingInfo.getId();
+        if (visitedTypesettingKeys.contains(currentKey)) {
             return;
         }
+        visitedTypesettingKeys.add(currentKey);
         if (typesettingInfo.getTypesettingCells() == null) {
+            visitedTypesettingKeys.remove(currentKey);
             return;
         }
         for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
@@ -883,12 +886,19 @@ public class AppTypesettingService {
             if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 continue;
             }
-            TypesettingInfo child = domainTypesettingService.findById(cell.getSourceId());
-            if (child == null) {
-                child = domainTypesettingService.findTypesettingByTypesettingId(cell.getSourceId());
+            List<TypesettingInfo> nestedTypesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(cell.getSourceId());
+            if (nestedTypesettingInfos == null || nestedTypesettingInfos.isEmpty()) {
+                TypesettingInfo nestedById = domainTypesettingService.findById(cell.getSourceId());
+                nestedTypesettingInfos = nestedById == null ? Collections.emptyList() : Collections.singletonList(nestedById);
             }
-            collectProductionPieceUsage(child, currentMultiplier, visitedTypesettingIds, productionPieceUsage);
+            for (TypesettingInfo nestedInfo : nestedTypesettingInfos) {
+                if (nestedInfo == null) {
+                    continue;
+                }
+                collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
+            }
         }
+        visitedTypesettingKeys.remove(currentKey);
     }
 
     private void transferTypesettingQuantityToPrinting(Map<String, Integer> productionPieceUsage, int plateUseCount) {
