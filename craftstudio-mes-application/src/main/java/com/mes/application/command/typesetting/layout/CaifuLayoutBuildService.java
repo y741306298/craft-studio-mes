@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 @Service
@@ -93,6 +94,13 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
                 MARK_C_OFFSET_X_MM + originalWidth,
                 0
         ));
+
+        if (context.getTypesettingInfo() != null) {
+            LinkedHashMap<String, String> markFiles = new LinkedHashMap<>();
+            markFiles.put("elementB", elementB);
+            markFiles.put("elementC", elementC);
+            context.getTypesettingInfo().setMarks(markFiles);
+        }
 
         result.setMarks(marks);
         result.setAnchorPoints(Collections.emptyList());
