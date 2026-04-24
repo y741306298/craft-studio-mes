@@ -1028,78 +1028,85 @@ public class AppTypesettingService {
     /**
      * 释放排版：删除排版文件，将参与的零件状态改回待排版状态
      *
-     * @param productionPieceIds 生产工件 ID 列表
+     * @param typesettingIds 排版 ID 列表
      * @return 操作结果
      */
-    public ReleaseLayoutResult releaseLayout(List<String> productionPieceIds) {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            throw new RuntimeException("生产工件 ID 列表不能为空");
+    public ReleaseLayoutResult releaseLayout(List<String> typesettingIds) {
+        if (typesettingIds == null || typesettingIds.isEmpty()) {
+            throw new RuntimeException("排版ID列表不能为空");
         }
 
-        List<ProductionPiece> productionPieces = new ArrayList<>();
-        List<String> deletedLayoutIds = new ArrayList<>();
-        
-        for (String pieceId : productionPieceIds) {
-            try {
-                ProductionPiece piece = productionPieceService.findById(pieceId);
-                if (piece == null) {
-                    System.err.println("生产工件不存在：" + pieceId);
+        Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
+        List<String> releasedPieceIds = new ArrayList<>();
+        List<String> errorMessages = new ArrayList<>();
+        int deletedTypesettingCount = 0;
+
+        for (String typesettingId : typesettingIds) {
+            if (StringUtils.isBlank(typesettingId)) {
+                continue;
+            }
+            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+            if (typesettingInfos == null || typesettingInfos.isEmpty()) {
+                errorMessages.add("排版记录不存在: " + typesettingId);
+                continue;
+            }
+            for (TypesettingInfo info : typesettingInfos) {
+                if (info == null || StringUtils.isBlank(info.getId())) {
                     continue;
                 }
-                
-                // 1. 删除关联的排版文件（如果存在）
-                if (StringUtils.isNotBlank(piece.getTemplateCode())) {
-                    try {
-                        // 调用 API 删除排版文件
-                        deleteLayoutFile(piece.getTemplateCode());
-                        deletedLayoutIds.add(piece.getTemplateCode());
-                    } catch (Exception e) {
-                        System.err.println("删除排版文件失败：" + piece.getTemplateCode() + ", 错误：" + e.getMessage());
+                String nestedSvg = info.getElement() == null ? null : info.getElement().getNestedSvg();
+                if (StringUtils.isNotBlank(nestedSvg)) {
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(info.getTypesettingId(), nestedSvg);
+                    for (TypesettingSourceCell usedCell : usedCells) {
+                        if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                            continue;
+                        }
+                        int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
+                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                     }
                 }
-                
-                // 2. 将生产工件状态改回待排版状态
-                piece.setStatus("PENDING_TYPESITTING");
-                productionPieceService.updateProductionPiece(piece);
-                
-                productionPieces.add(piece);
-                
+                try {
+                    domainTypesettingService.deleteTypesetting(info.getId());
+                    deletedTypesettingCount++;
+                } catch (Exception e) {
+                    errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
+                }
+            }
+        }
+
+        for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
+            String productionPieceId = entry.getKey();
+            Integer rollbackQuantity = entry.getValue();
+            if (StringUtils.isBlank(productionPieceId) || rollbackQuantity == null || rollbackQuantity <= 0) {
+                continue;
+            }
+            try {
+                ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+                if (piece == null || StringUtils.isBlank(piece.getId())) {
+                    errorMessages.add("生产工件不存在: " + productionPieceId);
+                    continue;
+                }
+                productionPieceService.transferPieceQuantityBetweenNodes(
+                        piece.getId(),
+                        "NODE_TYPESETTING_IN_PROGRESS",
+                        "NODE_TYPESETTING",
+                        rollbackQuantity
+                );
+                releasedPieceIds.add(piece.getId());
             } catch (Exception e) {
-                System.err.println("处理生产工件 " + pieceId + " 失败：" + e.getMessage());
+                errorMessages.add("回退工件失败(" + productionPieceId + "): " + e.getMessage());
             }
         }
 
         ReleaseLayoutResult result = new ReleaseLayoutResult();
-        result.setSuccess(true);
-        result.setMessage("释放排版成功，共处理 " + productionPieces.size() + " 个工件，删除 " + deletedLayoutIds.size() + " 个排版文件");
-        result.setReleasedPieceCount(productionPieces.size());
-        result.setReleasedPieceIds(productionPieces.stream()
-                .map(ProductionPiece::getId)
-                .collect(Collectors.toList()));
-        result.setDeletedLayoutIds(deletedLayoutIds);
-
+        result.setSuccess(errorMessages.isEmpty());
+        result.setMessage(errorMessages.isEmpty()
+                ? "释放排版成功，删除排版记录 " + deletedTypesettingCount + " 条"
+                : "释放排版完成，存在部分失败: " + String.join("；", errorMessages));
+        result.setReleasedPieceCount(releasedPieceIds.size());
+        result.setReleasedPieceIds(releasedPieceIds);
+        result.setDeletedLayoutIds(Collections.emptyList());
         return result;
-    }
-
-    /**
-     * 删除排版文件
-     * TODO: 需要根据实际存储方式实现删除逻辑
-     * 
-     * @param layoutUrl 排版文件 URL 或路径
-     */
-    private void deleteLayoutFile(String layoutUrl) {
-        // TODO: 实现删除排版文件的逻辑
-        // 可能是调用文件系统 API、云存储 API 等
-        // 示例：
-        // if (layoutUrl.startsWith("http")) {
-        //     restTemplate.delete(layoutUrl);
-        // } else {
-        //     File file = new File(layoutUrl);
-        //     if (file.exists()) {
-        //         file.delete();
-        //     }
-        // }
-        System.out.println("删除排版文件：" + layoutUrl);
     }
 
     /**

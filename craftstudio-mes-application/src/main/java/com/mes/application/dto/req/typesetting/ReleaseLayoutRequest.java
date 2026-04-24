@@ -11,18 +11,18 @@ import java.util.List;
 @Data
 public class ReleaseLayoutRequest extends ApiRequest {
 
-    @NotEmpty(message = "生产工件 ID 列表不能为空")
-    private List<String> productionPieceIds;
+    @NotEmpty(message = "排版 ID 列表不能为空")
+    private List<String> typesettingIds;
 
     @Override
     public boolean isValid() {
-        return productionPieceIds != null && !productionPieceIds.isEmpty();
+        return typesettingIds != null && !typesettingIds.isEmpty();
     }
 
     @Override
     public String getValidationMessage() {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            return "生产工件 ID 列表不能为空";
+        if (typesettingIds == null || typesettingIds.isEmpty()) {
+            return "排版 ID 列表不能为空";
         }
         return null;
     }
