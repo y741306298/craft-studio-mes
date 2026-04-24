@@ -113,6 +113,16 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
      * <p>依据 mode 的 requireJson/requirePlt/requireSvg 决定输出项。
      */
     protected FormeGenerationRequest.Outputs buildDefaultOutputs(TypesettingLayoutMode mode, FormeBuildContext context) {
+        return buildDefaultOutputs(mode, context, null, null);
+    }
+
+    /**
+     * 构建通用 outputs（可显式指定 plt 名称，避免重复调用 Supplier 造成名称漂移）。
+     */
+    protected FormeGenerationRequest.Outputs buildDefaultOutputs(TypesettingLayoutMode mode,
+                                                                 FormeBuildContext context,
+                                                                 String pltNormalName,
+                                                                 String pltReverseName) {
         String businessId = context.getBusinessId();
         FormeGenerationRequest.Outputs outputs = new FormeGenerationRequest.Outputs();
         if (mode.isRequireJsonFile()) {
@@ -133,8 +143,14 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
             FormeGenerationRequest.OutputConfig plt = new FormeGenerationRequest.OutputConfig();
             plt.setDirection("h");
             FormeGenerationRequest.PltObjectName pltObjectName = new FormeGenerationRequest.PltObjectName();
-            String normal = context.getPlateNameBBSupplier() != null ? context.getPlateNameBBSupplier().get() : null;
-            String reverse = context.getPlateNameBBSupplier() != null ? context.getPlateNameBBSupplier().get() : null;
+            String normal = pltNormalName;
+            String reverse = pltReverseName;
+            if (StringUtils.isBlank(normal) && context.getPlateNameSupplier() != null) {
+                normal = context.getPlateNameSupplier().get();
+            }
+            if (StringUtils.isBlank(reverse) && context.getPlateNameBBSupplier() != null) {
+                reverse = context.getPlateNameBBSupplier().get();
+            }
             if (StringUtils.isBlank(normal) && context.getPlateNameSupplier() != null) {
                 normal = context.getPlateNameSupplier().get();
             }

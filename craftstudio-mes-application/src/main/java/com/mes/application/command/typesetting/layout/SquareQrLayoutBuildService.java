@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,6 +18,19 @@ import java.util.Arrays;
 
 @Service
 public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
+    private static final int TAG_DPI = 300;
+    private static final double MM_PER_INCH = 25.4D;
+    private static final int QR_LEFT_MM = 10;
+    private static final int QR_SIZE_MM = 15;
+    private static final int QR_BOTTOM_GAP_MM = 2;
+    private static final int ELEMENT_GAP_MM = 30;
+    private static final int ANCHOR_SIZE_MM = 4;
+    private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
+    private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
+    private static final int TOP_ANCHOR_RIGHT_MM = 80;
+    private static final int BOTTOM_ANCHOR_LEFT_MM = 80;
+    private static final int BOTTOM_ANCHOR_RIGHT_MM = 40;
+
     private final OssTagUploadService ossTagUploadService;
 
     public SquareQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
@@ -35,7 +50,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        BigDecimal anchorSize = BigDecimal.valueOf(4);
+        BigDecimal anchorSize = BigDecimal.valueOf(ANCHOR_SIZE_MM);
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
@@ -59,8 +74,8 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
-        String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
@@ -75,39 +90,41 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setMarks(Arrays.asList(top, bottom));
 
         // 4) 在上/下 margin 区域插入 4 个方形定位点（左右各 30mm）
-        int sideOffset = 30;
-        int topY = marginTop / 2;
-        int bottomY = elementOriginY + context.getNestedHeight().intValue() + (marginBottom / 2);
-        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - sideOffset - 4, elementOriginX + sideOffset);
+        int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
+        int bottomY = elementOriginY + context.getNestedHeight().intValue() + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
+        int width = context.getNestedWidth().intValue();
+        int topRightX = Math.max(elementOriginX + width - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
+        int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
+        int bottomRightX = Math.max(elementOriginX + width - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
         String squareSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("square.png");
         tl.setSvg(squareSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
-        tl.setPosition(createPosition(elementOriginX + sideOffset, topY));
+        tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("square.png");
         tr.setSvg(squareSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
-        tr.setPosition(createPosition(rightX, topY));
+        tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("square.png");
         bl.setSvg(squareSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
-        bl.setPosition(createPosition(elementOriginX + sideOffset, bottomY));
+        bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("square.png");
         br.setSvg(squareSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
-        br.setPosition(createPosition(rightX, bottomY));
+        br.setPosition(createPosition(bottomRightX, bottomY));
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
         // 5) 输出配置与上传目录
-        result.setOutputs(buildDefaultOutputs(supportMode(), context));
+        result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
     }
@@ -117,38 +134,43 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
-                                        BigDecimal stripHeight) {
+                                        BigDecimal stripHeight,
+                                        boolean rotate180) {
         // 生成标签条 PNG 并上传至 OSS 的 /tag 路径，返回可访问 URL
-        int spacing = 40;
         int stripHeightInt = stripHeight.intValue();
         int stripWidthInt = stripWidth.intValue();
-        int qrSize = 20;
-        int qrY = (stripHeightInt - qrSize) / 2;
-        int bX = spacing + qrSize + spacing;
-        int aX = bX + 300 + spacing;
-        int textHeight = 15;
+        int canvasWidthPx = mmToPx(stripWidthInt);
+        int canvasHeightPx = mmToPx(stripHeightInt);
+        int qrLeftPx = mmToPx(QR_LEFT_MM);
+        int qrSizePx = mmToPx(QR_SIZE_MM);
+        int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
+        int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
+        int cX = bX + mmToPx(ELEMENT_GAP_MM);
+        int textHeight = Math.max(mmToPx(4), 1);
 
-        BufferedImage canvas = new BufferedImage(stripWidthInt, stripHeightInt, BufferedImage.TYPE_INT_RGB);
+        BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
         try {
             g.setColor(Color.WHITE);
-            g.fillRect(0, 0, stripWidthInt, stripHeightInt);
+            g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(new Font("SansSerif", Font.PLAIN, textHeight));
             FontMetrics fontMetrics = g.getFontMetrics();
-            int textTopY = (stripHeightInt - textHeight) / 2;
+            int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
 
             BufferedImage qrImage = decodePngDataUri(qrDataUri);
             if (qrImage != null) {
-                g.drawImage(qrImage, spacing, qrY, qrSize, qrSize, null);
+                g.drawImage(qrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
             g.drawString(elementB == null ? "" : elementB, bX, textBaseLineY);
-            g.drawString(elementA == null ? "" : elementA, aX, textBaseLineY);
+            g.drawString(elementA == null ? "" : elementA, cX, textBaseLineY);
+
+            BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(canvas, "png", outputStream);
+            ImageIO.write(uploadImage, "png", outputStream);
             return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray());
         } catch (Exception e) {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
@@ -168,6 +190,16 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         } catch (Exception e) {
             throw new IllegalStateException("解析二维码 PNG Data URI 失败", e);
         }
+    }
+
+    private BufferedImage rotateCenter180(BufferedImage source) {
+        AffineTransform transform = AffineTransform.getRotateInstance(Math.PI, source.getWidth() / 2.0D, source.getHeight() / 2.0D);
+        AffineTransformOp op = new AffineTransformOp(transform, AffineTransformOp.TYPE_BILINEAR);
+        return op.filter(source, null);
+    }
+
+    private int mmToPx(int mm) {
+        return Math.max((int) Math.round(mm * TAG_DPI / MM_PER_INCH), 1);
     }
 
 }
