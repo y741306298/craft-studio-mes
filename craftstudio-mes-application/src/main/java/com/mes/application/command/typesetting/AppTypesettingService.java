@@ -805,6 +805,10 @@ public class AppTypesettingService {
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
+        if (TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
+                && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+            throw new RuntimeException("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+        }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
 
@@ -820,7 +824,7 @@ public class AppTypesettingService {
         }
 
         applyFormeGenerationResult(typesettingInfo, response.getResult());
-        //进入打印版模式，leaveQuantity重新回到1
+        // 进入待打印模式，leaveQuantity 重新回到 1
         typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
         typesettingInfo.setLeaveQuantity(1);
         Set<String> visitedTypesettingIds = new HashSet<>();
@@ -835,6 +839,7 @@ public class AppTypesettingService {
                 typesettingInfo.getId(),
                 request.getDeviceInfoId(),
                 typesettingInfo.getElement(),
+                typesettingInfo.getMarks(),
                 productionPieceIds
         );
         domainTypesettingService.updateTypesetting(typesettingInfo);
@@ -932,6 +937,7 @@ public class AppTypesettingService {
     private TypesettingDownloadTaskData buildDownloadTaskData(String typesettingInfoId,
                                                               String deviceInfoId,
                                                               TypesettingElement typesettingElement,
+                                                              Map<String, String> marks,
                                                               Set<String> productionPieceIds) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
         for (String productionPieceId : productionPieceIds) {
@@ -944,6 +950,7 @@ public class AppTypesettingService {
         }
         LinkedHashSet<String> pltSet = new LinkedHashSet<>();
         LinkedHashSet<String> jsonSet = new LinkedHashSet<>();
+        LinkedHashSet<String> markSet = new LinkedHashSet<>();
         if (typesettingElement != null) {
             if (typesettingElement.getPlt() != null) {
                 appendRawFile(pltSet, typesettingElement.getPlt().getNormal());
@@ -951,12 +958,18 @@ public class AppTypesettingService {
             }
             appendRawFile(jsonSet, typesettingElement.getJson());
         }
+        if (marks != null && !marks.isEmpty()) {
+            for (String markFile : marks.values()) {
+                appendRawFile(markSet, markFile);
+            }
+        }
         TypesettingDownloadTaskData data = new TypesettingDownloadTaskData();
         data.setId(typesettingInfoId);
         data.setDeviceInfoId(deviceInfoId);
         data.setImamges(new ArrayList<>(imageSet));
         data.setPlts(new ArrayList<>(pltSet));
         data.setJsons(new ArrayList<>(jsonSet));
+        data.setMarks(new ArrayList<>(markSet));
         return data;
     }
 
