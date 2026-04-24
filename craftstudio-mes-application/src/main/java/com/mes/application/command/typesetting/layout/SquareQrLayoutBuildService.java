@@ -165,8 +165,8 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 BufferedImage effectiveQrImage = trimWhiteBorder(qrImage);
                 g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
-            g.drawString(elementB == null ? "" : elementB, bX, textBaseLineY);
-            g.drawString(elementA == null ? "" : elementA, cX, textBaseLineY);
+            drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
+            drawTextRotate180(g, elementA, cX, textBaseLineY, fontMetrics);
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
 
@@ -177,6 +177,25 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
             g.dispose();
+        }
+    }
+
+    private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
+        String safeText = text == null ? "" : text;
+        int textWidth = fontMetrics.stringWidth(safeText);
+        if (textWidth <= 0) {
+            return;
+        }
+        int textHeight = fontMetrics.getHeight();
+        double centerX = x + textWidth / 2.0D;
+        double centerY = baselineY - fontMetrics.getAscent() + textHeight / 2.0D;
+
+        AffineTransform origin = g.getTransform();
+        try {
+            g.rotate(Math.PI, centerX, centerY);
+            g.drawString(safeText, x, baselineY);
+        } finally {
+            g.setTransform(origin);
         }
     }
 
