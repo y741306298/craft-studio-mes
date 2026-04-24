@@ -1448,8 +1448,19 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(uploadPath) || StringUtils.isBlank(manufacturerMetaId)) {
             return uploadPath;
         }
-        String normalizedPath = uploadPath.endsWith("/") ? uploadPath : uploadPath + "/";
-        return normalizedPath + manufacturerMetaId + "/";
+        String normalizedPath = uploadPath.trim();
+        if (normalizedPath.startsWith("/")) {
+            normalizedPath = normalizedPath.substring(1);
+        }
+        if (!normalizedPath.endsWith("/")) {
+            normalizedPath = normalizedPath + "/";
+        }
+        if (!normalizedPath.startsWith("forme/")) {
+            return normalizedPath + manufacturerMetaId + "/";
+        }
+
+        String suffix = normalizedPath.substring("forme/".length());
+        return "forme/" + manufacturerMetaId + "/" + suffix;
     }
 
     private String buildLayoutUploadPath(String manufacturerMetaId, String typesettingInfoId) {
