@@ -118,7 +118,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
         // 5) 输出配置与上传目录
-        result.setOutputs(buildDefaultOutputs(supportMode(), context));
+        result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
     }
