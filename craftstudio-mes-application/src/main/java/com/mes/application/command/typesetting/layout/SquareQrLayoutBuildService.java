@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.Base64;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 
 @Service
 public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
@@ -78,6 +79,12 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
         String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        if (context.getTypesettingInfo() != null) {
+            LinkedHashMap<String, String> marks = new LinkedHashMap<>();
+            marks.put("elementF", elementF);
+            marks.put("elementFRotated", elementFRotated);
+            context.getTypesettingInfo().setMarks(marks);
+        }
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();

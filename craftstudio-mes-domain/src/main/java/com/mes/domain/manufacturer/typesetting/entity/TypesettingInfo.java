@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -65,6 +66,11 @@ public class TypesettingInfo extends BaseEntity {
      * 定位点形状（circle / square / none）
      */
     private String anchorPointShape;
+    /**
+     * 排版附加标记资源（例如 elementF / elementFRotated 的 OSS 地址）。
+     */
+    private Map<String, String> marks;
+
     public void applyLayoutModeConfig() {
         TypesettingLayoutMode mode = TypesettingLayoutMode.fromCode(this.layoutMode);
         this.layoutCategory = mode.getLayoutCategory();
