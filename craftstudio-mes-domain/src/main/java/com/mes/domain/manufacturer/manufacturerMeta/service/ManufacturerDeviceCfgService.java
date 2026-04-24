@@ -66,11 +66,21 @@ public class ManufacturerDeviceCfgService {
         if (StringUtils.isBlank(deviceCfg.getManufacturerMetaId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
+        if (StringUtils.isBlank(deviceCfg.getDeviceCode())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备编号不能为空");
+        }
         if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备 ID 不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getDeviceName())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaId", deviceCfg.getManufacturerMetaId());
+        filters.put("deviceCode", deviceCfg.getDeviceCode());
+        if (manufacturerDeviceCfgRepository.filterTotal(filters) > 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "同一工厂下设备编号不能重复");
         }
         
         // 设置默认状态为 NORMAL
