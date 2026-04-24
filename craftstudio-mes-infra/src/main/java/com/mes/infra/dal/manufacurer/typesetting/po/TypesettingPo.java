@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -34,6 +35,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String codeGenerateType;
     private String tempCodeFormat;
     private String anchorPointShape;
+    private Map<String, String> marks;
     @Override
     public TypesettingInfo toDO() {
         TypesettingInfo typesettingInfo = new TypesettingInfo();
@@ -59,6 +61,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setCodeGenerateType(this.codeGenerateType);
         typesettingInfo.setTempCodeFormat(this.tempCodeFormat);
         typesettingInfo.setAnchorPointShape(this.anchorPointShape);
+        typesettingInfo.setMarks(this.marks);
         return typesettingInfo;
     }
 
@@ -83,6 +86,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.codeGenerateType = _do.getCodeGenerateType();
         this.tempCodeFormat = _do.getTempCodeFormat();
         this.anchorPointShape = _do.getAnchorPointShape();
+        this.marks = _do.getMarks();
         return this;
     }
 }
