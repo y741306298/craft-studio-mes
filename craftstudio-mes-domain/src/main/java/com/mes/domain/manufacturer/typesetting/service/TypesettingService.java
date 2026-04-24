@@ -72,8 +72,27 @@ public class TypesettingService {
             String status,
             String material, 
             String nodeName) {
+        return countTypesettingByConditions(null, status, material, nodeName);
+    }
+
+    /**
+     * 根据多条件查询排版信息总数
+     * @param manufacturerMetaId 厂商元数据ID
+     * @param status 状态
+     * @param material 材质
+     * @param nodeName 工序节点名称
+     * @return 总数
+     */
+    public long countTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String material,
+            String nodeName) {
         Map<String, Object> filters = new HashMap<>();
-        
+
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
         if (status != null) {
             filters.put("status", status);
         }
