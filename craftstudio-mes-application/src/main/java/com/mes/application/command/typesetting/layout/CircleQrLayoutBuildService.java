@@ -161,7 +161,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
             BufferedImage qrImage = decodePngDataUri(qrDataUri);
             if (qrImage != null) {
-                g.drawImage(qrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
+                BufferedImage effectiveQrImage = trimWhiteBorder(qrImage);
+                g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
             g.drawString(elementB == null ? "" : elementB, bX, textBaseLineY);
             g.drawString(elementA == null ? "" : elementA, cX, textBaseLineY);
@@ -189,6 +190,37 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         } catch (Exception e) {
             throw new IllegalStateException("解析二维码 PNG Data URI 失败", e);
         }
+    }
+
+    private BufferedImage trimWhiteBorder(BufferedImage source) {
+        int width = source.getWidth();
+        int height = source.getHeight();
+        int minX = width;
+        int minY = height;
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int rgb = source.getRGB(x, y);
+                int alpha = (rgb >>> 24) & 0xFF;
+                int red = (rgb >>> 16) & 0xFF;
+                int green = (rgb >>> 8) & 0xFF;
+                int blue = rgb & 0xFF;
+                boolean isWhitePixel = alpha == 0 || (red > 245 && green > 245 && blue > 245);
+                if (!isWhitePixel) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return source;
+        }
+        return source.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
     private BufferedImage rotateCenter180(BufferedImage source) {
