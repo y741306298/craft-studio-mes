@@ -12,17 +12,19 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
-import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -186,6 +188,17 @@ public class TypesettingController {
     @PostMapping("/generateTempCode")
     public ApiResponse<GenerateTempCodeResult> generateTempCode(@RequestBody GenerateTempCodeRequest request) {
         return ApiResponse.success(appTypesettingService.generateTempCode(request));
+    }
+
+    /**
+     * 获取全部排版方式配置
+     */
+    @GetMapping("/layoutModes")
+    public ApiResponse<List<TypesettingLayoutModeVO>> listLayoutModes() {
+        List<TypesettingLayoutModeVO> modes = Arrays.stream(TypesettingLayoutMode.values())
+                .map(TypesettingLayoutModeVO::from)
+                .collect(Collectors.toList());
+        return ApiResponse.success(modes);
     }
 
     /**
