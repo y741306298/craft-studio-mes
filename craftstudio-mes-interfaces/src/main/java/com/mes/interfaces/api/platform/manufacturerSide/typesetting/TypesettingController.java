@@ -154,20 +154,20 @@ public class TypesettingController {
     /**
      * 释放排版：删除排版文件，将参与的零件状态改回待排版状态
      *
-     * @param request 释放排版请求，包含生产工件 ID 列表
+     * @param request 释放排版请求，包含排版 ID 列表
      * @return 操作结果
      */
     @PostMapping("/releaseLayout")
     public ApiResponse<ReleaseLayoutResult> releaseLayout(@Valid @RequestBody ReleaseLayoutRequest request) {
         
-        if (request.getProductionPieceIds() == null || request.getProductionPieceIds().isEmpty()) {
+        if (request.getTypesettingIds() == null || request.getTypesettingIds().isEmpty()) {
             ApiResponse<ReleaseLayoutResult> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage("生产工件 ID 列表不能为空");
+            failResponse.setMessage("排版 ID 列表不能为空");
             return failResponse;
         }
         
-        ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getProductionPieceIds());
+        ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getTypesettingIds());
         
         return ApiResponse.success(result);
     }
