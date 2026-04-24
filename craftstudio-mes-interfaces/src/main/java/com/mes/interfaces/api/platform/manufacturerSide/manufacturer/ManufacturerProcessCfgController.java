@@ -1,4 +1,4 @@
-package com.mes.interfaces.api.platform.manufacturerSide.manufacturerCfg;
+package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.req.ConfigProcessMetaRequest;

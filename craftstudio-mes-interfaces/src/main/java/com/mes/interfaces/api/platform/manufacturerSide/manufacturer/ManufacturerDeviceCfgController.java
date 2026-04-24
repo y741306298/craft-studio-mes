@@ -1,4 +1,4 @@
-package com.mes.interfaces.api.platform.manufacturerSide.manufacturerCfg;
+package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
@@ -9,7 +9,6 @@ import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
-import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -48,7 +47,7 @@ public class ManufacturerDeviceCfgController {
             String deviceInfoId = item.getDeviceInfoId();
             DeviceCfgSummary summary = DeviceCfgSummary.from(item);
             Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceInfoId);
-            if (byDeviceInfoId == null) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,"设备不存在");
+            if (byDeviceInfoId == null) continue;
             summary.setBrand(byDeviceInfoId.getBrand());
             summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
             responses.add(summary);

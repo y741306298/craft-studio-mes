@@ -129,7 +129,7 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
             FormeGenerationRequest.OutputConfig json = new FormeGenerationRequest.OutputConfig();
             json.setObjectName(businessId + ".json");
             FormeGenerationRequest.EnvConfig env = new FormeGenerationRequest.EnvConfig();
-            env.setBasePath("d://test//");
+            env.setBasePath("d:\\test\\");
             FormeGenerationRequest.DtpConfig dtp = new FormeGenerationRequest.DtpConfig();
             dtp.setNewpage("false");
             dtp.setShowmode("4");

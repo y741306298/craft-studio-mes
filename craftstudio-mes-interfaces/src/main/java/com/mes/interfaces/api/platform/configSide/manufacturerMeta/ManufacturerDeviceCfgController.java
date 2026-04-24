@@ -48,7 +48,7 @@ public class ManufacturerDeviceCfgController {
             String deviceInfoId = item.getDeviceInfoId();
             DeviceCfgSummary summary = DeviceCfgSummary.from(item);
             Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceInfoId);
-            if (byDeviceInfoId == null) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,"设备不存在");
+            if (byDeviceInfoId == null) continue;
             summary.setBrand(byDeviceInfoId.getBrand());
             summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
             responses.add(summary);

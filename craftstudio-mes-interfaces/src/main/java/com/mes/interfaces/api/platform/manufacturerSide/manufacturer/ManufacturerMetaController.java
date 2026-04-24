@@ -1,4 +1,4 @@
-package com.mes.interfaces.api.platform.manufacturerSide.manufacturerCfg;
+package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
@@ -17,7 +17,6 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerWorkshopMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.enums.ManufacturerType;
 import com.mes.domain.shared.enums.ProductUnit;
-import com.mes.interfaces.api.platform.configSide.manufacturerMeta.ManufacturerTypeVO;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
