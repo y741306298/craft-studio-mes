@@ -52,14 +52,17 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         margin.setRight(EXPAND_RIGHT_MM);
         margin.setBottom(0);
         result.setMargin(margin);
+        String tagUploadSubDir = buildTagUploadSubDir(context);
 
         String elementB = ossTagUploadService.uploadTagPng(
                 context.getBusinessId(),
-                createBlackPng(MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM)
+                createBlackPng(MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM),
+                tagUploadSubDir
         );
         String elementC = ossTagUploadService.uploadTagPng(
                 context.getBusinessId(),
-                createBlackPng(MARK_C_WIDTH_MM, expandedHeight)
+                createBlackPng(MARK_C_WIDTH_MM, expandedHeight),
+                tagUploadSubDir
         );
 
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
@@ -96,6 +99,19 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    private String buildTagUploadSubDir(FormeBuildContext context) {
+        String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
+        String typesettingInfoId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getId();
+        if (isBlank(manufacturerMetaId) || isBlank(typesettingInfoId)) {
+            return "mark";
+        }
+        return "mark/" + manufacturerMetaId + "/" + typesettingInfoId;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
