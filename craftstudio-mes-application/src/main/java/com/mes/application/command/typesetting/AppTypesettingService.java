@@ -594,7 +594,7 @@ public class AppTypesettingService {
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         UploadConfig uploadConfig = new UploadConfig();
-        uploadConfig.setUploadPath(modeResult.getUploadPath());
+        uploadConfig.setUploadPath(appendManufacturerMetaIdToUploadPath(modeResult.getUploadPath(), typesettingInfo.getManufacturerMetaId()));
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         request.setUploadConfig(uploadConfig);
 
@@ -770,7 +770,7 @@ public class AppTypesettingService {
 
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(cacheKey);
         UploadConfig uploadConfig = new UploadConfig();
-        uploadConfig.setUploadPath("layout/"+cacheKey+"/");
+        uploadConfig.setUploadPath(buildLayoutUploadPath(request.getManufacturerMetaId(), cacheKey));
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         //配置callback信息
 
@@ -1422,6 +1422,24 @@ public class AppTypesettingService {
             return normalizedPath;
         }
         return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
+    }
+
+    private String appendManufacturerMetaIdToUploadPath(String uploadPath, String manufacturerMetaId) {
+        if (StringUtils.isBlank(uploadPath) || StringUtils.isBlank(manufacturerMetaId)) {
+            return uploadPath;
+        }
+        String normalizedPath = uploadPath.endsWith("/") ? uploadPath : uploadPath + "/";
+        return normalizedPath + manufacturerMetaId + "/";
+    }
+
+    private String buildLayoutUploadPath(String manufacturerMetaId, String typesettingInfoId) {
+        if (StringUtils.isBlank(typesettingInfoId)) {
+            return "layout/";
+        }
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return "layout/" + typesettingInfoId + "/";
+        }
+        return "layout/" + manufacturerMetaId + "/" + typesettingInfoId + "/";
     }
 
     private void applyFormeGenerationResult(TypesettingInfo typesettingInfo, FormeGenerationResponse.Result formeResult) {
