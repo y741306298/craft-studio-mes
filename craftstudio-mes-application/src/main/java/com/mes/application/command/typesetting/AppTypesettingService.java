@@ -770,7 +770,7 @@ public class AppTypesettingService {
 
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(cacheKey);
         UploadConfig uploadConfig = new UploadConfig();
-        uploadConfig.setUploadPath(appendManufacturerMetaIdToUploadPath("layout/" + cacheKey + "/", request.getManufacturerMetaId()));
+        uploadConfig.setUploadPath(buildLayoutUploadPath(request.getManufacturerMetaId(), cacheKey));
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         //配置callback信息
 
@@ -1430,6 +1430,16 @@ public class AppTypesettingService {
         }
         String normalizedPath = uploadPath.endsWith("/") ? uploadPath : uploadPath + "/";
         return normalizedPath + manufacturerMetaId + "/";
+    }
+
+    private String buildLayoutUploadPath(String manufacturerMetaId, String typesettingInfoId) {
+        if (StringUtils.isBlank(typesettingInfoId)) {
+            return "layout/";
+        }
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return "layout/" + typesettingInfoId + "/";
+        }
+        return "layout/" + manufacturerMetaId + "/" + typesettingInfoId + "/";
     }
 
     private void applyFormeGenerationResult(TypesettingInfo typesettingInfo, FormeGenerationResponse.Result formeResult) {
