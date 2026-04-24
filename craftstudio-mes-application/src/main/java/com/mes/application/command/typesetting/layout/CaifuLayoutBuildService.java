@@ -111,11 +111,11 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private String buildTagUploadSubDir(FormeBuildContext context) {
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
-        String typesettingInfoId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getId();
-        if (isBlank(manufacturerMetaId) || isBlank(typesettingInfoId)) {
+        String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
+        if (isBlank(manufacturerMetaId) || isBlank(typesettingId)) {
             return "mark";
         }
-        return "mark/" + manufacturerMetaId + "/" + typesettingInfoId;
+        return "mark/" + manufacturerMetaId + "/" + typesettingId;
     }
 
     private boolean isBlank(String value) {

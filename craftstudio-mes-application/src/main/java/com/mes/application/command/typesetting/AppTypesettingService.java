@@ -835,15 +835,17 @@ public class AppTypesettingService {
         transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
 
         Set<String> productionPieceIds = productionPieceUsage.keySet();
+        String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
+                ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
-                typesettingInfo.getId(),
+                printTaskTypesettingId,
                 request.getDeviceInfoId(),
                 typesettingInfo.getElement(),
                 typesettingInfo.getMarks(),
                 productionPieceIds
         );
         domainTypesettingService.updateTypesetting(typesettingInfo);
-        savePrintTask(typesettingInfo.getId(), request.getDeviceInfoId(), downloadTaskData);
+        savePrintTask(printTaskTypesettingId, request.getDeviceInfoId(), downloadTaskData);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
