@@ -26,8 +26,10 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int ELEMENT_GAP_MM = 30;
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
-    private static final int ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
-    private static final int ANCHOR_RIGHT_MM = 80;
+    private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
+    private static final int TOP_ANCHOR_RIGHT_MM = 80;
+    private static final int BOTTOM_ANCHOR_LEFT_MM = 80;
+    private static final int BOTTOM_ANCHOR_RIGHT_MM = 40;
 
     private final OssTagUploadService ossTagUploadService;
 
@@ -90,32 +92,35 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 4) 在上/下 margin 区域插入 4 个方形定位点（左右各 30mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
         int bottomY = elementOriginY + context.getNestedHeight().intValue() + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
-        int rightX = Math.max(elementOriginX + context.getNestedWidth().intValue() - ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + ANCHOR_LEFT_MM);
+        int width = context.getNestedWidth().intValue();
+        int topRightX = Math.max(elementOriginX + width - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
+        int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
+        int bottomRightX = Math.max(elementOriginX + width - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
         String squareSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("square.png");
         tl.setSvg(squareSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
-        tl.setPosition(createPosition(elementOriginX + ANCHOR_LEFT_MM, topY));
+        tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("square.png");
         tr.setSvg(squareSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
-        tr.setPosition(createPosition(rightX, topY));
+        tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("square.png");
         bl.setSvg(squareSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
-        bl.setPosition(createPosition(elementOriginX + ANCHOR_LEFT_MM, bottomY));
+        bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("square.png");
         br.setSvg(squareSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
-        br.setPosition(createPosition(rightX, bottomY));
+        br.setPosition(createPosition(bottomRightX, bottomY));
         result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
 
         // 5) 输出配置与上传目录
