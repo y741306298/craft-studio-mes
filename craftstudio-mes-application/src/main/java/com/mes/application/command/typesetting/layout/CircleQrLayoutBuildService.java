@@ -3,6 +3,7 @@ package com.mes.application.command.typesetting.layout;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -73,8 +74,9 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
-        String elementF = buildTagStripDataUri(context.getBusinessId(), elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
 
         // 3) 将标签条放置在上/下 margin 区域
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
@@ -129,6 +131,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     }
 
     private String buildTagStripDataUri(String businessId,
+                                        String manufacturerMetaId,
                                         String elementA,
                                         String elementB,
                                         String qrDataUri,
@@ -171,7 +174,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(uploadImage, "png", outputStream);
-            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray());
+            String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "qr" : "qr/" + manufacturerMetaId;
+            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), uploadPath);
         } catch (Exception e) {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
