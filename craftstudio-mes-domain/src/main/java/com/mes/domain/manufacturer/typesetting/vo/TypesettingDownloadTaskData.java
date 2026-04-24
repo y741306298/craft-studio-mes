@@ -13,5 +13,6 @@ public class TypesettingDownloadTaskData {
     private List<String> imamges;
     private List<String> plts;
     private List<String> jsons;
+    private List<String> marks;
     private String deviceInfoId;
 }
