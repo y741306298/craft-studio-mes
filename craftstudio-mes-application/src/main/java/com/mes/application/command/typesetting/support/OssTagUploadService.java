@@ -35,6 +35,10 @@ public class OssTagUploadService {
         return uploadTagFile(businessId, bytes, "png", "image/png");
     }
 
+    public String uploadTagPng(String businessId, byte[] bytes, String subDir) {
+        return uploadTagFile(businessId, bytes, "png", "image/png", subDir, false);
+    }
+
     public String uploadLagPng(String businessId, byte[] bytes) {
         return uploadTagFile(businessId, bytes, "png", "image/png", "lag");
     }
@@ -44,6 +48,10 @@ public class OssTagUploadService {
     }
 
     private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType, String subDir) {
+        return uploadTagFile(businessId, bytes, extension, contentType, subDir, true);
+    }
+
+    private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType, String subDir, boolean useSavePathPrefix) {
         Object tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         JSONObject tempAuthJson = JSON.parseObject(JSON.toJSONString(tempAuthConfig));
         JSONObject stsToken = tempAuthJson.getJSONObject("stsToken");
@@ -54,7 +62,7 @@ public class OssTagUploadService {
         String accessKeySecret = stsToken.getString("accessKeySecret");
         String securityToken = stsToken.getString("securityToken");
         String bucket = defaultBucket;
-        String objectKey = buildTagObjectKey(extension, subDir);
+        String objectKey = buildTagObjectKey(extension, subDir, useSavePathPrefix);
         OSS ossClient = null;
         try {
             ossClient = new OSSClientBuilder().build("https://" + ossEndpoint, accessKeyId, accessKeySecret, securityToken);
@@ -73,9 +81,9 @@ public class OssTagUploadService {
         }
     }
 
-    private String buildTagObjectKey(String extension, String subDir) {
+    private String buildTagObjectKey(String extension, String subDir, boolean useSavePathPrefix) {
         StringBuilder keyBuilder = new StringBuilder();
-        if (StringUtils.isNotBlank(ossSavePath)) {
+        if (useSavePathPrefix && StringUtils.isNotBlank(ossSavePath)) {
             keyBuilder.append(trimSlashes(ossSavePath)).append("/");
         }
         keyBuilder.append(trimSlashes(subDir)).append("/").append(UUID.randomUUID()).append(".").append(extension);

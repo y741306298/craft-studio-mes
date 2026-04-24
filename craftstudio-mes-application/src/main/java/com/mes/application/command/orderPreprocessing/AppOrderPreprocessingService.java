@@ -131,7 +131,9 @@ public class AppOrderPreprocessingService {
             //配置oss信息
             ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
             UploadConfig uploadConfig = new UploadConfig();
-            uploadConfig.setUploadPath("pieceImg/");
+            String manufacturerMetaId = orderItem.getManufacturerId();
+            String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "pieceImg/" : "pieceImg/" + manufacturerMetaId + "/";
+            uploadConfig.setUploadPath(uploadPath);
             uploadConfig.setOssConfig(objectStorageTempAuthConfig);
             imageMaskRequest.setUploadConfig(uploadConfig);
             //配置callback信息
