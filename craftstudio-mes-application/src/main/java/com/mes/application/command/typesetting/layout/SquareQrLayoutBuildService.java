@@ -27,7 +27,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
     private static final int ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
-    private static final int ANCHOR_RIGHT_MM = 40;
+    private static final int ANCHOR_RIGHT_MM = 80;
 
     private final OssTagUploadService ossTagUploadService;
 
