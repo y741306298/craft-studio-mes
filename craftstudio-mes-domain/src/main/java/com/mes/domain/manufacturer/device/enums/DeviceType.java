@@ -7,7 +7,7 @@ public enum DeviceType {
     
     PRINT("印刷类", "print"),           // 印刷类设备
     CUTTING("切割类", "cutting"),       // 切割类设备
-    FUBAN("覆板类", "fuban");           // 覆板类设备
+    FUBAN("后道类", "houdao");           // 覆板类设备
 
     private final String chineseName;
     private final String code;
