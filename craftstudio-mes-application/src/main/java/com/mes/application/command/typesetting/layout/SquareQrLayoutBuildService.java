@@ -162,10 +162,11 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
             BufferedImage qrImage = decodePngDataUri(qrDataUri);
             if (qrImage != null) {
-                g.drawImage(qrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
+                BufferedImage effectiveQrImage = trimWhiteBorder(qrImage);
+                g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
-            g.drawString(elementB == null ? "" : elementB, bX, textBaseLineY);
-            g.drawString(elementA == null ? "" : elementA, cX, textBaseLineY);
+            drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
+            drawTextRotate180(g, elementA, cX, textBaseLineY, fontMetrics);
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
 
@@ -176,6 +177,25 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
             g.dispose();
+        }
+    }
+
+    private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
+        String safeText = text == null ? "" : text;
+        int textWidth = fontMetrics.stringWidth(safeText);
+        if (textWidth <= 0) {
+            return;
+        }
+        int textHeight = fontMetrics.getHeight();
+        double centerX = x + textWidth / 2.0D;
+        double centerY = baselineY - fontMetrics.getAscent() + textHeight / 2.0D;
+
+        AffineTransform origin = g.getTransform();
+        try {
+            g.rotate(Math.PI, centerX, centerY);
+            g.drawString(safeText, x, baselineY);
+        } finally {
+            g.setTransform(origin);
         }
     }
 
@@ -190,6 +210,37 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         } catch (Exception e) {
             throw new IllegalStateException("解析二维码 PNG Data URI 失败", e);
         }
+    }
+
+    private BufferedImage trimWhiteBorder(BufferedImage source) {
+        int width = source.getWidth();
+        int height = source.getHeight();
+        int minX = width;
+        int minY = height;
+        int maxX = -1;
+        int maxY = -1;
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int rgb = source.getRGB(x, y);
+                int alpha = (rgb >>> 24) & 0xFF;
+                int red = (rgb >>> 16) & 0xFF;
+                int green = (rgb >>> 8) & 0xFF;
+                int blue = rgb & 0xFF;
+                boolean isWhitePixel = alpha == 0 || (red > 245 && green > 245 && blue > 245);
+                if (!isWhitePixel) {
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < minX || maxY < minY) {
+            return source;
+        }
+        return source.getSubimage(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
     private BufferedImage rotateCenter180(BufferedImage source) {
