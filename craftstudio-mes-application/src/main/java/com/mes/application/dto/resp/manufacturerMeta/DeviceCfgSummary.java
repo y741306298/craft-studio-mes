@@ -20,6 +20,8 @@ public class DeviceCfgSummary {
     private String capacityUnit;            // 产能单位 code
     private String capacityUnitName;        // 产能单位名称
     private String status;
+    private boolean bound;
+    private String boundVersion;
     private String brand;
     private List<DeviceProcedure> deviceProcedures;
 
@@ -45,6 +47,8 @@ public class DeviceCfgSummary {
         response.setCapacityUnit(deviceCfg.getCapacityUnit() != null ? deviceCfg.getCapacityUnit().getSymbol() : null);
         response.setCapacityUnitName(deviceCfg.getCapacityUnit() != null ? deviceCfg.getCapacityUnit().getChineseName() : null);
         response.setStatus(deviceCfg.getStatus() != null ? deviceCfg.getStatus().getCode() : null);
+        response.setBound(deviceCfg.isBound());
+        response.setBoundVersion(deviceCfg.getBoundVersion());
         
         return response;
     }

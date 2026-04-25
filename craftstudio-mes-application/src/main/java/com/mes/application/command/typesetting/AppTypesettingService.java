@@ -24,6 +24,8 @@ import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
+import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -86,6 +88,9 @@ public class AppTypesettingService {
 
     @Autowired
     private OrderItemService orderItemService;
+
+    @Autowired
+    private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
 
     @Autowired
     private AlgorithmCoreApiService algorithmCoreApiService;
@@ -811,7 +816,7 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
         }
-        if (StringUtils.isBlank(request.getDeviceInfoId())) {
+        if (StringUtils.isBlank(request.getDeviceCode())) {
             throw new RuntimeException("设备编号不能为空");
         }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
@@ -857,15 +862,16 @@ public class AppTypesettingService {
         Set<String> productionPieceIds = productionPieceUsage.keySet();
         String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                 ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
         TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
                 printTaskTypesettingId,
-                request.getDeviceInfoId(),
+                deviceInfoId,
                 typesettingInfo.getElement(),
                 typesettingInfo.getMarks(),
                 productionPieceIds
         );
         domainTypesettingService.updateTypesetting(typesettingInfo);
-        savePrintTask(printTaskTypesettingId, request.getDeviceInfoId(), downloadTaskData);
+        savePrintTask(printTaskTypesettingId, deviceInfoId, downloadTaskData);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
@@ -875,6 +881,23 @@ public class AppTypesettingService {
         result.setUpdatedPieceCount(productionPieceIds.size());
         result.setUpdatedPieceIds(new ArrayList<>(productionPieceIds));
         return result;
+    }
+
+    private String resolveDeviceInfoIdByDeviceCode(String manufacturerMetaId, String deviceCode) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("deviceCode", deviceCode);
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        List<ManufacturerDeviceCfg> deviceCfgs = manufacturerDeviceCfgRepository.filterList(1, 1, filters);
+        if (deviceCfgs == null || deviceCfgs.isEmpty()) {
+            throw new RuntimeException("设备编号不存在：" + deviceCode);
+        }
+        ManufacturerDeviceCfg deviceCfg = deviceCfgs.get(0);
+        if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
+            throw new RuntimeException("设备编号未绑定设备信息：" + deviceCode);
+        }
+        return deviceCfg.getDeviceInfoId();
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,

@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
 import com.mes.application.command.device.AppDeviceService;
+import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
@@ -28,6 +29,9 @@ public class ManufacturerDeviceCfgController {
 
     @Autowired
     private AppDeviceService appDeviceService;
+
+    @Autowired
+    private AppLoginService appLoginService;
 
     /**
      * 分页查询设备配置列表（根据制造商 ID）
@@ -107,5 +111,27 @@ public class ManufacturerDeviceCfgController {
     public ApiResponse<String> deleteDeviceCfg(@PathVariable String id) {
         appDeviceCfgService.deleteDeviceCfg(id);
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 查询工厂设备列表（根据 jwtToken 自动识别工厂）
+     * @param jwtToken 登录 token（header）
+     * @return 工厂设备信息
+     */
+    @GetMapping("/factory/list")
+    public ApiResponse<List<ManufacturerFactoryDeviceResp>> listFactoryDevices(
+            @RequestHeader("jwtToken") String jwtToken) {
+        String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
+        List<ManufacturerDeviceCfg> cfgList = appDeviceCfgService.listDeviceCfgsByManufacturerId(manufacturerMetaId);
+        List<ManufacturerFactoryDeviceResp> response = new ArrayList<ManufacturerFactoryDeviceResp>();
+        for (ManufacturerDeviceCfg cfg : cfgList) {
+            ManufacturerFactoryDeviceResp item = new ManufacturerFactoryDeviceResp();
+            item.setName(cfg.getDeviceName());
+            item.setSn(cfg.getDeviceType() != null ? cfg.getDeviceType().getCode() : null);
+            item.setCode(cfg.getDeviceCode());
+            item.setBound(cfg.isBound());
+            response.add(item);
+        }
+        return ApiResponse.success(response);
     }
 }

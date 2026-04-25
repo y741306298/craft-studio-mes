@@ -39,6 +39,11 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
     @Size(max = 50, message = "产能单位长度不能超过 50 个字符")
     private String capacityUnit;
 
+    private boolean bound;
+
+    @Size(max = 50, message = "绑定版本长度不能超过 50 个字符")
+    private String boundVersion;
+
     @Override
     public boolean isValid() {
         if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
@@ -69,6 +74,9 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
             return false;
         }
         if (capacityUnit != null && capacityUnit.length() > 50) {
+            return false;
+        }
+        if (boundVersion != null && boundVersion.length() > 50) {
             return false;
         }
         return true;
@@ -106,6 +114,9 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         if (capacityUnit != null && capacityUnit.length() > 50) {
             return "产能单位长度不能超过 50 个字符";
         }
+        if (boundVersion != null && boundVersion.length() > 50) {
+            return "绑定版本长度不能超过 50 个字符";
+        }
         return "";
     }
 
@@ -119,6 +130,8 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         deviceCfg.setDeviceCode(this.deviceCode);
         deviceCfg.setCapacity(this.capacity);
         deviceCfg.setCapacityUnit(ProductUnit.getByChineseName(this.capacityUnit));
+        deviceCfg.setBound(this.bound);
+        deviceCfg.setBoundVersion(this.boundVersion);
         return deviceCfg;
     }
 }

@@ -22,6 +22,8 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
     private Double capacity;                    // 产能
     private String capacityUnit;                // 产能单位 code
     private String status;                      // 设备状态 code
+    private boolean bound;                      // 是否已绑定
+    private String boundVersion;                // 绑定版本
 
     @Override
     public ManufacturerDeviceCfg toDO() {
@@ -36,6 +38,8 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         deviceCfg.setCapacity(capacity);
         deviceCfg.setCapacityUnit(ProductUnit.getByChineseName(capacityUnit));
         deviceCfg.setStatus(CfgStatus.getByCode(status));
+        deviceCfg.setBound(bound);
+        deviceCfg.setBoundVersion(boundVersion);
         return deviceCfg;
     }
 
@@ -52,6 +56,8 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
         this.capacity = _do.getCapacity();
         this.capacityUnit = _do.getCapacityUnit() != null ? _do.getCapacityUnit().getChineseName() : null;
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
+        this.bound = _do.isBound();
+        this.boundVersion = _do.getBoundVersion();
         return this;
     }
 }
