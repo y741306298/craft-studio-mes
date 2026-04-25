@@ -9,6 +9,7 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -75,5 +76,28 @@ public class AppManufacturerDeviceCfgService {
             throw new IllegalArgumentException("ID 不能为空");
         }
         return domainDeviceCfgService.findById(id);
+    }
+
+    public List<ManufacturerDeviceCfg> listDeviceCfgsByManufacturerId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+
+        List<ManufacturerDeviceCfg> result = new ArrayList<ManufacturerDeviceCfg>();
+        int current = 1;
+        int size = 200;
+        while (true) {
+            List<ManufacturerDeviceCfg> pageItems =
+                    domainDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, current, size);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            result.addAll(pageItems);
+            if (pageItems.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return result;
     }
 }

@@ -19,5 +19,7 @@ public class ManufacturerDeviceCfg extends BaseEntity {
     private Double capacity;                  // 产能
     private ProductUnit capacityUnit;         // 产能单位
     private CfgStatus status;
+    private boolean bound;                    // 是否已绑定
+    private String boundVersion;              // 绑定版本
 
 }
