@@ -23,7 +23,7 @@ public class ManufacturerDeviceCfgPo extends BasePO<ManufacturerDeviceCfg> {
     private String capacityUnit;                // 产能单位 code
     private String status;                      // 设备状态 code
     private boolean bound;                      // 是否已绑定
-    private String boundVersion;                // 绑定版本
+    private Integer boundVersion;               // 绑定版本
 
     @Override
     public ManufacturerDeviceCfg toDO() {

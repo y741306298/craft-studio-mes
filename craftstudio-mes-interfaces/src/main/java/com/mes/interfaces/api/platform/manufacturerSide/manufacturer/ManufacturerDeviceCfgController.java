@@ -3,6 +3,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerFactoryDeviceBindRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
@@ -133,5 +134,36 @@ public class ManufacturerDeviceCfgController {
             response.add(item);
         }
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 绑定工厂设备（根据 jwtToken 自动识别工厂，POST 请求体中的 id 作为 deviceCode）
+     * @param jwtToken 登录 token（header）
+     * @param request 请求体（id 为设备编号）
+     * @return 绑定结果
+     */
+    @PostMapping("/factory/bind")
+    public ApiResponse<ManufacturerFactoryDeviceBindResp> bindFactoryDevice(
+            @RequestHeader("jwtToken") String jwtToken,
+            @Valid @RequestBody ManufacturerFactoryDeviceBindRequest request) {
+        String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
+        ManufacturerDeviceCfg cfg;
+        try {
+            cfg = appDeviceCfgService.bindDeviceByManufacturerAndCode(manufacturerMetaId, request.getId());
+        } catch (IllegalStateException ex) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, ex.getMessage());
+        }
+        if (cfg == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
+        }
+
+        ManufacturerFactoryDeviceBindResp response = new ManufacturerFactoryDeviceBindResp();
+        response.setName(cfg.getDeviceName());
+        response.setSn(cfg.getDeviceType() != null ? cfg.getDeviceType().getCode() : null);
+        response.setCode(cfg.getDeviceCode());
+        response.setVersion(cfg.getBoundVersion());
+        ApiResponse<ManufacturerFactoryDeviceBindResp> apiResponse = ApiResponse.success(response);
+        apiResponse.setMessage("succes");
+        return apiResponse;
     }
 }
