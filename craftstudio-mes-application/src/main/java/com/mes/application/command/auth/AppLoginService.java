@@ -9,22 +9,25 @@ import com.mes.domain.base.repository.ApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Map;
 import java.util.Date;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class AppLoginService {
 
-    private static final Map<String, LoginTokenInfo> LOGIN_TOKEN_STORE = new ConcurrentHashMap<>();
+    private static final String LOGIN_TOKEN_KEY_PREFIX = "mes:auth:token:";
 
     @Autowired
     private ManufacturerUserService manufacturerUserService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Value("${mes.login.token-valid-days:3}")
     private int tokenValidDays;
@@ -43,22 +46,17 @@ public class AppLoginService {
         response.setManufacturerMetaId(user.getManufacturerMetaId());
         response.setTokenExpireAt(expireAt);
 
-        LOGIN_TOKEN_STORE.put(token, new LoginTokenInfo(user.getManufacturerMetaId(), expireAt));
+        redisTemplate.opsForValue().set(buildLoginTokenCacheKey(token), user.getManufacturerMetaId(), tokenValidDays, TimeUnit.DAYS);
         return response;
     }
 
     public String getManufacturerMetaIdByToken(String token) {
-        LoginTokenInfo tokenInfo = LOGIN_TOKEN_STORE.get(token);
-        if (tokenInfo == null) {
+        Object manufacturerMetaId = redisTemplate.opsForValue().get(buildLoginTokenCacheKey(token));
+        if (manufacturerMetaId == null) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "token无效");
         }
 
-        if (tokenInfo.getExpireAt().before(new Date())) {
-            LOGIN_TOKEN_STORE.remove(token);
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "token已过期");
-        }
-
-        return tokenInfo.getManufacturerMetaId();
+        return String.valueOf(manufacturerMetaId);
     }
 
     public void addUser(AddUserRequest request) {
@@ -75,21 +73,7 @@ public class AppLoginService {
         return UUID.randomUUID().toString().replace("-", "") + Long.toHexString(System.currentTimeMillis());
     }
 
-    private static class LoginTokenInfo {
-        private final String manufacturerMetaId;
-        private final Date expireAt;
-
-        private LoginTokenInfo(String manufacturerMetaId, Date expireAt) {
-            this.manufacturerMetaId = manufacturerMetaId;
-            this.expireAt = expireAt;
-        }
-
-        public String getManufacturerMetaId() {
-            return manufacturerMetaId;
-        }
-
-        public Date getExpireAt() {
-            return expireAt;
-        }
+    private String buildLoginTokenCacheKey(String token) {
+        return LOGIN_TOKEN_KEY_PREFIX + token;
     }
 }
