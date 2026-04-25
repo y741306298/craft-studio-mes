@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class ManufacturerFactoryDeviceResp {
 
+    private String id;
     private String name;
     private String sn;
     private String code;
