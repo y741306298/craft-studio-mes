@@ -70,8 +70,7 @@ public class DeliveryPkgPieceVO {
             }
         }
         typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
-        typesettingProductionPieceVO.setMaterial(piece.getMaterialConfig().getMaterialSnapshot().getName());
-        typesettingProductionPieceVO.setMaterialCode(piece.getMaterialConfig().getMaterialId());
+        typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
         typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
         if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());

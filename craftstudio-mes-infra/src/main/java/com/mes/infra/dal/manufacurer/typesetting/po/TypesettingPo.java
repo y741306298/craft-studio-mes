@@ -4,6 +4,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.mes.infra.base.BasePO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -19,7 +20,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String manufacturerMetaId;
     private String typesettingId;
     private TypesettingElement element;
+    private MaterialConfig materialConfig;
     private List<String> materialConfigs;
+    private String processingFlow;
     private String status;
     private Integer quantity;
     private Integer leaveQuantity;
@@ -45,7 +48,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setManufacturerMetaId(this.manufacturerMetaId);
         typesettingInfo.setTypesettingId(this.typesettingId);
         typesettingInfo.setElement(this.element);
+        typesettingInfo.setMaterialConfig(this.materialConfig);
         typesettingInfo.setMaterialConfigs(this.materialConfigs);
+        typesettingInfo.setProcessingFlow(this.processingFlow);
         typesettingInfo.setStatus(this.status);
         typesettingInfo.setQuantity(this.quantity);
         typesettingInfo.setLeaveQuantity(this.leaveQuantity);
@@ -69,7 +74,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     protected BasePO<TypesettingInfo> fromDO(TypesettingInfo _do) {
         this.typesettingId = _do.getTypesettingId();
         this.element = _do.getElement();
+        this.materialConfig = _do.getMaterialConfig();
         this.materialConfigs = _do.getMaterialConfigs();
+        this.processingFlow = _do.getProcessingFlow();
         this.status = _do.getStatus();
         this.quantity = _do.getQuantity();
         this.leaveQuantity = _do.getLeaveQuantity();
