@@ -387,6 +387,11 @@ public class AppTypesettingService {
             }
         }
 
+        String filmConsistencyResult = validateFilmConsistency(productionPieces, typesettingInfos);
+        if (!filmConsistencyResult.equals("PASS")) {
+            return LayoutConfirmResult.failed(filmConsistencyResult);
+        }
+
         // 3. 校验材料是否一致
         String validateMaterialResult = validateMaterials(productionPieces);
         if (!validateMaterialResult.equals("PASS")) {
@@ -464,7 +469,22 @@ public class AppTypesettingService {
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
+        MaterialConfig unifiedMaterialConfig = productionPieces.stream()
+                .map(ProductionPiece::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseGet(() -> typesettingInfos.stream()
+                        .map(TypesettingInfo::getMaterialConfig)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null));
+        String commonProcessingFlow = buildCommonProcessingFlow(productionPieces, typesettingInfos);
+        if (materialConfigs.isEmpty() && unifiedMaterialConfig != null && StringUtils.isNotBlank(unifiedMaterialConfig.getMaterialId())) {
+            materialConfigs = Collections.singletonList(unifiedMaterialConfig.getMaterialId());
+        }
+        typesettingInfo.setMaterialConfig(unifiedMaterialConfig);
         typesettingInfo.setMaterialConfigs(materialConfigs);
+        typesettingInfo.setProcessingFlow(commonProcessingFlow);
         typesettingInfo.setManufacturerMetaId(request.getManufacturerMetaId());
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
@@ -1300,7 +1320,9 @@ public class AppTypesettingService {
     private TypesettingInfo cloneForCallback(TypesettingInfo source) {
         TypesettingInfo target = new TypesettingInfo();
         target.setTypesettingId(source.getTypesettingId());
+        target.setMaterialConfig(source.getMaterialConfig());
         target.setMaterialConfigs(source.getMaterialConfigs());
+        target.setProcessingFlow(source.getProcessingFlow());
         target.setQuantity(source.getQuantity());
         target.setLeaveQuantity(source.getLeaveQuantity());
         target.setTypesettingCells(source.getTypesettingCells());
@@ -1316,6 +1338,79 @@ public class AppTypesettingService {
         target.setTempCodeFormat(source.getTempCodeFormat());
         target.setAnchorPointShape(source.getAnchorPointShape());
         return target;
+    }
+
+    private String buildCommonProcessingFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
+        List<String> flows = new ArrayList<>();
+        if (productionPieces != null) {
+            flows.addAll(productionPieces.stream()
+                    .map(ProductionPiece::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList()));
+        }
+        if (typesettingInfos != null) {
+            flows.addAll(typesettingInfos.stream()
+                    .map(TypesettingInfo::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList()));
+        }
+        if (flows.isEmpty()) {
+            return null;
+        }
+        List<String[]> splitFlows = flows.stream()
+                .map(flow -> Arrays.stream(flow.split("-"))
+                        .map(String::trim)
+                        .filter(StringUtils::isNotBlank)
+                        .toArray(String[]::new))
+                .collect(Collectors.toList());
+        int minLength = splitFlows.stream().mapToInt(parts -> parts.length).min().orElse(0);
+        List<String> common = new ArrayList<>();
+        for (int i = 0; i < minLength; i++) {
+            String candidate = splitFlows.get(0)[i];
+            boolean allMatch = true;
+            for (int j = 1; j < splitFlows.size(); j++) {
+                if (!candidate.equals(splitFlows.get(j)[i])) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (!allMatch) {
+                break;
+            }
+            common.add(candidate);
+        }
+        return common.isEmpty() ? null : String.join("-", common);
+    }
+
+    private String validateFilmConsistency(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
+        List<String> flows = new ArrayList<>();
+        if (productionPieces != null) {
+            flows.addAll(productionPieces.stream()
+                    .map(ProductionPiece::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList()));
+        }
+        if (typesettingInfos != null) {
+            flows.addAll(typesettingInfos.stream()
+                    .map(TypesettingInfo::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList()));
+        }
+        if (flows.isEmpty()) {
+            return "PASS";
+        }
+        boolean hasFilm = flows.stream()
+                .flatMap(flow -> Arrays.stream(flow.split("-")))
+                .map(String::trim)
+                .anyMatch("覆膜"::equals);
+        boolean hasNoFilm = flows.stream()
+                .flatMap(flow -> Arrays.stream(flow.split("-")))
+                .map(String::trim)
+                .anyMatch("不覆膜"::equals);
+        if (hasFilm && hasNoFilm) {
+            return "当前排版单元包含“覆膜”和“不覆膜”，不能一起排版";
+        }
+        return "PASS";
     }
 
     private List<TypesettingSourceCell> toSourceCells(List<TypesettingProductionPieceVO> sourceCells) {

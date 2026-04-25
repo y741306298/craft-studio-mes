@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -34,10 +35,9 @@ public class TypesettingProductionPieceVO {
     private Integer leaveQuantity;
 
     /**
-     * 材质
+     * 材质配置
      */
-    private String material;
-    private String materialCode;
+    private MaterialConfig materialConfig;
 
     /**
      * 工艺流程
@@ -104,12 +104,7 @@ public class TypesettingProductionPieceVO {
             }
         }
         typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
-        if (piece.getMaterialConfig() != null) {
-            if (piece.getMaterialConfig().getMaterialSnapshot() != null) {
-                typesettingProductionPieceVO.setMaterial(piece.getMaterialConfig().getMaterialSnapshot().getName());
-            }
-            typesettingProductionPieceVO.setMaterialCode(piece.getMaterialConfig().getMaterialId());
-        }
+        typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
         typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
         if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());
@@ -135,7 +130,8 @@ public class TypesettingProductionPieceVO {
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
-        vo.setMaterialCode(info.getMaterialConfigs() == null ? null : info.getMaterialConfigs().toString());
+        vo.setMaterialConfig(info.getMaterialConfig());
+        vo.setProcessingFlow(info.getProcessingFlow());
         vo.setStatus(info.getStatus());
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
@@ -160,7 +156,9 @@ public class TypesettingProductionPieceVO {
         info.setTypesettingId(this.sourceId);
         info.setQuantity(this.quantity);
         info.setLeaveQuantity(this.leaveQuantity);
+        info.setMaterialConfig(this.materialConfig);
         info.setMaterialConfigs(this.materialConfigs == null ? new ArrayList<>() : this.materialConfigs);
+        info.setProcessingFlow(this.processingFlow);
         info.setStatus(this.status);
         info.setRemark(this.remark);
         info.setMaskSvg(this.maskSvg);

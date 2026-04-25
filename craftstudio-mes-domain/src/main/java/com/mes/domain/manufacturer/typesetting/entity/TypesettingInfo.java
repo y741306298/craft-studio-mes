@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -25,7 +26,9 @@ public class TypesettingInfo extends BaseEntity {
      * - height
      */
     private TypesettingElement element;
+    private MaterialConfig materialConfig;
     private List<String> materialConfigs;
+    private String processingFlow;
     private String status;
     private Integer quantity;
     private Integer leaveQuantity;
