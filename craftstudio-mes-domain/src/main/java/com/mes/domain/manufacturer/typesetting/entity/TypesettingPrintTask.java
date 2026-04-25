@@ -10,5 +10,9 @@ import lombok.EqualsAndHashCode;
 public class TypesettingPrintTask extends BaseEntity {
     private String typesettingInfoId;
     private String deviceInfoId;
+    /**
+     * 任务领取状态：待领取 / 已领取
+     */
+    private String status;
     private TypesettingDownloadTaskData data;
 }

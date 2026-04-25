@@ -33,6 +33,7 @@ import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingPrintTaskStatus;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
@@ -1038,6 +1039,7 @@ public class AppTypesettingService {
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
         task.setDeviceInfoId(deviceInfoId);
+        task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
         task.setData(data);
         typesettingPrintTaskService.saveOrUpdate(task);
     }
