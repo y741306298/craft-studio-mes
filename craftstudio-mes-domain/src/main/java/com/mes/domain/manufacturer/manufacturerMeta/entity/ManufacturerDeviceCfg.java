@@ -20,6 +20,6 @@ public class ManufacturerDeviceCfg extends BaseEntity {
     private ProductUnit capacityUnit;         // 产能单位
     private CfgStatus status;
     private boolean bound;                    // 是否已绑定
-    private String boundVersion;              // 绑定版本
+    private Integer boundVersion;             // 绑定版本
 
 }

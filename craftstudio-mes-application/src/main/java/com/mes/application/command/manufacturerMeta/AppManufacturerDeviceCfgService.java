@@ -10,7 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AppManufacturerDeviceCfgService {
@@ -99,5 +101,33 @@ public class AppManufacturerDeviceCfgService {
             current++;
         }
         return result;
+    }
+
+    public ManufacturerDeviceCfg bindDeviceByManufacturerAndCode(String manufacturerMetaId, String deviceCode) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        if (StringUtils.isBlank(deviceCode)) {
+            throw new IllegalArgumentException("设备编号不能为空");
+        }
+
+        Map<String, Object> filters = new HashMap<String, Object>();
+        filters.put("manufacturerMetaId", manufacturerMetaId);
+        filters.put("deviceCode", deviceCode);
+        List<ManufacturerDeviceCfg> matched = manufacturerDeviceCfgRepository.filterList(1, 1, filters);
+        if (matched == null || matched.isEmpty()) {
+            return null;
+        }
+
+        ManufacturerDeviceCfg cfg = matched.get(0);
+        if (cfg.isBound()) {
+            throw new IllegalStateException("绑定失败，机器已绑定");
+        }
+        if (cfg.getBoundVersion() == null) {
+            cfg.setBoundVersion(1);
+        }
+        cfg.setBound(true);
+        domainDeviceCfgService.updateDeviceCfg(cfg);
+        return cfg;
     }
 }

@@ -41,8 +41,7 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
 
     private boolean bound;
 
-    @Size(max = 50, message = "绑定版本长度不能超过 50 个字符")
-    private String boundVersion;
+    private Integer boundVersion;
 
     @Override
     public boolean isValid() {
@@ -74,9 +73,6 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
             return false;
         }
         if (capacityUnit != null && capacityUnit.length() > 50) {
-            return false;
-        }
-        if (boundVersion != null && boundVersion.length() > 50) {
             return false;
         }
         return true;
@@ -113,9 +109,6 @@ public class ManufacturerDeviceCfgRequest extends ApiRequest {
         }
         if (capacityUnit != null && capacityUnit.length() > 50) {
             return "产能单位长度不能超过 50 个字符";
-        }
-        if (boundVersion != null && boundVersion.length() > 50) {
-            return "绑定版本长度不能超过 50 个字符";
         }
         return "";
     }

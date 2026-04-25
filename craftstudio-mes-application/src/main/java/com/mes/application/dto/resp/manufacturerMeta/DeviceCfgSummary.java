@@ -21,7 +21,7 @@ public class DeviceCfgSummary {
     private String capacityUnitName;        // 产能单位名称
     private String status;
     private boolean bound;
-    private String boundVersion;
+    private Integer boundVersion;
     private String brand;
     private List<DeviceProcedure> deviceProcedures;
 
