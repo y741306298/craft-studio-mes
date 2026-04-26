@@ -18,10 +18,22 @@ public class DeliveryRouteNodeRequest {
     private String townCode;
     private String townName;
     private String regionPath;
+    private String destCountryCode;
+    private String destCountryName;
+    private String destProvinceCode;
+    private String destProvinceName;
+    private String destCityCode;
+    private String destCityName;
+    private String destDistrictCode;
+    private String destDistrictName;
+    private String destTownCode;
+    private String destTownName;
+    private String destRegionPath;
     private String status;
     private String nodeType;
     private Integer nodeOrder;
     private String detailAddress;
+    private String destDetailAddress;
 
     public DeliveryRouteNode toDomainEntity() {
         DeliveryRouteNode node = new DeliveryRouteNode();
@@ -37,10 +49,22 @@ public class DeliveryRouteNodeRequest {
         node.setTownCode(this.townCode);
         node.setTownName(this.townName);
         node.setRegionPath(this.regionPath);
+        node.setDestCountryCode(this.destCountryCode);
+        node.setDestCountryName(this.destCountryName);
+        node.setDestProvinceCode(this.destProvinceCode);
+        node.setDestProvinceName(this.destProvinceName);
+        node.setDestCityCode(this.destCityCode);
+        node.setDestCityName(this.destCityName);
+        node.setDestDistrictCode(this.destDistrictCode);
+        node.setDestDistrictName(this.destDistrictName);
+        node.setDestTownCode(this.destTownCode);
+        node.setDestTownName(this.destTownName);
+        node.setDestRegionPath(this.destRegionPath);
         node.setStatus(this.status);
         node.setNodeType(this.nodeType);
         node.setNodeOrder(this.nodeOrder);
         node.setDetailAddress(this.detailAddress);
+        node.setDestDetailAddress(this.destDetailAddress);
         return node;
     }
 }

@@ -4,6 +4,7 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
+import com.mes.application.dto.resp.delivery.DeliveryRouteNodeBindingMatchResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -44,6 +45,7 @@ public class AppDeliveryRouteService {
             items = domainDeliveryRouteService.findDeliveryRoutesByName(routeName, manufacturerId, (int) query.getCurrent(), query.getSize());
             total = domainDeliveryRouteService.getTotalCount(routeName, manufacturerId);
         }
+        domainDeliveryRouteService.hydrateRouteNodes(items);
 
         return new PagedResult<DeliveryRoute>(items, total, query.getSize(), query.getCurrent());
     }
@@ -114,5 +116,24 @@ public class AppDeliveryRouteService {
             throw new IllegalArgumentException("节点 ID 不能为空");
         }
         domainDeliveryRouteService.removeRouteNode(routeId, nodeId);
+    }
+
+    public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {
+        if (StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress) || StringUtils.isBlank(routeNodeId)) {
+            throw new IllegalArgumentException("绑定参数不能为空");
+        }
+        domainDeliveryRouteService.bindTerminalAddressToRouteNode(terminalRegionCode, detailAddress, routeNodeId);
+    }
+
+    public DeliveryRouteNodeBindingMatchResponse matchRouteByAddress(String manufacturerMetaId, String terminalRegionCode, String detailAddress) {
+        if (StringUtils.isBlank(manufacturerMetaId) || StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress)) {
+            throw new IllegalArgumentException("查询参数不能为空");
+        }
+        DeliveryRouteService.RouteNodeMatchResult result = domainDeliveryRouteService
+                .matchRouteNodeByAddress(manufacturerMetaId, terminalRegionCode, detailAddress);
+        if (!result.isMatched()) {
+            return DeliveryRouteNodeBindingMatchResponse.unmatched();
+        }
+        return DeliveryRouteNodeBindingMatchResponse.matched(result.getDeliveryRoute(), result.getDeliveryRouteNode());
     }
 }

@@ -3,6 +3,9 @@ package com.mes.domain.delivery.deliveryRoute.service;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNodeBinding;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -20,6 +23,10 @@ public class DeliveryRouteService {
 
     @Autowired
     private DeliveryRouteRepository deliveryRouteRepository;
+    @Autowired
+    private DeliveryRouteNodeRepository deliveryRouteNodeRepository;
+    @Autowired
+    private DeliveryRouteNodeBindingRepository deliveryRouteNodeBindingRepository;
 
     /**
      * 根据路线名称查询配送路线（支持分页）
@@ -39,7 +46,9 @@ public class DeliveryRouteService {
         Map<String, String> searchFilters = new HashMap<>();
         searchFilters.put("routeName", routeName);
         searchFilters.put("manufacturerId", manufacturerId);
-        return deliveryRouteRepository.fuzzySearch(searchFilters, current, size);
+        List<DeliveryRoute> routes = deliveryRouteRepository.fuzzySearch(searchFilters, current, size);
+        fillRouteNodes(routes);
+        return routes;
     }
 
     /**
@@ -54,6 +63,10 @@ public class DeliveryRouteService {
         } else {
             return deliveryRouteRepository.totalByManufacturerId(manufacturerId);
         }
+    }
+
+    public void hydrateRouteNodes(List<DeliveryRoute> routes) {
+        fillRouteNodes(routes);
     }
 
     /**
@@ -77,7 +90,12 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线配置不完整");
         }
         
-        return deliveryRouteRepository.add(deliveryRoute);
+        List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
+        deliveryRoute.setDeliveryRouteNodes(null);
+        DeliveryRoute savedRoute = deliveryRouteRepository.add(deliveryRoute);
+        saveRouteNodes(savedRoute.getId(), routeNodes);
+        savedRoute.setDeliveryRouteNodes(routeNodes);
+        return savedRoute;
     }
 
     /**
@@ -94,7 +112,13 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
+        List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
+        deliveryRoute.setDeliveryRouteNodes(null);
         deliveryRouteRepository.update(deliveryRoute);
+        if (routeNodes != null) {
+            deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
+            saveRouteNodes(deliveryRoute.getId(), routeNodes);
+        }
     }
 
     /**
@@ -107,6 +131,7 @@ public class DeliveryRouteService {
         
         DeliveryRoute deliveryRoute = deliveryRouteRepository.findById(id);
         if (deliveryRoute != null) {
+            deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
             deliveryRouteRepository.delete(deliveryRoute);
         }
     }
@@ -118,7 +143,9 @@ public class DeliveryRouteService {
         if (StringUtils.isBlank(id)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID 不能为空");
         }
-        return deliveryRouteRepository.findById(id);
+        DeliveryRoute route = deliveryRouteRepository.findById(id);
+        fillRouteNodes(route);
+        return route;
     }
 
     /**
@@ -168,17 +195,14 @@ public class DeliveryRouteService {
         }
         
         node.buildRegionPath();
-        
-        if (deliveryRoute.getDeliveryRouteNodes() == null) {
-            deliveryRoute.setDeliveryRouteNodes(new ArrayList<>());
-        }
-        
+        node.setRouteId(routeId);
+
         if (node.getNodeOrder() == null) {
-            node.setNodeOrder(deliveryRoute.getDeliveryRouteNodes().size());
+            node.setNodeOrder(deliveryRouteNodeRepository.listByRouteId(routeId).size());
         }
-        
-        deliveryRoute.getDeliveryRouteNodes().add(node);
-        deliveryRouteRepository.update(deliveryRoute);
+
+        node.setId(null);
+        deliveryRouteNodeRepository.add(node);
     }
 
     /**
@@ -197,16 +221,103 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
         
-        if (deliveryRoute.getDeliveryRouteNodes() != null) {
-            deliveryRoute.getDeliveryRouteNodes().removeIf(node -> nodeId.equals(node.getId()));
-            
+        List<DeliveryRouteNode> nodes = deliveryRouteNodeRepository.listByRouteId(routeId);
+        if (!nodes.isEmpty()) {
+            DeliveryRouteNode removedNode = null;
+            for (DeliveryRouteNode node : nodes) {
+                if (nodeId.equals(node.getId())) {
+                    removedNode = node;
+                    break;
+                }
+            }
+            if (removedNode == null) {
+                return;
+            }
+            nodes.removeIf(node -> nodeId.equals(node.getId()));
+            deliveryRouteNodeRepository.delete(removedNode);
+
             int order = 0;
-            for (DeliveryRouteNode node : deliveryRoute.getDeliveryRouteNodes()) {
+            for (DeliveryRouteNode node : nodes) {
                 node.setNodeOrder(order++);
             }
-            
-            deliveryRouteRepository.update(deliveryRoute);
+
+            if (!nodes.isEmpty()) {
+                deliveryRouteNodeRepository.batchUpdate(nodes);
+            }
         }
+    }
+
+    public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {
+        if (StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress) || StringUtils.isBlank(routeNodeId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "绑定参数不能为空");
+        }
+
+        DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findById(routeNodeId);
+        if (routeNode == null) {
+            routeNode = deliveryRouteNodeRepository.findByRouteNodeId(routeNodeId);
+        }
+        if (routeNode == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不存在");
+        }
+
+        if (StringUtils.isBlank(routeNode.getRouteId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点未关联路线");
+        }
+        DeliveryRoute route = deliveryRouteRepository.findById(routeNode.getRouteId());
+        if (route == null || StringUtils.isBlank(route.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线或厂商信息不存在");
+        }
+
+        DeliveryRouteNodeBinding binding = deliveryRouteNodeBindingRepository.findByManufacturerAndAddress(
+                route.getManufacturerMetaId(), terminalRegionCode, detailAddress
+        );
+        if (binding == null) {
+            binding = new DeliveryRouteNodeBinding();
+            binding.setManufacturerMetaId(route.getManufacturerMetaId());
+            binding.setTerminalRegionCode(terminalRegionCode);
+            binding.setDetailAddress(detailAddress);
+            binding.setRouteNodeId(routeNodeId);
+            deliveryRouteNodeBindingRepository.add(binding);
+            return;
+        }
+
+        binding.setRouteNodeId(routeNodeId);
+        deliveryRouteNodeBindingRepository.update(binding);
+    }
+
+    public RouteNodeMatchResult matchRouteNodeByAddress(String manufacturerMetaId, String terminalRegionCode, String detailAddress) {
+        if (StringUtils.isBlank(manufacturerMetaId) || StringUtils.isBlank(terminalRegionCode) || StringUtils.isBlank(detailAddress)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询参数不能为空");
+        }
+
+        List<DeliveryRouteNodeBinding> candidates = deliveryRouteNodeBindingRepository
+                .listByManufacturerAndTerminalRegion(manufacturerMetaId, terminalRegionCode);
+        if (candidates == null || candidates.isEmpty()) {
+            return RouteNodeMatchResult.unmatched();
+        }
+
+        DeliveryRouteNodeBinding matchedBinding = null;
+        for (DeliveryRouteNodeBinding candidate : candidates) {
+            if (detailAddress.equals(candidate.getDetailAddress())) {
+                matchedBinding = candidate;
+                break;
+            }
+        }
+        if (matchedBinding == null) {
+            return RouteNodeMatchResult.unmatched();
+        }
+
+        DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findById(matchedBinding.getRouteNodeId());
+        if (routeNode == null || StringUtils.isBlank(routeNode.getRouteId())) {
+            return RouteNodeMatchResult.unmatched();
+        }
+
+        DeliveryRoute route = deliveryRouteRepository.findById(routeNode.getRouteId());
+        if (route == null) {
+            return RouteNodeMatchResult.unmatched();
+        }
+        fillRouteNodes(route);
+        return RouteNodeMatchResult.matched(route, routeNode);
     }
 
     /**
@@ -234,5 +345,65 @@ public class DeliveryRouteService {
         }
         
         return hasStart && hasEnd;
+    }
+
+    private void fillRouteNodes(List<DeliveryRoute> routes) {
+        if (routes == null || routes.isEmpty()) {
+            return;
+        }
+        for (DeliveryRoute route : routes) {
+            fillRouteNodes(route);
+        }
+    }
+
+    private void fillRouteNodes(DeliveryRoute route) {
+        if (route == null || StringUtils.isBlank(route.getId())) {
+            return;
+        }
+        route.setDeliveryRouteNodes(deliveryRouteNodeRepository.listByRouteId(route.getId()));
+    }
+
+    private void saveRouteNodes(String routeId, List<DeliveryRouteNode> routeNodes) {
+        if (routeNodes == null || routeNodes.isEmpty()) {
+            return;
+        }
+        List<DeliveryRouteNode> nodesToSave = new ArrayList<>();
+        for (int i = 0; i < routeNodes.size(); i++) {
+            DeliveryRouteNode node = routeNodes.get(i);
+            if (node == null) {
+                continue;
+            }
+            node.setRouteId(routeId);
+            node.setId(null);
+            if (node.getNodeOrder() == null) {
+                node.setNodeOrder(i);
+            }
+            node.buildRegionPath();
+            nodesToSave.add(node);
+        }
+        if (!nodesToSave.isEmpty()) {
+            deliveryRouteNodeRepository.batchAdd(nodesToSave);
+        }
+    }
+
+    @lombok.Data
+    public static class RouteNodeMatchResult {
+        private boolean matched;
+        private DeliveryRoute deliveryRoute;
+        private DeliveryRouteNode deliveryRouteNode;
+
+        public static RouteNodeMatchResult unmatched() {
+            RouteNodeMatchResult result = new RouteNodeMatchResult();
+            result.setMatched(false);
+            return result;
+        }
+
+        public static RouteNodeMatchResult matched(DeliveryRoute route, DeliveryRouteNode node) {
+            RouteNodeMatchResult result = new RouteNodeMatchResult();
+            result.setMatched(true);
+            result.setDeliveryRoute(route);
+            result.setDeliveryRouteNode(node);
+            return result;
+        }
     }
 }
