@@ -528,7 +528,8 @@ public class AppTypesettingService {
      *   <li>构建 FormeGenerationRequest 并异步提交给算法服务。</li>
      * </ol>
      *
-     * <p>说明：圆形二维码模式（shaped_cutting_plt_qr_circle）依赖 manufacturerMetaId 生成队列码与二维码。
+     * <p>说明：圆形二维码模式（shaped_cutting_plt_qr_circle / grid_typesetting_plt_qr_circle）
+     * 依赖 manufacturerMetaId 生成队列码与二维码。
      */
     public LayoutConfirmResult confirmLayout(TypesettingInfo request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
@@ -545,8 +546,7 @@ public class AppTypesettingService {
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
-        if (TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
-                && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+        if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
             return LayoutConfirmResult.failed("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
@@ -852,8 +852,7 @@ public class AppTypesettingService {
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
-        if (TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
-                && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+        if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
             throw new RuntimeException("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
@@ -903,6 +902,11 @@ public class AppTypesettingService {
         result.setUpdatedPieceCount(productionPieceIds.size());
         result.setUpdatedPieceIds(new ArrayList<>(productionPieceIds));
         return result;
+    }
+
+    private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
+        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
+                || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode;
     }
 
     private String resolveDeviceInfoIdByDeviceCode(String manufacturerMetaId, String deviceCode) {
