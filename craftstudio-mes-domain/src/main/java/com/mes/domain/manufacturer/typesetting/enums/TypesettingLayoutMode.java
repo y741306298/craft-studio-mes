@@ -22,6 +22,19 @@ public enum TypesettingLayoutMode {
             "circle"
     ),
     /**
+     * 网格排版（plt二维码）-圆形定位点：
+     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
+     */
+    GRID_TYPESETTING_PLT_QR_CIRCLE(
+            "grid_typesetting_plt_qr_circle",
+            "网格排版（plt二维码）-圆形定位点",
+            "grid_typesetting",
+            true, true, true,
+            "plt_qr",
+            "xxx",
+            "circle"
+    ),
+    /**
      * 异形切割（plt二维码）-方形定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
      */
