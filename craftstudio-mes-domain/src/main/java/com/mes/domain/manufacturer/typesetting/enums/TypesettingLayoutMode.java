@@ -41,7 +41,7 @@ public enum TypesettingLayoutMode {
     XY_CUTTING_AUX_LINE_CAIFU_A20PR0(
             "xy_cutting_aux_line_caifu_a20pr0",
             "xy切割(切割辅助线-裁赋A20PR0）",
-            "grid_typesetting",
+            "vertical_typesetting",
             true, false, true,
             "side_aux_line",
             null,
@@ -54,7 +54,7 @@ public enum TypesettingLayoutMode {
     XY_CUTTING_AUX_LINE_CAIFU_A30_SMALL_GRAPH(
             "xy_cutting_aux_line_caifu_a30_small_graph",
             "xy切割(切割辅助线-裁赋A30小图）",
-            "grid_typesetting",
+            "vertical_typesetting",
             true, false, true,
             "side_aux_line",
             null,
@@ -67,7 +67,7 @@ public enum TypesettingLayoutMode {
     XY_CUTTING_AUX_LINE_CAIFU_A30_LARGE_BOARD(
             "xy_cutting_aux_line_caifu_a30_large_board",
             "xy切割(切割辅助线-裁赋A30大板）",
-            "grid_typesetting",
+            "vertical_typesetting",
             true, false, true,
             "side_aux_line",
             null,
@@ -80,7 +80,7 @@ public enum TypesettingLayoutMode {
     XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM(
             "xy_cutting_aux_line_caifu_open_back_a30h_film",
             "xy切割(切割辅助线-裁赋开背A30H覆膜）",
-            "grid_typesetting",
+            "vertical_typesetting",
             true, false, true,
             "side_aux_line",
             null,
@@ -93,7 +93,7 @@ public enum TypesettingLayoutMode {
     XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM(
             "xy_cutting_aux_line_caifu_open_back_a30h_no_film",
             "xy切割(切割辅助线-裁赋开背A30H不覆膜）",
-            "grid_typesetting",
+            "vertical_typesetting",
             true, false, true,
             "side_aux_line",
             null,
@@ -150,6 +150,19 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none"
+    ),
+    /**
+     * 竖直排版：
+     * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
+     */
+    XY_VERTICAL_NESTING(
+            "xy_vertical_nesting",
+            "xy竖直排版",
+            "vertical_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none"
     );
 
     private final String code;
@@ -190,6 +203,9 @@ public enum TypesettingLayoutMode {
         }
         if ("xy_cutting_aux_line_liudu".equalsIgnoreCase(code)) {
             return XY_CUTTING_AUX_LINE_LIUDU_LARGE_BOARD;
+        }
+        if ("xy_vertical".equalsIgnoreCase(code)) {
+            return XY_VERTICAL_NESTING;
         }
         throw new IllegalArgumentException("未知排版方式：" + code);
     }

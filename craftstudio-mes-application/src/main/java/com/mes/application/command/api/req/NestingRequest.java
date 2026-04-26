@@ -31,6 +31,18 @@ public class NestingRequest {
         private Boolean forme;
         private String svg;
         private Integer counts;
+        /**
+         * 竖向边距（竖向重力方向固定为 top）
+         */
+        private Integer vMargin;
+        /**
+         * 横向重力方向：left / right
+         */
+        private String hGravity;
+        /**
+         * 横向边距
+         */
+        private Integer hMargin;
     }
 
 
