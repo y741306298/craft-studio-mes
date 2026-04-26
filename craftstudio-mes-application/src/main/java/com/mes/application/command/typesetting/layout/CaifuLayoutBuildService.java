@@ -13,6 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -68,18 +69,22 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
 
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
 
-        List<Double> ys = Collections.emptyList();
+        LinkedHashSet<Double> ys = new LinkedHashSet<>();
+        ys.add(0D);
         TypesettingElement.GridLines gridLines = context.getTypesettingInfo() != null
                 && context.getTypesettingInfo().getElement() != null
                 ? context.getTypesettingInfo().getElement().getGridLines()
                 : null;
         if (gridLines != null && gridLines.getYs() != null) {
-            ys = gridLines.getYs();
+            ys.addAll(gridLines.getYs());
         }
 
         int rightBMarkX = EXPAND_LEFT_MM + originalWidth;
         for (Double y : ys) {
             if (y == null) {
+                continue;
+            }
+            if (y + MARK_B_OFFSET_Y_MM > expandedHeight) {
                 continue;
             }
             int bMarkY = (int) Math.round(y + MARK_B_OFFSET_Y_MM);
