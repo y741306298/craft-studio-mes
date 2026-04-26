@@ -1,13 +1,10 @@
 package com.mes.infra.dal.delivery.deliveryRoute.po;
 
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
-import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.infra.base.BasePO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
-
-import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -17,7 +14,6 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
     private String routeId;
     private String routeName;
     private String manufacturerMetaId;
-    private List<DeliveryRouteNode> routeNodes;
     private String status;
 
     @Override
@@ -27,7 +23,6 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
         
         deliveryRoute.setRouteId(this.routeId);
         deliveryRoute.setRouteName(this.routeName);
-        deliveryRoute.setDeliveryRouteNodes(this.routeNodes);
         deliveryRoute.setStatus(this.status);
         deliveryRoute.setManufacturerMetaId(this.manufacturerMetaId);
         return deliveryRoute;
@@ -40,7 +35,6 @@ public class DeliveryRoutePo extends BasePO<DeliveryRoute> {
         }
         this.routeId = _do.getRouteId();
         this.routeName = _do.getRouteName();
-        this.routeNodes = _do.getDeliveryRouteNodes();
         this.status = _do.getStatus();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         return this;

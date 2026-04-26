@@ -2,9 +2,12 @@ package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryRouteService;
 import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
+import com.mes.application.dto.req.delivery.DeliveryRouteNodeBindingMatchRequest;
+import com.mes.application.dto.req.delivery.DeliveryRouteNodeBindingRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteListResponse;
+import com.mes.application.dto.resp.delivery.DeliveryRouteNodeBindingMatchResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
@@ -156,5 +159,27 @@ public class DeliveryRouteController {
         appDeliveryRouteService.removeRouteNode(routeId, nodeId);
         
         return ApiResponse.success("success");
+    }
+
+    @PostMapping("/node-binding/bind")
+    public ApiResponse<String> bindRouteNodeByTerminalAddress(
+            @Valid @RequestBody DeliveryRouteNodeBindingRequest request) {
+        appDeliveryRouteService.bindTerminalAddressToRouteNode(
+                request.getTerminalRegionCode(),
+                request.getDetailAddress(),
+                request.getRouteNodeId()
+        );
+        return ApiResponse.success("success");
+    }
+
+    @PostMapping("/node-binding/match")
+    public ApiResponse<DeliveryRouteNodeBindingMatchResponse> matchRouteNodeByTerminalAddress(
+            @Valid @RequestBody DeliveryRouteNodeBindingMatchRequest request) {
+        DeliveryRouteNodeBindingMatchResponse response = appDeliveryRouteService.matchRouteByAddress(
+                request.getManufacturerMetaId(),
+                request.getTerminalRegionCode(),
+                request.getDetailAddress()
+        );
+        return ApiResponse.success(response);
     }
 }
