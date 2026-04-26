@@ -197,6 +197,36 @@ public class AlgorithmCoreApiService {
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
 
+    /**
+     * 竖直排版算法 - 异步模式（推荐）
+     * 按竖向规则进行排版，支持元素横向重力与横/竖向边距配置
+     * 适用于耗时较长的场景，建议优先使用此模式
+     * 算法服务会立即返回202，处理结果通过回调接口返回
+     *
+     * @param request 排版请求参数，必须配置callbackConfig
+     * @return 任务接受响应
+     */
+    public NestingResponse generateVerticalNestedFilesAsync(NestingRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getNestManifest() == null) {
+            throw new RuntimeException("排版清单不能为空");
+        }
+        if (request.getNestManifest().getContainers() == null || request.getNestManifest().getContainers().isEmpty()) {
+            throw new RuntimeException("排版容器列表不能为空");
+        }
+        if (request.getNestManifest().getElements() == null || request.getNestManifest().getElements().isEmpty()) {
+            throw new RuntimeException("排版元素列表不能为空");
+        }
+        if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
+        }
+
+        return callAlgorithmAsync("http://craftstcal-nest-rvhsdyfyip.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
+                request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
+    }
+
 
     /**
      * 印版生成 - 异步模式（推荐）

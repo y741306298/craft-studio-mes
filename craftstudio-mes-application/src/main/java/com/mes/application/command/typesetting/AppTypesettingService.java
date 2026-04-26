@@ -426,9 +426,18 @@ public class AppTypesettingService {
         }
         System.out.println("nestingRequest========:"+JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
-        NestingResponse nestingResponse = "grid_typesetting".equals(layoutMode.getLayoutCategory())
-                ? algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest)
-                : algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
+        NestingResponse nestingResponse;
+        switch (layoutMode.getLayoutCategory()) {
+            case "grid_typesetting":
+                nestingResponse = algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
+                break;
+            case "vertical_typesetting":
+                nestingResponse = algorithmCoreApiService.generateVerticalNestedFilesAsync(nestingRequest);
+                break;
+            default:
+                nestingResponse = algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
+                break;
+        }
 //        if (nestingResponse == null || StringUtils.isBlank(nestingResponse.getStatus())) {
 //            return LayoutConfirmResult.failed("排版算法调用失败：返回为空");
 //        }
@@ -684,6 +693,8 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(generateNestedFilesCallbackUrl)) {
             throw new IllegalArgumentException("排版回调地址未配置");
         }
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        boolean isVerticalTypesetting = "vertical_typesetting".equals(layoutMode.getLayoutCategory());
         List<ProductionPiece> productionPieces = new ArrayList<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
@@ -734,6 +745,11 @@ public class AppTypesettingService {
                 if (piece.getProductImageFile() != null && piece.getProductImageFile().getRawFile() != null) {
                     element.setImg(piece.getTemplateCode());
                 }
+                if (isVerticalTypesetting) {
+                    element.setVMargin(0);
+                    element.setHGravity("left");
+                    element.setHMargin(0);
+                }
                 elements.add(element);
             }
         }
@@ -751,6 +767,11 @@ public class AppTypesettingService {
                 element.setSvg(info.getElement().getFormeSvg());
                 element.setCounts(info.getQuantity() != null && info.getQuantity() > 0 ? info.getQuantity() : 1);
                 element.setForme(Boolean.TRUE);
+                if (isVerticalTypesetting) {
+                    element.setVMargin(0);
+                    element.setHGravity("left");
+                    element.setHMargin(0);
+                }
                 elements.add(element);
             }
         }
@@ -784,8 +805,8 @@ public class AppTypesettingService {
         manifest.setElements(elements);
 
         CallbackConfig callbackConfig = new CallbackConfig();
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
-        if ("grid_typesetting".equals(layoutMode.getLayoutCategory())) {
+        if ("grid_typesetting".equals(layoutMode.getLayoutCategory())
+                || "vertical_typesetting".equals(layoutMode.getLayoutCategory())) {
             callbackConfig.setCallbackUrl(generateGridNestedFilesCallbackUrl);
         } else {
             callbackConfig.setCallbackUrl(generateNestedFilesCallbackUrl);
