@@ -35,6 +35,19 @@ public enum TypesettingLayoutMode {
             "circle"
     ),
     /**
+     * 基础网格排版：
+     * 仅按 grid_typesetting 归类，确认排版时不需要额外印版放置处理。
+     */
+    GRID_TYPESETTING_BASIC(
+            "grid_typesetting",
+            "基础网格排版",
+            "grid_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none"
+    ),
+    /**
      * 异形切割（plt二维码）-方形定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
      */
