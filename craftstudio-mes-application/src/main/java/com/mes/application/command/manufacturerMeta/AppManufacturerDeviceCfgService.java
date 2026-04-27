@@ -94,7 +94,7 @@ public class AppManufacturerDeviceCfgService {
 
         List<ManufacturerDeviceCfg> result = new ArrayList<ManufacturerDeviceCfg>();
         int current = 1;
-        int size = 200;
+        int size = 99;
         while (true) {
             List<ManufacturerDeviceCfg> pageItems =
                     domainDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, current, size);

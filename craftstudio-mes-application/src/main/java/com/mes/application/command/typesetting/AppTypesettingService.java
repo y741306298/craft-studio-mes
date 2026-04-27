@@ -438,7 +438,7 @@ public class AppTypesettingService {
         System.out.println("nestingRequest========:"+JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse;
-        switch (layoutMode.getLayoutCategory()) {
+            switch (layoutMode.getLayoutCategory()) {
             case "grid_typesetting":
                 nestingResponse = algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
                 break;
@@ -565,10 +565,6 @@ public class AppTypesettingService {
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
-
-        if (modeConfirmService != null) {
-            return modeConfirmService.confirm(typesettingInfo);
-        }
 
         String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
@@ -818,7 +814,7 @@ public class AppTypesettingService {
         }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
-        manifest.setSpacing(5);
+        manifest.setSpacing(10);
         manifest.setContainers(containers);
         manifest.setElements(elements);
 
@@ -1216,7 +1212,7 @@ public class AppTypesettingService {
      */
     private String validateMaterials(List<ProductionPiece> productionPieces) {
         if (productionPieces.isEmpty()) {
-            return "零件列表不能为空";
+            return "PASS";
         }
 
         MaterialConfig firstMaterial = productionPieces.get(0).getMaterialConfig();
