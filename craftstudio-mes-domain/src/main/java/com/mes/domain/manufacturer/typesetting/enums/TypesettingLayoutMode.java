@@ -132,7 +132,7 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            6
     ),
     /**
      * xy切割(切割辅助线-九段）：
