@@ -29,7 +29,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int MARK_C_WIDTH_MM = 3;
     private static final int MARK_C_OFFSET_X_MM = 20;
 
-    private final OssTagUploadService ossTagUploadService;
+    protected final OssTagUploadService ossTagUploadService;
 
     public CaifuLayoutBuildService(OssTagUploadService ossTagUploadService) {
         this.ossTagUploadService = ossTagUploadService;
@@ -114,7 +114,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         return result;
     }
 
-    private String buildTagUploadSubDir(FormeBuildContext context) {
+    protected String buildTagUploadSubDir(FormeBuildContext context) {
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
         if (isBlank(manufacturerMetaId) || isBlank(typesettingId)) {
@@ -127,7 +127,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         return value == null || value.trim().isEmpty();
     }
 
-    private FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
+    protected FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
         FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
         mark.setImg(img);
         mark.setSize(createSize(BigDecimal.valueOf(width), BigDecimal.valueOf(height)));
@@ -135,7 +135,7 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         return mark;
     }
 
-    private byte[] createBlackPng(int width, int height) {
+    protected byte[] createBlackPng(int width, int height) {
         try {
             BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = image.createGraphics();
