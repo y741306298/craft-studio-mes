@@ -9,8 +9,10 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class ImageMaskRequest {
@@ -113,22 +115,7 @@ public class ImageMaskRequest {
                 if (paramConfigs != null) {
                     for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
                         Object paramValue = config.getParam();
-                        if (paramValue instanceof List) {
-                            List<Double> coordinates = (List<Double>) paramValue;
-                            for (int i = 0; i < coordinates.size(); i += 2) {
-                                if (i + 1 < coordinates.size()) {
-                                    Coordinate xCoord = new Coordinate();
-                                    xCoord.setValue(String.valueOf(coordinates.get(i)));
-                                    xCoord.setBlood("10");
-                                    xs.add(xCoord);
-
-                                    Coordinate yCoord = new Coordinate();
-                                    yCoord.setValue(String.valueOf(coordinates.get(i + 1)));
-                                    yCoord.setBlood("20");
-                                    ys.add(yCoord);
-                                }
-                            }
-                        }
+                        resolveCoordinates(paramValue, xs, ys);
                     }
                 }
             }
@@ -142,6 +129,81 @@ public class ImageMaskRequest {
         }
 
         return (!xs.isEmpty() || !ys.isEmpty()) ? slice : null;
+    }
+
+    private static void resolveCoordinates(Object paramValue, List<Coordinate> xs, List<Coordinate> ys) {
+        if (paramValue == null) {
+            return;
+        }
+
+        if (paramValue instanceof Map<?, ?> mapValue) {
+            addCoordinatesFromList(mapValue.get("xs"), xs, "10");
+            addCoordinatesFromList(mapValue.get("ys"), ys, "20");
+            return;
+        }
+
+        if (paramValue instanceof List<?> coordinates) {
+            for (int i = 0; i < coordinates.size(); i += 2) {
+                if (i + 1 < coordinates.size()) {
+                    xs.add(buildCoordinate(coordinates.get(i), "10"));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), "20"));
+                }
+            }
+            return;
+        }
+
+        // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
+        Object xsValue = invokeGetter(paramValue, "getXs");
+        Object ysValue = invokeGetter(paramValue, "getYs");
+        addCoordinatesFromList(xsValue, xs, "10");
+        addCoordinatesFromList(ysValue, ys, "20");
+    }
+
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, String defaultBlood) {
+        if (!(listObj instanceof List<?> values)) {
+            return;
+        }
+        for (Object value : values) {
+            target.add(buildCoordinate(value, defaultBlood));
+        }
+    }
+
+    private static Coordinate buildCoordinate(Object rawValue, String defaultBlood) {
+        Coordinate coordinate = new Coordinate();
+        coordinate.setBlood(defaultBlood);
+
+        if (rawValue == null) {
+            return coordinate;
+        }
+        if (rawValue instanceof Number || rawValue instanceof String) {
+            coordinate.setValue(String.valueOf(rawValue));
+            return coordinate;
+        }
+        if (rawValue instanceof Map<?, ?> valueMap) {
+            Object value = valueMap.get("value");
+            Object blood = valueMap.get("blood");
+            coordinate.setValue(value != null ? String.valueOf(value) : null);
+            coordinate.setBlood(blood != null ? String.valueOf(blood) : defaultBlood);
+            return coordinate;
+        }
+
+        Object value = invokeGetter(rawValue, "getValue");
+        Object blood = invokeGetter(rawValue, "getBlood");
+        coordinate.setValue(value != null ? String.valueOf(value) : String.valueOf(rawValue));
+        coordinate.setBlood(blood != null ? String.valueOf(blood) : defaultBlood);
+        return coordinate;
+    }
+
+    private static Object invokeGetter(Object target, String getterName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            Method getter = target.getClass().getMethod(getterName);
+            return getter.invoke(target);
+        } catch (Exception ignore) {
+            return null;
+        }
     }
 
 
