@@ -814,7 +814,7 @@ public class AppTypesettingService {
         }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
-        manifest.setSpacing(10);
+        manifest.setSpacing(layoutMode.getNestingSpacingMm());
         manifest.setContainers(containers);
         manifest.setElements(elements);
 
