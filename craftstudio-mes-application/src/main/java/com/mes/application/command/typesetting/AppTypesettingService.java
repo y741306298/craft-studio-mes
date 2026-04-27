@@ -719,9 +719,9 @@ public class AppTypesettingService {
                 }
                 if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                     ProductionPiece piece = cell.toProductionPiece();
-                    ProductionPiece dbPiece = productionPieceService.findByProductionPieceId(piece.getProductionPieceId());
+                    ProductionPiece dbPiece = productionPieceService.findById(piece.getId());
                     if (dbPiece == null) {
-                        throw new IllegalArgumentException("生产工件不存在：" + piece.getProductionPieceId());
+                        throw new IllegalArgumentException("生产工件不存在：" + piece.getId());
                     }
                     if (piece.getQuantity() != null) {
                         dbPiece.setQuantity(piece.getQuantity());
@@ -969,11 +969,10 @@ public class AppTypesettingService {
             if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 continue;
             }
-            List<TypesettingInfo> nestedTypesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(cell.getSourceId());
-            if (nestedTypesettingInfos == null || nestedTypesettingInfos.isEmpty()) {
-                TypesettingInfo nestedById = domainTypesettingService.findById(cell.getSourceId());
-                nestedTypesettingInfos = nestedById == null ? Collections.emptyList() : Collections.singletonList(nestedById);
-            }
+            TypesettingInfo nestedById = domainTypesettingService.findById(cell.getSourceId());
+            List<TypesettingInfo> nestedTypesettingInfos = nestedById == null
+                    ? Collections.emptyList()
+                    : Collections.singletonList(nestedById);
             for (TypesettingInfo nestedInfo : nestedTypesettingInfos) {
                 if (nestedInfo == null) {
                     continue;
@@ -989,12 +988,12 @@ public class AppTypesettingService {
             return;
         }
         for (Map.Entry<String, Integer> entry : productionPieceUsage.entrySet()) {
-            String productionPieceId = entry.getKey();
+            String productionPieceRecordId = entry.getKey();
             int requiredQuantity = entry.getValue() * plateUseCount;
             if (requiredQuantity <= 0) {
                 continue;
             }
-            ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+            ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
             if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                 continue;
             }
@@ -1015,7 +1014,7 @@ public class AppTypesettingService {
             }
             int typesettingQuantity = typesettingNode.getPieceQuantity() == null ? 0 : typesettingNode.getPieceQuantity();
             if (typesettingQuantity < requiredQuantity) {
-                throw new RuntimeException("零件 " + productionPieceId + " 的“排版中”数量不足，需求="
+                throw new RuntimeException("零件 " + productionPieceRecordId + " 的“排版中”数量不足，需求="
                         + requiredQuantity + "，当前=" + typesettingQuantity);
             }
             typesettingNode.setPieceQuantity(typesettingQuantity - requiredQuantity);
@@ -1036,7 +1035,7 @@ public class AppTypesettingService {
                                                               Set<String> productionPieceIds) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
         for (String productionPieceId : productionPieceIds) {
-            ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+            ProductionPiece piece = productionPieceService.findById(productionPieceId);
             if (piece == null) {
                 continue;
             }
@@ -1171,15 +1170,15 @@ public class AppTypesettingService {
         }
 
         for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
-            String productionPieceId = entry.getKey();
+            String productionPieceRecordId = entry.getKey();
             Integer rollbackQuantity = entry.getValue();
-            if (StringUtils.isBlank(productionPieceId) || rollbackQuantity == null || rollbackQuantity <= 0) {
+            if (StringUtils.isBlank(productionPieceRecordId) || rollbackQuantity == null || rollbackQuantity <= 0) {
                 continue;
             }
             try {
-                ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+                ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
                 if (piece == null || StringUtils.isBlank(piece.getId())) {
-                    errorMessages.add("生产工件不存在: " + productionPieceId);
+                    errorMessages.add("生产工件不存在: " + productionPieceRecordId);
                     continue;
                 }
                 productionPieceService.transferPieceQuantityBetweenNodes(
@@ -1190,7 +1189,7 @@ public class AppTypesettingService {
                 );
                 releasedPieceIds.add(piece.getId());
             } catch (Exception e) {
-                errorMessages.add("回退工件失败(" + productionPieceId + "): " + e.getMessage());
+                errorMessages.add("回退工件失败(" + productionPieceRecordId + "): " + e.getMessage());
             }
         }
 
