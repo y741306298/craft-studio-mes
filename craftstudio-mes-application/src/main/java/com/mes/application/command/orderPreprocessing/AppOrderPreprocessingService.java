@@ -38,6 +38,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 订单预处理应用服务。
+ *
+ * <p>方式使用备注：</p>
+ * <ul>
+ *     <li>同步入口：由 {@code AppOrderService#createOrder(...)} 在订单项创建完成后调用 {@link #preprocessOrder(List)}。</li>
+ *     <li>异步入口：当算法服务回调蒙版结果时，由控制器调用 {@link #handleGenerateMaskFilesCallback(ImageMaskResponse, String)}。</li>
+ *     <li>PLT 入口：按需调用 {@link #generatePltFile(String, String)} 或 {@link #batchGeneratePltFiles(List, String)}。</li>
+ * </ul>
+ */
 @Service
 public class AppOrderPreprocessingService {
 
@@ -71,6 +81,8 @@ public class AppOrderPreprocessingService {
 
     /**
      * 订单预处理：根据 orderId 查询订单下的所有订单项，解析工艺流程并处理裁切和异形工艺
+     *
+     * <p>方式使用备注：该方法作为订单预处理主入口，建议在订单项持久化成功后调用。</p>
      *
      */
     public void preprocessOrder(List<OrderItem> orderItems) {
@@ -247,6 +259,8 @@ public class AppOrderPreprocessingService {
      *
      * @param response 算法服务返回的蒙版结果
      * @param orderItemId 订单项ID（从callbackCustomValue传入）
+     *
+     * <p>方式使用备注：该方法仅用于算法服务异步回调，不建议在业务代码中主动构造回调数据调用。</p>
      */
     public void handleGenerateMaskFilesCallback(ImageMaskResponse response, String orderItemId) {
         try {
@@ -352,6 +366,8 @@ public class AppOrderPreprocessingService {
      * @param orderItemId 订单项 ID
      * @param pltApiUrl   PLT 生成 API 的 URL
      * @return PLT 文件生成结果
+     *
+     * <p>方式使用备注：适用于单个订单项即时生成 PLT 的场景。</p>
      */
     public PltGenerateResult generatePltFile(String orderItemId, String pltApiUrl) {
         try {
@@ -420,6 +436,8 @@ public class AppOrderPreprocessingService {
      * @param orderItemIds 订单项 ID 列表
      * @param pltApiUrl    PLT 生成 API 的 URL
      * @return PLT 文件生成结果列表
+     *
+     * <p>方式使用备注：适用于运营后台批量触发，内部会逐条调用 {@link #generatePltFile(String, String)}。</p>
      */
     public List<PltGenerateResult> batchGeneratePltFiles(List<String> orderItemIds, String pltApiUrl) {
         List<PltGenerateResult> results = new ArrayList<>();
