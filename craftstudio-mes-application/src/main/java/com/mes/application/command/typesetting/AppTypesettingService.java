@@ -554,9 +554,7 @@ public class AppTypesettingService {
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
-        TypesettingLayoutModeConfirmService modeConfirmService = layoutModeConfirmServiceMap.get(layoutMode);
-        if (modeConfirmService == null
-                && (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg()))) {
+        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
         }
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
