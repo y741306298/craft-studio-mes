@@ -178,11 +178,15 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
         if (!isTypesettingSource) {
             return null;
         }
+        TypesettingInfo infoById = typesettingService.findById(cell.getSourceId());
+        if (infoById != null) {
+            return infoById;
+        }
         List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(cell.getSourceId());
         if (infos != null && !infos.isEmpty() && infos.get(0) != null) {
             return infos.get(0);
         }
-        return typesettingService.findById(cell.getSourceId());
+        return null;
     }
 
     private String buildTagUploadSubDir(FormeBuildContext context) {
