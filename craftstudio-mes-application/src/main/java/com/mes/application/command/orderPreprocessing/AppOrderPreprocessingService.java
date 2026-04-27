@@ -1,5 +1,6 @@
 package com.mes.application.command.orderPreprocessing;
 
+import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.resp.ImageMaskResponse;
@@ -155,7 +156,9 @@ public class AppOrderPreprocessingService {
             callbackCustomValue.setId(orderItem.getOrderItemId());
             callbackConfig.setCallbackCustomValue(callbackCustomValue);
             imageMaskRequest.setCallbackConfig(callbackConfig);
+            System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
             ImageMaskResponse imageMaskResponse = algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+//            ImageMaskResponse imageMaskResponse = algorithmCoreApiService.generateMaskFilesSync(imageMaskRequest);
             return null;
         }
     }

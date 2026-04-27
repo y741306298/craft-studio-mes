@@ -136,6 +136,32 @@ public class AlgorithmCoreApiService {
                 request.getCallbackConfig().getCallbackUrl(), ImageMaskResponse.class);
     }
 
+    /**
+     * 图片遮罩抠图 - 同步模式
+     * 适用于耗时较长的场景，建议优先使用此模式
+     * 算法服务会立即返回202，处理结果通过回调接口返回
+     *
+     * @param request 抠图请求参数，必须配置callbackConfig
+     * @return 任务接受响应
+     */
+    public ImageMaskResponse generateMaskFilesSync(ImageMaskRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getRawImage() == null || request.getRawImage().getUrl() == null || request.getRawImage().getUrl().isEmpty()) {
+            throw new RuntimeException("原始图片URL不能为空");
+        }
+        if (request.getMaskSvgUrl() == null || request.getMaskSvgUrl().isEmpty()) {
+            throw new RuntimeException("蒙版SVG URL不能为空");
+        }
+        if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
+        }
+        String jsonString = JSON.toJSONString(request);
+        System.out.println(jsonString);
+        return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, ImageMaskResponse.class);
+    }
+
 
     /**
      * 排版算法 - 异步模式（推荐）
