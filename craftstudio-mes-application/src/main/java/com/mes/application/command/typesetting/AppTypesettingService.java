@@ -560,6 +560,9 @@ public class AppTypesettingService {
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
             return LayoutConfirmResult.failed("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
+        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
+        }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
 
