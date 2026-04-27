@@ -26,18 +26,18 @@ import java.util.List;
 public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildService {
     /**
      * XY切割（切割辅助线-裁赋A30小图）规则备注：
-     * 1) 在原svg上扩边：上20mm、右5mm，扩边后左上角作为原点；
+     * 1) 在原svg上扩边：上20mm、右11mm，扩边后左上角作为原点；
      * 2) 元素A：读取当前排版 gridLines.ys，并额外补一条 y=20；
      * 3) 元素B：8x3mm 黑色PNG；
      * 4) 元素C：3mm宽、与扩边后图形同高的黑色PNG；
      * 5) 遍历元素A的 y：在 x=原svg.width，y+244 处放置元素B，若 y+274 > 原svg.height 则不放；
-     * 6) 在 x=(2+svg.width), y=0 放置元素C；
+     * 6) 在 x=(8+svg.width), y=0 放置元素C；
      * 7) 遍历 typesettingCells 中 sourceType=typesetting，读取其对应 typesettingInfo 作为元素D，
      *    取元素D的 gridLines.ys，并补一条 y=0；
      * 8) 遍历元素D的 y：在 x=元素D.svg.width，y+294 处放置元素B，若 y+294 > 原svg.height 则不放。
      */
     private static final int EXPAND_TOP_MM = 20;
-    private static final int EXPAND_RIGHT_MM = 5;
+    private static final int EXPAND_RIGHT_MM = 11;
 
     private static final int MARK_B_WIDTH_MM = 8;
     private static final int MARK_B_HEIGHT_MM = 3;
@@ -48,7 +48,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
     private static final int MARK_B_OFFSET_Y_FROM_D_MM = 294;
 
     private static final int MARK_C_WIDTH_MM = 3;
-    private static final int MARK_C_OFFSET_X_MM = 2;
+    private static final int MARK_C_OFFSET_X_MM = 8;
 
     private final OssTagUploadService ossTagUploadService;
     private final TypesettingService typesettingService;
@@ -104,7 +104,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
             marks.add(createMark(elementB, MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM, originalWidth, markY));
         }
 
-        // 元素C：x=(2+svg.width)，y=0，高度=扩边后高度
+        // 元素C：x=(8+svg.width)，y=0，高度=扩边后高度
         marks.add(createMark(
                 elementC,
                 MARK_C_WIDTH_MM,
