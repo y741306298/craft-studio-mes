@@ -12,6 +12,7 @@ import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
+import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -108,11 +109,15 @@ public class AppTypesettingService {
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
 
+    @Autowired(required = false)
+    private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
+
     /**
      * layoutMode -> builder 的运行时映射表。
      * 在容器初始化完成后由 initLayoutModeBuilders 填充。
      */
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, TypesettingLayoutModeConfirmService> layoutModeConfirmServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
@@ -130,6 +135,12 @@ public class AppTypesettingService {
         }
         for (TypesettingLayoutModeBuildService buildService : layoutModeBuildServices) {
             layoutModeBuildServiceMap.put(buildService.supportMode(), buildService);
+        }
+        if (layoutModeConfirmServices == null) {
+            return;
+        }
+        for (TypesettingLayoutModeConfirmService confirmService : layoutModeConfirmServices) {
+            layoutModeConfirmServiceMap.put(confirmService.supportMode(), confirmService);
         }
     }
 
@@ -539,18 +550,24 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             return LayoutConfirmResult.failed("排版信息不存在：" + request.getId());
         }
-        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
-        }
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
+        TypesettingLayoutModeConfirmService modeConfirmService = layoutModeConfirmServiceMap.get(layoutMode);
+        if (modeConfirmService == null
+                && (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg()))) {
+            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
+        }
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
             return LayoutConfirmResult.failed("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
+
+        if (modeConfirmService != null) {
+            return modeConfirmService.confirm(typesettingInfo);
+        }
 
         String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
