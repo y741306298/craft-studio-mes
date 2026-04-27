@@ -10,6 +10,7 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,8 +38,8 @@ public class ImageMaskRequest {
 
     @Data
     public static class Coordinate {
-        private String value;
-        private String blood;
+        private Integer value;
+        private Integer blood;
     }
 
 
@@ -137,16 +138,16 @@ public class ImageMaskRequest {
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, "10");
-            addCoordinatesFromList(mapValue.get("ys"), ys, "20");
+            addCoordinatesFromList(mapValue.get("xs"), xs, 10);
+            addCoordinatesFromList(mapValue.get("ys"), ys, 20);
             return;
         }
 
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), "10"));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), "20"));
+                    xs.add(buildCoordinate(coordinates.get(i), 10));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), 20));
                 }
             }
             return;
@@ -155,11 +156,11 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, "10");
-        addCoordinatesFromList(ysValue, ys, "20");
+        addCoordinatesFromList(xsValue, xs, 10);
+        addCoordinatesFromList(ysValue, ys, 20);
     }
 
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, String defaultBlood) {
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood) {
         if (!(listObj instanceof List<?> values)) {
             return;
         }
@@ -168,7 +169,7 @@ public class ImageMaskRequest {
         }
     }
 
-    private static Coordinate buildCoordinate(Object rawValue, String defaultBlood) {
+    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood) {
         Coordinate coordinate = new Coordinate();
         coordinate.setBlood(defaultBlood);
 
@@ -176,22 +177,44 @@ public class ImageMaskRequest {
             return coordinate;
         }
         if (rawValue instanceof Number || rawValue instanceof String) {
-            coordinate.setValue(String.valueOf(rawValue));
+            coordinate.setValue(parseInteger(rawValue));
             return coordinate;
         }
         if (rawValue instanceof Map<?, ?> valueMap) {
             Object value = valueMap.get("value");
             Object blood = valueMap.get("blood");
-            coordinate.setValue(value != null ? String.valueOf(value) : null);
-            coordinate.setBlood(blood != null ? String.valueOf(blood) : defaultBlood);
+            Integer bloodValue = parseInteger(blood);
+            Integer coordinateValue = parseInteger(value);
+            coordinate.setValue(coordinateValue != null ? coordinateValue : parseInteger(rawValue));
+            coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
             return coordinate;
         }
 
         Object value = invokeGetter(rawValue, "getValue");
         Object blood = invokeGetter(rawValue, "getBlood");
-        coordinate.setValue(value != null ? String.valueOf(value) : String.valueOf(rawValue));
-        coordinate.setBlood(blood != null ? String.valueOf(blood) : defaultBlood);
+        Integer bloodValue = parseInteger(blood);
+        Integer coordinateValue = value != null ? parseInteger(value) : null;
+        coordinate.setValue(coordinateValue != null ? coordinateValue : parseInteger(rawValue));
+        coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
         return coordinate;
+    }
+
+    private static Integer parseInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            String valueStr = String.valueOf(value).trim();
+            if (valueStr.isEmpty()) {
+                return null;
+            }
+            return new BigDecimal(valueStr).intValue();
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private static Object invokeGetter(Object target, String getterName) {
