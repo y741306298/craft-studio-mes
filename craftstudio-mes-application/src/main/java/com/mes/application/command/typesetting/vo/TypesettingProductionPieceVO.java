@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.vo;
 
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
@@ -93,6 +94,7 @@ public class TypesettingProductionPieceVO {
     /**
      * 创建时间
      */
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private Date createTime;
 
     public static TypesettingProductionPieceVO fromProductionPiece(ProductionPiece piece){
