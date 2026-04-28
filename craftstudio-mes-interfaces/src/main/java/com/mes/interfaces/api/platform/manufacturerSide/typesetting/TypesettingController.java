@@ -12,7 +12,7 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
-import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -186,6 +187,22 @@ public class TypesettingController {
     @PostMapping("/generateTempCode")
     public ApiResponse<GenerateTempCodeResult> generateTempCode(@RequestBody GenerateTempCodeRequest request) {
         return ApiResponse.success(appTypesettingService.generateTempCode(request));
+    }
+
+    /**
+     * 查询所有排版方式枚举
+     */
+    @GetMapping("/layoutModes")
+    public ApiResponse<List<TypesettingLayoutMode>> listLayoutModes() {
+        return ApiResponse.success(Arrays.asList(TypesettingLayoutMode.values()));
+    }
+
+    /**
+     * 查询默认排版规格
+     */
+    @GetMapping("/layoutSpecs")
+    public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs() {
+        return ApiResponse.success(appTypesettingService.listDefaultLayoutSpecs());
     }
 
     /**
