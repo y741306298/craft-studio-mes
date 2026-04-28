@@ -12,7 +12,6 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
-import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
@@ -193,8 +192,8 @@ public class TypesettingController {
      * 查询所有排版方式枚举
      */
     @GetMapping("/layoutModes")
-    public ApiResponse<List<TypesettingLayoutMode>> listLayoutModes() {
-        return ApiResponse.success(Arrays.asList(TypesettingLayoutMode.values()));
+    public ApiResponse<List<TypesettingLayoutModeVO>> listLayoutModes() {
+        return ApiResponse.success(appTypesettingService.listLayoutModes());
     }
 
     /**

@@ -18,6 +18,7 @@ import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
 import com.mes.application.command.typesetting.vo.GenerateTempCodeResult;
 import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
+import com.mes.application.command.typesetting.vo.TypesettingLayoutModeVO;
 import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
 import com.mes.application.command.typesetting.vo.TypesettingLayoutSpecVO;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
@@ -216,6 +217,15 @@ public class AppTypesettingService {
      */
     public List<TypesettingLayoutSpecVO> listDefaultLayoutSpecs() {
         return DEFAULT_LAYOUT_SPECS;
+    }
+
+    /**
+     * 查询所有排版方式（完整对象）
+     */
+    public List<TypesettingLayoutModeVO> listLayoutModes() {
+        return Arrays.stream(TypesettingLayoutMode.values())
+                .map(TypesettingLayoutModeVO::from)
+                .collect(Collectors.toList());
     }
 
     /**
