@@ -18,7 +18,9 @@ import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
 import com.mes.application.command.typesetting.vo.GenerateTempCodeResult;
 import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
+import com.mes.application.command.typesetting.vo.TypesettingLayoutModeVO;
 import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
+import com.mes.application.command.typesetting.vo.TypesettingLayoutSpecVO;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
@@ -126,6 +128,10 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
+    private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
+            new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
+            new TypesettingLayoutSpecVO("1200*3000", 1200, 3000)
+    );
 
     @PostConstruct
     public void initLayoutModeBuilders() {
@@ -204,6 +210,22 @@ public class AppTypesettingService {
 
         long total = items.size();
         return new PagedResult<>(items, total, items.size(), 1);
+    }
+
+    /**
+     * 查询默认排版规格
+     */
+    public List<TypesettingLayoutSpecVO> listDefaultLayoutSpecs() {
+        return DEFAULT_LAYOUT_SPECS;
+    }
+
+    /**
+     * 查询所有排版方式（完整对象）
+     */
+    public List<TypesettingLayoutModeVO> listLayoutModes() {
+        return Arrays.stream(TypesettingLayoutMode.values())
+                .map(TypesettingLayoutModeVO::from)
+                .collect(Collectors.toList());
     }
 
     /**

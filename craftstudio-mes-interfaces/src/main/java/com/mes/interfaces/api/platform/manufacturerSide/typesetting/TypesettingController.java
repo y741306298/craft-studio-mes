@@ -12,7 +12,6 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
-import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
@@ -186,6 +185,22 @@ public class TypesettingController {
     @PostMapping("/generateTempCode")
     public ApiResponse<GenerateTempCodeResult> generateTempCode(@RequestBody GenerateTempCodeRequest request) {
         return ApiResponse.success(appTypesettingService.generateTempCode(request));
+    }
+
+    /**
+     * 查询所有排版方式枚举
+     */
+    @GetMapping("/layoutModes")
+    public ApiResponse<List<TypesettingLayoutModeVO>> listLayoutModes() {
+        return ApiResponse.success(appTypesettingService.listLayoutModes());
+    }
+
+    /**
+     * 查询默认排版规格
+     */
+    @GetMapping("/layoutSpecs")
+    public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs() {
+        return ApiResponse.success(appTypesettingService.listDefaultLayoutSpecs());
     }
 
     /**

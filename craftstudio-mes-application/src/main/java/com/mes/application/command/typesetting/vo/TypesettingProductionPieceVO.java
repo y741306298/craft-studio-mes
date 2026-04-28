@@ -9,6 +9,7 @@ import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialCo
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -89,6 +90,11 @@ public class TypesettingProductionPieceVO {
      */
     private String templateCode;
 
+    /**
+     * 创建时间
+     */
+    private Date createTime;
+
     public static TypesettingProductionPieceVO fromProductionPiece(ProductionPiece piece){
         TypesettingProductionPieceVO typesettingProductionPieceVO = new TypesettingProductionPieceVO();
         if (piece == null) {
@@ -111,6 +117,7 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setSourceId(piece.getId());
         typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
+        typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         return typesettingProductionPieceVO;
     }
@@ -136,6 +143,7 @@ public class TypesettingProductionPieceVO {
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
+        vo.setCreateTime(info.getCreateTime());
         return vo;
     }
 
@@ -147,6 +155,7 @@ public class TypesettingProductionPieceVO {
         piece.setQuantity(this.quantity);
         piece.setTemplateCode(this.templateCode);
         piece.setStatus(this.status);
+        piece.setCreateTime(this.createTime);
         return piece;
     }
 
@@ -163,6 +172,7 @@ public class TypesettingProductionPieceVO {
         info.setRemark(this.remark);
         info.setMaskSvg(this.maskSvg);
         info.setLayoutMode(this.layoutMode);
+        info.setCreateTime(this.createTime);
         return info;
     }
 }
