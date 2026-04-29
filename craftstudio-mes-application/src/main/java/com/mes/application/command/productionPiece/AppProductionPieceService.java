@@ -2,15 +2,19 @@ package com.mes.application.command.productionPiece;
 
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.List;
 
 @Service
 public class AppProductionPieceService {
@@ -105,5 +109,37 @@ public class AppProductionPieceService {
         long total = domainProductionPieceService.getTotalCount(orderItemId);
         
         return new PagedResult<>(items, total, query.getSize(), query.getCurrent());
+    }
+
+    public ProductionPiece increasePendingTypesettingQuantity(String productionPieceId, Integer increaseQuantity) {
+        if (StringUtils.isBlank(productionPieceId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "productionPieceId 不能为空");
+        }
+        if (increaseQuantity == null || increaseQuantity <= 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "增加数量必须大于 0");
+        }
+
+        ProductionPiece piece = domainProductionPieceService.findByProductionPieceId(productionPieceId);
+        if (piece == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
+        }
+        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件未配置工序节点");
+        }
+
+        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
+        ProcedureFlowNode pendingTypesettingNode = nodes.stream()
+                .filter(node -> node != null && "待排版".equals(node.getNodeName()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到“待排版”节点"));
+
+        int currentPendingQuantity = pendingTypesettingNode.getPieceQuantity() == null ? 0 : pendingTypesettingNode.getPieceQuantity();
+        pendingTypesettingNode.setPieceQuantity(currentPendingQuantity + increaseQuantity);
+
+        int currentPieceQuantity = piece.getQuantity() == null ? 0 : piece.getQuantity();
+        piece.setQuantity(currentPieceQuantity + increaseQuantity);
+
+        domainProductionPieceService.updateProductionPieceByProductionPieceId(productionPieceId, piece);
+        return piece;
     }
 }

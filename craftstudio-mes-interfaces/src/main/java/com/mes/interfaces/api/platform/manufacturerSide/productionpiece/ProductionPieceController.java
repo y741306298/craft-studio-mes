@@ -2,6 +2,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.productionpiece;
 
 import com.mes.application.command.productionPiece.AppProductionPieceService;
 import com.mes.application.dto.req.productionpiece.ProductionPieceListRequest;
+import com.mes.application.dto.req.productionpiece.UpdatePendingTypesettingQuantityRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.productionpiece.ProductionPieceResponse;
@@ -107,5 +108,16 @@ public class ProductionPieceController {
                 .toList();
         
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
+    }
+
+    @PostMapping("/increasePendingTypesettingQuantity")
+    public ApiResponse<ProductionPieceResponse> increasePendingTypesettingQuantity(
+            @Valid @RequestBody UpdatePendingTypesettingQuantityRequest request) {
+        com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece piece =
+                appProductionPieceService.increasePendingTypesettingQuantity(
+                        request.getProductionPieceId(),
+                        request.getIncreaseQuantity()
+                );
+        return ApiResponse.success(ProductionPieceResponse.from(piece));
     }
 }
