@@ -138,6 +138,9 @@ public class DeliveryRouteNode extends BaseEntity {
      * 验证地区编码是否完整
      */
     public boolean validateRegionCodes() {
+        if (!isNotBlank(destCountryCode) && isNotBlank(countryCode)) {
+            this.destCountryCode = this.countryCode;
+        }
         return isNotBlank(countryCode) && isNotBlank(destCountryCode);
     }
     
