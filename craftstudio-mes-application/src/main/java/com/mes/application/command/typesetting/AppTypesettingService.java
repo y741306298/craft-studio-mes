@@ -26,6 +26,8 @@ import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
+import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
+import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
@@ -598,7 +600,7 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         System.out.println(JSON.toJSONString(formeRequest));
-        FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
+        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
         if (response == null || StringUtils.isBlank(response.getStatus())) {
             return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
         }
@@ -607,9 +609,9 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(errorMessage);
         }
 
-        // 更新印版信息为“待排版”，并保存印版生成结果（json/plt/formeSvg）
-        typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
-        applyFormeGenerationResult(typesettingInfo, response.getResult());
+        // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
+        typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+        typesettingInfo.setRemark("FORME_OP:LAYOUT");
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         LayoutConfirmResult result = new LayoutConfirmResult();
@@ -906,7 +908,7 @@ public class AppTypesettingService {
 
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-        FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
+        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
         if (response == null || StringUtils.isBlank(response.getStatus())) {
             throw new RuntimeException("确认打印失败：印版生成服务返回为空");
         }
@@ -915,40 +917,87 @@ public class AppTypesettingService {
             throw new RuntimeException(errorMessage);
         }
 
-        applyFormeGenerationResult(typesettingInfo, response.getResult());
-        // 进入待打印模式，leaveQuantity 重新回到 1
-        typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
-        typesettingInfo.setLeaveQuantity(1);
-        Set<String> visitedTypesettingKeys = new HashSet<>();
-        Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-        collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
-        int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
-                ? typesettingInfo.getLeaveQuantity() : 1;
-        transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
-
-        Set<String> productionPieceIds = productionPieceUsage.keySet();
-        String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
-                ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-        String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
-        Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
-        TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
-                printTaskTypesettingId,
-                deviceInfoId,
-                typesettingInfo.getElement(),
-                allMarks,
-                productionPieceIds
-        );
+        typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+        typesettingInfo.setRemark("FORME_OP:PRINT:" + request.getDeviceCode());
         domainTypesettingService.updateTypesetting(typesettingInfo);
-        savePrintTask(printTaskTypesettingId, deviceInfoId, downloadTaskData);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
-        result.setMessage("确认打印成功，共生成图片任务 " + downloadTaskData.getImamges().size()
-                + " 条、plt任务 " + downloadTaskData.getPlts().size()
-                + " 条、json任务 " + downloadTaskData.getJsons().size() + " 条");
-        result.setUpdatedPieceCount(productionPieceIds.size());
-        result.setUpdatedPieceIds(new ArrayList<>(productionPieceIds));
+        result.setMessage("确认打印任务已提交，等待回调");
         return result;
+    }
+
+    public LayoutConfirmResult batchConfirmLayout(BatchConfirmLayoutRequest request) {
+        if (request == null || request.getTypesettingInfos() == null || request.getTypesettingInfos().isEmpty()) {
+            return LayoutConfirmResult.failed("批量确认排版参数不能为空");
+        }
+        for (TypesettingInfo info : request.getTypesettingInfos()) {
+            LayoutConfirmResult result = confirmLayout(info);
+            if (!result.isSuccess()) {
+                return result;
+            }
+        }
+        LayoutConfirmResult ok = new LayoutConfirmResult();
+        ok.setSuccess(true);
+        ok.setMessage("批量确认排版任务已提交");
+        return ok;
+    }
+
+    public ConfirmPrintResult batchConfirmPrint(BatchConfirmPrintRequest request) {
+        if (request == null || request.getRequests() == null || request.getRequests().isEmpty()) {
+            throw new RuntimeException("批量确认打印参数不能为空");
+        }
+        for (ConfirmPrintRequest item : request.getRequests()) {
+            confirmPrint(item);
+        }
+        ConfirmPrintResult result = new ConfirmPrintResult();
+        result.setSuccess(true);
+        result.setMessage("批量确认打印任务已提交");
+        return result;
+    }
+
+    public void handleGenerateFormeCallback(FormeGenerationResponse response) {
+        if (response == null || StringUtils.isBlank(response.getId())) {
+            return;
+        }
+        TypesettingInfo typesettingInfo = domainTypesettingService.findById(response.getId());
+        if (typesettingInfo == null) {
+            return;
+        }
+        if (!"success".equalsIgnoreCase(response.getStatus())) {
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+            typesettingInfo.setRemark(StringUtils.isNotBlank(response.getError()) ? response.getError() : "印版异步生成失败");
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+            return;
+        }
+        applyFormeGenerationResult(typesettingInfo, response.getResult());
+        String remark = typesettingInfo.getRemark();
+        if ("FORME_OP:LAYOUT".equals(remark)) {
+            typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
+            typesettingInfo.setRemark(null);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+            return;
+        }
+        if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
+            String deviceCode = remark.substring("FORME_OP:PRINT:".length());
+            typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
+            typesettingInfo.setLeaveQuantity(1);
+            Set<String> visitedTypesettingKeys = new HashSet<>();
+            Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
+            collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
+            int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
+                    ? typesettingInfo.getLeaveQuantity() : 1;
+            transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
+            Set<String> productionPieceIds = productionPieceUsage.keySet();
+            String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
+                    ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+            String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
+            Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
+            TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(printTaskTypesettingId, deviceInfoId, typesettingInfo.getElement(), allMarks, productionPieceIds);
+            typesettingInfo.setRemark(null);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+            savePrintTask(printTaskTypesettingId, deviceInfoId, downloadTaskData);
+        }
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {

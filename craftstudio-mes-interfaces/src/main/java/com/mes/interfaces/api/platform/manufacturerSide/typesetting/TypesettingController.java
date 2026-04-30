@@ -5,6 +5,8 @@ import com.mes.application.command.typesetting.AppTypesettingService;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
+import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
+import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
@@ -106,6 +108,19 @@ public class TypesettingController {
         return ApiResponse.success(result);
     }
 
+
+    @PostMapping("/confirmLayout/batch")
+    public ApiResponse<LayoutConfirmResult> batchConfirmLayout(@RequestBody BatchConfirmLayoutRequest request) {
+        LayoutConfirmResult result = appTypesettingService.batchConfirmLayout(request);
+        if (!result.isSuccess()) {
+            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
+            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
+            failResponse.setMessage(result.getMessage());
+            return failResponse;
+        }
+        return ApiResponse.success(result);
+    }
+
     /**
      * 确认打印：将排版数据根据状态机改为待打印状态
      *
@@ -127,6 +142,13 @@ public class TypesettingController {
             return failResponse;
         }
         ConfirmPrintResult result = appTypesettingService.confirmPrint(request);
+        return ApiResponse.success(result);
+    }
+
+
+    @PostMapping("/confirmPrint/batch")
+    public ApiResponse<ConfirmPrintResult> batchConfirmPrint(@Valid @RequestBody BatchConfirmPrintRequest request) {
+        ConfirmPrintResult result = appTypesettingService.batchConfirmPrint(request);
         return ApiResponse.success(result);
     }
 
@@ -236,7 +258,8 @@ public class TypesettingController {
         logger.info("========== handleGenerateFormeCallback 入参开始 ==========");
         logger.info("response: " + JSON.toJSONString(response));
         logger.info("========== handleGenerateFormeCallback 入参结束 ==========");
-        return ApiResponse.success("回调处理待续");
+        appTypesettingService.handleGenerateFormeCallback(response);
+        return ApiResponse.success("回调处理成功");
     }
 
 
