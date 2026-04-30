@@ -184,4 +184,25 @@ public class AppManufacturerDeviceCfgService {
         }
         return result;
     }
+
+    public ManufacturerDeviceCfg unbindDeviceByManufacturerAndId(String manufacturerMetaId, String id) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        if (StringUtils.isBlank(id)) {
+            throw new IllegalArgumentException("设备id不能为空");
+        }
+
+        ManufacturerDeviceCfg cfg = domainDeviceCfgService.findById(id);
+        if (cfg == null) {
+            return null;
+        }
+        if (!manufacturerMetaId.equals(cfg.getManufacturerMetaId())) {
+            return null;
+        }
+        cfg.setBound(false);
+        cfg.setBoundVersion(cfg.getBoundVersion() == null ? 1 : cfg.getBoundVersion() + 1);
+        domainDeviceCfgService.updateDeviceCfg(cfg);
+        return cfg;
+    }
 }
