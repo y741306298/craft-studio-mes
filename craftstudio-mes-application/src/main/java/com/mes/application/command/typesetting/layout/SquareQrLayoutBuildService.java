@@ -77,8 +77,9 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -140,6 +141,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private String buildTagStripDataUri(String businessId,
                                         String manufacturerMetaId,
+                                        String typesettingId,
                                         String elementA,
                                         String elementB,
                                         String qrDataUri,
@@ -182,13 +184,20 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(uploadImage, "png", outputStream);
-            String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "qr" : "qr/" + manufacturerMetaId;
+            String uploadPath = buildMarkUploadPath(manufacturerMetaId, typesettingId);
             return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), uploadPath);
         } catch (Exception e) {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
             g.dispose();
         }
+    }
+
+    private String buildMarkUploadPath(String manufacturerMetaId, String typesettingId) {
+        if (StringUtils.isBlank(manufacturerMetaId) || StringUtils.isBlank(typesettingId)) {
+            return "mark";
+        }
+        return "mark/" + manufacturerMetaId + "/" + typesettingId;
     }
 
     private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
