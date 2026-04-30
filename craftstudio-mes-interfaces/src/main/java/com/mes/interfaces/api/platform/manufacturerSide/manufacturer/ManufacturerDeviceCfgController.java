@@ -4,6 +4,7 @@ import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerFactoryDeviceBindRequest;
+import com.mes.application.dto.req.manufacturerMeta.ManufacturerFactoryDeviceUnbindRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerFactoryDownloadTaskRequest;
 import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
@@ -11,6 +12,7 @@ import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.entity.Device;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -128,6 +130,9 @@ public class ManufacturerDeviceCfgController {
         List<ManufacturerDeviceCfg> cfgList = appDeviceCfgService.listDeviceCfgsByManufacturerId(manufacturerMetaId);
         List<ManufacturerFactoryDeviceResp> response = new ArrayList<ManufacturerFactoryDeviceResp>();
         for (ManufacturerDeviceCfg cfg : cfgList) {
+            if (cfg.getDeviceType() != DeviceType.PRINT) {
+                continue;
+            }
             ManufacturerFactoryDeviceResp item = new ManufacturerFactoryDeviceResp();
             item.setId(cfg.getId());
             item.setName(cfg.getDeviceName());
@@ -165,6 +170,25 @@ public class ManufacturerDeviceCfgController {
         ApiResponse<ManufacturerFactoryDeviceBindResp> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
         return apiResponse;
+    }
+
+    /**
+     * 解绑工厂设备（根据 jwtToken + deviceCode）
+     * @param jwtToken 登录 token（header）
+     * @param request 请求体
+     * @return 解绑结果
+     */
+    @PostMapping("/factory/unbind")
+    public ApiResponse<String> unbindFactoryDevice(
+            @RequestHeader("jwtToken") String jwtToken,
+            @Valid @RequestBody ManufacturerFactoryDeviceUnbindRequest request) {
+        String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
+        ManufacturerDeviceCfg cfg = appDeviceCfgService.unbindDeviceByManufacturerAndCode(
+                manufacturerMetaId, request.getDeviceCode());
+        if (cfg == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
+        }
+        return ApiResponse.success("success");
     }
 
     /**
