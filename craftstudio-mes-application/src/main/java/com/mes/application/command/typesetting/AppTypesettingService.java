@@ -159,11 +159,11 @@ public class AppTypesettingService {
         }
     }
 
-    @Value("${external.callbackApi.generate_nested_files}")
+    @Value("${external.callbackApi.generate_nested_files:}")
     private String generateNestedFilesCallbackUrl;
-    @Value("${external.callbackApi.generate_grid_nested_files}")
+    @Value("${external.callbackApi.generate_grid_nested_files:}")
     private String generateGridNestedFilesCallbackUrl;
-    @Value("${external.callbackApi.generate_forme}")
+    @Value("${external.callbackApi.generate_forme:}")
     private String generateFormeUrl;
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
     private String ossEndpoint;
