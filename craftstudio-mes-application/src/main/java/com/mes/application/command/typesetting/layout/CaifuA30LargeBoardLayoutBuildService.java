@@ -21,12 +21,21 @@ import java.util.List;
 
 @Service
 public class CaifuA30LargeBoardLayoutBuildService extends CaifuLayoutBuildService {
+    /**
+     * XY切割（切割辅助线-裁赋A30大板）规则备注：
+     * 1) 在原svg基础上扩边：上20mm、右5mm、左8mm，扩边后左上角作为新原点；
+     * 2) 生成元素A：宽3mm、高=扩边后大板高度的黑色PNG；
+     * 3) 在 x=(10+svg.width), y=0 放置元素A；
+     * 4) 生成元素B：宽8mm、高3mm的黑色PNG；
+     * 5) 遍历 typesettingInfo.typesettingCells，按每个cell在当前版中的“左下角”为参考，
+     *    在其左8mm、上438mm位置放置元素B；若超出大板上边界则不放置。
+     */
     private static final int EXPAND_TOP_MM = 20;
     private static final int EXPAND_LEFT_MM = 8;
     private static final int EXPAND_RIGHT_MM = 5;
 
     private static final int MARK_A_WIDTH_MM = 3;
-    private static final int MARK_C_OFFSET_X_MM = 2;
+    private static final int MARK_C_OFFSET_X_MM = 10;
     private static final int MARK_B_WIDTH_MM = 8;
     private static final int MARK_B_HEIGHT_MM = 3;
     private static final int MARK_B_OFFSET_LEFT_MM = 8;
@@ -87,8 +96,9 @@ public class CaifuA30LargeBoardLayoutBuildService extends CaifuLayoutBuildServic
             for (int i = 0; i < count; i++) {
                 CellOrigin origin = cellOrigins.get(i);
                 int bX = origin.getX() - MARK_B_OFFSET_LEFT_MM;
-                int bY = origin.getY() + MARK_B_OFFSET_UP_MM;
-                if (bY + MARK_B_HEIGHT_MM > expandedHeight) {
+                // 业务坐标以cell左下角为原点（y轴向上），绘制坐标以扩边后左上角为原点（y轴向下）
+                int bY = expandedHeight - origin.getY() - MARK_B_OFFSET_UP_MM - MARK_B_HEIGHT_MM;
+                if (bY < 0 || bY + MARK_B_HEIGHT_MM > expandedHeight) {
                     continue;
                 }
                 marks.add(createMark(elementB, MARK_B_WIDTH_MM, MARK_B_HEIGHT_MM, bX, bY));
