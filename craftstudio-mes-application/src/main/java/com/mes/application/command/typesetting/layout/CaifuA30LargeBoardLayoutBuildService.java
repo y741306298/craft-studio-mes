@@ -35,7 +35,7 @@ public class CaifuA30LargeBoardLayoutBuildService extends CaifuLayoutBuildServic
     private static final int EXPAND_RIGHT_MM = 5;
 
     private static final int MARK_A_WIDTH_MM = 3;
-    private static final int MARK_C_OFFSET_X_MM = 2;
+    private static final int MARK_C_OFFSET_X_MM = 10;
     private static final int MARK_B_WIDTH_MM = 8;
     private static final int MARK_B_HEIGHT_MM = 3;
     private static final int MARK_B_OFFSET_LEFT_MM = 8;

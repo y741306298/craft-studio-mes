@@ -7,7 +7,9 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -31,6 +33,9 @@ public class AppPrintService {
 
     @Autowired
     private ProductionPieceService productionPieceService;
+
+    @Autowired
+    private TypesettingPrintTaskService typesettingPrintTaskService;
 
     public PagedResult<TypesettingInfo> findPendingPrintTypesetting(String manufacturerMetaId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
@@ -60,6 +65,19 @@ public class AppPrintService {
         );
 
         return new PagedResult<>(items, total, items.size(), current);
+    }
+
+    public TypesettingPrintTask findPrintTaskById(String id) {
+        if (StringUtils.isBlank(id)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打印任务ID不能为空");
+        }
+
+        TypesettingPrintTask task = typesettingPrintTaskService.findById(id);
+        if (task == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打印任务不存在：" + id);
+        }
+
+        return task;
     }
 
     public PrintReportResult reportPrinting(TypesettingInfo request) {

@@ -16,6 +16,13 @@ public class TypesettingPrintTaskService {
     @Autowired
     private TypesettingPrintTaskRepository typesettingPrintTaskRepository;
 
+    public TypesettingPrintTask findById(String id) {
+        if (StringUtils.isBlank(id)) {
+            return null;
+        }
+        return typesettingPrintTaskRepository.findById(id);
+    }
+
     public TypesettingPrintTask findByTypesettingInfoId(String typesettingInfoId) {
         if (StringUtils.isBlank(typesettingInfoId)) {
             return null;
