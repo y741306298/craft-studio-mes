@@ -39,14 +39,15 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingPrintTaskStatus;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingSequenceUsageType;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingSequencePoolService;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
-import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.google.zxing.BarcodeFormat;
@@ -76,6 +77,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.TimeUnit;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,6 +92,9 @@ public class AppTypesettingService {
 
     @Autowired
     private TypesettingPrintTaskService typesettingPrintTaskService;
+
+    @Autowired
+    private TypesettingSequencePoolService typesettingSequencePoolService;
 
     @Autowired
     private OrderItemService orderItemService;
@@ -123,6 +129,7 @@ public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
+    private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
@@ -443,7 +450,7 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(validateProcedureResult);
         }
         //记录id，供callback使用
-        String cacheKey = IdGenerator.generateId("LAYOUT");
+        String cacheKey = generateTypesettingId(request.getManufacturerMetaId());
         try {
             String requestJson = JSON.toJSONString(request);
             redisTemplate.opsForValue().set(cacheKey, requestJson, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
@@ -702,13 +709,11 @@ public class AppTypesettingService {
     /**
      * 生成元素 B（xxx.plt 文件名）。
      *
-     * <p>号码来源：复用现有临时码队列（循环 1~100000）。
+     * <p>号码来源：排版序号池（每工厂按 usageType 维护 1~10000 循环数组）。
      */
     private String generatePrintingPlateName(String manufacturerMetaId) {
-        GenerateTempCodeRequest request = new GenerateTempCodeRequest();
-        request.setManufacturerMetaId(manufacturerMetaId);
-        GenerateTempCodeResult tempCodeResult = generateTempCode(request);
-        return tempCodeResult.getTempCode() + ".plt";
+        int nextSeq = typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.PLT_FILE_NAME);
+        return nextSeq + ".plt";
     }
 
     /**
@@ -724,6 +729,11 @@ public class AppTypesettingService {
         return "data:image/png;base64," + qrCodeResult.getQrCodeBase64();
     }
 
+
+    private String generateTypesettingId(String manufacturerMetaId) {
+        int nextSeq = typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.LAYOUT_ID);
+        return "LAYOUT" + LocalDateTime.now().format(TYPESETTING_ID_TIME_FORMATTER) + nextSeq;
+    }
 
     private NestingRequest buildNestingRequest(LayoutConfirmRequest request, String cacheKey) {
         if (StringUtils.isBlank(generateNestedFilesCallbackUrl)) {
@@ -1111,6 +1121,8 @@ public class AppTypesettingService {
             }
             appendRawFile(jsonSet, typesettingElement.getJson());
         }
+        TypesettingInfo typesettingInfo = domainTypesettingService.findById(typesettingInfoId);
+        collectCellTypesettingPltsRecursive(typesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
             for (String markFile : marks.values()) {
                 appendRawFile(markSet, markFile);
@@ -1124,6 +1136,33 @@ public class AppTypesettingService {
         data.setJsons(new ArrayList<>(jsonSet));
         data.setMarks(new ArrayList<>(markSet));
         return data;
+    }
+
+    private void collectCellTypesettingPltsRecursive(TypesettingInfo typesettingInfo,
+                                                    Set<String> pltSet,
+                                                    Set<String> visitedIds) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId()) || visitedIds.contains(typesettingInfo.getId())) {
+            return;
+        }
+        visitedIds.add(typesettingInfo.getId());
+        if (typesettingInfo.getTypesettingCells() == null) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
+            if (cellTypesetting == null) {
+                continue;
+            }
+            TypesettingElement cellElement = cellTypesetting.getElement();
+            if (cellElement != null && cellElement.getPlt() != null) {
+                appendRawFile(pltSet, cellElement.getPlt().getNormal());
+                appendRawFile(pltSet, cellElement.getPlt().getReverse());
+            }
+            collectCellTypesettingPltsRecursive(cellTypesetting, pltSet, visitedIds);
+        }
     }
 
     private void appendRawFile(Set<String> container, String fileUrl) {
