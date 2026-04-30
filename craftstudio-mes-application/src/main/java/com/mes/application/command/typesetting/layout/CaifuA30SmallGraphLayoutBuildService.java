@@ -189,7 +189,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
         return null;
     }
 
-    private String buildTagUploadSubDir(FormeBuildContext context) {
+    protected String buildTagUploadSubDir(FormeBuildContext context) {
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
         if (isBlank(manufacturerMetaId) || isBlank(typesettingId)) {
@@ -202,7 +202,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
         return value == null || value.trim().isEmpty();
     }
 
-    private FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
+    protected FormeGenerationRequest.Mark createMark(String img, int width, int height, int x, int y) {
         FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
         mark.setImg(img);
         mark.setSize(createSize(BigDecimal.valueOf(width), BigDecimal.valueOf(height)));
@@ -210,7 +210,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
         return mark;
     }
 
-    private byte[] createBlackPng(int width, int height) {
+    protected byte[] createBlackPng(int width, int height) {
         try {
             BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = image.createGraphics();
