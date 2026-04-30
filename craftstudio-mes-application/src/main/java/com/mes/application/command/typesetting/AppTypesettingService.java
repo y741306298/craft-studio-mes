@@ -588,7 +588,7 @@ public class AppTypesettingService {
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
 
-        String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         System.out.println(JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
@@ -665,7 +665,7 @@ public class AppTypesettingService {
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         UploadConfig uploadConfig = new UploadConfig();
-        uploadConfig.setUploadPath(appendManufacturerMetaIdToUploadPath(modeResult.getUploadPath(), typesettingInfo.getManufacturerMetaId()));
+        uploadConfig.setUploadPath(appendManufacturerMetaIdToUploadPath(modeResult.getUploadPath(), typesettingInfo));
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         request.setUploadConfig(uploadConfig);
 
@@ -894,7 +894,7 @@ public class AppTypesettingService {
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
 
-        String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         FormeGenerationResponse response = algorithmCoreApiService.generateForme(formeRequest);
         if (response == null || StringUtils.isBlank(response.getStatus())) {
@@ -920,11 +920,12 @@ public class AppTypesettingService {
         String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                 ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
         String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+        Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
         TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
                 printTaskTypesettingId,
                 deviceInfoId,
                 typesettingInfo.getElement(),
-                typesettingInfo.getMarks(),
+                allMarks,
                 productionPieceIds
         );
         domainTypesettingService.updateTypesetting(typesettingInfo);
@@ -942,6 +943,7 @@ public class AppTypesettingService {
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
+                || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE == layoutMode
                 || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode;
     }
 
@@ -1049,6 +1051,41 @@ public class AppTypesettingService {
             productionPieceService.updateProductionPiece(piece);
         }
     }
+
+    private Map<String, String> collectTypesettingMarks(TypesettingInfo rootTypesettingInfo) {
+        LinkedHashMap<String, String> marks = new LinkedHashMap<>();
+        collectTypesettingMarksRecursive(rootTypesettingInfo, marks, new HashSet<>());
+        return marks;
+    }
+
+    private void collectTypesettingMarksRecursive(TypesettingInfo typesettingInfo,
+                                                  LinkedHashMap<String, String> marks,
+                                                  Set<String> visitedIds) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId()) || visitedIds.contains(typesettingInfo.getId())) {
+            return;
+        }
+        visitedIds.add(typesettingInfo.getId());
+        if (typesettingInfo.getMarks() != null && !typesettingInfo.getMarks().isEmpty()) {
+            for (Map.Entry<String, String> entry : typesettingInfo.getMarks().entrySet()) {
+                if (StringUtils.isNotBlank(entry.getValue())) {
+                    marks.put(typesettingInfo.getId() + ":" + entry.getKey(), entry.getValue());
+                }
+            }
+        }
+        if (typesettingInfo.getTypesettingCells() == null) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            TypesettingInfo childTypesetting = domainTypesettingService.findById(cell.getSourceId());
+            if (childTypesetting != null) {
+                collectTypesettingMarksRecursive(childTypesetting, marks, visitedIds);
+            }
+        }
+    }
+
 
     private TypesettingDownloadTaskData buildDownloadTaskData(String typesettingInfoId,
                                                               String deviceInfoId,
@@ -1636,8 +1673,12 @@ public class AppTypesettingService {
         return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
     }
 
-    private String appendManufacturerMetaIdToUploadPath(String uploadPath, String manufacturerMetaId) {
-        if (StringUtils.isBlank(uploadPath) || StringUtils.isBlank(manufacturerMetaId)) {
+    private String appendManufacturerMetaIdToUploadPath(String uploadPath, TypesettingInfo typesettingInfo) {
+        if (StringUtils.isBlank(uploadPath) || typesettingInfo == null) {
+            return uploadPath;
+        }
+        String manufacturerMetaId = typesettingInfo.getManufacturerMetaId();
+        if (StringUtils.isBlank(manufacturerMetaId)) {
             return uploadPath;
         }
         String normalizedPath = uploadPath.trim();
@@ -1647,6 +1688,14 @@ public class AppTypesettingService {
         if (!normalizedPath.endsWith("/")) {
             normalizedPath = normalizedPath + "/";
         }
+        if (normalizedPath.startsWith("printingplate/")) {
+            String typesettingId = typesettingInfo.getTypesettingId();
+            if (StringUtils.isBlank(typesettingId)) {
+                return normalizedPath + manufacturerMetaId + "/";
+            }
+            return normalizedPath + manufacturerMetaId + "/" + typesettingId + "/";
+        }
+
         if (!normalizedPath.startsWith("forme/")) {
             return normalizedPath + manufacturerMetaId + "/";
         }
@@ -1654,6 +1703,22 @@ public class AppTypesettingService {
         String suffix = normalizedPath.substring("forme/".length());
         return "forme/" + manufacturerMetaId + "/" + suffix;
     }
+
+    private String resolveFormeBusinessId(TypesettingInfo typesettingInfo, TypesettingLayoutMode layoutMode) {
+        if (typesettingInfo == null) {
+            return null;
+        }
+        if (isPrintingPlateLayoutMode(layoutMode)) {
+            return typesettingInfo.getId();
+        }
+        return StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+    }
+
+    private boolean isPrintingPlateLayoutMode(TypesettingLayoutMode layoutMode) {
+        return layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
+    }
+
 
     private String buildLayoutUploadPath(String manufacturerMetaId, String typesettingInfoId) {
         if (StringUtils.isBlank(typesettingInfoId)) {
