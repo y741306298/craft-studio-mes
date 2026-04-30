@@ -6,6 +6,6 @@ import lombok.Data;
 @Data
 public class ManufacturerFactoryDeviceUnbindRequest {
 
-    @NotBlank(message = "设备编码不能为空")
-    private String deviceCode;
+    @NotBlank(message = "设备ID不能为空")
+    private String id;
 }

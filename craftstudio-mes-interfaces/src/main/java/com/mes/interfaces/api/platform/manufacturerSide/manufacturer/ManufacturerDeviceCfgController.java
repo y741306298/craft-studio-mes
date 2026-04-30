@@ -173,7 +173,7 @@ public class ManufacturerDeviceCfgController {
     }
 
     /**
-     * 解绑工厂设备（根据 jwtToken + deviceCode）
+     * 解绑工厂设备（根据 jwtToken + ManufacturerDeviceCfg.id）
      * @param jwtToken 登录 token（header）
      * @param request 请求体
      * @return 解绑结果
@@ -183,8 +183,8 @@ public class ManufacturerDeviceCfgController {
             @RequestHeader("jwtToken") String jwtToken,
             @Valid @RequestBody ManufacturerFactoryDeviceUnbindRequest request) {
         String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
-        ManufacturerDeviceCfg cfg = appDeviceCfgService.unbindDeviceByManufacturerAndCode(
-                manufacturerMetaId, request.getDeviceCode());
+        ManufacturerDeviceCfg cfg = appDeviceCfgService.unbindDeviceByManufacturerAndId(
+                manufacturerMetaId, request.getId());
         if (cfg == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
         }

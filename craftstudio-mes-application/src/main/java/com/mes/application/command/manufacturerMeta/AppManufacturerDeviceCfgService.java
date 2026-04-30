@@ -185,22 +185,21 @@ public class AppManufacturerDeviceCfgService {
         return result;
     }
 
-    public ManufacturerDeviceCfg unbindDeviceByManufacturerAndCode(String manufacturerMetaId, String deviceCode) {
+    public ManufacturerDeviceCfg unbindDeviceByManufacturerAndId(String manufacturerMetaId, String id) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new IllegalArgumentException("制造商 ID 不能为空");
         }
-        if (StringUtils.isBlank(deviceCode)) {
-            throw new IllegalArgumentException("设备编码不能为空");
+        if (StringUtils.isBlank(id)) {
+            throw new IllegalArgumentException("设备id不能为空");
         }
 
-        Map<String, Object> cfgFilters = new HashMap<String, Object>();
-        cfgFilters.put("manufacturerMetaId", manufacturerMetaId);
-        cfgFilters.put("deviceCode", deviceCode);
-        List<ManufacturerDeviceCfg> matchedCfgList = manufacturerDeviceCfgRepository.filterList(1, 1, cfgFilters);
-        if (matchedCfgList == null || matchedCfgList.isEmpty()) {
+        ManufacturerDeviceCfg cfg = domainDeviceCfgService.findById(id);
+        if (cfg == null) {
             return null;
         }
-        ManufacturerDeviceCfg cfg = matchedCfgList.get(0);
+        if (!manufacturerMetaId.equals(cfg.getManufacturerMetaId())) {
+            return null;
+        }
         cfg.setBound(false);
         cfg.setBoundVersion(cfg.getBoundVersion() == null ? 1 : cfg.getBoundVersion() + 1);
         domainDeviceCfgService.updateDeviceCfg(cfg);
