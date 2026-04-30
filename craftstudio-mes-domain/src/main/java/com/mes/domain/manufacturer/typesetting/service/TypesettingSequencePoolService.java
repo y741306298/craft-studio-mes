@@ -43,8 +43,22 @@ public class TypesettingSequencePoolService {
         Integer next = sequenceArray.remove(0);
         sequenceArray.add(next);
 
-        sequencePoolRepository.saveOrUpdate(pool);
+        saveOrUpdate(pool);
         return next;
+    }
+
+    private void saveOrUpdate(TypesettingSequencePool pool) {
+        if (pool == null || StringUtils.isBlank(pool.getManufacturerMetaId()) || StringUtils.isBlank(pool.getUsageType())) {
+            throw new IllegalArgumentException("流水序号池不能为空，且必须包含 manufacturerMetaId 和 usageType");
+        }
+        TypesettingSequencePool exist = findByManufacturerAndUsage(pool.getManufacturerMetaId(),
+                TypesettingSequenceUsageType.parseCode(pool.getUsageType()));
+        if (exist == null) {
+            sequencePoolRepository.add(pool);
+            return;
+        }
+        pool.setId(exist.getId());
+        sequencePoolRepository.update(pool);
     }
 
     private TypesettingSequencePool findByManufacturerAndUsage(String manufacturerMetaId, TypesettingSequenceUsageType usageType) {
