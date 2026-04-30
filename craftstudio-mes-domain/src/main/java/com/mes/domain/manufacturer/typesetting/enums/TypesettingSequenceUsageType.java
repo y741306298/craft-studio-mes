@@ -19,4 +19,13 @@ public enum TypesettingSequenceUsageType {
     public String getDesc() {
         return desc;
     }
+
+    public static TypesettingSequenceUsageType parseCode(String code) {
+        for (TypesettingSequenceUsageType value : values()) {
+            if (value.code.equals(code)) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("未知 usageType: " + code);
+    }
 }
