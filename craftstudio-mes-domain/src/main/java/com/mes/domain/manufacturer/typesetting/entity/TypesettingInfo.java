@@ -36,6 +36,10 @@ public class TypesettingInfo extends BaseEntity {
     private ProcedureFlow procedureFlow;
     private String remark;
     /**
+     * 打印设备编号
+     */
+    private String deviceCode;
+    /**
      * 参与排版用的轮廓SVG（来源由上游工序补充）
      */
     private String maskSvg;
