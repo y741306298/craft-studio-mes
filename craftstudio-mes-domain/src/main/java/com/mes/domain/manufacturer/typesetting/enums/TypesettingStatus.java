@@ -8,6 +8,7 @@ public enum TypesettingStatus {
     PENDING("待排版", "pending"),           // 等待排版
     IN_PROGRESS("排版中", "in_progress"),   // 正在排版
     CONFIRMING("待确认", "confirming"),     // 等待确认
+    CONFIRMED("已确认", "confirmed"),       // 确认中
     PRINTING("待打印", "printing"),
     FAILED("排版失败", "failed");       // 已下达
 

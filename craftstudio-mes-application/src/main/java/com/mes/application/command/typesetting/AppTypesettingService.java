@@ -601,16 +601,9 @@ public class AppTypesettingService {
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         System.out.println(JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-        if (response == null || StringUtils.isBlank(response.getStatus())) {
-            return LayoutConfirmResult.failed("确认排版失败：印版生成服务返回为空");
-        }
-        if (!"success".equalsIgnoreCase(response.getStatus())) {
-            String errorMessage = StringUtils.isNotBlank(response.getError()) ? response.getError() : "确认排版失败：印版生成服务处理失败";
-            return LayoutConfirmResult.failed(errorMessage);
-        }
 
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
-        typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+        typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
         typesettingInfo.setRemark("FORME_OP:LAYOUT");
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
@@ -909,15 +902,8 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-        if (response == null || StringUtils.isBlank(response.getStatus())) {
-            throw new RuntimeException("确认打印失败：印版生成服务返回为空");
-        }
-        if (!"success".equalsIgnoreCase(response.getStatus())) {
-            String errorMessage = StringUtils.isNotBlank(response.getError()) ? response.getError() : "确认打印失败：印版生成服务处理失败";
-            throw new RuntimeException(errorMessage);
-        }
 
-        typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+        typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
         typesettingInfo.setRemark("FORME_OP:PRINT:" + request.getDeviceCode());
         typesettingInfo.setDeviceCode(request.getDeviceCode());
         domainTypesettingService.updateTypesetting(typesettingInfo);
