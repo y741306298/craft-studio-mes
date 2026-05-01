@@ -12,6 +12,7 @@ import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.productionPiece.AppPieceCirculationService;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
@@ -33,6 +34,20 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.URL;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,8 +91,17 @@ public class AppOrderPreprocessingService {
     @Autowired
     private AliCloudAuthService aliCloudAuthService;
 
+    @Autowired
+    private OssTagUploadService ossTagUploadService;
+
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
+
+    @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}}")
+    private String ossEndpoint;
+
+    @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:craftstudio-mes-test}}")
+    private String ossBucket;
 
 
     /**
@@ -245,6 +269,94 @@ public class AppOrderPreprocessingService {
         return new ArrayList<>();
     }
 
+    private void attachPreviewForMaskedPiece(ProductionPiece piece, String sourceImgUrl, OrderItem orderItem) {
+        if (piece == null || piece.getProductImageFile() == null || StringUtils.isBlank(sourceImgUrl)) {
+            return;
+        }
+        try {
+            byte[] thumbnailPng = createThumbnailPng(sourceImgUrl, 500, 72);
+            String manufacturerMetaId = orderItem != null ? orderItem.getManufacturerId() : null;
+            String orderItemId = piece.getOrderItemId();
+            String uploadPath = String.format("generateMask/%s/%s",
+                    StringUtils.isNotBlank(manufacturerMetaId) ? manufacturerMetaId : "unknown",
+                    StringUtils.isNotBlank(orderItemId) ? orderItemId : "unknown");
+            String previewUrl = ossTagUploadService.uploadTagPng(orderItemId, thumbnailPng, uploadPath);
+            if (piece.getProductImageFile().getFilePreview() != null) {
+                piece.getProductImageFile().getFilePreview().setThumbnail(previewUrl);
+                piece.getProductImageFile().getFilePreview().setPreview(previewUrl);
+            }
+        } catch (Exception e) {
+            System.err.println("生成生产零件缩略图失败，orderItemId=" + piece.getOrderItemId() + "，错误=" + e.getMessage());
+        }
+    }
+
+    private byte[] createThumbnailPng(String imageUrl, int maxLongSide, int dpi) throws Exception {
+        String readableImageUrl = normalizeOssUrl(imageUrl);
+        BufferedImage original;
+        try (InputStream in = new URL(readableImageUrl).openStream()) {
+            original = ImageIO.read(in);
+        }
+        if (original == null) {
+            throw new IllegalArgumentException("无法读取图片: " + readableImageUrl);
+        }
+
+        int ow = original.getWidth();
+        int oh = original.getHeight();
+        int longSide = Math.max(ow, oh);
+        double ratio = longSide > maxLongSide ? (double) maxLongSide / longSide : 1.0;
+        int tw = Math.max(1, (int) Math.round(ow * ratio));
+        int th = Math.max(1, (int) Math.round(oh * ratio));
+
+        BufferedImage target = new BufferedImage(tw, th, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = target.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.drawImage(original, 0, 0, tw, th, null);
+        g.dispose();
+
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ImageOutputStream ios = ImageIO.createImageOutputStream(baos)) {
+            writer.setOutput(ios);
+            ImageWriteParam writeParam = writer.getDefaultWriteParam();
+            IIOMetadata metadata = writer.getDefaultImageMetadata(new javax.imageio.ImageTypeSpecifier(target), writeParam);
+            setPngDpi(metadata, dpi);
+            writer.write(metadata, new IIOImage(target, null, metadata), writeParam);
+            writer.dispose();
+            return baos.toByteArray();
+        }
+    }
+
+
+    private String normalizeOssUrl(String imageUrl) {
+        if (StringUtils.isBlank(imageUrl)) {
+            return imageUrl;
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        String endpoint = StringUtils.isNotBlank(ossEndpoint) ? ossEndpoint.trim() : "oss-cn-hangzhou.aliyuncs.com";
+        String bucket = StringUtils.isNotBlank(ossBucket) ? ossBucket.trim() : "craftstudio-mes-test";
+        String normalizedPath = trimmed.startsWith("/") ? trimmed.substring(1) : trimmed;
+        return "https://" + bucket + "." + endpoint + "/" + normalizedPath;
+    }
+
+    private void setPngDpi(IIOMetadata metadata, int dpi) throws Exception {
+        double ppm = dpi / 0.0254d;
+        int pixelsPerMeter = (int) Math.round(ppm);
+        String nativeFormat = "javax_imageio_png_1.0";
+        IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(nativeFormat);
+        IIOMetadataNode phys = new IIOMetadataNode("pHYs");
+        phys.setAttribute("pixelsPerUnitXAxis", String.valueOf(pixelsPerMeter));
+        phys.setAttribute("pixelsPerUnitYAxis", String.valueOf(pixelsPerMeter));
+        phys.setAttribute("unitSpecifier", "meter");
+        root.appendChild(phys);
+        metadata.setFromTree(nativeFormat, root);
+    }
+
+
     /**
      * 调用图像抠图 API（已废弃，保留用于兼容）
      *
@@ -328,6 +440,7 @@ public class AppOrderPreprocessingService {
                                 parsedFlow,
                                 maskedImageUrl
                         );
+                        attachPreviewForMaskedPiece(piece, rawImageUrl, orderItem);
                         productionPieceService.addProductionPiece(piece);
                         resultPieces.add(piece);
                     }
