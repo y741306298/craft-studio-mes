@@ -267,11 +267,6 @@ public class TypesettingService {
         if (typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() < 0) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能为负数");
         }
-        
-        if (typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getQuantity() != null
-            && typesettingInfo.getLeaveQuantity() > typesettingInfo.getQuantity()) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "剩余数量不能大于排版数量");
-        }
 
         typesettingInfo.applyLayoutModeConfig();
         typesettingRepository.update(typesettingInfo);

@@ -118,7 +118,7 @@ public class AppPrintService {
                     continue;
                 }
 
-                ProductionPiece piece = productionPieceService.findByProductionPieceId(productionPieceId);
+                ProductionPiece piece = productionPieceService.findById(productionPieceId);
                 if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                     continue;
                 }
