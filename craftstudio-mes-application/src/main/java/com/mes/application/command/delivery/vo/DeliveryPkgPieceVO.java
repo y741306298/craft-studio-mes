@@ -1,81 +1,35 @@
 package com.mes.application.command.delivery.vo;
 
-import com.mes.application.command.typesetting.enums.TypesettingSourceType;
-import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderCustomer;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
+import lombok.Data;
 
-import java.util.List;
-
+@Data
 public class DeliveryPkgPieceVO {
 
-    /**
-     * 订单项Id
-     */
+    private String productionPieceId;
     private String orderItemId;
-
-    /**
-     * 数量
-     */
+    private String orderId;
     private Integer quantity;
-
-    /**
-     * 已完成数量
-     */
-    private Integer completedQuantity;
-
-    /**
-     * 材质
-     */
-    private String material;
-    private String materialCode;
-
-    /**
-     * 工艺流程
-     */
-    private String processingFlow;
-
-    /**
-     * 预览 URL
-     */
-    private String previewUrl;
-
-    /**
-     * 备注
-     */
-    private String remark;
-
-    /**
-     * 来源类型TypesettingSourceType
-     */
-    private String sourceType;
-
-    /**
-     * 来源 ID
-     */
-    private String sourceId;
-
-    /**
-     * 零件状态ProductionPieceStatus
-     */
+    private Integer pendingPkgQuantity;
+    private Integer packedQuantity;
     private String status;
+    private String previewUrl;
+    private MaterialConfig materialConfig;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
+    private OrderCustomer orderCustomer;
 
-    public static TypesettingProductionPieceVO fromPiece(ProductionPiece piece){
-        TypesettingProductionPieceVO typesettingProductionPieceVO = new TypesettingProductionPieceVO();
-        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
-        for (ProcedureFlowNode node : nodes) {
-            if (node.getNodeName().equals("排版")) {
-                typesettingProductionPieceVO.setQuantity(node.getPieceQuantity());
-            }
+    public static DeliveryPkgPieceVO fromProductionPiece(ProductionPiece piece) {
+        DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
+        vo.setProductionPieceId(piece.getProductionPieceId());
+        vo.setOrderItemId(piece.getOrderItemId());
+        vo.setQuantity(piece.getQuantity());
+        vo.setMaterialConfig(piece.getMaterialConfig());
+        if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
+            vo.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         }
-        typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
-        typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
-        typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
-        if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
-        typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());
-        typesettingProductionPieceVO.setSourceId(piece.getProductionPieceId());
-        typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
-        return typesettingProductionPieceVO;
+        return vo;
     }
 }

@@ -21,6 +21,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
@@ -35,6 +36,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AppDeliveryPkgService {
@@ -57,10 +59,90 @@ public class AppDeliveryPkgService {
     private OrderInfoService orderInfoService;
 
     @Autowired
+    private OrderItemService orderItemService;
+
+    @Autowired
     private com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService productionPieceService;
 
     @Autowired
     private com.mes.domain.delivery.deliveryPkg.repository.DeliveryRecordRepository deliveryRecordRepository;
+
+
+    public List<DeliveryPkgPieceVO> listPendingPackagingPieces(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+
+        List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                manufacturerMetaId,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+
+        List<DeliveryPkgPieceVO> items = new ArrayList<>();
+        for (ProductionPiece productionPiece : productionPieces) {
+            int pendingQty = getNodeQuantity(productionPiece, "待打包");
+            if (pendingQty <= 0) {
+                continue;
+            }
+            int packedQty = getNodeQuantity(productionPiece, "已打包");
+
+            DeliveryPkgPieceVO vo = DeliveryPkgPieceVO.fromProductionPiece(productionPiece);
+            vo.setPendingPkgQuantity(pendingQty);
+            vo.setPackedQuantity(packedQty);
+            vo.setStatus(resolvePackagingStatus(pendingQty, packedQty));
+
+            OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
+            if (orderItem != null) {
+                vo.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
+                if (orderItem.getMaterial() != null) {
+                    vo.setMaterialConfig(orderItem.getMaterial());
+                }
+                if (StringUtils.isBlank(vo.getOrderId())) {
+                    vo.setOrderId(orderItem.getOrderId());
+                }
+            }
+
+            if (StringUtils.isNotBlank(vo.getOrderId())) {
+                OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
+                if (orderInfo != null) {
+                    vo.setOrderCustomer(orderInfo.getCustomer());
+                }
+            }
+
+            items.add(vo);
+        }
+
+        return items;
+    }
+
+    private int getNodeQuantity(ProductionPiece piece, String nodeName) {
+        if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            return 0;
+        }
+        return piece.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(node -> nodeName.equals(node.getNodeName()))
+                .map(ProcedureFlowNode::getPieceQuantity)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(0);
+    }
+
+    private String resolvePackagingStatus(int pendingQty, int packedQty) {
+        if (packedQty == 0) {
+            return "待打包";
+        }
+        if (pendingQty > 0) {
+            return "部分打包";
+        }
+        return "已完成";
+    }
 
     public void toPkg(DeliveryPkgRequest request) {
         String url = "https://api.kuaidi100.com/label/order";
