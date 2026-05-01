@@ -35,13 +35,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.metadata.IIOMetadata;
-import javax.imageio.metadata.IIOMetadataNode;
-import javax.imageio.stream.ImageOutputStream;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -274,13 +268,13 @@ public class AppOrderPreprocessingService {
             return;
         }
         try {
-            byte[] thumbnailPng = createThumbnailPng(sourceImgUrl, 500, 72);
+            byte[] thumbnailJpg = createThumbnailJpg(sourceImgUrl, 500);
             String manufacturerMetaId = orderItem != null ? orderItem.getManufacturerId() : null;
             String orderItemId = piece.getOrderItemId();
             String uploadPath = String.format("generateMask/%s/%s",
                     StringUtils.isNotBlank(manufacturerMetaId) ? manufacturerMetaId : "unknown",
                     StringUtils.isNotBlank(orderItemId) ? orderItemId : "unknown");
-            String previewUrl = ossTagUploadService.uploadTagPng(orderItemId, thumbnailPng, uploadPath);
+            String previewUrl = ossTagUploadService.uploadTagJpg(orderItemId, thumbnailJpg, uploadPath);
             if (piece.getProductImageFile().getFilePreview() != null) {
                 piece.getProductImageFile().getFilePreview().setThumbnail(previewUrl);
                 piece.getProductImageFile().getFilePreview().setPreview(previewUrl);
@@ -290,7 +284,7 @@ public class AppOrderPreprocessingService {
         }
     }
 
-    private byte[] createThumbnailPng(String imageUrl, int maxLongSide, int dpi) throws Exception {
+    private byte[] createThumbnailJpg(String imageUrl, int maxLongSide) throws Exception {
         String readableImageUrl = normalizeOssUrl(imageUrl);
         BufferedImage original;
         try (InputStream in = new URL(readableImageUrl).openStream()) {
@@ -307,7 +301,7 @@ public class AppOrderPreprocessingService {
         int tw = Math.max(1, (int) Math.round(ow * ratio));
         int th = Math.max(1, (int) Math.round(oh * ratio));
 
-        BufferedImage target = new BufferedImage(tw, th, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage target = new BufferedImage(tw, th, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = target.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -315,15 +309,8 @@ public class AppOrderPreprocessingService {
         g.drawImage(original, 0, 0, tw, th, null);
         g.dispose();
 
-        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             ImageOutputStream ios = ImageIO.createImageOutputStream(baos)) {
-            writer.setOutput(ios);
-            ImageWriteParam writeParam = writer.getDefaultWriteParam();
-            IIOMetadata metadata = writer.getDefaultImageMetadata(new javax.imageio.ImageTypeSpecifier(target), writeParam);
-            setPngDpi(metadata, dpi);
-            writer.write(metadata, new IIOImage(target, null, metadata), writeParam);
-            writer.dispose();
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(target, "jpg", baos);
             return baos.toByteArray();
         }
     }
@@ -343,18 +330,6 @@ public class AppOrderPreprocessingService {
         return "https://" + bucket + "." + endpoint + "/" + normalizedPath;
     }
 
-    private void setPngDpi(IIOMetadata metadata, int dpi) throws Exception {
-        double ppm = dpi / 0.0254d;
-        int pixelsPerMeter = (int) Math.round(ppm);
-        String nativeFormat = "javax_imageio_png_1.0";
-        IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(nativeFormat);
-        IIOMetadataNode phys = new IIOMetadataNode("pHYs");
-        phys.setAttribute("pixelsPerUnitXAxis", String.valueOf(pixelsPerMeter));
-        phys.setAttribute("pixelsPerUnitYAxis", String.valueOf(pixelsPerMeter));
-        phys.setAttribute("unitSpecifier", "meter");
-        root.appendChild(phys);
-        metadata.setFromTree(nativeFormat, root);
-    }
 
 
     /**
