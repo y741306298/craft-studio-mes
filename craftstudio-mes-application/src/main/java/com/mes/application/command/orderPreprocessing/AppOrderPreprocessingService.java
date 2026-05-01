@@ -97,6 +97,12 @@ public class AppOrderPreprocessingService {
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
 
+    @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}}")
+    private String ossEndpoint;
+
+    @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:craftstudio-mes-test}}")
+    private String ossBucket;
+
 
     /**
      * 订单预处理：根据 orderId 查询订单下的所有订单项，解析工艺流程并处理裁切和异形工艺
@@ -285,12 +291,13 @@ public class AppOrderPreprocessingService {
     }
 
     private byte[] createThumbnailPng(String imageUrl, int maxLongSide, int dpi) throws Exception {
+        String readableImageUrl = normalizeOssUrl(imageUrl);
         BufferedImage original;
-        try (InputStream in = new URL(imageUrl).openStream()) {
+        try (InputStream in = new URL(readableImageUrl).openStream()) {
             original = ImageIO.read(in);
         }
         if (original == null) {
-            throw new IllegalArgumentException("无法读取图片: " + imageUrl);
+            throw new IllegalArgumentException("无法读取图片: " + readableImageUrl);
         }
 
         int ow = original.getWidth();
@@ -319,6 +326,21 @@ public class AppOrderPreprocessingService {
             writer.dispose();
             return baos.toByteArray();
         }
+    }
+
+
+    private String normalizeOssUrl(String imageUrl) {
+        if (StringUtils.isBlank(imageUrl)) {
+            return imageUrl;
+        }
+        String trimmed = imageUrl.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        String endpoint = StringUtils.isNotBlank(ossEndpoint) ? ossEndpoint.trim() : "oss-cn-hangzhou.aliyuncs.com";
+        String bucket = StringUtils.isNotBlank(ossBucket) ? ossBucket.trim() : "craftstudio-mes-test";
+        String normalizedPath = trimmed.startsWith("/") ? trimmed.substring(1) : trimmed;
+        return "https://" + bucket + "." + endpoint + "/" + normalizedPath;
     }
 
     private void setPngDpi(IIOMetadata metadata, int dpi) throws Exception {
