@@ -43,6 +43,10 @@ public class OssTagUploadService {
         return uploadTagFile(businessId, bytes, "png", "image/png", "lag");
     }
 
+    public String uploadTagJpg(String businessId, byte[] bytes, String subDir) {
+        return uploadTagFile(businessId, bytes, "jpg", "image/jpeg", subDir, false);
+    }
+
     private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType) {
         return uploadTagFile(businessId, bytes, extension, contentType, "tag");
     }
