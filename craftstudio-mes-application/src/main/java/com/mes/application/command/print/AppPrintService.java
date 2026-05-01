@@ -93,18 +93,19 @@ public class AppPrintService {
         if (StringUtils.isNotBlank(request.getRemark())) {
             dbInfo.setRemark(request.getRemark());
         }
-        if (request.getQuantity() != null) {
-            dbInfo.setQuantity(request.getQuantity());
-        }
-        if (request.getLeaveQuantity() != null) {
-            dbInfo.setLeaveQuantity(request.getLeaveQuantity());
+        Integer reportQuantity = request.getQuantity();
+        if (reportQuantity != null) {
+            if (reportQuantity < 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "报备数量不能小于0");
+            }
+            Integer currentLeaveQuantity = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
+            dbInfo.setLeaveQuantity(Math.max(currentLeaveQuantity - reportQuantity, 0));
         }
         typesettingService.updateTypesetting(dbInfo);
 
-        boolean canComplete = request.getQuantity() != null
-                && request.getLeaveQuantity() != null
-                && request.getLeaveQuantity() <= 0
-                && request.getQuantity() >= 0;
+        boolean canComplete = reportQuantity != null
+                && reportQuantity >= 0
+                && (dbInfo.getLeaveQuantity() == null || dbInfo.getLeaveQuantity() <= 0);
 
         int transferCount = 0;
         if (canComplete && dbInfo.getTypesettingCells() != null) {
