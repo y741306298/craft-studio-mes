@@ -45,7 +45,7 @@ public class PrintController {
     /**
      * 打印报备。
      * 1. remark 有值时更新排版备注；
-     * 2. 使用入参 quantity/leaveQuantity 判断是否可报备完成；
+     * 2. 使用入参 quantity 扣减印版 leaveQuantity，并判断是否可报备完成；
      * 3. 若可完成，将该印版关联生产工件从"打印中"节点数量划转到"待打包"节点。
      */
     @PostMapping("/report")
