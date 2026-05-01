@@ -108,9 +108,9 @@ public class AppPrintService {
                 && (dbInfo.getLeaveQuantity() == null || dbInfo.getLeaveQuantity() <= 0);
 
         int transferCount = 0;
-        if (canComplete && dbInfo.getTypesettingCells() != null) {
+        if (reportQuantity != null && reportQuantity > 0 && dbInfo.getTypesettingCells() != null) {
             Map<String, Integer> pieceQuantityMap = new LinkedHashMap<>();
-            accumulateProductionPieceQuantities(dbInfo.getTypesettingCells(), 1, pieceQuantityMap, new HashSet<>());
+            accumulateProductionPieceQuantities(dbInfo.getTypesettingCells(), reportQuantity, pieceQuantityMap, new HashSet<>());
             for (Map.Entry<String, Integer> entry : pieceQuantityMap.entrySet()) {
                 String productionPieceId = entry.getKey();
                 Integer transferQuantity = entry.getValue();
