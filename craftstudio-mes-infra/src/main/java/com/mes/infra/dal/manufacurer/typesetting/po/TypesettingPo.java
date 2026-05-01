@@ -29,6 +29,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private List<TypesettingSourceCell> typesettingCells;
     private ProcedureFlow procedureFlow;
     private String remark;
+    private String deviceCode;
     private String maskSvg;
     private String layoutMode;
     private String layoutCategory;
@@ -57,6 +58,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setTypesettingCells(this.typesettingCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
         typesettingInfo.setRemark(this.remark);
+        typesettingInfo.setDeviceCode(this.deviceCode);
         typesettingInfo.setMaskSvg(this.maskSvg);
         typesettingInfo.setLayoutMode(this.layoutMode);
         typesettingInfo.setLayoutCategory(this.layoutCategory);
@@ -84,6 +86,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.typesettingCells = _do.getTypesettingCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();
+        this.deviceCode = _do.getDeviceCode();
         this.maskSvg = _do.getMaskSvg();
         this.layoutMode = _do.getLayoutMode();
         this.layoutCategory = _do.getLayoutCategory();

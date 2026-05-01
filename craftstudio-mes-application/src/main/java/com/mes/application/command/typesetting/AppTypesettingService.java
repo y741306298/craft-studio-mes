@@ -919,6 +919,7 @@ public class AppTypesettingService {
 
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
         typesettingInfo.setRemark("FORME_OP:PRINT:" + request.getDeviceCode());
+        typesettingInfo.setDeviceCode(request.getDeviceCode());
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
@@ -981,6 +982,7 @@ public class AppTypesettingService {
         if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
             String deviceCode = remark.substring("FORME_OP:PRINT:".length());
             typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
+            typesettingInfo.setDeviceCode(deviceCode);
             typesettingInfo.setLeaveQuantity(1);
             Set<String> visitedTypesettingKeys = new HashSet<>();
             Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
