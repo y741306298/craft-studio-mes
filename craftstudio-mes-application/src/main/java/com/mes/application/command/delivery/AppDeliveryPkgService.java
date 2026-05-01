@@ -3,6 +3,8 @@ package com.mes.application.command.delivery;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.req.AuthOrderRequest;
 import com.mes.application.command.delivery.req.Kuaidi100OrderParam;
+import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
+import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.shared.utils.MD5Util;
 import com.mes.domain.base.repository.ApiResponse;
@@ -227,6 +229,99 @@ public class AppDeliveryPkgService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,response.getMessage());
         }
 
+    }
+
+    public void addPkg(DeliveryPkgAddRequest request) {
+        if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
+        }
+        if (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
+                || StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "发货人、打印机、商家信息不能为空");
+        }
+
+        String orderId = null;
+        String carrierId = null;
+        String carrierName = null;
+        List<ProductionPiece> selectedPieces = new ArrayList<>();
+        for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
+            if (item == null || item.getPiece() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件与打包数量必须填写且数量大于0");
+            }
+            DeliveryPkgPieceVO pieceVO = item.getPiece();
+            if (StringUtils.isBlank(pieceVO.getProductionPieceId()) || pieceVO.getLogisticsCarrierInfo() == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件信息不完整");
+            }
+
+            if (StringUtils.isBlank(orderId)) {
+                orderId = pieceVO.getOrderId();
+                carrierId = pieceVO.getLogisticsCarrierInfo().getCarrierId();
+                carrierName = pieceVO.getLogisticsCarrierInfo().getCarrierName();
+            } else if (!Objects.equals(orderId, pieceVO.getOrderId())
+                    || !Objects.equals(carrierId, pieceVO.getLogisticsCarrierInfo().getCarrierId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单且同一物流方式一起打包");
+            }
+
+            ProductionPiece sourcePiece = productionPieceService.findByProductionPieceId(pieceVO.getProductionPieceId());
+            if (sourcePiece == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
+            }
+            sourcePiece.setQuantity(item.getQuantity());
+            selectedPieces.add(sourcePiece);
+        }
+
+        boolean isMyselfDelivery = "自主配送".equals(carrierName);
+        if (isMyselfDelivery) {
+            if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "自主配送必须指定路线和段落");
+            }
+            for (ProductionPiece productionPiece : selectedPieces) {
+                List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+                ProcedureFlowNode pendingPackingNode = null;
+                ProcedureFlowNode packedNode = null;
+                for (ProcedureFlowNode node : nodes) {
+                    if ("待打包".equals(node.getNodeName())) {
+                        pendingPackingNode = node;
+                    } else if ("已打包".equals(node.getNodeName())) {
+                        packedNode = node;
+                    }
+                }
+
+                if (pendingPackingNode != null && packedNode != null) {
+                    Integer quantity = productionPiece.getQuantity();
+                    Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
+                    pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
+                    if (pendingPackingNode.getPieceQuantity() <= 0) {
+                        pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
+                    }
+                    Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
+                    packedNode.setPieceQuantity(packedQuantity + quantity);
+                    packedNode.setNodeStatus(NodeStatus.ACTIVE);
+
+                    List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
+                    if (pkgInfos == null) {
+                        pkgInfos = new ArrayList<>();
+                    }
+                    DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
+                    deliveryPkgInfo.setCarrierId(carrierId);
+                    deliveryPkgInfo.setCarrierName(carrierName + "(" + request.getRouteId() + "/" + request.getRouteNodeId() + ")");
+                    deliveryPkgInfo.setQuantity(quantity);
+                    pkgInfos.add(deliveryPkgInfo);
+                    productionPiece.setDeliveryPkgInfos(pkgInfos);
+                    productionPieceService.updateProductionPiece(productionPiece);
+                }
+            }
+            return;
+        }
+
+        DeliveryPkgRequest toPkgRequest = new DeliveryPkgRequest();
+        toPkgRequest.setProductionPieces(selectedPieces);
+        toPkgRequest.setOrderId(orderId);
+        toPkgRequest.setCarrierId(request.getCarrierId());
+        toPkgRequest.setDeliveryManId(request.getDeliveryManId());
+        toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
+        toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
+        this.toPkg(toPkgRequest);
     }
 
     private String callPost(String url,String paramStr,String method){
