@@ -34,10 +34,6 @@ public class AppManufacturerDeviceCfgService {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
-        if (query.getSize() <= 0 || query.getSize() > 100) {
-            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
-        }
-
         List<ManufacturerDeviceCfg> items;
         long total;
 

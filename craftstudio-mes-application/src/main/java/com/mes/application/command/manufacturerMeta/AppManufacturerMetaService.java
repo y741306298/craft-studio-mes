@@ -250,7 +250,7 @@ public class AppManufacturerMetaService {
         
         String manufacturerMetaId = manufacturerMeta.getManufacturerMetaId();
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
-            PagedQuery query = new PagedQuery(1, 10000);
+            PagedQuery query = new PagedQuery(1, 99);
             PagedResult<ManufacturerDeviceCfg> deviceResult = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
             
             for (ManufacturerDeviceCfg deviceCfg : deviceResult.items()) {
