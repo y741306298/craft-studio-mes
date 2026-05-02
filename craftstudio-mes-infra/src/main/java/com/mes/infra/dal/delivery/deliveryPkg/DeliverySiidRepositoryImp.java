@@ -36,6 +36,14 @@ public class DeliverySiidRepositoryImp extends BaseRepositoryImp<DeliverySiid, D
     }
 
     @Override
+    public List<DeliverySiid> findByManufacturerMetaId(String manufacturerMetaId) {
+        Query query = new Query(Criteria.where("manufacturerMetaId").is(manufacturerMetaId).and("deleteAt").is(null));
+        query.with(Sort.by(Sort.Direction.DESC, "createTime"));
+        List<DeliverySiidPO> pos = mongoTemplate.find(query, DeliverySiidPO.class);
+        return pos.stream().map(DeliverySiidPO::toDO).collect(Collectors.toList());
+    }
+
+    @Override
     public DeliverySiid findByDeliverySiidIdAndManufacturerMetaId(String deliverySiidId, String manufacturerMetaId) {
         Query query = new Query(Criteria.where("id").is(deliverySiidId)
                 .and("manufacturerMetaId").is(manufacturerMetaId)

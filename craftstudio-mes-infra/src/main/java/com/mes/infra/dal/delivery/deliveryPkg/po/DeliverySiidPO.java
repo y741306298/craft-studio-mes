@@ -19,6 +19,8 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
 
     private String manufacturerMetaId;
 
+    private Boolean isDefault;
+
     @Override
     public DeliverySiid toDO() {
         DeliverySiid deliverySiid = new DeliverySiid();
@@ -28,6 +30,7 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
         deliverySiid.setName(this.name);
         deliverySiid.setManufacturerMetaId(this.manufacturerMetaId);
         deliverySiid.setUserId(this.userId);
+        deliverySiid.setIsDefault(this.isDefault);
 
         return deliverySiid;
     }
@@ -42,6 +45,7 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
         this.name = _do.getName();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.userId = _do.getUserId();
+        this.isDefault = _do.getIsDefault();
 
         return this;
     }

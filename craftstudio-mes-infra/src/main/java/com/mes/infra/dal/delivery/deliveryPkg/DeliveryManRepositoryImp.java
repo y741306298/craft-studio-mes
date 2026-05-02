@@ -29,6 +29,14 @@ public class DeliveryManRepositoryImp extends BaseRepositoryImp<DeliveryMan, Del
     }
 
     @Override
+    public List<DeliveryMan> findByManufacturerMetaId(String manufacturerMetaId) {
+        Query query = new Query(Criteria.where("manufacturerMetaId").is(manufacturerMetaId).and("deleteAt").is(null));
+        query.with(Sort.by(Sort.Direction.DESC, "createTime"));
+        List<DeliveryManPO> pos = mongoTemplate.find(query, DeliveryManPO.class);
+        return pos.stream().map(DeliveryManPO::toDO).collect(Collectors.toList());
+    }
+
+    @Override
     public DeliveryMan findByDeliveryManIdAndManufacturerMetaId(String deliveryManId, String manufacturerMetaId) {
         Query query = new Query(Criteria.where("id").is(deliveryManId)
                 .and("manufacturerMetaId").is(manufacturerMetaId)

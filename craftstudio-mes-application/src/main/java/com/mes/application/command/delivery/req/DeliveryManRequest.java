@@ -22,6 +22,7 @@ public class DeliveryManRequest {
     private String tel;
 
     private String printAddr;
+    private Boolean isDefault;
 
     public DeliveryMan toDomainEntity() {
         DeliveryMan deliveryMan = new DeliveryMan();
@@ -32,6 +33,7 @@ public class DeliveryManRequest {
         deliveryMan.setTel(this.tel);
         deliveryMan.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryMan.setPrintAddr(this.printAddr);
+        deliveryMan.setIsDefault(this.isDefault);
         return deliveryMan;
     }
 }

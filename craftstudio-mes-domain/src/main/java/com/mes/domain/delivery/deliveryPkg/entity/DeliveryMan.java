@@ -19,4 +19,6 @@ public class DeliveryMan extends BaseEntity {
     private String tel;
 
     private String printAddr;
+
+    private Boolean isDefault;
 }

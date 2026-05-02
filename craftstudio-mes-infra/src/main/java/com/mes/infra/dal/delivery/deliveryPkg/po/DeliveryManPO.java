@@ -23,6 +23,8 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
 
     private String manufacturerMetaId;
 
+    private Boolean isDefault;
+
     @Override
     public DeliveryMan toDO() {
         DeliveryMan deliveryMan = new DeliveryMan();
@@ -34,6 +36,7 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
         deliveryMan.setPrintAddr(this.printAddr);
         deliveryMan.setUserId(this.userId);
         deliveryMan.setManufacturerMetaId(this.manufacturerMetaId);
+        deliveryMan.setIsDefault(this.isDefault);
 
         return deliveryMan;
     }
@@ -50,6 +53,7 @@ public class DeliveryManPO extends BasePO<DeliveryMan> {
         this.printAddr = _do.getPrintAddr();
         this.userId = _do.getUserId();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
+        this.isDefault = _do.getIsDefault();
 
         return this;
     }

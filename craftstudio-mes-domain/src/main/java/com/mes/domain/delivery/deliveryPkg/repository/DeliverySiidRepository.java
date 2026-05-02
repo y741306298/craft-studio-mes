@@ -16,6 +16,11 @@ public interface DeliverySiidRepository extends BaseRepository<DeliverySiid> {
     java.util.List<DeliverySiid> findByUserId(String userId);
 
     /**
+     * 根据工厂ID查询列表
+     */
+    java.util.List<DeliverySiid> findByManufacturerMetaId(String manufacturerMetaId);
+
+    /**
      * 根据SIID ID和制造商ID查询
      */
     DeliverySiid findByDeliverySiidIdAndManufacturerMetaId(String deliverySiidId, String manufacturerMetaId);

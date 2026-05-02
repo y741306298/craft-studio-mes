@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class DeliverySiidService {
@@ -37,6 +38,7 @@ public class DeliverySiidService {
         if (existing != null) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "SIID已存在");
         }
+        ensureSingleDefault(deliverySiid);
 
         return deliverySiidRepository.add(deliverySiid);
     }
@@ -51,6 +53,7 @@ public class DeliverySiidService {
         if (StringUtils.isBlank(deliverySiid.getId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "ID不能为空");
         }
+        ensureSingleDefault(deliverySiid);
 
         deliverySiidRepository.update(deliverySiid);
     }
@@ -114,5 +117,21 @@ public class DeliverySiidService {
      */
     public long total() {
         return deliverySiidRepository.total();
+    }
+
+    private void ensureSingleDefault(DeliverySiid deliverySiid) {
+        if (!Boolean.TRUE.equals(deliverySiid.getIsDefault())) {
+            return;
+        }
+        if (StringUtils.isBlank(deliverySiid.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "默认SIID必须指定工厂ID");
+        }
+        List<DeliverySiid> sameFactoryList = deliverySiidRepository.findByManufacturerMetaId(deliverySiid.getManufacturerMetaId());
+        for (DeliverySiid item : sameFactoryList) {
+            if (Boolean.TRUE.equals(item.getIsDefault()) && !Objects.equals(item.getId(), deliverySiid.getId())) {
+                item.setIsDefault(false);
+                deliverySiidRepository.update(item);
+            }
+        }
     }
 }

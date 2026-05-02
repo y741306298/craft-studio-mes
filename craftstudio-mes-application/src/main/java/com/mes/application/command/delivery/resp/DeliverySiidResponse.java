@@ -12,6 +12,7 @@ public class DeliverySiidResponse {
     private String siid;
     private String name;
     private String userId;
+    private Boolean isDefault;
     private Date createTime;
     private Date updateTime;
 
@@ -24,6 +25,7 @@ public class DeliverySiidResponse {
         response.setSiid(deliverySiid.getSiid());
         response.setName(deliverySiid.getName());
         response.setUserId(deliverySiid.getUserId());
+        response.setIsDefault(deliverySiid.getIsDefault());
         response.setCreateTime(deliverySiid.getCreateTime());
         response.setUpdateTime(deliverySiid.getUpdateTime());
         return response;

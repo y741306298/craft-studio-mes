@@ -15,4 +15,6 @@ public class DeliverySiid extends BaseEntity {
     private String userId;
 
     private String manufacturerMetaId;
+
+    private Boolean isDefault;
 }
