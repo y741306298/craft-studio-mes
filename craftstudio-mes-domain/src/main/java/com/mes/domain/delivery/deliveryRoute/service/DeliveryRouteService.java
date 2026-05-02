@@ -370,23 +370,46 @@ public class DeliveryRouteService {
         if (routeNodes == null || routeNodes.isEmpty()) {
             return;
         }
-        List<DeliveryRouteNode> nodesToSave = new ArrayList<>();
-        for (int i = 0; i < routeNodes.size(); i++) {
-            DeliveryRouteNode node = routeNodes.get(i);
-            if (node == null) {
-                continue;
+
+        List<DeliveryRouteNode> linkedNodes = new ArrayList<>();
+        for (DeliveryRouteNode node : routeNodes) {
+            if (node != null) {
+                linkedNodes.add(node);
             }
-            node.setRouteId(routeId);
-            node.setId(null);
-            if (StringUtils.isBlank(node.getRouteNodeId())) {
-                node.setRouteNodeId(IdGenerator.generateId("RN"));
-            }
-            if (node.getNodeOrder() == null) {
-                node.setNodeOrder(i);
-            }
-            node.buildRegionPath();
-            nodesToSave.add(node);
         }
+        if (linkedNodes.size() < 2) {
+            return;
+        }
+
+        List<DeliveryRouteNode> nodesToSave = new ArrayList<>();
+        for (int i = 0; i < linkedNodes.size() - 1; i++) {
+            DeliveryRouteNode currentNode = linkedNodes.get(i);
+            DeliveryRouteNode nextNode = linkedNodes.get(i + 1);
+
+            currentNode.setDestCountryCode(nextNode.getCountryCode());
+            currentNode.setDestCountryName(nextNode.getCountryName());
+            currentNode.setDestProvinceCode(nextNode.getProvinceCode());
+            currentNode.setDestProvinceName(nextNode.getProvinceName());
+            currentNode.setDestCityCode(nextNode.getCityCode());
+            currentNode.setDestCityName(nextNode.getCityName());
+            currentNode.setDestDistrictCode(nextNode.getDistrictCode());
+            currentNode.setDestDistrictName(nextNode.getDistrictName());
+            currentNode.setDestTownCode(nextNode.getTownCode());
+            currentNode.setDestTownName(nextNode.getTownName());
+            currentNode.setDestDetailAddress(nextNode.getDetailAddress());
+
+            currentNode.setRouteId(routeId);
+            currentNode.setId(null);
+            if (StringUtils.isBlank(currentNode.getRouteNodeId())) {
+                currentNode.setRouteNodeId(IdGenerator.generateId("RN"));
+            }
+            if (currentNode.getNodeOrder() == null) {
+                currentNode.setNodeOrder(i);
+            }
+            currentNode.buildRegionPath();
+            nodesToSave.add(currentNode);
+        }
+
         if (!nodesToSave.isEmpty()) {
             deliveryRouteNodeRepository.batchAdd(nodesToSave);
         }

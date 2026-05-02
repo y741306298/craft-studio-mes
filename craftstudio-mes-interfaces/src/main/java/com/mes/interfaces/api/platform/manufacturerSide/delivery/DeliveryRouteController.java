@@ -50,6 +50,27 @@ public class DeliveryRouteController {
     }
 
     /**
+     * 分页查询配送路线列表（原始节点，不做终点补全）
+     * @param request 分页请求参数
+     * @return 分页查询结果
+     */
+    @PostMapping("/list/raw")
+    public PagedApiResponse<DeliveryRouteListResponse> listRawDeliveryRoutes(
+            @Valid @RequestBody DeliveryRouteListRequest request) {
+
+        PagedQuery query = request.toPagedQuery();
+        String routeName = request.getRouteName();
+
+        PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName, request.getManufacturerMetaId(), query);
+
+        List<DeliveryRouteListResponse> responses = result.items().stream()
+                .map(DeliveryRouteListResponse::fromRaw)
+                .collect(Collectors.toList());
+
+        return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
+    }
+
+    /**
      * 根据 ID 获取配送路线详情
      * @param id 配送路线 ID
      * @return 配送路线详情
