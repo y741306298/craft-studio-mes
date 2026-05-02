@@ -31,6 +31,10 @@ public class OssTagUploadService {
         return uploadTagFile(businessId, bytes, "svg", "image/svg+xml");
     }
 
+    public String uploadTagSvg(String businessId, byte[] bytes, String subDir) {
+        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml", subDir, false);
+    }
+
     public String uploadTagPng(String businessId, byte[] bytes) {
         return uploadTagFile(businessId, bytes, "png", "image/png");
     }
