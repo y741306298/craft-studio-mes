@@ -14,6 +14,7 @@ public class DeliveryManResponse {
     private String mobile;
     private String tel;
     private String printAddr;
+    private Boolean isDefault;
     private Date createTime;
     private Date updateTime;
 
@@ -28,6 +29,7 @@ public class DeliveryManResponse {
         response.setMobile(deliveryMan.getMobile());
         response.setTel(deliveryMan.getTel());
         response.setPrintAddr(deliveryMan.getPrintAddr());
+        response.setIsDefault(deliveryMan.getIsDefault());
         response.setCreateTime(deliveryMan.getCreateTime());
         response.setUpdateTime(deliveryMan.getUpdateTime());
         return response;

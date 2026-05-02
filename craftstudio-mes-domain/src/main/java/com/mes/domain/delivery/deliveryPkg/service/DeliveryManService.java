@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class DeliveryManService {
@@ -23,6 +24,7 @@ public class DeliveryManService {
         if (StringUtils.isBlank(deliveryMan.getName())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员姓名不能为空");
         }
+        ensureSingleDefault(deliveryMan);
 
         return deliveryManRepository.add(deliveryMan);
     }
@@ -34,6 +36,7 @@ public class DeliveryManService {
         if (StringUtils.isBlank(deliveryMan.getId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员ID不能为空");
         }
+        ensureSingleDefault(deliveryMan);
 
         deliveryManRepository.update(deliveryMan);
     }
@@ -72,5 +75,21 @@ public class DeliveryManService {
 
     public long total() {
         return deliveryManRepository.total();
+    }
+
+    private void ensureSingleDefault(DeliveryMan deliveryMan) {
+        if (!Boolean.TRUE.equals(deliveryMan.getIsDefault())) {
+            return;
+        }
+        if (StringUtils.isBlank(deliveryMan.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "默认发货人必须指定工厂ID");
+        }
+        List<DeliveryMan> sameFactoryList = deliveryManRepository.findByManufacturerMetaId(deliveryMan.getManufacturerMetaId());
+        for (DeliveryMan item : sameFactoryList) {
+            if (Boolean.TRUE.equals(item.getIsDefault()) && !Objects.equals(item.getId(), deliveryMan.getId())) {
+                item.setIsDefault(false);
+                deliveryManRepository.update(item);
+            }
+        }
     }
 }

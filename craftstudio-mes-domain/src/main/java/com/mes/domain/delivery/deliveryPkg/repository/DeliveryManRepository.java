@@ -13,6 +13,11 @@ public interface DeliveryManRepository extends BaseRepository<DeliveryMan> {
     List<DeliveryMan> findByUserId(String userId);
 
     /**
+     * 根据工厂ID查询快递员列表
+     */
+    List<DeliveryMan> findByManufacturerMetaId(String manufacturerMetaId);
+
+    /**
      * 根据发货人ID和制造商ID查询
      */
     DeliveryMan findByDeliveryManIdAndManufacturerMetaId(String deliveryManId, String manufacturerMetaId);

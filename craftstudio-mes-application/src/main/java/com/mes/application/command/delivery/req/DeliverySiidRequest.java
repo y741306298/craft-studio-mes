@@ -19,6 +19,7 @@ public class DeliverySiidRequest {
     private String userId;
 
     private String manufacturerMetaId;
+    private Boolean isDefault;
 
     public DeliverySiid toDomainEntity() {
         DeliverySiid deliverySiid = new DeliverySiid();
@@ -27,6 +28,7 @@ public class DeliverySiidRequest {
         deliverySiid.setName(this.name);
         deliverySiid.setUserId(this.userId);
         deliverySiid.setManufacturerMetaId(this.manufacturerMetaId);
+        deliverySiid.setIsDefault(this.isDefault);
         return deliverySiid;
     }
 }
