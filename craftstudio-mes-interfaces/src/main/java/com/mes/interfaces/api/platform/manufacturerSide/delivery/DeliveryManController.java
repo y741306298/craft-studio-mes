@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -83,6 +84,21 @@ public class DeliveryManController {
     public ApiResponse<List<DeliveryManResponse>> listByUserId(@RequestParam String userId) {
         List<DeliveryMan> deliveryMen = appDeliveryManService.findByUserId(userId);
         List<DeliveryManResponse> responses = deliveryMen.stream()
+                .map(DeliveryManResponse::from)
+                .collect(Collectors.toList());
+        return ApiResponse.success(responses);
+    }
+
+    /**
+     * 根据工厂ID查询发货人列表
+     * @param manufacturerMetaId 工厂ID
+     * @return 发货人列表（默认项优先）
+     */
+    @GetMapping("/listByManufacturerMetaId")
+    public ApiResponse<List<DeliveryManResponse>> listByManufacturerMetaId(@RequestParam String manufacturerMetaId) {
+        List<DeliveryMan> deliveryMen = appDeliveryManService.findByManufacturerMetaId(manufacturerMetaId);
+        List<DeliveryManResponse> responses = deliveryMen.stream()
+                .sorted(Comparator.comparing((DeliveryMan item) -> !Boolean.TRUE.equals(item.getIsDefault())))
                 .map(DeliveryManResponse::from)
                 .collect(Collectors.toList());
         return ApiResponse.success(responses);

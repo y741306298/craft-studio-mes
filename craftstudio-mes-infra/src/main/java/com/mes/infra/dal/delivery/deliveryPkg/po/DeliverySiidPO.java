@@ -19,6 +19,8 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
 
     private String manufacturerMetaId;
 
+    private String deliverySiidId;
+
     private Boolean isDefault;
 
     @Override
@@ -29,6 +31,7 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
         deliverySiid.setSiid(this.siid);
         deliverySiid.setName(this.name);
         deliverySiid.setManufacturerMetaId(this.manufacturerMetaId);
+        deliverySiid.setDeliverySiidId(this.deliverySiidId);
         deliverySiid.setUserId(this.userId);
         deliverySiid.setIsDefault(this.isDefault);
 
@@ -44,6 +47,7 @@ public class DeliverySiidPO extends BasePO<DeliverySiid> {
         this.siid = _do.getSiid();
         this.name = _do.getName();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
+        this.deliverySiidId = _do.getDeliverySiidId();
         this.userId = _do.getUserId();
         this.isDefault = _do.getIsDefault();
 

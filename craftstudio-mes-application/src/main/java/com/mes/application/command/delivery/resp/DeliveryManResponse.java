@@ -10,6 +10,7 @@ public class DeliveryManResponse {
 
     private String id;
     private String userId;
+    private String deliveryManId;
     private String name;
     private String mobile;
     private String tel;
@@ -25,6 +26,7 @@ public class DeliveryManResponse {
         DeliveryManResponse response = new DeliveryManResponse();
         response.setId(deliveryMan.getId());
         response.setUserId(deliveryMan.getUserId());
+        response.setDeliveryManId(deliveryMan.getDeliveryManId());
         response.setName(deliveryMan.getName());
         response.setMobile(deliveryMan.getMobile());
         response.setTel(deliveryMan.getTel());
