@@ -16,5 +16,7 @@ public class DeliverySiid extends BaseEntity {
 
     private String manufacturerMetaId;
 
+    private String deliverySiidId;
+
     private Boolean isDefault;
 }

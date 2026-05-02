@@ -48,6 +48,13 @@ public class AppDeliveryManService {
         return domainDeliveryManService.findByUserId(userId);
     }
 
+    public List<DeliveryMan> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (manufacturerMetaId == null || manufacturerMetaId.isEmpty()) {
+            throw new IllegalArgumentException("工厂ID不能为空");
+        }
+        return domainDeliveryManService.findByManufacturerMetaId(manufacturerMetaId);
+    }
+
     public List<DeliveryMan> listAll() {
         return domainDeliveryManService.list(0, 1000);
     }

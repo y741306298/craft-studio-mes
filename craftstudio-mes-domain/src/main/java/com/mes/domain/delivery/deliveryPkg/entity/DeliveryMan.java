@@ -12,6 +12,8 @@ public class DeliveryMan extends BaseEntity {
 
     private String manufacturerMetaId;
 
+    private String deliveryManId;
+
     private String name;
 
     private String mobile;

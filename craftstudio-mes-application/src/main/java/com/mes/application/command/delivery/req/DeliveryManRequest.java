@@ -11,6 +11,8 @@ public class DeliveryManRequest {
 
     private String manufacturerMetaId;
 
+    private String deliveryManId;
+
     @NotBlank(message = "用户ID不能为空")
     private String userId;
 
@@ -32,6 +34,7 @@ public class DeliveryManRequest {
         deliveryMan.setMobile(this.mobile);
         deliveryMan.setTel(this.tel);
         deliveryMan.setManufacturerMetaId(this.manufacturerMetaId);
+        deliveryMan.setDeliveryManId(this.deliveryManId);
         deliveryMan.setPrintAddr(this.printAddr);
         deliveryMan.setIsDefault(this.isDefault);
         return deliveryMan;

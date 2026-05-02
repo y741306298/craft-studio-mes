@@ -55,6 +55,13 @@ public class AppDeliverySiidService {
         return domainDeliverySiidService.findByUserId(userId);
     }
 
+    public List<DeliverySiid> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (manufacturerMetaId == null || manufacturerMetaId.isEmpty()) {
+            throw new IllegalArgumentException("工厂ID不能为空");
+        }
+        return domainDeliverySiidService.findByManufacturerMetaId(manufacturerMetaId);
+    }
+
     public List<DeliverySiid> listAll() {
         return domainDeliverySiidService.list(0, 1000);
     }

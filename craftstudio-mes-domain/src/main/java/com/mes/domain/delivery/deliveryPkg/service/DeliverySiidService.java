@@ -3,6 +3,7 @@ package com.mes.domain.delivery.deliveryPkg.service;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliverySiid;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,9 @@ public class DeliverySiidService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "SIID已存在");
         }
         ensureSingleDefault(deliverySiid);
+        if (StringUtils.isBlank(deliverySiid.getDeliverySiidId())) {
+            deliverySiid.setDeliverySiidId(IdGenerator.generateId("DS"));
+        }
 
         return deliverySiidRepository.add(deliverySiid);
     }
