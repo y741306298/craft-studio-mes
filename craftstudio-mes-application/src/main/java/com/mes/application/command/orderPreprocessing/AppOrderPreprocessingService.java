@@ -36,6 +36,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -180,21 +182,23 @@ public class AppOrderPreprocessingService {
      * 情况三：既不需要分切也不需要抠图的处理流程
      */
     private List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem,ProcedureFlow procedureFlow) {
+        // 校验工艺参数是否全部转化成功
+        verifyProcedureParamsConverted(procedureFlow, orderItem.getOrderItemId());
+
         // 直接使用 orderItem 信息生成 ProductionPiece
         String productionImgUrl = orderItem.getProductionImgFile() != null
                 && orderItem.getProductionImgFile().getFilePreview() != null
                 ? orderItem.getProductionImgFile().getFilePreview().getRaw()
                 : null;
-        String maskImgUrl = orderItem.getMaskImgFile() != null
-                && orderItem.getMaskImgFile().getFilePreview() != null
-                ? orderItem.getMaskImgFile().getFilePreview().getRaw()
-                : null;
+
+        String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
+
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
                 productionImgUrl,
                 procedureFlow,
-                maskImgUrl
+                generatedMaskImgUrl
         );
 
         productionPieceService.addProductionPiece(piece);
@@ -203,6 +207,90 @@ public class AppOrderPreprocessingService {
         pieces.add(piece);
 
         return pieces;
+    }
+
+    private void verifyProcedureParamsConverted(ProcedureFlow procedureFlow, String orderItemId) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null) {
+            throw new RuntimeException("工艺流程为空，无法生成生产零件：" + orderItemId);
+        }
+
+        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+            if (node == null || node.getParamConfigs() == null) {
+                continue;
+            }
+            for (Object config : node.getParamConfigs()) {
+                if (config == null) {
+                    throw new RuntimeException("工艺参数转化失败，存在空参数配置：" + orderItemId);
+                }
+                if (!hasAnyValue(config, "getValue", "getParamValue", "getDefaultValue", "getKey", "getCode", "getName")) {
+                    throw new RuntimeException("工艺参数转化失败，参数值为空：" + orderItemId + ", 节点=" + node.getNodeName());
+                }
+            }
+        }
+    }
+
+    private boolean hasAnyValue(Object target, String... methodNames) {
+        for (String methodName : methodNames) {
+            try {
+                Method method = target.getClass().getMethod(methodName);
+                Object value = method.invoke(target);
+                if (value != null && StringUtils.isNotBlank(String.valueOf(value))) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return false;
+    }
+
+    private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
+        Integer width = extractDimension(orderItem, "getWidth", "getPrintWidth", "getNeedWidth", "getActualWidth", "getW");
+        Integer height = extractDimension(orderItem, "getHeight", "getPrintHeight", "getNeedHeight", "getActualHeight", "getH");
+
+        if (width == null || width <= 0 || height == null || height <= 0) {
+            throw new RuntimeException("无法获取订单项有效宽高，orderItemId=" + orderItem.getOrderItemId());
+        }
+
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
+                + "\" viewBox=\"0 0 " + width + " " + height + "\">"
+                + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"" + height
+                + "\" fill=\"none\" stroke=\"#000\" stroke-width=\"1\"/>"
+                + "</svg>";
+
+        String manufacturerMetaId = StringUtils.isBlank(orderItem.getManufacturerId()) ? "default" : orderItem.getManufacturerId();
+        String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItem.getOrderItemId() + "/";
+        return ossTagUploadService.uploadTagSvg(orderItem.getOrderItemId(), svg.getBytes(StandardCharsets.UTF_8), uploadPath);
+    }
+
+    private Integer extractDimension(OrderItem orderItem, String... methodNames) {
+        for (String methodName : methodNames) {
+            Integer fromOrderItem = invokeIntGetter(orderItem, methodName);
+            if (fromOrderItem != null && fromOrderItem > 0) {
+                return fromOrderItem;
+            }
+            if (orderItem.getMtoProduct() != null) {
+                Integer fromProduct = invokeIntGetter(orderItem.getMtoProduct(), methodName);
+                if (fromProduct != null && fromProduct > 0) {
+                    return fromProduct;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Integer invokeIntGetter(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            Object value = method.invoke(target);
+            if (value instanceof Number) {
+                return ((Number) value).intValue();
+            }
+            if (value != null && StringUtils.isNotBlank(String.valueOf(value))) {
+                return Integer.parseInt(String.valueOf(value));
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
 
