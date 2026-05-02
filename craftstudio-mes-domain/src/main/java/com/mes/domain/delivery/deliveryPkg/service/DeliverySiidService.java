@@ -3,6 +3,7 @@ package com.mes.domain.delivery.deliveryPkg.service;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliverySiid;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,9 @@ public class DeliverySiidService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "SIID已存在");
         }
         ensureSingleDefault(deliverySiid);
+        if (StringUtils.isBlank(deliverySiid.getDeliverySiidId())) {
+            deliverySiid.setDeliverySiidId(IdGenerator.generateId("DS"));
+        }
 
         return deliverySiidRepository.add(deliverySiid);
     }
@@ -105,6 +109,14 @@ public class DeliverySiidService {
     /**
      * 分页查询
      */
+
+    public List<DeliverySiid> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工厂ID不能为空");
+        }
+        return deliverySiidRepository.findByManufacturerMetaId(manufacturerMetaId);
+    }
+
     public List<DeliverySiid> list(int current, int size) {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");

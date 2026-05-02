@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -112,4 +113,19 @@ public class DeliverySiidController {
                 .collect(Collectors.toList());
         return ApiResponse.success(responses);
     }
+    /**
+     * 根据工厂ID查询SIID列表
+     * @param manufacturerMetaId 工厂ID
+     * @return SIID列表（默认项优先）
+     */
+    @GetMapping("/listByManufacturerMetaId")
+    public ApiResponse<List<DeliverySiidResponse>> listByManufacturerMetaId(@RequestParam String manufacturerMetaId) {
+        List<DeliverySiid> deliverySiids = appDeliverySiidService.findByManufacturerMetaId(manufacturerMetaId);
+        List<DeliverySiidResponse> responses = deliverySiids.stream()
+                .sorted(Comparator.comparing((DeliverySiid item) -> !Boolean.TRUE.equals(item.getIsDefault())))
+                .map(DeliverySiidResponse::from)
+                .collect(Collectors.toList());
+        return ApiResponse.success(responses);
+    }
+
 }

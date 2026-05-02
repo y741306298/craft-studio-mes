@@ -38,7 +38,7 @@ public class DeliveryManRepositoryImp extends BaseRepositoryImp<DeliveryMan, Del
 
     @Override
     public DeliveryMan findByDeliveryManIdAndManufacturerMetaId(String deliveryManId, String manufacturerMetaId) {
-        Query query = new Query(Criteria.where("id").is(deliveryManId)
+        Query query = new Query(Criteria.where("deliveryManId").is(deliveryManId)
                 .and("manufacturerMetaId").is(manufacturerMetaId)
                 .and("deleteAt").is(null));
         DeliveryManPO po = mongoTemplate.findOne(query, DeliveryManPO.class);

@@ -3,6 +3,7 @@ package com.mes.domain.delivery.deliveryPkg.service;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryMan;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryManRepository;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,9 @@ public class DeliveryManService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递员姓名不能为空");
         }
         ensureSingleDefault(deliveryMan);
+        if (StringUtils.isBlank(deliveryMan.getDeliveryManId())) {
+            deliveryMan.setDeliveryManId(IdGenerator.generateId("DM"));
+        }
 
         return deliveryManRepository.add(deliveryMan);
     }
@@ -64,6 +68,14 @@ public class DeliveryManService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "用户ID不能为空");
         }
         return deliveryManRepository.findByUserId(userId);
+    }
+
+
+    public List<DeliveryMan> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工厂ID不能为空");
+        }
+        return deliveryManRepository.findByManufacturerMetaId(manufacturerMetaId);
     }
 
     public List<DeliveryMan> list(int current, int size) {

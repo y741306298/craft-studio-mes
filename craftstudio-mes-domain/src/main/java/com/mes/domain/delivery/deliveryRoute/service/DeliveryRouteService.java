@@ -196,6 +196,9 @@ public class DeliveryRouteService {
         
         node.buildRegionPath();
         node.setRouteId(routeId);
+        if (StringUtils.isBlank(node.getRouteNodeId())) {
+            node.setRouteNodeId(IdGenerator.generateId("RN"));
+        }
 
         if (node.getNodeOrder() == null) {
             node.setNodeOrder(deliveryRouteNodeRepository.listByRouteId(routeId).size());
@@ -375,6 +378,9 @@ public class DeliveryRouteService {
             }
             node.setRouteId(routeId);
             node.setId(null);
+            if (StringUtils.isBlank(node.getRouteNodeId())) {
+                node.setRouteNodeId(IdGenerator.generateId("RN"));
+            }
             if (node.getNodeOrder() == null) {
                 node.setNodeOrder(i);
             }

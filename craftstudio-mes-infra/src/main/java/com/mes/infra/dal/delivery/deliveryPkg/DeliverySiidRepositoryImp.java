@@ -45,7 +45,7 @@ public class DeliverySiidRepositoryImp extends BaseRepositoryImp<DeliverySiid, D
 
     @Override
     public DeliverySiid findByDeliverySiidIdAndManufacturerMetaId(String deliverySiidId, String manufacturerMetaId) {
-        Query query = new Query(Criteria.where("id").is(deliverySiidId)
+        Query query = new Query(Criteria.where("deliverySiidId").is(deliverySiidId)
                 .and("manufacturerMetaId").is(manufacturerMetaId)
                 .and("deleteAt").is(null));
         DeliverySiidPO po = mongoTemplate.findOne(query, DeliverySiidPO.class);
