@@ -9,10 +9,12 @@ import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.shared.utils.MD5Util;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryMan;
+import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryRecord;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliverySiid;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryToken;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryManRepository;
+import com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
 import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
@@ -36,6 +38,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -68,6 +71,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private com.mes.domain.delivery.deliveryPkg.repository.DeliveryRecordRepository deliveryRecordRepository;
+
+    @Autowired
+    private DeliveryPkgService deliveryPkgService;
 
 
     public List<DeliveryPkgPieceVO> listPendingPackagingPieces(String manufacturerMetaId) {
@@ -270,6 +276,8 @@ public class AppDeliveryPkgService {
             selectedPieces.add(sourcePiece);
         }
 
+        createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
+
         boolean isMyselfDelivery = "自主配送".equals(carrierName);
         if (isMyselfDelivery) {
             if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
@@ -322,6 +330,40 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
         this.toPkg(toPkgRequest);
+    }
+
+
+    private void createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName) {
+        DeliveryPkg deliveryPkg = new DeliveryPkg();
+        deliveryPkg.setOrderId(orderId);
+        deliveryPkg.setCarrierId(carrierId);
+        deliveryPkg.setCarrierName(carrierName);
+        deliveryPkg.setDeliveryManId(request.getDeliveryManId());
+        deliveryPkg.setDeliverySiidId(request.getDeliverySiidId());
+        deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
+        deliveryPkg.setRouteId(request.getRouteId());
+        deliveryPkg.setRouteNodeId(request.getRouteNodeId());
+
+        List<com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem> pkgItems = new ArrayList<>();
+        for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
+            com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem pkgItem = new com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem();
+            pkgItem.setOrderItemId(item.getPiece().getOrderItemId());
+            pkgItem.setProductionPieceId(Collections.singletonList(item.getPiece().getProductionPieceId()));
+            pkgItem.setQuantity(item.getQuantity());
+            pkgItems.add(pkgItem);
+        }
+        deliveryPkg.setDeliveryPkgItems(pkgItems);
+
+        DeliveryPkgPieceVO firstPiece = request.getPieces().get(0).getPiece();
+        if (firstPiece.getOrderCustomer() != null) {
+            deliveryPkg.setRecipientName(firstPiece.getOrderCustomer().getCustomerName());
+            deliveryPkg.setRecipientPhone(firstPiece.getOrderCustomer().getCustomerPhone());
+            if (firstPiece.getOrderCustomer().getAddress() != null) {
+                deliveryPkg.setRecipientAddress(JSON.toJSONString(firstPiece.getOrderCustomer().getAddress()));
+            }
+        }
+
+        deliveryPkgService.createDeliveryPkg(deliveryPkg);
     }
 
     private String callPost(String url,String paramStr,String method){
