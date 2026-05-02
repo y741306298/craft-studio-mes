@@ -1,6 +1,7 @@
 package com.mes.infra.dal.manufacurer.ProductionPiece.po;
 
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
+import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.infra.base.BasePO;
@@ -31,6 +32,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String positionCode;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    private Blood blood;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
@@ -56,6 +58,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setPositionCode(this.positionCode);
         piece.setProductImageFile(this.productImageFile);
         piece.setMaskImageFile(this.maskImageFile);
+        piece.setBlood(this.blood);
         piece.setProcessingFlow(this.processingFlow);
         piece.setProcedureFlow(this.procedureFlow);
         piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
@@ -83,6 +86,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.positionCode = _do.getPositionCode();
         this.productImageFile = _do.getProductImageFile();
         this.maskImageFile = _do.getMaskImageFile();
+        this.blood = _do.getBlood();
         this.processingFlow = _do.getProcessingFlow();
         this.procedureFlow = _do.getProcedureFlow();
         this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
