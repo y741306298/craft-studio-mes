@@ -47,6 +47,15 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
 
     private String remarks;
 
+    private String orderId;
+    private String carrierId;
+    private String carrierName;
+    private String deliveryManId;
+    private String deliverySiidId;
+    private String manufacturerMetaId;
+    private String routeId;
+    private String routeNodeId;
+
     @Override
     public DeliveryPkg toDO() {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
@@ -79,6 +88,14 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         deliveryPkg.setDeliveryTime(this.deliveryTime);
 
         deliveryPkg.setRemarks(this.remarks);
+        deliveryPkg.setOrderId(this.orderId);
+        deliveryPkg.setCarrierId(this.carrierId);
+        deliveryPkg.setCarrierName(this.carrierName);
+        deliveryPkg.setDeliveryManId(this.deliveryManId);
+        deliveryPkg.setDeliverySiidId(this.deliverySiidId);
+        deliveryPkg.setManufacturerMetaId(this.manufacturerMetaId);
+        deliveryPkg.setRouteId(this.routeId);
+        deliveryPkg.setRouteNodeId(this.routeNodeId);
 
         return deliveryPkg;
     }
@@ -116,6 +133,14 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         this.deliveryTime = _do.getDeliveryTime();
 
         this.remarks = _do.getRemarks();
+        this.orderId = _do.getOrderId();
+        this.carrierId = _do.getCarrierId();
+        this.carrierName = _do.getCarrierName();
+        this.deliveryManId = _do.getDeliveryManId();
+        this.deliverySiidId = _do.getDeliverySiidId();
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
+        this.routeId = _do.getRouteId();
+        this.routeNodeId = _do.getRouteNodeId();
 
         return this;
     }

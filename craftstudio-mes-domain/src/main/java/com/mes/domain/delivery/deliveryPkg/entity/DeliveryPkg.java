@@ -44,6 +44,15 @@ public class DeliveryPkg extends BaseEntity {
     
     private String remarks;                       // 备注信息
 
+    private String orderId;                       // 订单ID
+    private String carrierId;                     // 物流方式ID
+    private String carrierName;                   // 物流方式名称
+    private String deliveryManId;                 // 发货人ID
+    private String deliverySiidId;                // 打印机ID
+    private String manufacturerMetaId;            // 商家ID
+    private String routeId;                       // 自主配送路线ID
+    private String routeNodeId;                   // 自主配送路线段ID
+
     /**
      * 添加包裹物品
      */

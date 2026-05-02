@@ -205,38 +205,50 @@ public class DeliveryPkgService {
      */
     public List<DeliveryPkg> queryByConditions(
             DeliveryPkgStatus status,
+            String manufacturerMetaId,
             String recipientName,
             String trackingNumber,
             long current,
             int size) {
 
-        Map<String, Object> filters = new java.util.HashMap<>();
-
-        if (status != null) {
-            filters.put("deliveryPkgStatus", status);
-        }
-
-        if (StringUtils.isNotBlank(recipientName)) {
-            filters.put("recipientName", recipientName);
-        }
-
-        if (StringUtils.isNotBlank(trackingNumber)) {
-            filters.put("trackingNumber", trackingNumber);
-        }
-
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, recipientName, trackingNumber);
         return deliveryPkgRepository.filterList(current, size, filters);
     }
 
     /**
      * 统计包裹数量
      */
-    public long countByConditions(DeliveryPkgStatus status) {
-        if (status == null) {
+    public long countByConditions(
+            DeliveryPkgStatus status,
+            String manufacturerMetaId,
+            String recipientName,
+            String trackingNumber) {
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, recipientName, trackingNumber);
+        if (filters.isEmpty()) {
             return deliveryPkgRepository.total();
         }
-
-        Map<String, Object> filters = new java.util.HashMap<>();
-        filters.put("deliveryPkgStatus", status);
         return deliveryPkgRepository.filterTotal(filters);
+    }
+
+    private Map<String, Object> buildFilters(
+            DeliveryPkgStatus status,
+            String manufacturerMetaId,
+            String recipientName,
+            String trackingNumber) {
+        Map<String, Object> filters = new java.util.HashMap<>();
+
+        if (status != null) {
+            filters.put("deliveryPkgStatus", status);
+        }
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        if (StringUtils.isNotBlank(recipientName)) {
+            filters.put("recipientName", recipientName);
+        }
+        if (StringUtils.isNotBlank(trackingNumber)) {
+            filters.put("trackingNumber", trackingNumber);
+        }
+        return filters;
     }
 }
