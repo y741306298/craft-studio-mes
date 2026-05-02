@@ -109,6 +109,14 @@ public class DeliverySiidService {
     /**
      * 分页查询
      */
+
+    public List<DeliverySiid> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工厂ID不能为空");
+        }
+        return deliverySiidRepository.findByManufacturerMetaId(manufacturerMetaId);
+    }
+
     public List<DeliverySiid> list(int current, int size) {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");

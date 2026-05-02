@@ -70,6 +70,14 @@ public class DeliveryManService {
         return deliveryManRepository.findByUserId(userId);
     }
 
+
+    public List<DeliveryMan> findByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工厂ID不能为空");
+        }
+        return deliveryManRepository.findByManufacturerMetaId(manufacturerMetaId);
+    }
+
     public List<DeliveryMan> list(int current, int size) {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在1-100之间");
