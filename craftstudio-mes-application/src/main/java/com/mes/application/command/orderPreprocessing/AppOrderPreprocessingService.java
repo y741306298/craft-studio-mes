@@ -428,8 +428,8 @@ public class AppOrderPreprocessingService {
                                 maskedImageUrl
                         );
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
-                            piece.getProductImageFile().getFilePreview().setPreview(pair.getPreviewImg());
-                            piece.getProductImageFile().getFilePreview().setThumbnail(pair.getThumbnail());
+                            piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(pair.getPreviewImg()));
+                            piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(pair.getThumbnail()));
                         }
                         if (pair.getBlood() != null) {
                             Blood blood = new Blood();
@@ -614,6 +614,24 @@ public class AppOrderPreprocessingService {
             result.setMessage("调用 PLT 生成 API 异常：" + e.getMessage());
             return result;
         }
+    }
+
+
+    private String completeOssUrl(String url) {
+        if (StringUtils.isBlank(url)) {
+            return url;
+        }
+
+        if (url.startsWith("http://") || url.startsWith("https://")) {
+            return url;
+        }
+
+        if (StringUtils.isBlank(ossBucket) || StringUtils.isBlank(ossEndpoint)) {
+            return url;
+        }
+
+        String normalizedPath = url.startsWith("/") ? url.substring(1) : url;
+        return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
     }
 
 
