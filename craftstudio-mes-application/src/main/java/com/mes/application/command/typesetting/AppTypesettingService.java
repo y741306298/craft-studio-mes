@@ -1011,7 +1011,8 @@ public class AppTypesettingService {
             TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(printTaskTypesettingId, deviceInfoId, typesettingInfo.getElement(), allMarks, productionPieceIds);
             typesettingInfo.setRemark(null);
             domainTypesettingService.updateTypesetting(typesettingInfo);
-            savePrintTask(printTaskTypesettingId, deviceInfoId, downloadTaskData);
+            savePrintTask(printTaskTypesettingId, Collections.singletonList(deviceInfoId), downloadTaskData);
+            savePltBroadcastPrintTask(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
         }
     }
 
@@ -1240,12 +1241,57 @@ public class AppTypesettingService {
     }
 
     private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
+        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), data);
+    }
+
+    private void savePrintTask(String typesettingInfoId, List<String> deviceInfoIds, TypesettingDownloadTaskData data) {
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
-        task.setDeviceInfoId(deviceInfoId);
+        task.setDeviceInfoId(deviceInfoIds);
         task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
         task.setData(data);
         typesettingPrintTaskService.saveOrUpdate(task);
+    }
+
+    private void savePltBroadcastPrintTask(String typesettingInfoId,
+                                           String manufacturerMetaId,
+                                           TypesettingDownloadTaskData originalData) {
+        if (originalData == null || originalData.getPlts() == null || originalData.getPlts().isEmpty()) {
+            return;
+        }
+        List<String> cuttingDeviceInfoIds = findCuttingDeviceInfoIds(manufacturerMetaId);
+        if (cuttingDeviceInfoIds.isEmpty()) {
+            return;
+        }
+        TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
+        pltOnlyData.setId(originalData.getId());
+        pltOnlyData.setDeviceInfoId(originalData.getDeviceInfoId());
+        pltOnlyData.setImamges(Collections.emptyList());
+        pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
+        pltOnlyData.setJsons(Collections.emptyList());
+        pltOnlyData.setMarks(Collections.emptyList());
+        savePrintTask(typesettingInfoId + "_plt", cuttingDeviceInfoIds, pltOnlyData);
+    }
+
+    private List<String> findCuttingDeviceInfoIds(String manufacturerMetaId) {
+        Map<String, Object> filters = new HashMap<>();
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        List<ManufacturerDeviceCfg> cfgList = manufacturerDeviceCfgRepository.filterList(1, 1000, filters);
+        if (cfgList == null || cfgList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> deviceInfoIds = new LinkedHashSet<>();
+        for (ManufacturerDeviceCfg cfg : cfgList) {
+            if (cfg == null || StringUtils.isBlank(cfg.getDeviceName()) || StringUtils.isBlank(cfg.getDeviceInfoId())) {
+                continue;
+            }
+            if (cfg.getDeviceName().contains("切割")) {
+                deviceInfoIds.add(cfg.getDeviceInfoId());
+            }
+        }
+        return new ArrayList<>(deviceInfoIds);
     }
 
     /**

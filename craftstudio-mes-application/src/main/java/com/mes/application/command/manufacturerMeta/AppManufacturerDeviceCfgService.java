@@ -151,8 +151,8 @@ public class AppManufacturerDeviceCfgService {
             return new ArrayList<TypesettingDownloadTaskData>();
         }
 
+        String currentDeviceInfoId = matchedCfgList.get(0).getDeviceInfoId();
         Map<String, Object> taskFilters = new HashMap<String, Object>();
-        taskFilters.put("deviceInfoId", matchedCfgList.get(0).getDeviceInfoId());
         taskFilters.put("status", TypesettingPrintTaskStatus.PENDING.getCode());
         List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
 
@@ -167,10 +167,21 @@ public class AppManufacturerDeviceCfgService {
                 if (task == null) {
                     continue;
                 }
+                List<String> targetDeviceInfoIds = task.getDeviceInfoId();
+                if (targetDeviceInfoIds == null || targetDeviceInfoIds.isEmpty() || !targetDeviceInfoIds.contains(currentDeviceInfoId)) {
+                    continue;
+                }
                 if (task.getData() != null) {
                     result.add(task.getData());
                 }
-                task.setStatus(TypesettingPrintTaskStatus.CLAIMED.getCode());
+                List<String> remainDeviceInfoIds = new ArrayList<String>(targetDeviceInfoIds);
+                remainDeviceInfoIds.removeIf(currentDeviceInfoId::equals);
+                task.setDeviceInfoId(remainDeviceInfoIds);
+                if (remainDeviceInfoIds.isEmpty()) {
+                    task.setStatus(TypesettingPrintTaskStatus.CLAIMED.getCode());
+                } else {
+                    task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
+                }
                 typesettingPrintTaskRepository.update(task);
             }
             if (pageItems.size() < size) {
