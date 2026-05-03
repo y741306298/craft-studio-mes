@@ -1,7 +1,9 @@
 package com.mes.application.command.auth;
 
 import com.mes.application.dto.req.auth.AddUserRequest;
+import com.mes.application.dto.req.auth.DeleteUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
+import com.mes.application.dto.req.auth.UpdateUserPasswordRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.service.ManufacturerUserService;
@@ -11,6 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+
+import java.util.List;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -67,6 +73,20 @@ public class AppLoginService {
         user.setName(request.getName());
         user.setPhone(request.getPhone());
         manufacturerUserService.add(user);
+    }
+
+    public PagedResult<ManufacturerUser> listUsersByManufacturerMetaId(String manufacturerMetaId, String phone, PagedQuery query) {
+        List<ManufacturerUser> items = manufacturerUserService.listByManufacturerMetaId(manufacturerMetaId, phone, query.getCurrent(), query.getSize());
+        long total = manufacturerUserService.totalByManufacturerMetaId(manufacturerMetaId, phone);
+        return new PagedResult<>(items, total, query.getSize(), query.getCurrent());
+    }
+
+    public void deleteUser(DeleteUserRequest request) {
+        manufacturerUserService.deleteById(request.getId());
+    }
+
+    public void updateUserPassword(UpdateUserPasswordRequest request) {
+        manufacturerUserService.updatePassword(request.getId(), request.getPassword());
     }
 
     private String generateToken() {

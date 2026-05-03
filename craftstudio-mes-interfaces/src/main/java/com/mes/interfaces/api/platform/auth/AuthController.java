@@ -2,13 +2,24 @@ package com.mes.interfaces.api.platform.auth;
 
 import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.dto.req.auth.AddUserRequest;
+import com.mes.application.dto.req.auth.DeleteUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
+import com.mes.application.dto.req.auth.UpdateUserPasswordRequest;
+import com.mes.application.dto.req.auth.UserListRequest;
+import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.auth.LoginResponse;
+import com.mes.application.dto.resp.auth.UserListResponse;
+import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.base.repository.ApiResponse;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -95,5 +106,25 @@ public class AuthController {
     @GetMapping("/token/manufacturerMetaId")
     public ApiResponse<String> getManufacturerMetaIdByToken(@RequestParam @NotBlank(message = "token不能为空") String token) {
         return ApiResponse.success(appLoginService.getManufacturerMetaIdByToken(token));
+    }
+
+    @PostMapping("/user/list")
+    public PagedApiResponse<UserListResponse> listUsers(@Valid @RequestBody UserListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<ManufacturerUser> result = appLoginService.listUsersByManufacturerMetaId(request.getManufacturerMetaId(), request.getPhone(), query);
+        List<UserListResponse> items = result.items().stream().map(UserListResponse::from).collect(Collectors.toList());
+        return PagedApiResponse.success(items, query.getCurrent(), query.getSize(), result.total());
+    }
+
+    @PostMapping("/user/delete")
+    public ApiResponse<String> deleteUser(@Valid @RequestBody DeleteUserRequest request) {
+        appLoginService.deleteUser(request);
+        return ApiResponse.success("success");
+    }
+
+    @PostMapping("/user/password/update")
+    public ApiResponse<String> updateUserPassword(@Valid @RequestBody UpdateUserPasswordRequest request) {
+        appLoginService.updateUserPassword(request);
+        return ApiResponse.success("success");
     }
 }
