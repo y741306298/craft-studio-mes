@@ -903,9 +903,11 @@ public class AppTypesettingService {
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
 
+        ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
         typesettingInfo.setRemark("FORME_OP:PRINT:" + request.getDeviceCode());
         typesettingInfo.setDeviceCode(request.getDeviceCode());
+        typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         ConfirmPrintResult result = new ConfirmPrintResult();
@@ -995,6 +997,14 @@ public class AppTypesettingService {
     }
 
     private String resolveDeviceInfoIdByDeviceCode(String manufacturerMetaId, String deviceCode) {
+        ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(manufacturerMetaId, deviceCode);
+        if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
+            throw new RuntimeException("设备编号未绑定设备信息：" + deviceCode);
+        }
+        return deviceCfg.getDeviceInfoId();
+    }
+
+    private ManufacturerDeviceCfg findDeviceCfgByDeviceCode(String manufacturerMetaId, String deviceCode) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("deviceCode", deviceCode);
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
@@ -1004,11 +1014,7 @@ public class AppTypesettingService {
         if (deviceCfgs == null || deviceCfgs.isEmpty()) {
             throw new RuntimeException("设备编号不存在：" + deviceCode);
         }
-        ManufacturerDeviceCfg deviceCfg = deviceCfgs.get(0);
-        if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
-            throw new RuntimeException("设备编号未绑定设备信息：" + deviceCode);
-        }
-        return deviceCfg.getDeviceInfoId();
+        return deviceCfgs.get(0);
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,

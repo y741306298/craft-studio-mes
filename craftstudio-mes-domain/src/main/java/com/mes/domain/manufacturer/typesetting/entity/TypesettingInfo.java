@@ -40,6 +40,10 @@ public class TypesettingInfo extends BaseEntity {
      */
     private String deviceCode;
     /**
+     * 打印设备名称
+     */
+    private String deviceName;
+    /**
      * 参与排版用的轮廓SVG（来源由上游工序补充）
      */
     private String maskSvg;
