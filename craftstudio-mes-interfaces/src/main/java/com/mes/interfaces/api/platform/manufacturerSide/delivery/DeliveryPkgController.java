@@ -80,11 +80,21 @@ public class DeliveryPkgController {
         result.setRecipientName("张三");
         result.setRecipientMobile("13800138000");
         result.setRecipientAddress("上海市浦东新区世纪大道100号A座1201室");
+        result.setWidth("70.00");
+        result.setHeight("90.00");
         
         DeliveryPkgAddResultVO.QrCodeInfo qrCode = new DeliveryPkgAddResultVO.QrCodeInfo();
         qrCode.setFormat("base64-png");
-        qrCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/mark/69de4119091f6f6f5199bb68/LAYOUT1777537459918BD5308/b090224e-84e4-4292-8e17-12e3982b6904.png");
+        qrCode.setWidth(30.00);
+        qrCode.setHeight(30.00);
+        qrCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/qr.jpeg");
         result.setQrCode(qrCode);
+
+        DeliveryPkgAddResultVO.BarCodeInfo barCode = new DeliveryPkgAddResultVO.BarCodeInfo();
+        barCode.setFormat("base64-png");
+        barCode.setWidth(70.00);
+        barCode.setHeight(25.00);
+        barCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg");
         
         result.setRouteDesc("路线A:南昌市红谷滩区-九江市修水县");
         result.setRemark("这是一个备注");

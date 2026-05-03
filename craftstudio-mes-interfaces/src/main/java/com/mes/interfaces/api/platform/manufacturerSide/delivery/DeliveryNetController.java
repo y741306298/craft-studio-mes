@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/delivery/deliveryNet")
@@ -29,6 +30,8 @@ public class DeliveryNetController {
 
     @Value("${external.api.productCoreUrl:}")
     private String productCoreUrl;
+
+    Logger logger = Logger.getLogger(DeliveryNetController.class.getName());
 
     /**
      * 查询物流配置列表（按父地区）

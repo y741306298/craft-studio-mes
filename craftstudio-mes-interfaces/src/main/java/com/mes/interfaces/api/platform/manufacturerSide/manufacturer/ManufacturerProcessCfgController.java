@@ -1,10 +1,12 @@
 package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
+import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.req.ConfigProcessMetaRequest;
 import com.mes.application.dto.req.manufacturerMeta.UpdateProcessPriceRequest;
 import com.piliofpala.craftstudio.shared.infra.http.HttpProxy;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/processCfg")
@@ -26,6 +29,8 @@ public class ManufacturerProcessCfgController {
     @Value("${external.api.productCoreUrl:}")
     private String productCoreUrl;
 
+    Logger logger = Logger.getLogger(ManufacturerProcessCfgController.class.getName());
+
     /**
      * 分页查找工艺定义
      * @return 分页查询结果
@@ -34,7 +39,6 @@ public class ManufacturerProcessCfgController {
     public ResponseEntity<byte[]> listProcessMetas(
             HttpServletRequest request,
             @RequestBody(required = false) byte[] body) {
-        
         StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/listProcessMetas", productCoreUrl));
 
         

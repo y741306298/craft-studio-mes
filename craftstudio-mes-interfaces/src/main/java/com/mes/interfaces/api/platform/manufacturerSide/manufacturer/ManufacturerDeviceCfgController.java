@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.manufacturer;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
@@ -15,6 +16,7 @@ import com.mes.domain.manufacturer.device.entity.Device;
 import com.mes.domain.manufacturer.device.enums.DeviceType;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
+import com.mes.interfaces.api.platform.manufacturerSide.order.OrderController;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/deviceCfg")
@@ -37,6 +40,8 @@ public class ManufacturerDeviceCfgController {
 
     @Autowired
     private AppLoginService appLoginService;
+
+    Logger logger = Logger.getLogger(ManufacturerDeviceCfgController.class.getName());
 
     /**
      * 分页查询设备配置列表（根据制造商 ID）
@@ -199,6 +204,7 @@ public class ManufacturerDeviceCfgController {
     @PostMapping("/factory/task/claim")
     public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> claimFactoryDownloadTasks(
             @Valid @RequestBody ManufacturerFactoryDownloadTaskRequest request) {
+        logger.info("接收到轮询领取任务，入参为"+ JSON.toJSONString(request));
         List<TypesettingDownloadTaskData> tasks;
         try {
             tasks = appDeviceCfgService.listDownloadTasksByDeviceCfg(
@@ -223,6 +229,7 @@ public class ManufacturerDeviceCfgController {
 
         ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
+        logger.info("轮询领取任务结束，出参为"+ JSON.toJSONString(apiResponse));
         return apiResponse;
     }
 }
