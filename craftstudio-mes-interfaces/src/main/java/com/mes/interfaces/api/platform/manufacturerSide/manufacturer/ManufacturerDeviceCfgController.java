@@ -221,7 +221,14 @@ public class ManufacturerDeviceCfgController {
         for (TypesettingDownloadTaskData task : tasks) {
             ManufacturerFactoryDownloadTaskResp item = new ManufacturerFactoryDownloadTaskResp();
             item.setId(task.getId());
-            item.setImamges(task.getImamges());
+            List<String> images = new ArrayList<>();
+            if (task.getImamges() != null) {
+                images.addAll(task.getImamges());
+            }
+            if (task.getMarks() != null) {
+                images.addAll(task.getMarks());
+            }
+            item.setImamges(images);
             item.setPlts(task.getPlts());
             item.setJsons(task.getJsons());
             response.add(item);
