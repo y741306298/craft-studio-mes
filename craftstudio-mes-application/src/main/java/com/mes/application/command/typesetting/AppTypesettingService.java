@@ -599,6 +599,7 @@ public class AppTypesettingService {
 
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+        mergeAnchorPointMarks(typesettingInfo, formeRequest);
         System.out.println(JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
 
@@ -679,6 +680,29 @@ public class AppTypesettingService {
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         request.setCallbackConfig(callbackConfig);
         return request;
+    }
+
+
+    private void mergeAnchorPointMarks(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
+        if (typesettingInfo == null || formeRequest == null || formeRequest.getForme() == null
+                || formeRequest.getForme().getAnchorPoints() == null || formeRequest.getForme().getAnchorPoints().isEmpty()) {
+            return;
+        }
+        LinkedHashMap<String, String> markMap = new LinkedHashMap<>();
+        if (typesettingInfo.getMarks() != null && !typesettingInfo.getMarks().isEmpty()) {
+            markMap.putAll(typesettingInfo.getMarks());
+        }
+        int anchorIndex = 0;
+        for (FormeGenerationRequest.AnchorPoint anchorPoint : formeRequest.getForme().getAnchorPoints()) {
+            if (anchorPoint == null || StringUtils.isBlank(anchorPoint.getSvg())) {
+                continue;
+            }
+            markMap.put("anchorPointSvg_" + anchorIndex, anchorPoint.getSvg());
+            anchorIndex++;
+        }
+        if (!markMap.isEmpty()) {
+            typesettingInfo.setMarks(markMap);
+        }
     }
 
     /**
@@ -901,6 +925,7 @@ public class AppTypesettingService {
 
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+        mergeAnchorPointMarks(typesettingInfo, formeRequest);
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
