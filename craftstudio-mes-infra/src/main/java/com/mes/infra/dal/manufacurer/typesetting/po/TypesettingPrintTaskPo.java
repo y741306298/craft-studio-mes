@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document(collection = "typesetting_print_task")
 public class TypesettingPrintTaskPo extends BasePO<TypesettingPrintTask> {
     private String typesettingInfoId;
-    private String deviceInfoId;
+    private java.util.List<String> deviceInfoId;
     private String status;
     private TypesettingDownloadTaskData data;
 
