@@ -1008,7 +1008,13 @@ public class AppTypesettingService {
                     ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
             String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
             Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
-            TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(printTaskTypesettingId, deviceInfoId, typesettingInfo.getElement(), allMarks, productionPieceIds);
+            TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
+                    printTaskTypesettingId,
+                    deviceInfoId,
+                    deviceCode,
+                    typesettingInfo.getElement(),
+                    allMarks,
+                    productionPieceIds);
             typesettingInfo.setRemark(null);
             domainTypesettingService.updateTypesetting(typesettingInfo);
             savePrintTaskByDeviceCode(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), deviceCode, downloadTaskData);
@@ -1168,6 +1174,7 @@ public class AppTypesettingService {
 
     private TypesettingDownloadTaskData buildDownloadTaskData(String typesettingInfoId,
                                                               String deviceInfoId,
+                                                              String deviceCode,
                                                               TypesettingElement typesettingElement,
                                                               Map<String, String> marks,
                                                               Set<String> productionPieceIds) {
@@ -1200,6 +1207,8 @@ public class AppTypesettingService {
         TypesettingDownloadTaskData data = new TypesettingDownloadTaskData();
         data.setId(typesettingInfoId);
         data.setDeviceInfoId(deviceInfoId);
+        data.setDeviceInfoIds(Collections.singletonList(deviceInfoId));
+        data.setDeviceCodes(Collections.singletonList(deviceCode));
         data.setImamges(new ArrayList<>(imageSet));
         data.setPlts(new ArrayList<>(pltSet));
         data.setJsons(new ArrayList<>(jsonSet));
@@ -1248,18 +1257,24 @@ public class AppTypesettingService {
         String deviceInfoId = resolveDeviceInfoIdByDeviceCode(manufacturerMetaId, deviceCode);
         if (data != null) {
             data.setDeviceInfoId(deviceInfoId);
+            data.setDeviceInfoIds(Collections.singletonList(deviceInfoId));
+            data.setDeviceCodes(Collections.singletonList(deviceCode));
         }
-        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), data);
+        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), Collections.singletonList(deviceCode), data);
     }
 
     private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
-        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), data);
+        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), Collections.emptyList(), data);
     }
 
-    private void savePrintTask(String typesettingInfoId, List<String> deviceInfoIds, TypesettingDownloadTaskData data) {
+    private void savePrintTask(String typesettingInfoId,
+                               List<String> deviceInfoIds,
+                               List<String> deviceCodes,
+                               TypesettingDownloadTaskData data) {
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
         task.setDeviceInfoId(deviceInfoIds);
+        task.setDeviceCode(deviceCodes);
         task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
         task.setData(data);
         typesettingPrintTaskService.saveOrUpdate(task);
@@ -1278,11 +1293,13 @@ public class AppTypesettingService {
         TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
         pltOnlyData.setId(originalData.getId());
         pltOnlyData.setDeviceInfoId(originalData.getDeviceInfoId());
+        pltOnlyData.setDeviceInfoIds(originalData.getDeviceInfoIds());
+        pltOnlyData.setDeviceCodes(originalData.getDeviceCodes());
         pltOnlyData.setImamges(Collections.emptyList());
         pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
         pltOnlyData.setJsons(Collections.emptyList());
         pltOnlyData.setMarks(Collections.emptyList());
-        savePrintTask(typesettingInfoId + "_plt", cuttingDeviceInfoIds, pltOnlyData);
+        savePrintTask(typesettingInfoId + "_plt", cuttingDeviceInfoIds, Collections.emptyList(), pltOnlyData);
     }
 
     private List<String> findCuttingDeviceInfoIds(String manufacturerMetaId) {

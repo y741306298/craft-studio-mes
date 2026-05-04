@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class TypesettingPrintTaskPo extends BasePO<TypesettingPrintTask> {
     private String typesettingInfoId;
     private java.util.List<String> deviceInfoId;
+    private java.util.List<String> deviceCode;
     private String status;
     private TypesettingDownloadTaskData data;
 
@@ -24,6 +25,7 @@ public class TypesettingPrintTaskPo extends BasePO<TypesettingPrintTask> {
         task.setUpdateTime(getUpdateTime());
         task.setTypesettingInfoId(this.typesettingInfoId);
         task.setDeviceInfoId(this.deviceInfoId);
+        task.setDeviceCode(this.deviceCode);
         task.setStatus(this.status);
         task.setData(this.data);
         return task;
@@ -33,6 +35,7 @@ public class TypesettingPrintTaskPo extends BasePO<TypesettingPrintTask> {
     protected BasePO<TypesettingPrintTask> fromDO(TypesettingPrintTask _do) {
         this.typesettingInfoId = _do.getTypesettingInfoId();
         this.deviceInfoId = _do.getDeviceInfoId();
+        this.deviceCode = _do.getDeviceCode();
         this.status = _do.getStatus();
         this.data = _do.getData();
         return this;

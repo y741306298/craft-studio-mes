@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 public class TypesettingPrintTask extends BaseEntity {
     private String typesettingInfoId;
     private java.util.List<String> deviceInfoId;
+    private java.util.List<String> deviceCode;
     /**
      * 任务领取状态：待领取 / 已领取
      */

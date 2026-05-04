@@ -15,4 +15,6 @@ public class TypesettingDownloadTaskData {
     private List<String> jsons;
     private List<String> marks;
     private String deviceInfoId;
+    private List<String> deviceInfoIds;
+    private List<String> deviceCodes;
 }
