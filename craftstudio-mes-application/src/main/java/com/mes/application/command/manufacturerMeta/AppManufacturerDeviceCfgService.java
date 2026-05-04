@@ -152,8 +152,10 @@ public class AppManufacturerDeviceCfgService {
         }
 
         String currentDeviceInfoId = matchedCfgList.get(0).getDeviceInfoId();
+        String currentDeviceCode = matchedCfgList.get(0).getDeviceCode();
         Map<String, Object> taskFilters = new HashMap<String, Object>();
         taskFilters.put("status", TypesettingPrintTaskStatus.PENDING.getCode());
+        taskFilters.put("manufacturerMetaId", cfg.getManufacturerMetaId());
         List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
 
         int current = 1;
@@ -167,17 +169,24 @@ public class AppManufacturerDeviceCfgService {
                 if (task == null) {
                     continue;
                 }
-                List<String> targetDeviceInfoIds = task.getDeviceInfoId();
-                if (targetDeviceInfoIds == null || targetDeviceInfoIds.isEmpty() || !targetDeviceInfoIds.contains(currentDeviceInfoId)) {
+                List<String> targetDeviceCodes = task.getDeviceCode();
+                if (targetDeviceCodes == null || targetDeviceCodes.isEmpty() || !targetDeviceCodes.contains(currentDeviceCode)) {
                     continue;
                 }
                 if (task.getData() != null) {
                     result.add(task.getData());
                 }
-                List<String> remainDeviceInfoIds = new ArrayList<String>(targetDeviceInfoIds);
+                List<String> remainDeviceCodes = new ArrayList<String>(targetDeviceCodes);
+                remainDeviceCodes.removeIf(currentDeviceCode::equals);
+                task.setDeviceCode(remainDeviceCodes);
+
+                List<String> targetDeviceInfoIds = task.getDeviceInfoId();
+                List<String> remainDeviceInfoIds = targetDeviceInfoIds == null
+                        ? new ArrayList<String>()
+                        : new ArrayList<String>(targetDeviceInfoIds);
                 remainDeviceInfoIds.removeIf(currentDeviceInfoId::equals);
                 task.setDeviceInfoId(remainDeviceInfoIds);
-                if (remainDeviceInfoIds.isEmpty()) {
+                if (remainDeviceCodes.isEmpty()) {
                     task.setStatus(TypesettingPrintTaskStatus.CLAIMED.getCode());
                 } else {
                     task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
