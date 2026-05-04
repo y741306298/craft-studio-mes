@@ -1011,7 +1011,7 @@ public class AppTypesettingService {
             TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(printTaskTypesettingId, deviceInfoId, typesettingInfo.getElement(), allMarks, productionPieceIds);
             typesettingInfo.setRemark(null);
             domainTypesettingService.updateTypesetting(typesettingInfo);
-            savePrintTask(printTaskTypesettingId, Collections.singletonList(deviceInfoId), downloadTaskData);
+            savePrintTaskByDeviceCode(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), deviceCode, downloadTaskData);
             savePltBroadcastPrintTask(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
         }
     }
@@ -1238,6 +1238,18 @@ public class AppTypesettingService {
         if (StringUtils.isNotBlank(fileUrl)) {
             container.add(fileUrl);
         }
+    }
+
+
+    private void savePrintTaskByDeviceCode(String typesettingInfoId,
+                                           String manufacturerMetaId,
+                                           String deviceCode,
+                                           TypesettingDownloadTaskData data) {
+        String deviceInfoId = resolveDeviceInfoIdByDeviceCode(manufacturerMetaId, deviceCode);
+        if (data != null) {
+            data.setDeviceInfoId(deviceInfoId);
+        }
+        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), data);
     }
 
     private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
