@@ -155,6 +155,7 @@ public class AppManufacturerDeviceCfgService {
         String currentDeviceCode = matchedCfgList.get(0).getDeviceCode();
         Map<String, Object> taskFilters = new HashMap<String, Object>();
         taskFilters.put("status", TypesettingPrintTaskStatus.PENDING.getCode());
+        taskFilters.put("manufacturerMetaId", cfg.getManufacturerMetaId());
         List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
 
         int current = 1;

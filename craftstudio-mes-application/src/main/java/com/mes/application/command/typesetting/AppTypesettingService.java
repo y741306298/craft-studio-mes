@@ -1260,19 +1260,21 @@ public class AppTypesettingService {
             data.setDeviceInfoIds(Collections.singletonList(deviceInfoId));
             data.setDeviceCodes(Collections.singletonList(deviceCode));
         }
-        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), Collections.singletonList(deviceCode), data);
+        savePrintTask(typesettingInfoId, manufacturerMetaId, Collections.singletonList(deviceInfoId), Collections.singletonList(deviceCode), data);
     }
 
     private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
-        savePrintTask(typesettingInfoId, Collections.singletonList(deviceInfoId), Collections.emptyList(), data);
+        savePrintTask(typesettingInfoId, null, Collections.singletonList(deviceInfoId), Collections.emptyList(), data);
     }
 
     private void savePrintTask(String typesettingInfoId,
+                               String manufacturerMetaId,
                                List<String> deviceInfoIds,
                                List<String> deviceCodes,
                                TypesettingDownloadTaskData data) {
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
+        task.setManufacturerMetaId(manufacturerMetaId);
         task.setDeviceInfoId(deviceInfoIds);
         task.setDeviceCode(deviceCodes);
         task.setStatus(TypesettingPrintTaskStatus.PENDING.getCode());
@@ -1299,7 +1301,7 @@ public class AppTypesettingService {
         pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
         pltOnlyData.setJsons(Collections.emptyList());
         pltOnlyData.setMarks(Collections.emptyList());
-        savePrintTask(typesettingInfoId + "_plt", cuttingDeviceInfoIds, Collections.emptyList(), pltOnlyData);
+        savePrintTask(typesettingInfoId + "_plt", manufacturerMetaId, cuttingDeviceInfoIds, Collections.emptyList(), pltOnlyData);
     }
 
     private List<String> findCuttingDeviceInfoIds(String manufacturerMetaId) {
