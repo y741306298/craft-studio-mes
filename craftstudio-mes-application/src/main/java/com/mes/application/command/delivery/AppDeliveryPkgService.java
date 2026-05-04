@@ -44,7 +44,9 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
@@ -261,6 +263,7 @@ public class AppDeliveryPkgService {
         String carrierId = null;
         String carrierName = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
+        Map<String, Integer> packageQuantityMap = new HashMap<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
             if (item == null || item.getPiece() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件与打包数量必须填写且数量大于0");
@@ -288,8 +291,8 @@ public class AppDeliveryPkgService {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
                         "零件[" + pieceVO.getProductionPieceId() + "]打包数量超过待打包数量");
             }
-            sourcePiece.setQuantity(item.getQuantity());
             selectedPieces.add(sourcePiece);
+            packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
 
         DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
@@ -312,7 +315,7 @@ public class AppDeliveryPkgService {
                 }
 
                 if (pendingPackingNode != null && packedNode != null) {
-                    Integer quantity = productionPiece.getQuantity();
+                    Integer quantity = packageQuantityMap.getOrDefault(productionPiece.getId(), 0);
                     Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
                     pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
                     if (pendingPackingNode.getPieceQuantity() <= 0) {
@@ -339,7 +342,16 @@ public class AppDeliveryPkgService {
         }
 
         DeliveryPkgRequest toPkgRequest = new DeliveryPkgRequest();
-        toPkgRequest.setProductionPieces(selectedPieces);
+        List<ProductionPiece> pkgRequestPieces = new ArrayList<>();
+        for (ProductionPiece productionPiece : selectedPieces) {
+            ProductionPiece pkgPiece = new ProductionPiece();
+            pkgPiece.setId(productionPiece.getId());
+            pkgPiece.setProcedureFlow(productionPiece.getProcedureFlow());
+            pkgPiece.setDeliveryPkgInfos(productionPiece.getDeliveryPkgInfos());
+            pkgPiece.setQuantity(packageQuantityMap.getOrDefault(productionPiece.getId(), 0));
+            pkgRequestPieces.add(pkgPiece);
+        }
+        toPkgRequest.setProductionPieces(pkgRequestPieces);
         toPkgRequest.setOrderId(orderId);
         toPkgRequest.setCarrierId(request.getCarrierId());
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
