@@ -1202,7 +1202,7 @@ public class AppTypesettingService {
         collectCellTypesettingPltsRecursive(typesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
             for (String markFile : marks.values()) {
-                appendRawFile(markSet, markFile);
+                appendMarkFiles(markSet, markFile);
             }
         }
         TypesettingDownloadTaskData data = new TypesettingDownloadTaskData();
@@ -1247,6 +1247,18 @@ public class AppTypesettingService {
     private void appendRawFile(Set<String> container, String fileUrl) {
         if (StringUtils.isNotBlank(fileUrl)) {
             container.add(fileUrl);
+        }
+    }
+
+    private void appendMarkFiles(Set<String> container, String markFileUrl) {
+        appendRawFile(container, markFileUrl);
+        if (StringUtils.isBlank(markFileUrl)) {
+            return;
+        }
+        String lower = markFileUrl.toLowerCase(Locale.ROOT);
+        if (lower.contains("/basetag/") && lower.endsWith(".svg")) {
+            String pngUrl = markFileUrl.substring(0, markFileUrl.length() - 4) + ".png";
+            appendRawFile(container, pngUrl);
         }
     }
 
