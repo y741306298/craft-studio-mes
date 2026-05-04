@@ -11,6 +11,10 @@ import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService;
+import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
+import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
+import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +33,8 @@ public class DeliveryPkgController {
 
     private final AppDeliveryPkgService appDeliveryPkgService;
     private final DeliveryPkgService deliveryPkgService;
+    private final DeliveryRouteService deliveryRouteService;
+    private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
 
     /**
      * 查询待打包零件全量列表
@@ -75,11 +81,13 @@ public class DeliveryPkgController {
 
     @PostMapping("/add")
     public ApiResponse<DeliveryPkgAddResultVO> addPkg(@RequestBody DeliveryPkgAddRequest request) {
+        DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
+
         DeliveryPkgAddResultVO result = new DeliveryPkgAddResultVO();
-        result.setPkgId("PKG202605020001");
-        result.setRecipientName("张三");
-        result.setRecipientMobile("13800138000");
-        result.setRecipientAddress("上海市浦东新区世纪大道100号A座1201室");
+        result.setPkgId(deliveryPkg.getDeliveryPkgCode());
+        result.setRecipientName(deliveryPkg.getRecipientName());
+        result.setRecipientMobile(deliveryPkg.getRecipientPhone());
+        result.setRecipientAddress(deliveryPkg.getRecipientAddress());
         result.setWidth("70.00");
         result.setHeight("90.00");
         
@@ -95,11 +103,19 @@ public class DeliveryPkgController {
         barCode.setWidth(70.00);
         barCode.setHeight(25.00);
         barCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg");
-        
-        result.setRouteDesc("路线A:南昌市红谷滩区-九江市修水县");
+        result.setBarCode(barCode);
+
+        String routeDesc = "";
+        if (StringUtils.isNotBlank(deliveryPkg.getRouteId()) && StringUtils.isNotBlank(deliveryPkg.getRouteNodeId())) {
+            DeliveryRoute deliveryRoute = deliveryRouteService.findById(deliveryPkg.getRouteId());
+            DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
+            if (deliveryRoute != null && routeNode != null) {
+                routeDesc = deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();
+            }
+        }
+        result.setRouteDesc(routeDesc);
         result.setRemark("这是一个备注");
-        
-//        appDeliveryPkgService.addPkg(request);
+
         return ApiResponse.success(result);
     }
 }
