@@ -1255,13 +1255,18 @@ public class AppTypesettingService {
                                            String manufacturerMetaId,
                                            String deviceCode,
                                            TypesettingDownloadTaskData data) {
-        String deviceInfoId = resolveDeviceInfoIdByDeviceCode(manufacturerMetaId, deviceCode);
+        ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(manufacturerMetaId, deviceCode);
+        if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
+            throw new RuntimeException("设备编号未绑定设备信息：" + deviceCode);
+        }
+        String deviceInfoId = deviceCfg.getDeviceInfoId();
+        String resolvedDeviceCode = StringUtils.isNotBlank(deviceCfg.getDeviceCode()) ? deviceCfg.getDeviceCode() : deviceCode;
         if (data != null) {
             data.setDeviceInfoId(deviceInfoId);
             data.setDeviceInfoIds(Collections.singletonList(deviceInfoId));
-            data.setDeviceCodes(Collections.singletonList(deviceCode));
+            data.setDeviceCodes(Collections.singletonList(resolvedDeviceCode));
         }
-        savePrintTask(typesettingInfoId, manufacturerMetaId, Collections.singletonList(deviceInfoId), Collections.singletonList(deviceCode), data);
+        savePrintTask(typesettingInfoId, manufacturerMetaId, Collections.singletonList(deviceInfoId), Collections.singletonList(resolvedDeviceCode), data);
     }
 
     private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
