@@ -138,10 +138,24 @@ public class DeliveryRouteNode extends BaseEntity {
      * 验证地区编码是否完整
      */
     public boolean validateRegionCodes() {
+        // 终点未传时沿用起点行政区划（用于单点或前端简化传参场景）
         if (!isNotBlank(destCountryCode) && isNotBlank(countryCode)) {
             this.destCountryCode = this.countryCode;
         }
-        return isNotBlank(countryCode) && isNotBlank(destCountryCode);
+        if (!isNotBlank(destProvinceCode) && isNotBlank(provinceCode)) {
+            this.destProvinceCode = this.provinceCode;
+        }
+        if (!isNotBlank(destCityCode) && isNotBlank(cityCode)) {
+            this.destCityCode = this.cityCode;
+        }
+        if (!isNotBlank(destDistrictCode) && isNotBlank(districtCode)) {
+            this.destDistrictCode = this.districtCode;
+        }
+
+        // 仅要求到区县级（districtCode），不强制到乡镇级（townCode）
+        boolean startValid = hasRegionToDistrict(countryCode, provinceCode, cityCode, districtCode);
+        boolean destValid = hasRegionToDistrict(destCountryCode, destProvinceCode, destCityCode, destDistrictCode);
+        return startValid && destValid;
     }
     
     /**
@@ -193,6 +207,10 @@ public class DeliveryRouteNode extends BaseEntity {
         }
         
         return true;
+    }
+
+    private boolean hasRegionToDistrict(String country, String province, String city, String district) {
+        return isNotBlank(country) && isNotBlank(province) && isNotBlank(city) && isNotBlank(district);
     }
 
     private boolean isNotBlank(String value) {
