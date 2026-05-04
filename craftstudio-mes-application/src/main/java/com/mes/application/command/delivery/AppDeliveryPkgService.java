@@ -237,7 +237,7 @@ public class AppDeliveryPkgService {
 
     }
 
-    public void addPkg(DeliveryPkgAddRequest request) {
+    public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
@@ -276,9 +276,9 @@ public class AppDeliveryPkgService {
             selectedPieces.add(sourcePiece);
         }
 
-        createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
 
-        boolean isMyselfDelivery = "自主配送".equals(carrierName);
+        boolean isMyselfDelivery = "自主配送".equals(carrierName) || "送货上门".equals(carrierName);
         if (isMyselfDelivery) {
             if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "自主配送必须指定路线和段落");
@@ -319,7 +319,7 @@ public class AppDeliveryPkgService {
                     productionPieceService.updateProductionPiece(productionPiece);
                 }
             }
-            return;
+            return deliveryPkg;
         }
 
         DeliveryPkgRequest toPkgRequest = new DeliveryPkgRequest();
@@ -330,10 +330,11 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
         this.toPkg(toPkgRequest);
+        return deliveryPkg;
     }
 
 
-    private void createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName) {
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         deliveryPkg.setOrderId(orderId);
         deliveryPkg.setCarrierId(carrierId);
@@ -363,7 +364,7 @@ public class AppDeliveryPkgService {
             }
         }
 
-        deliveryPkgService.createDeliveryPkg(deliveryPkg);
+        return deliveryPkgService.createDeliveryPkg(deliveryPkg);
     }
 
     private String callPost(String url,String paramStr,String method){
