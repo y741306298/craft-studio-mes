@@ -283,6 +283,11 @@ public class AppDeliveryPkgService {
             if (sourcePiece == null) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
             }
+            int pendingQty = getNodeQuantity(sourcePiece, "待打包");
+            if (item.getQuantity() > pendingQty) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "零件[" + pieceVO.getProductionPieceId() + "]打包数量超过待打包数量");
+            }
             sourcePiece.setQuantity(item.getQuantity());
             selectedPieces.add(sourcePiece);
         }

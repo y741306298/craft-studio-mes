@@ -100,6 +100,9 @@ public class AppPrintService {
             }
             Integer currentLeaveQuantity = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
             dbInfo.setLeaveQuantity(Math.max(currentLeaveQuantity - reportQuantity, 0));
+            if (dbInfo.getLeaveQuantity() <= 0) {
+                dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
+            }
         }
         typesettingService.updateTypesetting(dbInfo);
 
