@@ -28,6 +28,9 @@ import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
+import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
+import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -45,6 +48,9 @@ import java.util.Objects;
 
 @Service
 public class AppDeliveryPkgService {
+
+    @Autowired
+    private WorldRepository worldRepository;
 
     private final static String DELIVERYKEY = "lCnjtXBY2496";
     private final static String DELIVERYCUSTOMER = "DAAB0437EF6D9C03B8B4FC96C165FFB1";
@@ -120,9 +126,12 @@ public class AppDeliveryPkgService {
                 OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
                 if (orderInfo != null) {
                     vo.setOrderCustomer(orderInfo.getCustomer());
+                    World world = worldRepository.loadWorld();
+                    Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
+                    String fullAddress = address.buildFullAddressString(world);
+                    vo.setAddress(fullAddress);
                 }
             }
-
             items.add(vo);
         }
 
@@ -360,7 +369,9 @@ public class AppDeliveryPkgService {
             deliveryPkg.setRecipientName(firstPiece.getOrderCustomer().getCustomerName());
             deliveryPkg.setRecipientPhone(firstPiece.getOrderCustomer().getCustomerPhone());
             if (firstPiece.getOrderCustomer().getAddress() != null) {
-                deliveryPkg.setRecipientAddress(JSON.toJSONString(firstPiece.getOrderCustomer().getAddress()));
+                Address address = firstPiece.getOrderCustomer().getAddress();
+                String s = address.buildFullAddressString(worldRepository.loadWorld());
+                deliveryPkg.setRecipientAddress(s);
             }
         }
 

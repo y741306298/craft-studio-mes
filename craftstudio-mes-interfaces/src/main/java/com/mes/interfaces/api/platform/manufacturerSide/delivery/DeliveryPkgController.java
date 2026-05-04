@@ -15,10 +15,14 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
+import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
+import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -84,7 +88,7 @@ public class DeliveryPkgController {
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
 
         DeliveryPkgAddResultVO result = new DeliveryPkgAddResultVO();
-        result.setPkgId(deliveryPkg.getDeliveryPkgCode());
+        result.setPkgId(deliveryPkg.getDeliveryPkgId());
         result.setRecipientName(deliveryPkg.getRecipientName());
         result.setRecipientMobile(deliveryPkg.getRecipientPhone());
         result.setRecipientAddress(deliveryPkg.getRecipientAddress());
@@ -107,7 +111,7 @@ public class DeliveryPkgController {
 
         String routeDesc = "";
         if (StringUtils.isNotBlank(deliveryPkg.getRouteId()) && StringUtils.isNotBlank(deliveryPkg.getRouteNodeId())) {
-            DeliveryRoute deliveryRoute = deliveryRouteService.findById(deliveryPkg.getRouteId());
+            DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
             DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
             if (deliveryRoute != null && routeNode != null) {
                 routeDesc = deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();

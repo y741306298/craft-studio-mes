@@ -76,4 +76,12 @@ public class DeliveryRouteRepositoryImp extends BaseRepositoryImp<DeliveryRoute,
         List<DeliveryRoutePo> pos = mongoTemplate.find(query, poClass());
         return pos.stream().map(DeliveryRoutePo::toDO).toList();
     }
+
+    @Override
+    public DeliveryRoute findByRouteId(String routeId) {
+        Criteria criteria = Criteria.where("routeId").is(routeId).and("deleteAt").is(null);
+        Query query = new Query(criteria);
+        DeliveryRoutePo po = mongoTemplate.findOne(query, poClass());
+        return po != null ? po.toDO() : null;
+    }
 }

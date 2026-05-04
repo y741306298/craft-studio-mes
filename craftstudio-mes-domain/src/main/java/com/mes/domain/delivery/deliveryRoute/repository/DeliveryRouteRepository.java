@@ -16,4 +16,9 @@ public interface DeliveryRouteRepository extends BaseRepository<DeliveryRoute> {
      * 根据厂商ID统计配送路线总数
      */
     long totalByManufacturerId(String manufacturerId);
+
+    /**
+     * 根据路线ID查询配送路线
+     */
+    DeliveryRoute findByRouteId(String routeId);
 }

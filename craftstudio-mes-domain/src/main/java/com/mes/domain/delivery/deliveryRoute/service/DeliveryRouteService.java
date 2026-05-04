@@ -149,6 +149,18 @@ public class DeliveryRouteService {
     }
 
     /**
+     * 根据路线ID获取配送路线
+     */
+    public DeliveryRoute findByRouteId(String routeId) {
+        if (StringUtils.isBlank(routeId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线ID不能为空");
+        }
+        DeliveryRoute route = deliveryRouteRepository.findByRouteId(routeId);
+        fillRouteNodes(route);
+        return route;
+    }
+
+    /**
      * 激活配送路线
      */
     public void activateDeliveryRoute(String id) {

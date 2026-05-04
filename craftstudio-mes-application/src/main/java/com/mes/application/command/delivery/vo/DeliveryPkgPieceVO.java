@@ -3,8 +3,12 @@ package com.mes.application.command.delivery.vo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
+import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
+import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Data
 public class DeliveryPkgPieceVO {
@@ -15,6 +19,7 @@ public class DeliveryPkgPieceVO {
     private Integer quantity;
     private Integer pendingPkgQuantity;
     private Integer packedQuantity;
+    private String address;
     private String status;
     private String previewUrl;
     private MaterialConfig materialConfig;
