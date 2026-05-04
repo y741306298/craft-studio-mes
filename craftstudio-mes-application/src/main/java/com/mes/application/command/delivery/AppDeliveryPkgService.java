@@ -27,6 +27,7 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
@@ -161,7 +162,7 @@ public class AppDeliveryPkgService {
         return "已完成";
     }
 
-    public void toPkg(DeliveryPkgRequest request) {
+    public String toPkg(DeliveryPkgRequest request) {
         String url = "https://api.kuaidi100.com/label/order";
         String deliveryManId = request.getDeliveryManId();
         String orderId = request.getOrderId();
@@ -244,6 +245,7 @@ public class AppDeliveryPkgService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,response.getMessage());
         }
 
+        return response.getData() == null ? null : response.getData().getTaskId();
     }
 
     public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
@@ -338,13 +340,20 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
-        this.toPkg(toPkgRequest);
+        String taskId = this.toPkg(toPkgRequest);
+        if (StringUtils.isNotBlank(taskId)) {
+            deliveryPkg.setDeliveryPkgCode(taskId);
+            deliveryPkgService.updateDeliveryPkg(deliveryPkg);
+        }
         return deliveryPkg;
     }
 
 
     private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
+        String deliveryPkgId = IdGenerator.generateId("DP");
+        deliveryPkg.setDeliveryPkgId(deliveryPkgId);
+        deliveryPkg.setDeliveryPkgCode(deliveryPkgId);
         deliveryPkg.setOrderId(orderId);
         deliveryPkg.setCarrierId(carrierId);
         deliveryPkg.setCarrierName(carrierName);
