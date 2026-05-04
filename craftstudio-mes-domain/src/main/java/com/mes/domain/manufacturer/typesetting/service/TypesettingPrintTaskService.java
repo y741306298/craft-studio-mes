@@ -27,8 +27,8 @@ public class TypesettingPrintTaskService {
         if (StringUtils.isBlank(typesettingInfoId)) {
             return null;
         }
-        Map<String, String> filters = Collections.singletonMap("typesettingInfoId", typesettingInfoId);
-        List<TypesettingPrintTask> taskList = typesettingPrintTaskRepository.fuzzySearch(filters, 1, 1);
+        Map<String, Object> filters = Collections.singletonMap("typesettingInfoId", typesettingInfoId);
+        List<TypesettingPrintTask> taskList = typesettingPrintTaskRepository.filterList(1, 1, filters);
         return taskList.isEmpty() ? null : taskList.get(0);
     }
 
