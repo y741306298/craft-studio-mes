@@ -10,6 +10,7 @@ public enum TypesettingStatus {
     CONFIRMING("待确认", "confirming"),     // 等待确认
     CONFIRMED("已确认", "confirmed"),       // 确认中
     PRINTING("待打印", "printing"),
+    COMPLETED("已完成", "completed"),
     FAILED("排版失败", "failed");       // 已下达
 
     private final String description;
