@@ -276,11 +276,22 @@ public class AppOrderPreprocessingService {
     }
 
     private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
-        Integer width = extractDimension(orderItem, "getWidth", "getPrintWidth", "getNeedWidth", "getActualWidth", "getW");
-        Integer height = extractDimension(orderItem, "getHeight", "getPrintHeight", "getNeedHeight", "getActualHeight", "getH");
+        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        Integer width = null;
+        Integer height = null;
+        if (usageSize3D != null) {
+            Number rawWidth = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
+            Number rawHeight = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
+            if (rawWidth != null) {
+                width = (int) Math.round(rawWidth.doubleValue() * 100);
+            }
+            if (rawHeight != null) {
+                height = (int) Math.round(rawHeight.doubleValue() * 100);
+            }
+        }
 
         if (width == null || width <= 0 || height == null || height <= 0) {
-            throw new RuntimeException("无法获取订单项有效宽高，orderItemId=" + orderItem.getOrderItemId());
+            throw new RuntimeException("无法从orderItem.material.usageSize3D获取有效宽高，orderItemId=" + orderItem.getOrderItemId());
         }
 
         String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
@@ -292,6 +303,24 @@ public class AppOrderPreprocessingService {
         String manufacturerMetaId = StringUtils.isBlank(orderItem.getManufacturerId()) ? "default" : orderItem.getManufacturerId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItem.getOrderItemId() + "/";
         return ossTagUploadService.uploadTagSvg(orderItem.getOrderItemId(), svg.getBytes(StandardCharsets.UTF_8), uploadPath);
+    }
+
+
+    private Number invokeNumberGetter(Object target, String... methodNames) {
+        for (String methodName : methodNames) {
+            try {
+                Method method = target.getClass().getMethod(methodName);
+                Object value = method.invoke(target);
+                if (value instanceof Number) {
+                    return (Number) value;
+                }
+                if (value != null && StringUtils.isNotBlank(String.valueOf(value))) {
+                    return Double.parseDouble(String.valueOf(value));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private Integer extractDimension(OrderItem orderItem, String... methodNames) {
