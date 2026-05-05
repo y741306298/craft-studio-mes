@@ -94,7 +94,7 @@ public class TypesettingProductionPieceVO {
     /**
      * 创建时间
      */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date createTime;
 
     public static TypesettingProductionPieceVO fromProductionPiece(ProductionPiece piece){
