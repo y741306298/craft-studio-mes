@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 @Service
 public class OrderPreprocessingService {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * 将 MTOProductSpecDTO 中的 ProcessFlowDTO 转换为 ProcedureFlow
@@ -230,9 +229,7 @@ public class OrderPreprocessingService {
             return target;
         } catch (Exception ex) {
             try {
-                MTOProductSpecDTO.ProcessParamDTO typedParam = OBJECT_MAPPER.convertValue(
-                        source.getParam(), MTOProductSpecDTO.ProcessParamDTO.class);
-                target.setParam(typedParam);
+                target.setParam(source.getParam());
                 return target;
             } catch (Exception fallbackEx) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
