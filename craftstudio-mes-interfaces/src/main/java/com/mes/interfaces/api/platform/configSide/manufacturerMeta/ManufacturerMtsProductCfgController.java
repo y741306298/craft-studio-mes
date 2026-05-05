@@ -2,6 +2,7 @@ package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.req.ConfigMTSProductSpecRequest;
+import com.mes.application.command.api.req.SearchMTSProductByNameRequest;
 import com.mes.application.command.api.resp.MtsProductCategoryResponse;
 import com.mes.application.command.api.resp.MtsProductListResponse;
 import com.mes.application.command.api.resp.MtsProductSpecResponse;
@@ -131,6 +132,31 @@ public class ManufacturerMtsProductCfgController {
         ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, requestBody, targetUrl, paramMap);
 
         // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
+    @PostMapping("/searchByName")
+    public ResponseEntity<byte[]> searchMTSProductsByName(
+            HttpServletRequest request,
+            @Valid @RequestBody SearchMTSProductByNameRequest searchRequest) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/product/mts/searchByName", productCoreUrl));
+
+        byte[] requestBody = null;
+        try {
+            requestBody = com.alibaba.fastjson.JSON.toJSONString(searchRequest).getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("Failed to serialize request: " + e.getMessage());
+        }
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, requestBody, urlBuilder.toString(), paramMap);
+
         if (responseEntity.getBody() != null) {
             String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
             System.out.println("Response body: " + responseBody);

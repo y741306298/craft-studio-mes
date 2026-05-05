@@ -16,7 +16,6 @@ public class WorkshopRequest {
     
     private String workshopId;
     
-    @NotBlank(message = "车间名称不能为空")
     @Size(max = 100, message = "车间名称长度不能超过100个字符")
     private String workshopName;
     
@@ -49,9 +48,6 @@ public class WorkshopRequest {
     }
 
     public boolean isValid() {
-        if (workshopName == null || workshopName.trim().isEmpty()) {
-            return false;
-        }
         if (workshopName.length() > 100) {
             return false;
         }
