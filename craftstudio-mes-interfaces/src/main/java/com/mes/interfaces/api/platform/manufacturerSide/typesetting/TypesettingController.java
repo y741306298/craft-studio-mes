@@ -63,11 +63,12 @@ public class TypesettingController {
     @GetMapping("/confirming/list")
     public ApiResponse<PagedResult<TypesettingInfo>> listConfirmingTypesetting(
             @RequestParam String manufacturerMetaId,
+            @RequestParam(required = false) String typesettingId,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
         
         PagedResult<TypesettingInfo> result = 
-                appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, current, size);
+                appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, current, size);
         
         return ApiResponse.success(result);
     }

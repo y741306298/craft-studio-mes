@@ -247,7 +247,7 @@ public class AppTypesettingService {
      * @param size 每页大小
      * @return 分页结果
      */
-    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, int current, int size) {
+    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, String typesettingId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new IllegalArgumentException("manufacturerMetaId 不能为空");
         }
@@ -292,6 +292,14 @@ public class AppTypesettingService {
         }
         if (failedTypesettingInfos != null) {
             allTypesettingInfos.addAll(failedTypesettingInfos);
+        }
+
+        if (StringUtils.isNotBlank(typesettingId)) {
+            String keyword = typesettingId.trim().toLowerCase();
+            allTypesettingInfos = allTypesettingInfos.stream()
+                    .filter(info -> StringUtils.isNotBlank(info.getTypesettingId())
+                            && info.getTypesettingId().toLowerCase().contains(keyword))
+                    .collect(Collectors.toList());
         }
 
         int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
