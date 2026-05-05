@@ -235,6 +235,10 @@ public class AppOrderPreprocessingService {
     }
 
     private boolean hasAnyValue(Object target, String... methodNames) {
+        if (target == null) {
+            return false;
+        }
+
         for (String methodName : methodNames) {
             try {
                 Method method = target.getClass().getMethod(methodName);
@@ -245,7 +249,26 @@ public class AppOrderPreprocessingService {
             } catch (Exception ignored) {
             }
         }
+
+        // 兼容 ProcessParamConfigDTO：校验其内部 param 是否有有效值
+        Object nestedParam = invokeGetter(target, "getParam");
+        if (nestedParam != null) {
+            if (hasAnyValue(nestedParam,
+                    "getProcessParamMetaId", "getType", "getName", "getAccessoryId", "getRawFile", "getValue")) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            return method.invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
