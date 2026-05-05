@@ -75,6 +75,9 @@ public class ManufacturerMetaController {
                 .map(item -> {
                     ManufacturerMetaListResponse response = ManufacturerMetaListResponse.from(item.getManufacturerMeta());
                     response.setDeviceCount(item.getDeviceCount());
+                    response.setAdminName(item.getAdminName());
+                    response.setAdminPhone(item.getAdminPhone());
+                    response.setAdminAccount(item.getAdminAccount());
                     return response;
                 })
                 .collect(Collectors.toList());

@@ -126,6 +126,8 @@ public class AppManufacturerMetaService {
                 StringUtils.isBlank(consigneeName) || StringUtils.isBlank(consigneePhone)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址格式不对");
         }
+        validateWorkshopsAndProductionLines(command);
+
         ManufacturerMeta savedManufacturer = domainManufacturerMetaService.addManufacturerMeta(command);
         
         registerToProductCenter(savedManufacturer);
@@ -244,6 +246,27 @@ public class AppManufacturerMetaService {
         manufacturerUserService.add(user);
     }
     
+
+    private void validateWorkshopsAndProductionLines(ManufacturerMeta command) {
+        List<ManufacturerWorkshopMeta> workshopMetas = command.getManufacturerWorkshopMetas();
+        if (workshopMetas == null || workshopMetas.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "请至少配置一个车间");
+        }
+
+        boolean hasAtLeastOneProductionLine = false;
+        for (ManufacturerWorkshopMeta workshopMeta : workshopMetas) {
+            List<ManufacturerProductionLineMeta> productionLineMetas = workshopMeta.getManufacturerProductionLineMetas();
+            if (productionLineMetas != null && !productionLineMetas.isEmpty()) {
+                hasAtLeastOneProductionLine = true;
+                break;
+            }
+        }
+
+        if (!hasAtLeastOneProductionLine) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "请至少配置一条产线");
+        }
+    }
+
     public void updateManufacturerMeta(ManufacturerMeta command){
         if (command == null) {
             throw new IllegalArgumentException("制造商元数据不能为空");
@@ -376,6 +399,14 @@ public class AppManufacturerMetaService {
                 PagedQuery deviceQuery = new PagedQuery(1, 1);
                 PagedResult<ManufacturerDeviceCfg> deviceResult = appDeviceCfgService.findDeviceCfgsByManufacturerId(meta.getManufacturerMetaId(), deviceQuery);
                 metaWithDeviceCount.setDeviceCount((int) deviceResult.total());
+
+                List<ManufacturerUser> users = manufacturerUserService.listByManufacturerMetaId(meta.getManufacturerMetaId(), null, 1, 1);
+                if (users != null && !users.isEmpty()) {
+                    ManufacturerUser firstUser = users.get(0);
+                    metaWithDeviceCount.setAdminName(firstUser.getName());
+                    metaWithDeviceCount.setAdminPhone(firstUser.getPhone());
+                    metaWithDeviceCount.setAdminAccount(firstUser.getAccount());
+                }
             } else {
                 metaWithDeviceCount.setDeviceCount(0);
             }
@@ -490,6 +521,9 @@ public class AppManufacturerMetaService {
     public static class ManufacturerMetaWithDeviceCount {
         private ManufacturerMeta manufacturerMeta;
         private int deviceCount;
+        private String adminName;
+        private String adminPhone;
+        private String adminAccount;
 
         public ManufacturerMetaWithDeviceCount(ManufacturerMeta manufacturerMeta) {
             this.manufacturerMeta = manufacturerMeta;
@@ -506,6 +540,30 @@ public class AppManufacturerMetaService {
 
         public void setDeviceCount(int deviceCount) {
             this.deviceCount = deviceCount;
+        }
+
+        public String getAdminName() {
+            return adminName;
+        }
+
+        public void setAdminName(String adminName) {
+            this.adminName = adminName;
+        }
+
+        public String getAdminPhone() {
+            return adminPhone;
+        }
+
+        public void setAdminPhone(String adminPhone) {
+            this.adminPhone = adminPhone;
+        }
+
+        public String getAdminAccount() {
+            return adminAccount;
+        }
+
+        public void setAdminAccount(String adminAccount) {
+            this.adminAccount = adminAccount;
         }
     }
 }

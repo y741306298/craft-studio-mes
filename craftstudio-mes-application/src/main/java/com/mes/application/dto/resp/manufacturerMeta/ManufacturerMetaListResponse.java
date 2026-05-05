@@ -30,6 +30,9 @@ public class ManufacturerMetaListResponse {
     private Integer deviceCount;          // 设备数量
     private List<WorkshopSummary> workshops; // 车间摘要信息
     private List<DeviceCfgSummary> deviceCfgs; // 设备配置列表
+    private String adminName;
+    private String adminPhone;
+    private String adminAccount;
     
     @Data
     public static class WorkshopSummary {
