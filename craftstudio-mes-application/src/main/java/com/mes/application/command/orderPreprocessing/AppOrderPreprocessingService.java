@@ -35,6 +35,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -197,13 +199,17 @@ public class AppOrderPreprocessingService {
                 : null;
 
         String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
+        Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
+        Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
 
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
                 productionImgUrl,
                 procedureFlow,
-                generatedMaskImgUrl
+                generatedMaskImgUrl,
+                pieceWidth,
+                pieceHeight
         );
 
         productionPieceService.addProductionPiece(piece);
@@ -323,35 +329,13 @@ public class AppOrderPreprocessingService {
         return null;
     }
 
-    private Integer extractDimension(OrderItem orderItem, String... methodNames) {
-        for (String methodName : methodNames) {
-            Integer fromOrderItem = invokeIntGetter(orderItem, methodName);
-            if (fromOrderItem != null && fromOrderItem > 0) {
-                return fromOrderItem;
-            }
-            if (orderItem.getMtoProduct() != null) {
-                Integer fromProduct = invokeIntGetter(orderItem.getMtoProduct(), methodName);
-                if (fromProduct != null && fromProduct > 0) {
-                    return fromProduct;
-                }
-            }
+    private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
+        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
         }
-        return null;
-    }
-
-    private Integer invokeIntGetter(Object target, String methodName) {
-        try {
-            Method method = target.getClass().getMethod(methodName);
-            Object value = method.invoke(target);
-            if (value instanceof Number) {
-                return ((Number) value).intValue();
-            }
-            if (value != null && StringUtils.isNotBlank(String.valueOf(value))) {
-                return Integer.parseInt(String.valueOf(value));
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
+        Number value = invokeNumberGetter(usageSize3D, methodNames);
+        return value == null ? null : value.doubleValue();
     }
 
 
@@ -481,12 +465,15 @@ public class AppOrderPreprocessingService {
                     ProcedureFlow parsedFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
                     
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
+                        Double[] svgSize = resolveSvgWidthHeight(maskedImageUrl);
                         ProductionPiece piece = procedureService.createProductionPiece(
                                 orderItem,
                                 "ORIGINAL",
                                 rawImageUrl,
                                 parsedFlow,
-                                maskedImageUrl
+                                maskedImageUrl,
+                                svgSize[0],
+                                svgSize[1]
                         );
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(pair.getPreviewImg()));
@@ -695,5 +682,26 @@ public class AppOrderPreprocessingService {
         return "https://" + ossBucket + "." + ossEndpoint + "/" + normalizedPath;
     }
 
+
+    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+
+    private Double[] resolveSvgWidthHeight(String svgRefOrContent) {
+        if (StringUtils.isBlank(svgRefOrContent)) {
+            return new Double[]{null, null};
+        }
+        String svgContent = svgRefOrContent.trim();
+        if (!svgContent.startsWith("<svg")) {
+            svgContent = this.restTemplate.getForObject(this.completeOssUrl(svgRefOrContent), String.class);
+        }
+        if (StringUtils.isBlank(svgContent)) {
+            return new Double[]{null, null};
+        }
+        Matcher widthMatcher = SVG_WIDTH_PATTERN.matcher(svgContent);
+        Matcher heightMatcher = SVG_HEIGHT_PATTERN.matcher(svgContent);
+        Double width = widthMatcher.find() ? Double.parseDouble(widthMatcher.group(1)) : null;
+        Double height = heightMatcher.find() ? Double.parseDouble(heightMatcher.group(1)) : null;
+        return new Double[]{width, height};
+    }
 
 }

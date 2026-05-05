@@ -30,6 +30,8 @@ public class ProductionPiece extends BaseEntity {
     private String positionCode;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    private Double width;
+    private Double height;
     private Blood blood;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
