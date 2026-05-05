@@ -83,6 +83,11 @@ public class ManufacturerMetaService {
         if (StringUtils.isBlank(manufacturerMeta.getName())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商名称不能为空");
         }
+        if (manufacturerMeta.getConsignee() == null ||
+                StringUtils.isBlank(manufacturerMeta.getConsignee().getName()) ||
+                StringUtils.isBlank(manufacturerMeta.getConsignee().getPhone())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "收货人姓名和电话不能为空");
+        }
         
         // 生成唯一的 manufacturerMetaId
         String manufacturerMetaId = IdGenerator.generateManufacturerMetaId();
