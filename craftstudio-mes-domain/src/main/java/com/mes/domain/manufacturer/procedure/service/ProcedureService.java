@@ -195,12 +195,23 @@ public class ProcedureService {
         piece.setProcedureFlow(procedureFlow);
         
         String completeImageUrl = buildCompleteOssUrl(imageUrl);
+        String previewImageUrl = completeImageUrl;
+        String thumbnailImageUrl = completeImageUrl;
+        if (orderItem.getProductionImgFile() != null && orderItem.getProductionImgFile().getFilePreview() != null) {
+            FilePreview sourcePreview = orderItem.getProductionImgFile().getFilePreview();
+            if (StringUtils.isNotBlank(sourcePreview.getPreview())) {
+                previewImageUrl = buildCompleteOssUrl(sourcePreview.getPreview());
+            }
+            if (StringUtils.isNotBlank(sourcePreview.getThumbnail())) {
+                thumbnailImageUrl = buildCompleteOssUrl(sourcePreview.getThumbnail());
+            }
+        }
         ImageFile imageFile = new ImageFile();
         imageFile.setRawFile(completeImageUrl);
         FilePreview filePreview = new FilePreview();
-        filePreview.setPreview(completeImageUrl);
+        filePreview.setPreview(previewImageUrl);
         filePreview.setRaw(completeImageUrl);
-        filePreview.setThumbnail(completeImageUrl);
+        filePreview.setThumbnail(thumbnailImageUrl);
         imageFile.setFilePreview(filePreview);
         imageFile.setRawFile(completeImageUrl);
         piece.setProductImageFile(imageFile);
