@@ -705,23 +705,3 @@ public class AppOrderPreprocessingService {
     }
 
 }
-    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*\"([0-9.]+)\"");
-    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*\"([0-9.]+)\"");
-
-    private Double[] resolveSvgWidthHeight(String svgRefOrContent) {
-        if (StringUtils.isBlank(svgRefOrContent)) {
-            return new Double[]{null, null};
-        }
-        String svgContent = svgRefOrContent.trim();
-        if (!svgContent.startsWith("<svg")) {
-            svgContent = restTemplate.getForObject(completeOssUrl(svgRefOrContent), String.class);
-        }
-        if (StringUtils.isBlank(svgContent)) {
-            return new Double[]{null, null};
-        }
-        Matcher widthMatcher = SVG_WIDTH_PATTERN.matcher(svgContent);
-        Matcher heightMatcher = SVG_HEIGHT_PATTERN.matcher(svgContent);
-        Double width = widthMatcher.find() ? Double.parseDouble(widthMatcher.group(1)) : null;
-        Double height = heightMatcher.find() ? Double.parseDouble(heightMatcher.group(1)) : null;
-        return new Double[]{width, height};
-    }
