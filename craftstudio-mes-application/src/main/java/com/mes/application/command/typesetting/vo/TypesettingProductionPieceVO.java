@@ -92,6 +92,16 @@ public class TypesettingProductionPieceVO {
     private String templateCode;
 
     /**
+     * 宽度
+     */
+    private Double width;
+
+    /**
+     * 高度
+     */
+    private Double height;
+
+    /**
      * 创建时间
      */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
@@ -119,6 +129,8 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setSourceId(piece.getId());
         typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
+        typesettingProductionPieceVO.setWidth(piece.getWidth());
+        typesettingProductionPieceVO.setHeight(piece.getHeight());
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         return typesettingProductionPieceVO;
@@ -145,6 +157,10 @@ public class TypesettingProductionPieceVO {
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
+        if (info.getElement() != null) {
+            vo.setWidth(info.getElement().getWidth());
+            vo.setHeight(info.getElement().getHeight());
+        }
         vo.setCreateTime(info.getCreateTime());
         return vo;
     }
