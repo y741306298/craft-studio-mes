@@ -171,7 +171,7 @@ public class ProcedureService {
      * @param imageUrl 图片 URL
      * @return 生产工件实体
      */
-    public ProductionPiece createProductionPiece(OrderItem orderItem, String pieceType,  String imageUrl,ProcedureFlow procedureFlow,String maskUrl) {
+    public ProductionPiece createProductionPiece(OrderItem orderItem, String pieceType,  String imageUrl,ProcedureFlow procedureFlow,String maskUrl, Double width, Double height) {
         if (orderItem == null) {
             throw new IllegalArgumentException("订单项不能为空");
         }
@@ -228,6 +228,8 @@ public class ProcedureService {
             maskFile.setRawFile(completeMaskUrl);
             piece.setMaskImageFile(maskFile);
         }
+        piece.setWidth(width);
+        piece.setHeight(height);
 
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
