@@ -273,6 +273,14 @@ public class AppTypesettingService {
                 1,
                 Integer.MAX_VALUE
         );
+        List<TypesettingInfo> failedTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.FAILED.getCode(),
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
 
         List<TypesettingInfo> allTypesettingInfos = new ArrayList<>();
         if (confirmingTypesettingInfos != null) {
@@ -280,6 +288,9 @@ public class AppTypesettingService {
         }
         if (inProgressTypesettingInfos != null) {
             allTypesettingInfos.addAll(inProgressTypesettingInfos);
+        }
+        if (failedTypesettingInfos != null) {
+            allTypesettingInfos.addAll(failedTypesettingInfos);
         }
 
         int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
@@ -414,7 +425,7 @@ public class AppTypesettingService {
                 ProductionPiece productionPiece = cell.toProductionPiece();
                 ProductionPiece dbPiece = productionPieceService.findById(productionPiece.getId());
                 if (dbPiece == null) {
-                    return LayoutConfirmResult.failed("生产工件不存在：" + productionPiece.getProductionPieceId());
+                    throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
                 if (productionPiece.getQuantity() != null) {
                     dbPiece.setQuantity(productionPiece.getQuantity());
@@ -424,7 +435,7 @@ public class AppTypesettingService {
                 TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
                 TypesettingInfo dbTypesettingInfo = domainTypesettingService.findById(typesettingInfo.getId());
                 if (dbTypesettingInfo == null) {
-                    return LayoutConfirmResult.failed("排版信息不存在：" + typesettingInfo.getId());
+                    throw new IllegalArgumentException("排版信息不存在：" + typesettingInfo.getId());
                 }
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
@@ -437,7 +448,7 @@ public class AppTypesettingService {
             Integer quantity = typesettingInfo.getQuantity() == null ? 0 : typesettingInfo.getQuantity();
             Integer leaveQuantity = typesettingInfo.getLeaveQuantity() == null ? 0 : typesettingInfo.getLeaveQuantity();
             if (quantity > leaveQuantity) {
-                return LayoutConfirmResult.failed(typesettingInfo.getId() + "排版数量超出");
+                throw new IllegalArgumentException(typesettingInfo.getId() + "排版数量超出");
             }
         }
 
@@ -593,24 +604,24 @@ public class AppTypesettingService {
      */
     public LayoutConfirmResult confirmLayout(TypesettingInfo request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
-            return LayoutConfirmResult.failed("确认排版参数不能为空，且必须包含排版ID");
+            throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
         }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
         if (typesettingInfo == null) {
-            return LayoutConfirmResult.failed("排版信息不存在：" + request.getId());
+            throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
+            throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
         }
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-            return LayoutConfirmResult.failed("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+            throw new IllegalArgumentException("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            return LayoutConfirmResult.failed("排版信息缺少 nestedSvg，无法确认排版");
+            throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
@@ -961,13 +972,10 @@ public class AppTypesettingService {
 
     public LayoutConfirmResult batchConfirmLayout(BatchConfirmLayoutRequest request) {
         if (request == null || request.getTypesettingInfos() == null || request.getTypesettingInfos().isEmpty()) {
-            return LayoutConfirmResult.failed("批量确认排版参数不能为空");
+            throw new IllegalArgumentException("批量确认排版参数不能为空");
         }
         for (TypesettingInfo info : request.getTypesettingInfos()) {
-            LayoutConfirmResult result = confirmLayout(info);
-            if (!result.isSuccess()) {
-                return result;
-            }
+            confirmLayout(info);
         }
         LayoutConfirmResult ok = new LayoutConfirmResult();
         ok.setSuccess(true);
@@ -997,7 +1005,7 @@ public class AppTypesettingService {
             return;
         }
         if (!"success".equalsIgnoreCase(response.getStatus())) {
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
             typesettingInfo.setRemark(StringUtils.isNotBlank(response.getError()) ? response.getError() : "印版异步生成失败");
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
