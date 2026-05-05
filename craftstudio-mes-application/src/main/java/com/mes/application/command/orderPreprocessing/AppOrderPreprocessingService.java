@@ -227,6 +227,10 @@ public class AppOrderPreprocessingService {
                 if (config == null) {
                     throw new RuntimeException("工艺参数转化失败，存在空参数配置：" + orderItemId);
                 }
+                Object paramObj = invokeGetter(config, "getParam");
+                if (paramObj != null) {
+                    continue;
+                }
                 if (!hasAnyValue(config, "getValue", "getParamValue", "getDefaultValue", "getKey", "getCode", "getName")) {
                     throw new RuntimeException("工艺参数转化失败，参数值为空：" + orderItemId + ", 节点=" + node.getNodeName());
                 }
