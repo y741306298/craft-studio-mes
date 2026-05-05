@@ -683,8 +683,8 @@ public class AppOrderPreprocessingService {
     }
 
 
-    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*\"([0-9.]+)\"");
-    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*\"([0-9.]+)\"");
+    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
 
     private Double[] resolveSvgWidthHeight(String svgRefOrContent) {
         if (StringUtils.isBlank(svgRefOrContent)) {
