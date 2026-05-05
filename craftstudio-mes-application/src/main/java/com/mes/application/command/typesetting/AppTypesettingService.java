@@ -257,22 +257,38 @@ public class AppTypesettingService {
             size = 20;
         }
 
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> confirmingTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.CONFIRMING.getCode(),
                 null,
                 null,
-                current,
-                size
+                1,
+                Integer.MAX_VALUE
         );
-
-        long total = domainTypesettingService.countTypesettingByConditions(
-                TypesettingStatus.CONFIRMING.getCode(),
+        List<TypesettingInfo> inProgressTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.IN_PROGRESS.getCode(),
                 null,
-                null
+                null,
+                1,
+                Integer.MAX_VALUE
         );
 
-        return new PagedResult<>(typesettingInfos, total, typesettingInfos.size(), current);
+        List<TypesettingInfo> allTypesettingInfos = new ArrayList<>();
+        if (confirmingTypesettingInfos != null) {
+            allTypesettingInfos.addAll(confirmingTypesettingInfos);
+        }
+        if (inProgressTypesettingInfos != null) {
+            allTypesettingInfos.addAll(inProgressTypesettingInfos);
+        }
+
+        int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
+        int toIndex = Math.min(fromIndex + size, allTypesettingInfos.size());
+        List<TypesettingInfo> pagedTypesettingInfos = allTypesettingInfos.subList(fromIndex, toIndex);
+
+        long total = allTypesettingInfos.size();
+
+        return new PagedResult<>(pagedTypesettingInfos, total, pagedTypesettingInfos.size(), current);
     }
 
     /**
