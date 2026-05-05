@@ -139,7 +139,8 @@ public class AppTypesettingService {
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
-            new TypesettingLayoutSpecVO("1200*3000", 1200, 3000)
+            new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
+            new TypesettingLayoutSpecVO("1270*50000", 1270, 50000)
     );
 
     @PostConstruct

@@ -20,7 +20,7 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "circle",
-            5
+            2
     ),
     /**
      * 网格排版（plt二维码）-圆形定位点：

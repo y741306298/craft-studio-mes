@@ -4,6 +4,7 @@ import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import io.micrometer.common.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -18,6 +19,7 @@ import java.util.Base64;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 
+@Slf4j
 @Service
 public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int TAG_DPI = 300;
@@ -186,6 +188,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             String uploadPath = buildMarkUploadPath(manufacturerMetaId, typesettingId);
             return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), uploadPath);
         } catch (Exception e) {
+            log.error("生成并上传标签条PNG失败:{}",e.getMessage(), e);
+            e.printStackTrace();
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
             g.dispose();

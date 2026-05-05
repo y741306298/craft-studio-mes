@@ -27,16 +27,18 @@
     </appender>
 
     <!-- 3. 环境特定配置 -->
-    <springProfile name="dev">
+    <springProfile name="dev,prod">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>
         </root>
     </springProfile>
 
-    <springProfile name="test,prod">
+    <springProfile name="test">
         <root level="INFO">
             <appender-ref ref="FILE"/>
         </root>
     </springProfile>
+
+
 </configuration>
