@@ -9,6 +9,7 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,6 +18,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class OrderPreprocessingService {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * 将 MTOProductSpecDTO 中的 ProcessFlowDTO 转换为 ProcedureFlow
@@ -190,22 +193,12 @@ public class OrderPreprocessingService {
                 node.setDescription(processDTO.getProcessMetaSnapshot().getName());
             }
 
-            // 获取并设置 paramConfigs（如果存在）
+            // 将 paramConfigs 转成结构化对象，避免持久化时变成纯字符串
             if (processDTO.getParamConfigs() != null && !processDTO.getParamConfigs().isEmpty()) {
-                List< MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigDTOs = 
-                    processDTO.getParamConfigs().stream()
-                        .map(this::safeConvertParamConfig)
-                        .toList();
-                
-                // 由于 paramConfigs 是外部类的字段，需要使用反射设置
-                try {
-                    java.lang.reflect.Method setParamConfigsMethod = node.getClass()
-                        .getDeclaredMethod("setParamConfigs", List.class);
-                    setParamConfigsMethod.setAccessible(true);
-                    setParamConfigsMethod.invoke(node, paramConfigDTOs);
-                } catch (NoSuchMethodException e) {
-                    // 如果 node 没有 paramConfigs 字段，忽略
-                }
+                List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigDTOs = processDTO.getParamConfigs().stream()
+                        .map(this::convertParamConfigToTypedObject)
+                        .collect(Collectors.toList());
+                node.setParamConfigs(paramConfigDTOs);
             }
 
             // 设置节点状态，默认为 PENDING
@@ -218,55 +211,33 @@ public class OrderPreprocessingService {
         return node;
     }
 
-    /**
-     * 将本地的 ProcessParam 转换为外部的 ProcessParamDTO
-     */
-    @SuppressWarnings("unchecked")
-    private MTOProductSpecDTO.ProcessParamDTO convertLocalParamToExternalParam(
-            ProcessParam param) {
-        if (param == null) {
+    private MTOProductSpecDTO.ProcessParamConfigDTO convertParamConfigToTypedObject(
+            MTOProductSpecDTO.ProcessParamConfigDTO source) {
+        if (source == null) {
             return null;
         }
-        
-        try {
-            // 调用外部的 fromDO 静态方法
-            Class<?> externalParamDTOClass = MTOProductSpecDTO.ProcessParamDTO.class;
-            java.lang.reflect.Method fromDOMethod = externalParamDTOClass.getDeclaredMethod("fromDO", 
-                ProcessParam.class);
-            
-            return (MTOProductSpecDTO.ProcessParamDTO) 
-                fromDOMethod.invoke(null, param);
-        } catch (Exception e) {
-            System.err.println("转换工艺参数失败：" + e.getMessage());
-            return null;
-        }
-    }
 
-    /**
-     * 安全地转换 ProcessParamConfig，允许任何字段为 null
-     */
-    private MTOProductSpecDTO.ProcessParamConfigDTO safeConvertParamConfig(
-            com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO.ProcessParamConfigDTO config) {
-        if (config == null) {
-            return null;
+        MTOProductSpecDTO.ProcessParamConfigDTO target = new MTOProductSpecDTO.ProcessParamConfigDTO();
+        target.setCustomizable(source.isCustomizable());
+
+        if (source.getParam() == null) {
+            return target;
         }
-        
+
         try {
-            MTOProductSpecDTO.ProcessParamConfigDTO dto = new MTOProductSpecDTO.ProcessParamConfigDTO();
-            dto.setCustomizable(config.isCustomizable());
-            
-            if (config.getParam() != null) {
-                try {
-                    dto.setParam(convertLocalParamToExternalParam(config.getParam().toDO()));
-                } catch (Exception e) {
-                    System.err.println("转换参数配置失败，跳过该参数: " + e.getMessage());
-                }
+            ProcessParam processParam = source.getParam().toDO();
+            target.setParam(MTOProductSpecDTO.ProcessParamDTO.fromDO(processParam));
+            return target;
+        } catch (Exception ex) {
+            try {
+                MTOProductSpecDTO.ProcessParamDTO typedParam = OBJECT_MAPPER.convertValue(
+                        source.getParam(), MTOProductSpecDTO.ProcessParamDTO.class);
+                target.setParam(typedParam);
+                return target;
+            } catch (Exception fallbackEx) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "工艺参数对象转换失败: " + fallbackEx.getMessage());
             }
-            
-            return dto;
-        } catch (Exception e) {
-            System.err.println("创建参数配置 DTO 失败: " + e.getMessage());
-            return null;
         }
     }
 
