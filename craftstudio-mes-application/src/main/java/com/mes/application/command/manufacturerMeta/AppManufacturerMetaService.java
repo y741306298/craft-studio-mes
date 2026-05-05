@@ -35,9 +35,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -283,30 +285,48 @@ public class AppManufacturerMetaService {
         }
         Map<String, Object> orderItemFilters = new HashMap<>();
         orderItemFilters.put("manufacturerId", manufacturerMetaId);
-        List<OrderItem> orderItems = orderItemService.filterList(1, Integer.MAX_VALUE, orderItemFilters);
+        List<OrderItem> orderItems = new ArrayList<>();
+        int orderItemCurrent = 1;
+        int pageSize = 100;
+        while (true) {
+            List<OrderItem> pageItems = orderItemService.filterList(orderItemCurrent, pageSize, orderItemFilters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            orderItems.addAll(pageItems);
+            if (pageItems.size() < pageSize) {
+                break;
+            }
+            orderItemCurrent++;
+        }
         if (orderItems == null || orderItems.isEmpty()) {
             return;
         }
 
+        Set<String> orderIds = new HashSet<>();
         for (OrderItem orderItem : orderItems) {
-            Map<String, Object> productionPieceFilters = new HashMap<>();
-            productionPieceFilters.put("orderItemId", orderItem.getOrderItemId());
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
-                    manufacturerMetaId,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    1,
-                    Integer.MAX_VALUE
-            ).stream().filter(piece -> orderItem.getOrderItemId().equals(piece.getOrderItemId())).collect(Collectors.toList());
-            for (ProductionPiece productionPiece : productionPieces) {
-                productionPieceService.deleteProductionPiece(productionPiece.getId());
+            int productionPieceCurrent = 1;
+            while (true) {
+                List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
+                        orderItem.getOrderItemId(), productionPieceCurrent, pageSize);
+                if (productionPieces == null || productionPieces.isEmpty()) {
+                    break;
+                }
+                for (ProductionPiece productionPiece : productionPieces) {
+                    productionPieceService.deleteProductionPiece(productionPiece.getId());
+                }
+                if (productionPieces.size() < pageSize) {
+                    break;
+                }
+                productionPieceCurrent++;
             }
 
+            orderIds.add(orderItem.getOrderId());
             orderItemService.deleteOrderItem(orderItem.getId());
-            var orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+        }
+
+        for (String orderId : orderIds) {
+            var orderInfo = orderInfoService.findByOrderId(orderId);
             if (orderInfo != null) {
                 orderInfoService.deleteOrder(orderInfo.getId());
             }
