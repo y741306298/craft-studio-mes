@@ -31,6 +31,7 @@ import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -469,6 +470,13 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(filmConsistencyResult);
         }
 
+        ProcedureFlow commonProcedureFlow;
+        try {
+            commonProcedureFlow = validateAndBuildCommonProcedureFlow(productionPieces, typesettingInfos);
+        } catch (IllegalArgumentException ex) {
+            return LayoutConfirmResult.failed(ex.getMessage());
+        }
+
         // 3. 校验材料是否一致
         String validateMaterialResult = validateMaterials(productionPieces);
         if (!validateMaterialResult.equals("PASS")) {
@@ -571,6 +579,7 @@ public class AppTypesettingService {
         typesettingInfo.setMaterialConfig(unifiedMaterialConfig);
         typesettingInfo.setMaterialConfigs(materialConfigs);
         typesettingInfo.setProcessingFlow(commonProcessingFlow);
+        typesettingInfo.setProcedureFlow(commonProcedureFlow);
         typesettingInfo.setManufacturerMetaId(request.getManufacturerMetaId());
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
@@ -1794,6 +1803,127 @@ public class AppTypesettingService {
         return common.isEmpty() ? null : String.join("-", common);
     }
 
+
+    /**
+     * 校验并构建新的排版工序流。
+     * 规则：
+     * 1) 不能混排“覆膜”和“不覆膜”；
+     * 2) 如果存在“覆膜”，其 paramConfigs 必须一致；
+     * 3) 如果存在“覆板”，其 paramConfigs 也必须一致；
+     * 4) 校验通过后，按节点顺序提取所有来源工序流的最长公共前缀。
+     */
+    private ProcedureFlow validateAndBuildCommonProcedureFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
+        List<ProcedureFlow> procedureFlows = new ArrayList<>();
+        if (productionPieces != null) {
+            procedureFlows.addAll(productionPieces.stream().map(ProductionPiece::getProcedureFlow).filter(Objects::nonNull).collect(Collectors.toList()));
+        }
+        if (typesettingInfos != null) {
+            procedureFlows.addAll(typesettingInfos.stream().map(TypesettingInfo::getProcedureFlow).filter(Objects::nonNull).collect(Collectors.toList()));
+        }
+        if (procedureFlows.isEmpty()) {
+            return null;
+        }
+
+        // 覆膜场景：既要校验是否与“不覆膜”冲突，也要校验膜参数一致性
+        validateNodeConsistency(procedureFlows, "覆膜", "不覆膜", true);
+        // 覆板场景：只校验覆板参数一致性
+        validateNodeConsistency(procedureFlows, "覆板", null, false);
+
+        List<List<ProcedureFlowNode>> nodeLists = procedureFlows.stream()
+                .map(ProcedureFlow::getNodes)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (nodeLists.isEmpty()) {
+            return null;
+        }
+        int minLen = nodeLists.stream().mapToInt(List::size).min().orElse(0);
+        List<ProcedureFlowNode> commonNodes = new ArrayList<>();
+        for (int i = 0; i < minLen; i++) {
+            ProcedureFlowNode base = nodeLists.get(0).get(i);
+            boolean allMatch = true;
+            for (int j = 1; j < nodeLists.size(); j++) {
+                ProcedureFlowNode candidate = nodeLists.get(j).get(i);
+                if (!isSameNode(base, candidate)) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (!allMatch) {
+                break;
+            }
+            commonNodes.add(base);
+        }
+        if (commonNodes.isEmpty()) {
+            return null;
+        }
+        ProcedureFlow result = new ProcedureFlow();
+        result.setNodes(new ArrayList<>(commonNodes));
+        result.setTotalNodes(commonNodes.size());
+        return result;
+    }
+
+    /**
+     * 节点一致性校验。
+     * @param positiveNode 需要校验参数一致性的节点（例如 覆膜/覆板）
+     * @param negativeNode 与 positiveNode 互斥的节点（例如 不覆膜）
+     * @param checkOpposite 是否需要执行互斥校验
+     */
+    private void validateNodeConsistency(List<ProcedureFlow> flows, String positiveNode, String negativeNode, boolean checkOpposite) {
+        List<ProcedureFlowNode> positiveNodes = new ArrayList<>();
+        boolean hasPositive = false;
+        boolean hasNegative = false;
+        for (ProcedureFlow flow : flows) {
+            List<ProcedureFlowNode> nodes = flow.getNodes();
+            if (nodes == null) {
+                continue;
+            }
+            for (ProcedureFlowNode node : nodes) {
+                if (positiveNode.equals(node.getNodeName())) {
+                    hasPositive = true;
+                    positiveNodes.add(node);
+                }
+                if (checkOpposite && negativeNode != null && negativeNode.equals(node.getNodeName())) {
+                    hasNegative = true;
+                }
+            }
+        }
+        if (checkOpposite && hasPositive && hasNegative) {
+            throw new IllegalArgumentException("当前排版单元同时存在“" + positiveNode + "”和“" + negativeNode + "”，不能一起排版");
+        }
+        if (hasPositive) {
+            Set<String> signatures = positiveNodes.stream().map(this::buildParamConfigSignature).collect(Collectors.toSet());
+            if (signatures.size() > 1) {
+                throw new IllegalArgumentException("当前排版单元“" + positiveNode + "”参数不一致，不能一起排版");
+            }
+        }
+    }
+
+    /**
+     * 生成参数签名：将 paramConfigs 的 param 序列化后排序拼接，
+     * 用于判断同一工序（覆膜/覆板）是否为同一种配置。
+     */
+    private String buildParamConfigSignature(ProcedureFlowNode node) {
+        if (node == null || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
+            return "";
+        }
+        return node.getParamConfigs().stream()
+                .map(cfg -> (cfg == null ? "" : JSON.toJSONString(cfg.getParam())))
+                .sorted()
+                .collect(Collectors.joining("|"));
+    }
+
+    /**
+     * 判断两个工序节点是否可视为同一节点（当前按 nodeName 比较）。
+     */
+    private boolean isSameNode(ProcedureFlowNode left, ProcedureFlowNode right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        return Objects.equals(left.getNodeName(), right.getNodeName());
+    }
     private String validateFilmConsistency(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         List<String> flows = new ArrayList<>();
         if (productionPieces != null) {
