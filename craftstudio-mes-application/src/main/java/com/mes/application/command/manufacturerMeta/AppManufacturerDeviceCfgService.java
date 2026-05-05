@@ -30,21 +30,63 @@ public class AppManufacturerDeviceCfgService {
     @Autowired
     private TypesettingPrintTaskRepository typesettingPrintTaskRepository;
 
-    public PagedResult<ManufacturerDeviceCfg> findDeviceCfgsByManufacturerId(String manufacturerMetaId, PagedQuery query) {
+    public PagedResult<ManufacturerDeviceCfg> findDeviceCfgsByManufacturerId(String manufacturerMetaId, String deviceName, String deviceCode, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
         List<ManufacturerDeviceCfg> items;
         long total;
 
-        if (StringUtils.isBlank(manufacturerMetaId)) {
-            items = manufacturerDeviceCfgRepository.list(query.getCurrent(), query.getSize());
-            total = manufacturerDeviceCfgRepository.total();
-        } else {
-            items = domainDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, (int) query.getCurrent(), query.getSize());
-            total = domainDeviceCfgService.getTotalCountByManufacturerId(manufacturerMetaId);
+        Map<String, Object> exactFilters = new HashMap<String, Object>();
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            exactFilters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        if (StringUtils.isNotBlank(deviceCode)) {
+            exactFilters.put("deviceCode", deviceCode);
         }
 
+        if (StringUtils.isBlank(deviceName)) {
+            if (exactFilters.isEmpty()) {
+                items = manufacturerDeviceCfgRepository.list(query.getCurrent(), query.getSize());
+                total = manufacturerDeviceCfgRepository.total();
+            } else {
+                items = manufacturerDeviceCfgRepository.filterList(query.getCurrent(), query.getSize(), exactFilters);
+                total = manufacturerDeviceCfgRepository.filterTotal(exactFilters);
+            }
+            return new PagedResult<ManufacturerDeviceCfg>(items, total, query.getSize(), query.getCurrent());
+        }
+
+        List<ManufacturerDeviceCfg> allMatched = new ArrayList<ManufacturerDeviceCfg>();
+        int current = 1;
+        int size = 200;
+        while (true) {
+            List<ManufacturerDeviceCfg> pageItems = exactFilters.isEmpty()
+                    ? manufacturerDeviceCfgRepository.list(current, size)
+                    : manufacturerDeviceCfgRepository.filterList(current, size, exactFilters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            allMatched.addAll(pageItems);
+            if (pageItems.size() < size) {
+                break;
+            }
+            current++;
+        }
+
+        String keyword = deviceName.toLowerCase();
+        List<ManufacturerDeviceCfg> filtered = allMatched.stream().filter(cfg -> {
+            String name = cfg.getDeviceName();
+            return name != null && name.toLowerCase().contains(keyword);
+        }).toList();
+
+        total = filtered.size();
+        int from = (int) ((query.getCurrent() - 1) * query.getSize());
+        if (from >= filtered.size()) {
+            items = new ArrayList<ManufacturerDeviceCfg>();
+        } else {
+            int to = Math.min(from + query.getSize(), filtered.size());
+            items = filtered.subList(from, to);
+        }
         return new PagedResult<ManufacturerDeviceCfg>(items, total, query.getSize(), query.getCurrent());
     }
 

@@ -55,6 +55,7 @@ public class OrderController {
         PagedQuery query = request.toPagedQuery();
         String orderId = request.getOrderId();
         String status = request.getStatus();
+        String customerName = request.getCustomerName();
         String customerPhone = request.getCustomerPhone();
         String createDateStart = request.getCreateDateStart();
         String createDateEnd = request.getCreateDateEnd();
@@ -66,6 +67,7 @@ public class OrderController {
         if (status != null && !status.trim().isEmpty()) {
             orderQuery.setStatus(com.mes.domain.order.enums.OrderStatus.valueOf(status));
         }
+        orderQuery.setCustomerName(customerName);
         orderQuery.setCustomerPhone(customerPhone);
         
         // 处理日期字符串转换为 Date 对象
