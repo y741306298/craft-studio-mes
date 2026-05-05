@@ -101,6 +101,7 @@ public class AppOrderPreprocessingService {
      */
     public void preprocessOrder(List<OrderItem> orderItems) {
         List<ProductionPiece> resultPieces = new ArrayList<>();
+        List<String> failedOrderItems = new ArrayList<>();
 
         // 2. 遍历每个订单项进行处理
         for (OrderItem orderItem : orderItems) {
@@ -109,23 +110,27 @@ public class AppOrderPreprocessingService {
                 List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
                 // 处理成功，将订单项状态改为生产中
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
-                if(pieces != null){
+                if (pieces != null) {
                     resultPieces.addAll(pieces);
                     //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
-                    for (ProductionPiece resultPiece : resultPieces) {
+                    for (ProductionPiece resultPiece : pieces) {
                         appPieceCirculationService.moveToNextNode(resultPiece, 1);
                         //暂时默认将零件状态改为待排版
                         productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
                     }
                 }
             } catch (Exception e) {
-                // 单个订单项处理失败时，标记该订单项为失败状态，但继续处理其他订单项
+                // 单个订单项处理失败时，标记该订单项为失败状态，并最终抛出异常让接口返回非 200
                 orderItemService.markAsFailed(orderItem.getOrderItemId(), e.getMessage());
-                System.err.println("处理订单项失败：" + orderItem.getOrderItemId() + ", 错误：" + e.getMessage());
+                String err = "订单项=" + orderItem.getOrderItemId() + ", 错误=" + e.getMessage();
+                failedOrderItems.add(err);
+                System.err.println("处理订单项失败：" + err);
             }
         }
 
-
+        if (!failedOrderItems.isEmpty()) {
+            throw new RuntimeException("订单预处理失败: " + String.join("; ", failedOrderItems));
+        }
     }
 
     /**
@@ -222,6 +227,10 @@ public class AppOrderPreprocessingService {
                 if (config == null) {
                     throw new RuntimeException("工艺参数转化失败，存在空参数配置：" + orderItemId);
                 }
+                Object paramObj = invokeGetter(config, "getParam");
+                if (paramObj != null) {
+                    continue;
+                }
                 if (!hasAnyValue(config, "getValue", "getParamValue", "getDefaultValue", "getKey", "getCode", "getName")) {
                     throw new RuntimeException("工艺参数转化失败，参数值为空：" + orderItemId + ", 节点=" + node.getNodeName());
                 }
@@ -230,6 +239,10 @@ public class AppOrderPreprocessingService {
     }
 
     private boolean hasAnyValue(Object target, String... methodNames) {
+        if (target == null) {
+            return false;
+        }
+
         for (String methodName : methodNames) {
             try {
                 Method method = target.getClass().getMethod(methodName);
@@ -240,7 +253,26 @@ public class AppOrderPreprocessingService {
             } catch (Exception ignored) {
             }
         }
+
+        // 兼容 ProcessParamConfigDTO：校验其内部 param 是否有有效值
+        Object nestedParam = invokeGetter(target, "getParam");
+        if (nestedParam != null) {
+            if (hasAnyValue(nestedParam,
+                    "getProcessParamMetaId", "getType", "getName", "getAccessoryId", "getRawFile", "getValue")) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            return method.invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
