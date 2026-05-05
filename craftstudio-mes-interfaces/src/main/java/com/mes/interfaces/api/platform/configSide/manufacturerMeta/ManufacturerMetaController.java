@@ -204,6 +204,18 @@ public class ManufacturerMetaController {
     }
 
     /**
+     * 根据 manufacturerMetaId 级联删除订单相关数据：
+     * - orderItem（manufacturerId = manufacturerMetaId）
+     * - productionPiece（按 orderItemId 关联删除）
+     * - orderInfo（按 orderId 关联删除）
+     */
+    @DeleteMapping("/orderData/{manufacturerMetaId}")
+    public ApiResponse<String> deleteOrderDataByManufacturerMetaId(@PathVariable String manufacturerMetaId) {
+        appManufacturerMetaService.deleteOrderAndProductionDataByManufacturerMetaId(manufacturerMetaId);
+        return ApiResponse.success("success");
+    }
+
+    /**
      * 获取所有制造商类型
      *
      * @return 制造商类型列表

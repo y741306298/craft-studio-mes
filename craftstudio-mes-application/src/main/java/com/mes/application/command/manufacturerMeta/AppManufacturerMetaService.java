@@ -21,6 +21,11 @@ import com.mes.domain.manufacturer.manufacturerProcessPriceCfg.service.Manufactu
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageSlot;
 import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.mes.domain.manufacturer.transBox.storageTank.repository.StorageTankRepository;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -30,9 +35,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -71,6 +78,15 @@ public class AppManufacturerMetaService {
 
     @Autowired
     private ManufacturerUserService manufacturerUserService;
+
+    @Autowired
+    private OrderItemService orderItemService;
+
+    @Autowired
+    private OrderInfoService orderInfoService;
+
+    @Autowired
+    private ProductionPieceService productionPieceService;
 
     public PagedResult<ManufacturerMeta> findManufacturerMetas(String name, String manufacturerType, PagedQuery query){
         if (query == null) {
@@ -250,6 +266,8 @@ public class AppManufacturerMetaService {
         
         String manufacturerMetaId = manufacturerMeta.getManufacturerMetaId();
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            deleteOrderAndProductionDataByManufacturerMetaId(manufacturerMetaId);
+
             PagedQuery query = new PagedQuery(1, 99);
             PagedResult<ManufacturerDeviceCfg> deviceResult = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
             
@@ -259,6 +277,60 @@ public class AppManufacturerMetaService {
         }
         
         domainManufacturerMetaService.deleteManufacturerMeta(id);
+    }
+
+    public void deleteOrderAndProductionDataByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        Map<String, Object> orderItemFilters = new HashMap<>();
+        orderItemFilters.put("manufacturerId", manufacturerMetaId);
+        List<OrderItem> orderItems = new ArrayList<>();
+        int orderItemCurrent = 1;
+        int pageSize = 100;
+        while (true) {
+            List<OrderItem> pageItems = orderItemService.filterList(orderItemCurrent, pageSize, orderItemFilters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            orderItems.addAll(pageItems);
+            if (pageItems.size() < pageSize) {
+                break;
+            }
+            orderItemCurrent++;
+        }
+        if (orderItems == null || orderItems.isEmpty()) {
+            return;
+        }
+
+        Set<String> orderIds = new HashSet<>();
+        for (OrderItem orderItem : orderItems) {
+            int productionPieceCurrent = 1;
+            while (true) {
+                List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
+                        orderItem.getOrderItemId(), productionPieceCurrent, pageSize);
+                if (productionPieces == null || productionPieces.isEmpty()) {
+                    break;
+                }
+                for (ProductionPiece productionPiece : productionPieces) {
+                    productionPieceService.deleteProductionPiece(productionPiece.getId());
+                }
+                if (productionPieces.size() < pageSize) {
+                    break;
+                }
+                productionPieceCurrent++;
+            }
+
+            orderIds.add(orderItem.getOrderId());
+            orderItemService.deleteOrderItem(orderItem.getId());
+        }
+
+        for (String orderId : orderIds) {
+            var orderInfo = orderInfoService.findByOrderId(orderId);
+            if (orderInfo != null) {
+                orderInfoService.deleteOrder(orderInfo.getId());
+            }
+        }
     }
     
     public ManufacturerMeta findById(String id) {
