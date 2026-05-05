@@ -6,6 +6,7 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
+import com.mes.domain.shared.utils.IdGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -66,15 +67,15 @@ public class ManufacturerDeviceCfgService {
         if (StringUtils.isBlank(deviceCfg.getManufacturerMetaId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商 ID 不能为空");
         }
-        if (StringUtils.isBlank(deviceCfg.getDeviceCode())) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备编号不能为空");
-        }
         if (StringUtils.isBlank(deviceCfg.getDeviceInfoId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备 ID 不能为空");
         }
         if (StringUtils.isBlank(deviceCfg.getDeviceName())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备名称不能为空");
         }
+
+        // 设备编号由系统生成，不使用前端传参
+        deviceCfg.setDeviceCode(IdGenerator.generateId("EQ"));
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerMetaId", deviceCfg.getManufacturerMetaId());

@@ -81,6 +81,8 @@ public class DeviceController {
     @PostMapping("/add")
     public ApiResponse<String> addDevice(@Valid @RequestBody DeviceRequest request) {
         Device device = request.toDomainEntity();
+        // 新增设备时 deviceInfoId(序列号)由后端自动生成
+        device.setDeviceInfoId(null);
         appDeviceService.addDevice(device);
         
         return ApiResponse.success("success");
