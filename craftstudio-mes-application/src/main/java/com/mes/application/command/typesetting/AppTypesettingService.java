@@ -212,7 +212,8 @@ public class AppTypesettingService {
         );
         for (TypesettingInfo info : typesettingInfos) {
             Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-            if (leaveQuantity > 0) {
+            boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
+            if (leaveQuantity > 0 && isPending) {
                 items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
             }
         }
