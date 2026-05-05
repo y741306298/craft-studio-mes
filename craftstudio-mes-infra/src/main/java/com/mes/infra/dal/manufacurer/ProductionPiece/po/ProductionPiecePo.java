@@ -32,6 +32,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String positionCode;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    private Double width;
+    private Double height;
     private Blood blood;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
@@ -58,6 +60,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setPositionCode(this.positionCode);
         piece.setProductImageFile(this.productImageFile);
         piece.setMaskImageFile(this.maskImageFile);
+        piece.setWidth(this.width);
+        piece.setHeight(this.height);
         piece.setBlood(this.blood);
         piece.setProcessingFlow(this.processingFlow);
         piece.setProcedureFlow(this.procedureFlow);
@@ -86,6 +90,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.positionCode = _do.getPositionCode();
         this.productImageFile = _do.getProductImageFile();
         this.maskImageFile = _do.getMaskImageFile();
+        this.width = _do.getWidth();
+        this.height = _do.getHeight();
         this.blood = _do.getBlood();
         this.processingFlow = _do.getProcessingFlow();
         this.procedureFlow = _do.getProcedureFlow();
