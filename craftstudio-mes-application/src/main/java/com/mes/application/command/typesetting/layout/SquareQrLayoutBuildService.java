@@ -327,6 +327,25 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
     }
 
+    private Font pickFont(int textHeight, String elementA, String elementB, List<String> extInfos) {
+        List<String> candidates = Arrays.asList("Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei", "Dialog");
+        StringBuilder allText = new StringBuilder();
+        if (elementA != null) allText.append(elementA);
+        if (elementB != null) allText.append(elementB);
+        if (extInfos != null) {
+            for (String ext : extInfos) {
+                if (ext != null) allText.append(ext);
+            }
+        }
+        for (String name : candidates) {
+            Font font = new Font(name, Font.PLAIN, textHeight);
+            if (font.canDisplayUpTo(allText.toString()) == -1) {
+                return font;
+            }
+        }
+        return new Font("Dialog", Font.PLAIN, textHeight);
+    }
+
     private BufferedImage decodePngDataUri(String dataUri) {
         if (dataUri == null || !dataUri.startsWith("data:image/png;base64,")) {
             return null;
