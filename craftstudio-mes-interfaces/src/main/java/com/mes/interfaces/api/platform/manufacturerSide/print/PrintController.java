@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.Valid;
-
 @Slf4j
 @RestController
 @RequestMapping("/api/manufacturerSide/print")
@@ -61,7 +59,7 @@ public class PrintController {
      * 释放排版：删除排版信息，并将“待打印”节点数量回退到“待排版”节点。
      */
     @PostMapping("/releaseLayout")
-    public ApiResponse<Boolean> releaseLayout(@Valid @RequestBody ReleaseLayoutRequest request) {
+    public ApiResponse<Boolean> releaseLayout(@RequestBody ReleaseLayoutRequest request) {
         appPrintService.releaseLayout(request.getIdList());
         return ApiResponse.success(true);
     }
