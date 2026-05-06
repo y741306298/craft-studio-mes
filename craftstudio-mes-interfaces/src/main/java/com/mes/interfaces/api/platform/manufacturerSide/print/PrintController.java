@@ -3,6 +3,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.print;
 import com.mes.application.command.print.AppPrintService;
 import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
 import com.mes.application.command.print.vo.PrintReportResult;
+import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
 
 @Slf4j
 @RestController
@@ -52,5 +55,23 @@ public class PrintController {
     @PostMapping("/report")
     public ApiResponse<PrintReportResult> report(@RequestBody TypesettingInfo request) {
         return ApiResponse.success(appPrintService.reportPrinting(request));
+    }
+
+    /**
+     * 释放排版：删除排版信息，并将“待打印”节点数量回退到“待排版”节点。
+     */
+    @PostMapping("/releaseLayout")
+    public ApiResponse<Boolean> releaseLayout(@Valid @RequestBody ReleaseLayoutRequest request) {
+        appPrintService.releaseLayout(request.getIdList());
+        return ApiResponse.success(true);
+    }
+
+    /**
+     * 重做：直接增加排版 leaveQuantity。
+     */
+    @PostMapping("/redo")
+    public ApiResponse<Boolean> redo(@RequestBody TypesettingInfo request) {
+        appPrintService.redo(request);
+        return ApiResponse.success(true);
     }
 }

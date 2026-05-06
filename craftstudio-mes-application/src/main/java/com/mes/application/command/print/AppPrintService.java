@@ -8,6 +8,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
@@ -149,6 +150,65 @@ public class AppPrintService {
         }
 
         return new PrintReportResult(canComplete, transferCount);
+    }
+
+    public void releaseLayout(List<String> typesettingIds) {
+        if (typesettingIds == null || typesettingIds.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版ID列表不能为空");
+        }
+
+        Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
+        for (String typesettingId : typesettingIds) {
+            if (StringUtils.isBlank(typesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = typesettingService.findById(typesettingId);
+            if (info == null) {
+                continue;
+            }
+            List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
+            if (usedCells != null) {
+                for (TypesettingSourceCell usedCell : usedCells) {
+                    if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                        continue;
+                    }
+                    int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
+                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                }
+            }
+            typesettingService.deleteTypesetting(info.getId());
+        }
+
+        for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
+            ProductionPiece piece = productionPieceService.findById(entry.getKey());
+            if (piece == null || StringUtils.isBlank(piece.getId())) {
+                continue;
+            }
+            productionPieceService.transferPieceQuantityBetweenNodes(
+                    piece.getId(),
+                    "NODE_PRINTING",
+                    "NODE_TYPESETTING",
+                    entry.getValue()
+            );
+        }
+    }
+
+    public void redo(TypesettingInfo request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
+        }
+        Integer redoQuantity = request.getQuantity();
+        if (redoQuantity == null || redoQuantity <= 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "重做数量必须大于0");
+        }
+
+        TypesettingInfo dbInfo = typesettingService.findById(request.getId());
+        if (dbInfo == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不存在：" + request.getId());
+        }
+        int currentLeave = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
+        dbInfo.setLeaveQuantity(currentLeave + redoQuantity);
+        typesettingService.updateTypesetting(dbInfo);
     }
 
     private String findNodeIdByName(List<ProcedureFlowNode> nodes, String nodeName) {
