@@ -183,14 +183,14 @@ public class TypesettingController {
     @PostMapping("/releaseLayout")
     public ApiResponse<ReleaseLayoutResult> releaseLayout(@Valid @RequestBody ReleaseLayoutRequest request) {
         
-        if (request.getTypesettingIds() == null || request.getTypesettingIds().isEmpty()) {
+        if (request.getIdList() == null || request.getIdList().isEmpty()) {
             ApiResponse<ReleaseLayoutResult> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);
             failResponse.setMessage("排版 ID 列表不能为空");
             return failResponse;
         }
         
-        ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getTypesettingIds());
+        ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getIdList());
         
         return ApiResponse.success(result);
     }

@@ -1509,12 +1509,11 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(typesettingId)) {
                 continue;
             }
-            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
-            if (typesettingInfos == null || typesettingInfos.isEmpty()) {
+            TypesettingInfo info = domainTypesettingService.findById(typesettingId);
+            if (info == null) {
                 errorMessages.add("排版记录不存在: " + typesettingId);
                 continue;
             }
-            for (TypesettingInfo info : typesettingInfos) {
                 if (info == null || StringUtils.isBlank(info.getId())) {
                     continue;
                 }
@@ -1535,7 +1534,6 @@ public class AppTypesettingService {
                 } catch (Exception e) {
                     errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
                 }
-            }
         }
 
         for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
