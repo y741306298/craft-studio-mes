@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 
 @Service
 public class ProcedureService {
@@ -189,7 +190,7 @@ public class ProcedureService {
         piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
         piece.setCarrierId(orderItem.getLogisticsCarrierInfo().getCarrierId());
-        piece.setMaterialConfig(orderItem.getMaterial());
+        piece.setMaterialConfig(getProcedureMaterial(procedureFlow));
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
         piece.setProcedureFlow(procedureFlow);
@@ -234,6 +235,39 @@ public class ProcedureService {
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
         return piece;
+    }
+
+
+
+    private MaterialConfig getProcedureMaterial(ProcedureFlow procedureFlow) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null) {
+            return null;
+        }
+
+        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+            if (node == null || node.getParamConfigs() == null) {
+                continue;
+            }
+
+            for (com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO.ProcessParamConfigDTO paramConfig : node.getParamConfigs()) {
+                if (paramConfig == null || paramConfig.getParam() == null) {
+                    continue;
+                }
+
+                Object param = paramConfig.getParam();
+                try {
+                    java.lang.reflect.Method getValueMethod = param.getClass().getMethod("getValue");
+                    Object value = getValueMethod.invoke(param);
+                    if (value instanceof MaterialConfig) {
+                        return (MaterialConfig) value;
+                    }
+                } catch (Exception ignored) {
+                    // ignore and continue looking for material config
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

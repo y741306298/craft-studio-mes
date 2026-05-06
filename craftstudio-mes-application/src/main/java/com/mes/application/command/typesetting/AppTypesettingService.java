@@ -1610,52 +1610,35 @@ public class AppTypesettingService {
      * @return "PASS" 表示通过，否则返回错误信息
      */
     private String validateSpecialProcedureMaterials(List<ProductionPiece> productionPieces) {
+        String benchmarkParamsSignature = null;
+        String benchmarkPieceId = null;
+        String benchmarkNodeName = null;
+
         for (ProductionPiece piece : productionPieces) {
             if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                 continue;
             }
 
-            List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
-
-            // 查找是否存在"覆板"或"双面对裱"工序
-            ProcedureFlowNode fuBanNode = null;
-            ProcedureFlowNode shuangMianNode = null;
-
-            for (ProcedureFlowNode node : nodes) {
-                if ("覆板".equals(node.getNodeName())) {
-                    fuBanNode = node;
-                } else if ("双面对裱".equals(node.getNodeName())) {
-                    shuangMianNode = node;
-                }
-            }
-
-            // 如果存在这两种工序，需要校验材料一致性
-            if (fuBanNode != null || shuangMianNode != null) {
-                // 这里需要根据实际业务逻辑获取工序所用的材料
-                // 假设通过某种方式可以获取工序对应的材料信息
-                String procedureMaterial = getProcedureMaterial(piece, fuBanNode != null ? fuBanNode : shuangMianNode);
-
-                if (procedureMaterial == null || procedureMaterial.trim().isEmpty()) {
-                    return "生产工件 " + piece.getProductionPieceId() +
-                            " 的工序材料为空";
+            for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+                if (!isSpecialProcedureNode(node)) {
+                    continue;
                 }
 
-                // 获取订单项的材料进行对比
-                OrderItem orderItem = orderItemService.findById(piece.getOrderItemId());
-                if (orderItem == null) {
-                    return "生产工件 " + piece.getProductionPieceId() +
-                            " 对应的订单项不存在";
+                String paramsSignature = buildParamConfigsSignature(node);
+                if (StringUtils.isBlank(paramsSignature)) {
+                    return "生产工件 " + piece.getProductionPieceId() + " 的工序 " + node.getNodeName() + " 参数为空";
                 }
 
-                String orderItemMaterial = null;
-                if (orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null) {
-                    orderItemMaterial = orderItem.getMaterial().getMaterialSnapshot().getName();
+                if (benchmarkParamsSignature == null) {
+                    benchmarkParamsSignature = paramsSignature;
+                    benchmarkPieceId = piece.getProductionPieceId();
+                    benchmarkNodeName = node.getNodeName();
+                    continue;
                 }
-                
-                if (procedureMaterial != null && !procedureMaterial.equals(orderItemMaterial)) {
-                    return "生产工件 " + piece.getProductionPieceId() +
-                            " 的工序材料与订单项材料不一致：工序材料为 " +
-                            procedureMaterial + "，订单项材料为 " + orderItemMaterial;
+
+                if (!benchmarkParamsSignature.equals(paramsSignature)) {
+                    return "特殊工序参数不一致：零件 " + benchmarkPieceId + " 的工序 " + benchmarkNodeName +
+                            " 与零件 " + piece.getProductionPieceId() + " 的工序 " + node.getNodeName() + " 参数不一致";
                 }
             }
         }
@@ -1663,24 +1646,38 @@ public class AppTypesettingService {
         return "PASS";
     }
 
-    /**
-     * 获取工序所使用的材料
-     * TODO: 需要根据实际业务逻辑实现
-     *
-     * @param piece 生产工件
-     * @param procedureNode 工序节点
-     * @return 工序材料
-     */
-    private String getProcedureMaterial(ProductionPiece piece, ProcedureFlowNode procedureNode) {
-        // TODO: 实现获取工序材料的逻辑
-        // 可能需要查询工序配置表或者从其他地方获取
-        // 这里暂时从订单项获取材料
-        OrderItem orderItem = orderItemService.findById(piece.getOrderItemId());
-        if (orderItem != null && orderItem.getMaterial() != null) {
-            MaterialConfig.MaterialSnapshot snapshot = orderItem.getMaterial().getMaterialSnapshot();
-            return snapshot != null ? snapshot.getName() : null;
+    private boolean isSpecialProcedureNode(ProcedureFlowNode node) {
+        return node != null && ("覆板".equals(node.getNodeName()) || "双面对裱".equals(node.getNodeName()));
+    }
+
+    private String buildParamConfigsSignature(ProcedureFlowNode node) {
+        if (node == null || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
+            return null;
         }
-        return null;
+
+        StringBuilder builder = new StringBuilder();
+        for (com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO.ProcessParamConfigDTO paramConfig : node.getParamConfigs()) {
+            if (paramConfig == null || paramConfig.getParam() == null) {
+                continue;
+            }
+            Object param = paramConfig.getParam();
+            Object paramId = invokeNoArgMethod(param, "getParamId");
+            Object value = invokeNoArgMethod(param, "getValue");
+            builder.append(paramId == null ? "unknown" : paramId)
+                    .append("=")
+                    .append(value == null ? "null" : String.valueOf(value))
+                    .append(";");
+        }
+
+        return builder.length() == 0 ? null : builder.toString();
+    }
+
+    private Object invokeNoArgMethod(Object target, String methodName) {
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /**
