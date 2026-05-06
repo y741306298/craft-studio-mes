@@ -2,6 +2,8 @@ package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -83,6 +88,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
+        elementA = appendTemplateCodeSuffix(elementA, context.getTypesettingInfo());
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
@@ -172,6 +178,63 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
+    }
+
+    private String appendTemplateCodeSuffix(String elementA, TypesettingInfo info) {
+        if (info == null) {
+            return elementA;
+        }
+        StringBuilder suffix = new StringBuilder();
+        if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
+            suffix.append(info.getTemplateCode());
+        }
+        String accessoryNames = extractAccessoryNames(info);
+        if (StringUtils.isNotBlank(accessoryNames)) {
+            suffix.append(accessoryNames);
+        }
+        if (suffix.length() == 0) {
+            return elementA;
+        }
+        return StringUtils.isBlank(elementA) ? suffix.toString() : elementA + suffix;
+    }
+
+    private String extractAccessoryNames(TypesettingInfo info) {
+        if (info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
+            return "";
+        }
+        return info.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(node -> "覆板".equals(node.getNodeName()) || "覆膜".equals(node.getNodeName()))
+                .map(this::extractAccessoryLabelFromNode)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.joining("；"));
+    }
+
+    private String extractAccessoryLabelFromNode(ProcedureFlowNode node) {
+        if (node.getParamConfigs() == null) {
+            return "";
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = invokeGetter(config, "getParam");
+            Object accessorySnapshot = param instanceof Map ? ((Map<?, ?>) param).get("accessorySnapshot") : invokeGetter(param, "getAccessorySnapshot");
+            Object name = accessorySnapshot instanceof Map ? ((Map<?, ?>) accessorySnapshot).get("name") : invokeGetter(accessorySnapshot, "getName");
+            if (name != null && StringUtils.isNotBlank(name.toString())) {
+                return node.getNodeName() + "：" + name;
+            }
+        }
+        return "";
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignore) {
+            return null;
+        }
     }
 
     private String buildTagStripDataUri(String businessId,
