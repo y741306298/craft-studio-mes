@@ -165,6 +165,7 @@ public class ProcedureService {
     }
 
 
+
     /**
      * 创建生产工件实体
      * @param orderItem 订单项
@@ -194,7 +195,7 @@ public class ProcedureService {
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
         piece.setProcedureFlow(procedureFlow);
-        
+
         String completeImageUrl = buildCompleteOssUrl(imageUrl);
         String previewImageUrl = completeImageUrl;
         String thumbnailImageUrl = completeImageUrl;
@@ -216,7 +217,7 @@ public class ProcedureService {
         imageFile.setFilePreview(filePreview);
         imageFile.setRawFile(completeImageUrl);
         piece.setProductImageFile(imageFile);
-        
+
         if (StringUtils.isNotBlank(maskUrl)){
             String completeMaskUrl = buildCompleteOssUrl(maskUrl);
             ImageFile maskFile = new ImageFile();
@@ -236,7 +237,6 @@ public class ProcedureService {
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
         return piece;
     }
-
 
 
     private MaterialConfig getProcedureMaterial(ProcedureFlow procedureFlow) {

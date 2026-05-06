@@ -289,10 +289,10 @@ public class AppOrderPreprocessingService {
             Number rawWidth = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
             Number rawHeight = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
             if (rawWidth != null) {
-                width = (int) Math.round(rawWidth.doubleValue() * 100);
+                width = (int) Math.round(rawWidth.doubleValue() * 10);
             }
             if (rawHeight != null) {
-                height = (int) Math.round(rawHeight.doubleValue() * 100);
+                height = (int) Math.round(rawHeight.doubleValue() * 10);
             }
         }
 
