@@ -16,9 +16,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.logging.Logger;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -36,6 +37,9 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int TOP_ANCHOR_RIGHT_MM = 80;
     private static final int BOTTOM_ANCHOR_LEFT_MM = 80;
     private static final int BOTTOM_ANCHOR_RIGHT_MM = 40;
+    private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
+    private static final int SIDE_EXPAND_MM = 6;
+    private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
 
     private final OssTagUploadService ossTagUploadService;
 
@@ -60,12 +64,15 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
-        int marginLeft = 0;
+        int nestedHeight = context.getNestedHeight().intValue();
+        boolean needSideExpand = nestedHeight > NESTED_HEIGHT_EXPAND_THRESHOLD_MM;
+        int marginLeft = needSideExpand ? SIDE_EXPAND_MM : 0;
         int marginTop = marginHeight.intValue();
-        int marginRight = 0;
+        int marginRight = needSideExpand ? SIDE_EXPAND_MM : 0;
         int marginBottom = marginHeight.intValue();
-        int elementOriginX = marginLeft;
+        int elementOriginX = 0;
         int elementOriginY = marginTop;
+        int nestedStartX = marginLeft;
 
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
         margin.setLeft(marginLeft);
@@ -95,21 +102,22 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         FormeGenerationRequest.Mark top = new FormeGenerationRequest.Mark();
         top.setImg(elementF);
         top.setSize(createSize(context.getNestedWidth(), marginHeight));
-        top.setPosition(createPosition(elementOriginX, 0));
+        top.setPosition(createPosition(nestedStartX, 0));
 
         FormeGenerationRequest.Mark bottom = new FormeGenerationRequest.Mark();
         bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
-        bottom.setPosition(createPosition(elementOriginX, elementOriginY + context.getNestedHeight().intValue()));
+        bottom.setPosition(createPosition(nestedStartX, elementOriginY + context.getNestedHeight().intValue()));
         result.setMarks(Arrays.asList(top, bottom));
 
         // 4) 在上/下 margin 区域插入 4 个方形定位点（左右各 30mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
-        int bottomY = elementOriginY + context.getNestedHeight().intValue() + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
+        int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
-        int topRightX = Math.max(elementOriginX + width - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
+        int expandedWidth = width + marginLeft + marginRight;
+        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
-        int bottomRightX = Math.max(elementOriginX + width - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
+        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
         String squareSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
@@ -135,7 +143,30 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         br.setSvg(squareSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(bottomRightX, bottomY));
-        result.setAnchorPoints(Arrays.asList(tl, tr, bl, br));
+        List<FormeGenerationRequest.AnchorPoint> anchorPoints = new ArrayList<>(Arrays.asList(tl, tr, bl, br));
+        if (needSideExpand) {
+            int leftExpandCenterX = elementOriginX + (marginLeft / 2) - ANCHOR_SIZE_MM / 2;
+            int rightExpandCenterX = elementOriginX + expandedWidth - (marginRight / 2) - ANCHOR_SIZE_MM / 2;
+            for (int offsetY = SIDE_ANCHOR_INTERVAL_MM; offsetY <= nestedHeight; offsetY += SIDE_ANCHOR_INTERVAL_MM) {
+                int pointY = elementOriginY + offsetY - ANCHOR_SIZE_MM / 2;
+
+                FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
+                leftPoint.setImg("square.png");
+                leftPoint.setSvg(squareSvgUrl);
+                leftPoint.setSize(createSize(anchorSize, anchorSize));
+                leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
+
+                FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
+                rightPoint.setImg("square.png");
+                rightPoint.setSvg(squareSvgUrl);
+                rightPoint.setSize(createSize(anchorSize, anchorSize));
+                rightPoint.setPosition(createPosition(rightExpandCenterX, pointY));
+
+                anchorPoints.add(leftPoint);
+                anchorPoints.add(rightPoint);
+            }
+        }
+        result.setAnchorPoints(anchorPoints);
 
         // 5) 输出配置与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
