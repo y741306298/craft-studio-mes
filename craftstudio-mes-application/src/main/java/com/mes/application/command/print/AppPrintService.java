@@ -1,5 +1,6 @@
 package com.mes.application.command.print;
 
+import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
 import com.mes.application.command.print.vo.PrintReportResult;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.base.repository.ApiResponse;
@@ -37,7 +38,7 @@ public class AppPrintService {
     @Autowired
     private TypesettingPrintTaskService typesettingPrintTaskService;
 
-    public PagedResult<TypesettingInfo> findPendingPrintTypesetting(String manufacturerMetaId, int current, int size) {
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
@@ -64,7 +65,12 @@ public class AppPrintService {
                 null
         );
 
-        return new PagedResult<>(items, total, items.size(), current);
+        List<PendingPrintTypesettingVO> resultItems = new ArrayList<>();
+        for (TypesettingInfo item : items) {
+            resultItems.add(PendingPrintTypesettingVO.from(item));
+        }
+
+        return new PagedResult<>(resultItems, total, resultItems.size(), current);
     }
 
     public TypesettingPrintTask findPrintTaskById(String id) {
