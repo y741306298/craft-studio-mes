@@ -70,6 +70,7 @@ import org.springframework.web.client.RestTemplate;
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -305,6 +306,13 @@ public class AppTypesettingService {
         int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
         int toIndex = Math.min(fromIndex + size, allTypesettingInfos.size());
         List<TypesettingInfo> pagedTypesettingInfos = allTypesettingInfos.subList(fromIndex, toIndex);
+        for (TypesettingInfo typesettingInfo : pagedTypesettingInfos) {
+            if (typesettingInfo == null || typesettingInfo.getElement() == null) {
+                continue;
+            }
+            typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
+            typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
+        }
 
         long total = allTypesettingInfos.size();
 
@@ -401,6 +409,13 @@ public class AppTypesettingService {
      */
     private long countTypesettingOnly(TypesettingQuery query) {
         return queryTypesettingOnly(query).size();
+    }
+
+    private static BigDecimal ceilBigDecimal(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(0, RoundingMode.CEILING);
     }
 
     private int getPendingTypesettingQuantity(ProductionPiece piece) {
@@ -1725,7 +1740,7 @@ public class AppTypesettingService {
                 }
                 if (i == 0) {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
-                    baseTypesettingInfo.setElement(element);
+                    baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
                     baseTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
                     baseTypesettingInfo.setTemplateCode(templateCode);
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
@@ -1749,6 +1764,22 @@ public class AppTypesettingService {
         }
     }
 
+
+    private TypesettingElement mergeElementKeepingSize(TypesettingElement oldElement, TypesettingElement newElement) {
+        if (newElement == null) {
+            return oldElement;
+        }
+        if (oldElement == null) {
+            return newElement;
+        }
+        if (newElement.getWidth() == null) {
+            newElement.setWidth(oldElement.getWidth());
+        }
+        if (newElement.getHeight() == null) {
+            newElement.setHeight(oldElement.getHeight());
+        }
+        return newElement;
+    }
 
     private String buildTemplateCode(int current, int total) {
         if (total <= 0) {
