@@ -191,7 +191,11 @@ public class ProcedureService {
         piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
         piece.setCarrierId(orderItem.getLogisticsCarrierInfo().getCarrierId());
-        piece.setMaterialConfig(getProcedureMaterial(procedureFlow));
+        MaterialConfig materialConfig = getProcedureMaterial(procedureFlow);
+        if (materialConfig == null) {
+            materialConfig = orderItem.getMaterial();
+        }
+        piece.setMaterialConfig(materialConfig);
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
         piece.setProcedureFlow(procedureFlow);
