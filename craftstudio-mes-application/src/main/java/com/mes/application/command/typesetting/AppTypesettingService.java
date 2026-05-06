@@ -308,7 +308,7 @@ public class AppTypesettingService {
 
         long total = allTypesettingInfos.size();
 
-        return new PagedResult<>(pagedTypesettingInfos, total, pagedTypesettingInfos.size(), current);
+        return new PagedResult<>(pagedTypesettingInfos, total, size, current);
     }
 
     /**
