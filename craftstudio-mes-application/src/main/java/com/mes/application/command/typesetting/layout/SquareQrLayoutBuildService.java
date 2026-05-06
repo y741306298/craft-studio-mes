@@ -46,7 +46,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
-    private static final String TAG_TEXT_FONT = "Source Han Sans SC";
+    private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
 
     private final OssTagUploadService ossTagUploadService;
 
