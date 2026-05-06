@@ -78,6 +78,10 @@ public class TypesettingInfo extends BaseEntity {
      */
     private String anchorPointShape;
     /**
+     * 模板编码（例如 1/3、2/3），用于标识同一批次结果中的序号。
+     */
+    private String templateCode;
+    /**
      * 排版附加标记资源（例如 elementF / elementFRotated 的 OSS 地址）。
      */
     private Map<String, String> marks;

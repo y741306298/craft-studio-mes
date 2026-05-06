@@ -40,6 +40,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String codeGenerateType;
     private String tempCodeFormat;
     private String anchorPointShape;
+    private String templateCode;
     private Map<String, String> marks;
     @Override
     public TypesettingInfo toDO() {
@@ -70,6 +71,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setCodeGenerateType(this.codeGenerateType);
         typesettingInfo.setTempCodeFormat(this.tempCodeFormat);
         typesettingInfo.setAnchorPointShape(this.anchorPointShape);
+        typesettingInfo.setTemplateCode(this.templateCode);
         typesettingInfo.setMarks(this.marks);
         return typesettingInfo;
     }
@@ -99,6 +101,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.codeGenerateType = _do.getCodeGenerateType();
         this.tempCodeFormat = _do.getTempCodeFormat();
         this.anchorPointShape = _do.getAnchorPointShape();
+        this.templateCode = _do.getTemplateCode();
         this.marks = _do.getMarks();
         return this;
     }
