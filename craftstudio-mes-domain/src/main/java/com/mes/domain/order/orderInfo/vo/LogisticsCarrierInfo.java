@@ -6,4 +6,5 @@ import lombok.Data;
 public class LogisticsCarrierInfo {
     private String carrierId;
     private String carrierName;
+    private String presetType;
 }
