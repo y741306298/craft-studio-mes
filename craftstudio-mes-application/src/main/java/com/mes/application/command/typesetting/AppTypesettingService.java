@@ -1028,6 +1028,9 @@ public class AppTypesettingService {
             return;
         }
         applyFormeGenerationResult(typesettingInfo, response.getResult());
+        if (StringUtils.isBlank(typesettingInfo.getTemplateCode())) {
+            typesettingInfo.setTemplateCode(buildTemplateCode(1, 1));
+        }
         String remark = typesettingInfo.getRemark();
         if ("FORME_OP:LAYOUT".equals(remark)) {
             typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
@@ -1704,8 +1707,10 @@ public class AppTypesettingService {
                 throw new RuntimeException("排版回调成功但未返回结果");
             }
             // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
-            for (int i = 0; i < results.size(); i++) {
+            int total = results.size();
+            for (int i = 0; i < total; i++) {
                 NestingResponse.Result callbackResult = results.get(i);
+                String templateCode = buildTemplateCode(i + 1, total);
                 TypesettingElement element = new TypesettingElement();
                 element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
                 element.setUtilization(callbackResult.getUtilization());
@@ -1726,6 +1731,7 @@ public class AppTypesettingService {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     baseTypesettingInfo.setElement(element);
                     baseTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                    baseTypesettingInfo.setTemplateCode(templateCode);
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                     continue;
                 }
@@ -1734,6 +1740,7 @@ public class AppTypesettingService {
                 newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                 newTypesettingInfo.setElement(element);
                 newTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                newTypesettingInfo.setTemplateCode(templateCode);
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                 domainTypesettingService.addTypesetting(newTypesettingInfo);
             }
@@ -1746,6 +1753,19 @@ public class AppTypesettingService {
         }
     }
 
+
+    private String buildTemplateCode(int current, int total) {
+        if (total <= 0) {
+            total = 1;
+        }
+        if (current <= 0) {
+            current = 1;
+        }
+        if (current > total) {
+            current = total;
+        }
+        return current + "/" + total;
+    }
     private TypesettingInfo cloneForCallback(TypesettingInfo source) {
         TypesettingInfo target = new TypesettingInfo();
         target.setTypesettingId(source.getTypesettingId());
@@ -1766,6 +1786,7 @@ public class AppTypesettingService {
         target.setCodeGenerateType(source.getCodeGenerateType());
         target.setTempCodeFormat(source.getTempCodeFormat());
         target.setAnchorPointShape(source.getAnchorPointShape());
+        target.setTemplateCode(source.getTemplateCode());
         return target;
     }
 
