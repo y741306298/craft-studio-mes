@@ -254,14 +254,10 @@ public class AppDeliveryPkgService {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
-        if (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
-                || StringUtils.isBlank(request.getManufacturerMetaId())) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "发货人、打印机、商家信息不能为空");
-        }
-
         String orderId = null;
         String carrierId = null;
         String carrierName = null;
+        String presetType = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
         Map<String, Integer> packageQuantityMap = new HashMap<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
@@ -277,8 +273,10 @@ public class AppDeliveryPkgService {
                 orderId = pieceVO.getOrderId();
                 carrierId = pieceVO.getLogisticsCarrierInfo().getCarrierId();
                 carrierName = pieceVO.getLogisticsCarrierInfo().getCarrierName();
+                presetType = pieceVO.getLogisticsCarrierInfo().getPresetType();
             } else if (!Objects.equals(orderId, pieceVO.getOrderId())
-                    || !Objects.equals(carrierId, pieceVO.getLogisticsCarrierInfo().getCarrierId())) {
+                    || !Objects.equals(carrierId, pieceVO.getLogisticsCarrierInfo().getCarrierId())
+                    || !Objects.equals(presetType, pieceVO.getLogisticsCarrierInfo().getPresetType())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单且同一物流方式一起打包");
             }
 
@@ -295,13 +293,19 @@ public class AppDeliveryPkgService {
             packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
 
+        boolean isCustomPresetType = "CUSTOM".equalsIgnoreCase(presetType);
+        if (isCustomPresetType) {
+            if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "CUSTOM物流方式必须指定路线和段落");
+            }
+        } else if (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
+                || StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "发货人、打印机、商家信息不能为空");
+        }
+
         DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
 
-        boolean isMyselfDelivery = "自主配送".equals(carrierName) || "送货上门".equals(carrierName);
-        if (isMyselfDelivery) {
-            if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "自主配送必须指定路线和段落");
-            }
+        if (isCustomPresetType) {
             for (ProductionPiece productionPiece : selectedPieces) {
                 List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
                 ProcedureFlowNode pendingPackingNode = null;
