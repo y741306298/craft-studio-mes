@@ -1517,16 +1517,17 @@ public class AppTypesettingService {
                 if (info == null || StringUtils.isBlank(info.getId())) {
                     continue;
                 }
-                String nestedSvg = info.getElement() == null ? null : info.getElement().getNestedSvg();
-                if (StringUtils.isNotBlank(nestedSvg)) {
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(info.getTypesettingId(), nestedSvg);
-                    for (TypesettingSourceCell usedCell : usedCells) {
-                        if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                            continue;
-                        }
-                        int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
-                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
+                if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
+                        && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
+                    usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
+                }
+                for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
+                    if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                        continue;
                     }
+                    int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
+                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                 }
                 try {
                     domainTypesettingService.deleteTypesetting(info.getId());
