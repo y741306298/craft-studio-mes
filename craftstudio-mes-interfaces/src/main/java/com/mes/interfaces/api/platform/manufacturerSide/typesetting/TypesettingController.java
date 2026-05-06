@@ -14,6 +14,7 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
@@ -83,11 +84,9 @@ public class TypesettingController {
     public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody LayoutConfirmRequest request) {
         LayoutConfirmResult result = appTypesettingService.toLayout(request);
         if (!result.isSuccess()) {
-            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
-            failResponse.setMessage(result.getMessage());
-            return failResponse;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
-        
+
         return ApiResponse.success(result);
     }
 

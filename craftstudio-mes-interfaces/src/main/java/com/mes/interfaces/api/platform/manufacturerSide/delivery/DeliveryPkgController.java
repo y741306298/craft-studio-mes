@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/deliveryPkg")
@@ -121,5 +122,28 @@ public class DeliveryPkgController {
         result.setRemark("这是一个备注");
 
         return ApiResponse.success(result);
+    }
+
+    @PostMapping("/validatePieces")
+    public ApiResponse<Boolean> validatePieces(@RequestBody List<DeliveryPkgPieceVO> pieces) {
+        if (pieces == null || pieces.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包项不能为空");
+        }
+
+        String orderId = pieces.get(0).getOrderId();
+        for (DeliveryPkgPieceVO piece : pieces) {
+            if (!Objects.equals(orderId, piece.getOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包项不是来自同一订单，不能一起打包");
+            }
+        }
+
+        Object logisticsCarrierInfo = pieces.get(0).getLogisticsCarrierInfo();
+        for (DeliveryPkgPieceVO piece : pieces) {
+            if (!Objects.equals(logisticsCarrierInfo, piece.getLogisticsCarrierInfo())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包项物流方式不一致，不能一起打包");
+            }
+        }
+
+        return ApiResponse.success(Boolean.TRUE);
     }
 }
