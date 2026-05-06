@@ -4,6 +4,9 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import io.micrometer.common.util.StringUtils;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 @Data
 public class PendingPrintTypesettingVO extends TypesettingInfo {
 
@@ -25,6 +28,10 @@ public class PendingPrintTypesettingVO extends TypesettingInfo {
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setElement(info.getElement());
+        if (vo.getElement() != null) {
+            vo.getElement().setWidth(ceilBigDecimal(vo.getElement().getWidth()));
+            vo.getElement().setHeight(ceilBigDecimal(vo.getElement().getHeight()));
+        }
         vo.setProcedureFlow(info.getProcedureFlow());
         vo.setProcessingFlow(info.getProcessingFlow());
         vo.setTypesettingCells(info.getTypesettingCells());
@@ -46,6 +53,13 @@ public class PendingPrintTypesettingVO extends TypesettingInfo {
         String elementJson = info.getElement() == null ? null : info.getElement().getJson();
         vo.setJsonfile(extractJsonFileName(elementJson));
         return vo;
+    }
+
+    private static BigDecimal ceilBigDecimal(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(0, RoundingMode.CEILING);
     }
 
     private static String extractJsonFileName(String jsonPath) {

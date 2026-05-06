@@ -9,8 +9,6 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -131,8 +129,8 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setSourceId(piece.getId());
         typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
-        typesettingProductionPieceVO.setWidth(roundToTwoDecimals(piece.getWidth()));
-        typesettingProductionPieceVO.setHeight(roundToTwoDecimals(piece.getHeight()));
+        typesettingProductionPieceVO.setWidth(ceilValue(piece.getWidth()));
+        typesettingProductionPieceVO.setHeight(ceilValue(piece.getHeight()));
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         return typesettingProductionPieceVO;
@@ -161,20 +159,18 @@ public class TypesettingProductionPieceVO {
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
         if (info.getElement() != null) {
-            vo.setWidth(roundToTwoDecimals(info.getElement().getWidth().doubleValue()));
-            vo.setHeight(roundToTwoDecimals(info.getElement().getHeight().doubleValue()));
+            vo.setWidth(ceilValue(info.getElement().getWidth().doubleValue()));
+            vo.setHeight(ceilValue(info.getElement().getHeight().doubleValue()));
         }
         vo.setCreateTime(info.getCreateTime());
         return vo;
     }
 
-    private static Double roundToTwoDecimals(Double value) {
+    private static Double ceilValue(Double value) {
         if (value == null) {
             return null;
         }
-        BigDecimal bd = BigDecimal.valueOf(value);
-        bd = bd.setScale(2, RoundingMode.HALF_UP);
-        return bd.doubleValue();
+        return Math.ceil(value);
     }
 
     public ProductionPiece toProductionPiece() {
