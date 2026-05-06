@@ -181,13 +181,19 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     }
 
     private String appendTemplateCodeSuffix(String elementA, TypesettingInfo info) {
-        if (info == null || StringUtils.isBlank(info.getTemplateCode()) || "1/1".equals(info.getTemplateCode())) {
+        if (info == null) {
             return elementA;
         }
-        StringBuilder suffix = new StringBuilder(info.getTemplateCode());
+        StringBuilder suffix = new StringBuilder();
+        if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
+            suffix.append(info.getTemplateCode());
+        }
         String accessoryNames = extractAccessoryNames(info);
         if (StringUtils.isNotBlank(accessoryNames)) {
             suffix.append(accessoryNames);
+        }
+        if (suffix.length() == 0) {
+            return elementA;
         }
         return StringUtils.isBlank(elementA) ? suffix.toString() : elementA + suffix;
     }
@@ -199,13 +205,13 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return info.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
                 .filter(node -> "覆板".equals(node.getNodeName()) || "覆膜".equals(node.getNodeName()))
-                .map(this::extractAccessoryNameFromNode)
+                .map(this::extractAccessoryLabelFromNode)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
-                .collect(Collectors.joining());
+                .collect(Collectors.joining("；"));
     }
 
-    private String extractAccessoryNameFromNode(ProcedureFlowNode node) {
+    private String extractAccessoryLabelFromNode(ProcedureFlowNode node) {
         if (node.getParamConfigs() == null) {
             return "";
         }
@@ -214,7 +220,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
             Object accessorySnapshot = param instanceof Map ? ((Map<?, ?>) param).get("accessorySnapshot") : invokeGetter(param, "getAccessorySnapshot");
             Object name = accessorySnapshot instanceof Map ? ((Map<?, ?>) accessorySnapshot).get("name") : invokeGetter(accessorySnapshot, "getName");
             if (name != null && StringUtils.isNotBlank(name.toString())) {
-                return name.toString();
+                return node.getNodeName() + "：" + name;
             }
         }
         return "";
