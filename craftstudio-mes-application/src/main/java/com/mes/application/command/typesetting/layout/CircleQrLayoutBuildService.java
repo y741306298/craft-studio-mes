@@ -35,6 +35,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int QR_SIZE_MM = 15;
     private static final int QR_BOTTOM_GAP_MM = 2;
     private static final int ELEMENT_GAP_MM = 30;
+    private static final int EXTRA_INFO_GAP_MM = 5;
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
     private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
@@ -86,15 +87,15 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
-        elementA = appendTemplateCodeSuffix(elementA, context.getTypesettingInfo());
+        List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -178,27 +179,21 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return result;
     }
 
-    private String appendTemplateCodeSuffix(String elementA, TypesettingInfo info) {
+    private List<String> buildElementAExtInfos(TypesettingInfo info) {
+        List<String> extInfos = new ArrayList<>();
         if (info == null) {
-            return elementA;
+            return extInfos;
         }
-        StringBuilder suffix = new StringBuilder();
         if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
-            suffix.append(info.getTemplateCode());
+            extInfos.add(info.getTemplateCode());
         }
-        String accessoryNames = extractAccessoryNames(info);
-        if (StringUtils.isNotBlank(accessoryNames)) {
-            suffix.append(accessoryNames);
-        }
-        if (suffix.length() == 0) {
-            return elementA;
-        }
-        return StringUtils.isBlank(elementA) ? suffix.toString() : elementA + suffix;
+        extInfos.addAll(extractAccessoryLabels(info));
+        return extInfos;
     }
 
-    private String extractAccessoryNames(TypesettingInfo info) {
+    private List<String> extractAccessoryLabels(TypesettingInfo info) {
         if (info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
-            return "";
+            return new ArrayList<>();
         }
         return info.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
@@ -206,7 +201,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 .map(this::extractAccessoryLabelFromNode)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
-                .collect(Collectors.joining("；"));
+                .collect(Collectors.toList());
     }
 
     private String extractAccessoryLabelFromNode(ProcedureFlowNode node) {
@@ -239,6 +234,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         String manufacturerMetaId,
                                         String typesettingId,
                                         String elementA,
+                                        List<String> elementAExtInfos,
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
@@ -263,7 +259,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font("SansSerif", Font.PLAIN, textHeight));
+            g.setFont(pickFont(textHeight, elementA, elementB, elementAExtInfos));
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
@@ -275,6 +271,16 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             }
             drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
             drawTextRotate180(g, elementA, cX, textBaseLineY, fontMetrics);
+            int currentX = cX + fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
+            if (elementAExtInfos != null) {
+                for (String extInfo : elementAExtInfos) {
+                    if (StringUtils.isBlank(extInfo)) {
+                        continue;
+                    }
+                    drawTextRotate180(g, extInfo, currentX, textBaseLineY, fontMetrics);
+                    currentX += fontMetrics.stringWidth(extInfo) + mmToPx(EXTRA_INFO_GAP_MM);
+                }
+            }
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
 
@@ -315,6 +321,25 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         } finally {
             g.setTransform(origin);
         }
+    }
+
+    private Font pickFont(int textHeight, String elementA, String elementB, List<String> extInfos) {
+        List<String> candidates = Arrays.asList("Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "WenQuanYi Zen Hei", "Dialog");
+        StringBuilder allText = new StringBuilder();
+        if (elementA != null) allText.append(elementA);
+        if (elementB != null) allText.append(elementB);
+        if (extInfos != null) {
+            for (String ext : extInfos) {
+                if (ext != null) allText.append(ext);
+            }
+        }
+        for (String name : candidates) {
+            Font font = new Font(name, Font.PLAIN, textHeight);
+            if (font.canDisplayUpTo(allText.toString()) == -1) {
+                return font;
+            }
+        }
+        return new Font("Dialog", Font.PLAIN, textHeight);
     }
 
     private BufferedImage decodePngDataUri(String dataUri) {
