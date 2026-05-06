@@ -457,6 +457,7 @@ public class AppOrderPreprocessingService {
                             newNode.setNodeOrder(node.getNodeOrder());
                             newNode.setNodeStatus(node.getNodeStatus());
                             newNode.setPieceQuantity(node.getPieceQuantity());
+                            newNode.setParamConfigs(node.getParamConfigs());
                             newNodes.add(newNode);
                         }
                         newProcedureFlow.setNodes(newNodes);
