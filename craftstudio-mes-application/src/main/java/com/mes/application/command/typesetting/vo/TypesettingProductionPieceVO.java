@@ -155,6 +155,7 @@ public class TypesettingProductionPieceVO {
         vo.setMaterialConfigs(info.getMaterialConfigs());
         vo.setMaterialConfig(info.getMaterialConfig());
         vo.setProcessingFlow(info.getProcessingFlow());
+        vo.setPreviewUrl(info.getElement().getFormeSvg());
         vo.setStatus(info.getStatus());
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
