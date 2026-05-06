@@ -46,6 +46,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
+    private static final String TAG_TEXT_FONT = "Source Han Sans SC";
 
     private final OssTagUploadService ossTagUploadService;
 
@@ -90,6 +91,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
+        log.info("Square QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         String elementC = context.getQrDataUriGenerator().apply(elementB);
@@ -261,7 +263,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
             g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
             g.setColor(Color.BLACK);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(pickFont(textHeight, elementA, elementB, elementAExtInfos));
+            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
