@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.print;
 
 import com.mes.application.command.print.AppPrintService;
+import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
 import com.mes.application.command.print.vo.PrintReportResult;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -27,7 +28,7 @@ public class PrintController {
      * 查询状态为"待打印"的排版信息（分页）
      */
     @GetMapping("/pending/list")
-    public ApiResponse<PagedResult<TypesettingInfo>> listPendingPrintTypesetting(
+    public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(
             @RequestParam String manufacturerMetaId,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
