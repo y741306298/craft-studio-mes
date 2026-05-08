@@ -237,10 +237,29 @@ public class ProcedureFlowService {
         defaultNodes.add(printingInProgressNode);
         
         if (procedureFlow.getNodes() != null && !procedureFlow.getNodes().isEmpty()) {
-            for (int i = 0; i < procedureFlow.getNodes().size(); i++) {
-                procedureFlow.getNodes().get(i).setNodeOrder(i + 4);
+            List<ProcedureFlowNode> customNodes = new java.util.ArrayList<>();
+            for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+                if (node == null) {
+                    continue;
+                }
+                if ("NODE_PRETREATMENT".equals(node.getNodeId()) || "预处理".equals(node.getNodeName())) {
+                    continue;
+                }
+                if ("NODE_TYPESETTING".equals(node.getNodeId()) || "待排版".equals(node.getNodeName())) {
+                    continue;
+                }
+                if ("NODE_TYPESETTING_IN_PROGRESS".equals(node.getNodeId()) || "排版中".equals(node.getNodeName())) {
+                    continue;
+                }
+                if ("NODE_PRINTING_IN_PROGRESS".equals(node.getNodeId()) || "打印中".equals(node.getNodeName())) {
+                    continue;
+                }
+                customNodes.add(node);
             }
-            defaultNodes.addAll(procedureFlow.getNodes());
+            for (int i = 0; i < customNodes.size(); i++) {
+                customNodes.get(i).setNodeOrder(i + 4);
+            }
+            defaultNodes.addAll(customNodes);
         }
         
         int lastOrder = defaultNodes.size();
