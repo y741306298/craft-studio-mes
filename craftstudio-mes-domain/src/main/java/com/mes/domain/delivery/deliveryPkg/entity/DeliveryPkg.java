@@ -52,6 +52,7 @@ public class DeliveryPkg extends BaseEntity {
     private String manufacturerMetaId;            // 商家ID
     private String routeId;                       // 自主配送路线ID
     private String routeNodeId;                   // 自主配送路线段ID
+    private String routeDesc;                     // 路线描述
 
     /**
      * 添加包裹物品

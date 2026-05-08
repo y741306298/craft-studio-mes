@@ -67,6 +67,7 @@ public class DeliveryPkgController {
                 request.getCurrent(),
                 request.getSize()
         );
+        items.forEach(item -> item.setRouteDesc(buildRouteDesc(item)));
         long total = deliveryPkgService.countByConditions(
                 status,
                 request.getManufacturerMetaId(),
@@ -133,17 +134,23 @@ public class DeliveryPkgController {
         result.setBarCode(barCode);
 
         String routeDesc = "";
-        if (StringUtils.isNotBlank(deliveryPkg.getRouteId()) && StringUtils.isNotBlank(deliveryPkg.getRouteNodeId())) {
-            DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
-            DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
-            if (deliveryRoute != null && routeNode != null) {
-                routeDesc = deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();
-            }
-        }
+        routeDesc = buildRouteDesc(deliveryPkg);
         result.setRouteDesc(routeDesc);
         result.setRemark("这是一个备注");
 
         return result;
+    }
+
+    private String buildRouteDesc(DeliveryPkg deliveryPkg) {
+        if (StringUtils.isBlank(deliveryPkg.getRouteId()) || StringUtils.isBlank(deliveryPkg.getRouteNodeId())) {
+            return "";
+        }
+        DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
+        DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
+        if (deliveryRoute == null || routeNode == null) {
+            return "";
+        }
+        return deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();
     }
 
     @PostMapping("/validatePieces")
