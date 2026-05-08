@@ -7,4 +7,6 @@ public class CallbackCustomValue {
 
     private String id;
 
+    private String presetType;
+
 }
