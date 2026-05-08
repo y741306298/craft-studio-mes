@@ -10,5 +10,6 @@ public class DeliveryPkgItem {
     private String orderItemId;
     private List<String> productionPieceId;
     private Integer quantity;
+    private String previewUrl;
 
 }
