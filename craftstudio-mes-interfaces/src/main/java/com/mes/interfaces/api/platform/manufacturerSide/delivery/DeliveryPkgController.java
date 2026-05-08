@@ -4,6 +4,7 @@ import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.application.command.delivery.vo.DeliveryPkgAddResultVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
+import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
@@ -58,16 +59,22 @@ public class DeliveryPkgController {
         List<DeliveryPkg> items = deliveryPkgService.queryByConditions(
                 status,
                 request.getManufacturerMetaId(),
+                request.getOrderId(),
                 request.getRecipientName(),
-                request.getTrackingNumber(),
+                request.getRecipientPhone(),
+                request.getCreateTimeStart(),
+                request.getCreateTimeEnd(),
                 request.getCurrent(),
                 request.getSize()
         );
         long total = deliveryPkgService.countByConditions(
                 status,
                 request.getManufacturerMetaId(),
+                request.getOrderId(),
                 request.getRecipientName(),
-                request.getTrackingNumber()
+                request.getRecipientPhone(),
+                request.getCreateTimeStart(),
+                request.getCreateTimeEnd()
         );
         return PagedApiResponse.success(items, request.getCurrent(), request.getSize(), total);
     }
@@ -87,7 +94,22 @@ public class DeliveryPkgController {
     @PostMapping("/add")
     public ApiResponse<DeliveryPkgAddResultVO> addPkg(@RequestBody DeliveryPkgAddRequest request) {
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
+        return ApiResponse.success(buildAddResult(deliveryPkg));
+    }
 
+    @PostMapping("/reprint")
+    public ApiResponse<DeliveryPkgAddResultVO> reprint(@RequestBody DeliveryPkgActionRequest request) {
+        DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId());
+        return ApiResponse.success(buildAddResult(deliveryPkg));
+    }
+
+    @PostMapping("/release")
+    public ApiResponse<Boolean> release(@RequestBody DeliveryPkgActionRequest request) {
+        appDeliveryPkgService.releasePkg(request.getDeliveryPkgId());
+        return ApiResponse.success(Boolean.TRUE);
+    }
+
+    private DeliveryPkgAddResultVO buildAddResult(DeliveryPkg deliveryPkg) {
         DeliveryPkgAddResultVO result = new DeliveryPkgAddResultVO();
         result.setPkgId(deliveryPkg.getDeliveryPkgId());
         result.setRecipientName(deliveryPkg.getRecipientName());
@@ -121,7 +143,7 @@ public class DeliveryPkgController {
         result.setRouteDesc(routeDesc);
         result.setRemark("这是一个备注");
 
-        return ApiResponse.success(result);
+        return result;
     }
 
     @PostMapping("/validatePieces")

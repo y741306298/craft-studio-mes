@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class AppDeliveryPkgService {
@@ -390,6 +391,10 @@ public class AppDeliveryPkgService {
             pkgItem.setOrderItemId(item.getPiece().getOrderItemId());
             pkgItem.setProductionPieceId(Collections.singletonList(item.getPiece().getProductionPieceId()));
             pkgItem.setQuantity(item.getQuantity());
+            if (item.getPiece().getProductImageFile() != null
+                    && item.getPiece().getProductImageFile().getFilePreview() != null) {
+                pkgItem.setPreviewUrl(item.getPiece().getProductImageFile().getFilePreview().getPreview());
+            }
             pkgItems.add(pkgItem);
         }
         deliveryPkg.setDeliveryPkgItems(pkgItems);
@@ -406,6 +411,49 @@ public class AppDeliveryPkgService {
         }
 
         return deliveryPkgService.createDeliveryPkg(deliveryPkg);
+    }
+
+    public DeliveryPkg findByDeliveryPkgId(String deliveryPkgId) {
+        if (StringUtils.isBlank(deliveryPkgId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "deliveryPkgId不能为空");
+        }
+        List<DeliveryPkg> deliveryPkgs = deliveryPkgService.queryByConditions(null, null, null, null, null, null, null, 1, 1_000);
+        return deliveryPkgs.stream()
+                .filter(pkg -> deliveryPkgId.equals(pkg.getDeliveryPkgId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在"));
+    }
+
+    public void releasePkg(String deliveryPkgId) {
+        DeliveryPkg deliveryPkg = findByDeliveryPkgId(deliveryPkgId);
+        if (deliveryPkg.getDeliveryPkgItems() == null || deliveryPkg.getDeliveryPkgItems().isEmpty()) {
+            return;
+        }
+        for (com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem pkgItem : deliveryPkg.getDeliveryPkgItems()) {
+            if (pkgItem.getProductionPieceId() == null) {
+                continue;
+            }
+            for (String pieceId : pkgItem.getProductionPieceId()) {
+                ProductionPiece piece = productionPieceService.findByProductionPieceId(pieceId);
+                if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+                    continue;
+                }
+                Optional<ProcedureFlowNode> pendingNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "待打包".equals(n.getNodeName())).findFirst();
+                Optional<ProcedureFlowNode> packedNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "已打包".equals(n.getNodeName())).findFirst();
+                if (pendingNodeOpt.isEmpty() || packedNodeOpt.isEmpty()) {
+                    continue;
+                }
+                ProcedureFlowNode pendingNode = pendingNodeOpt.get();
+                ProcedureFlowNode packedNode = packedNodeOpt.get();
+                int quantity = pkgItem.getQuantity() == null ? 0 : pkgItem.getQuantity();
+                int packedQty = packedNode.getPieceQuantity() == null ? 0 : packedNode.getPieceQuantity();
+                int pendingQty = pendingNode.getPieceQuantity() == null ? 0 : pendingNode.getPieceQuantity();
+                packedNode.setPieceQuantity(Math.max(0, packedQty - quantity));
+                pendingNode.setPieceQuantity(pendingQty + quantity);
+                pendingNode.setNodeStatus(NodeStatus.ACTIVE);
+                productionPieceService.updateProductionPiece(piece);
+            }
+        }
     }
 
     private String callPost(String url,String paramStr,String method){

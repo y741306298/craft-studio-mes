@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 /**
  * 包裹服务类
@@ -206,12 +208,14 @@ public class DeliveryPkgService {
     public List<DeliveryPkg> queryByConditions(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orderId,
             String recipientName,
-            String trackingNumber,
+            String recipientPhone,
+            String createTimeStart,
+            String createTimeEnd,
             long current,
             int size) {
-
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, recipientName, trackingNumber);
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, createTimeStart, createTimeEnd);
         return deliveryPkgRepository.filterList(current, size, filters);
     }
 
@@ -221,9 +225,12 @@ public class DeliveryPkgService {
     public long countByConditions(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orderId,
             String recipientName,
-            String trackingNumber) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, recipientName, trackingNumber);
+            String recipientPhone,
+            String createTimeStart,
+            String createTimeEnd) {
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, createTimeStart, createTimeEnd);
         if (filters.isEmpty()) {
             return deliveryPkgRepository.total();
         }
@@ -233,9 +240,12 @@ public class DeliveryPkgService {
     private Map<String, Object> buildFilters(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orderId,
             String recipientName,
-            String trackingNumber) {
-        Map<String, Object> filters = new java.util.HashMap<>();
+            String recipientPhone,
+            String createTimeStart,
+            String createTimeEnd) {
+        Map<String, Object> filters = new HashMap<>();
 
         if (status != null) {
             filters.put("deliveryPkgStatus", status);
@@ -243,11 +253,20 @@ public class DeliveryPkgService {
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
             filters.put("manufacturerMetaId", manufacturerMetaId);
         }
+        if (StringUtils.isNotBlank(orderId)) {
+            filters.put("orderId", orderId);
+        }
         if (StringUtils.isNotBlank(recipientName)) {
             filters.put("recipientName", recipientName);
         }
-        if (StringUtils.isNotBlank(trackingNumber)) {
-            filters.put("trackingNumber", trackingNumber);
+        if (StringUtils.isNotBlank(recipientPhone)) {
+            filters.put("recipientPhone", recipientPhone);
+        }
+        if (StringUtils.isNotBlank(createTimeStart)) {
+            filters.put("createTime_gte", Date.from(Instant.parse(createTimeStart)));
+        }
+        if (StringUtils.isNotBlank(createTimeEnd)) {
+            filters.put("createTime_lte", Date.from(Instant.parse(createTimeEnd)));
         }
         return filters;
     }

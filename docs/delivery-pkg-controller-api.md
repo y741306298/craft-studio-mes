@@ -1,28 +1,37 @@
 # DeliveryPkgController 接口文档
 
-## 1) 查询待打包零件列表
+## 1) 包裹分页查询
 
-- **URL**: `POST /api/manufacturerSide/deliveryPkg/list`
-- **说明**: 查询指定工厂下待打包零件清单（全量），返回每个零件的待打包数量、已打包数量、物流信息等。
+- **URL**: `POST /api/manufacturerSide/deliveryPkg/pkgList`
+- **说明**: 支持按 `orderId`、`recipientName`、`recipientPhone`、`createTime`（起止时间）和状态分页查询包裹列表。
 
 ### 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| manufacturerMetaId | string | 是 | 工厂（制造商）标识 |
-| orderId | string | 否 | 兼容字段，本接口当前未使用 |
-| carrierId | string | 否 | 兼容字段，本接口当前未使用 |
-| deliveryManId | string | 否 | 兼容字段，本接口当前未使用 |
-| deliverySiidId | string | 否 | 兼容字段，本接口当前未使用 |
-| userId | string | 否 | 兼容字段，本接口当前未使用 |
-| remark | string | 否 | 兼容字段，本接口当前未使用 |
-| productionPieces | array | 否 | 兼容字段，本接口当前未使用 |
+| current | number | 是 | 页码，从 1 开始 |
+| size | number | 是 | 每页条数 |
+| manufacturerMetaId | string | 否 | 工厂标识 |
+| status | string | 否 | 包裹状态（枚举名或中文描述） |
+| orderId | string | 否 | 订单 ID |
+| recipientName | string | 否 | 收件人姓名 |
+| recipientPhone | string | 否 | 收件人手机号 |
+| createTimeStart | string | 否 | 创建时间起，ISO-8601 时间（如 `2026-05-01T00:00:00Z`） |
+| createTimeEnd | string | 否 | 创建时间止，ISO-8601 时间（如 `2026-05-08T23:59:59Z`） |
 
 ### 请求示例
 
 ```json
 {
-  "manufacturerMetaId": "MFR_10001"
+  "current": 1,
+  "size": 20,
+  "manufacturerMetaId": "MFR_10001",
+  "orderId": "ORD_3001",
+  "recipientName": "张三",
+  "recipientPhone": "13800000000",
+  "createTimeStart": "2026-05-01T00:00:00Z",
+  "createTimeEnd": "2026-05-08T23:59:59Z",
+  "status": "PENDING_PACKING"
 }
 ```
 
@@ -33,27 +42,26 @@
   "code": 200,
   "message": "success",
   "current": 1,
-  "size": 2,
-  "total": 2,
+  "size": 20,
+  "total": 1,
   "data": [
     {
-      "productionPieceId": "PP_1001",
-      "orderItemId": "OI_2001",
+      "deliveryPkgId": "DP20260508001",
+      "deliveryPkgCode": "DP20260508001",
       "orderId": "ORD_3001",
-      "quantity": 10,
-      "pendingPkgQuantity": 8,
-      "packedQuantity": 2,
-      "status": "部分打包",
-      "previewUrl": "https://example.com/preview/PP_1001.png",
-      "materialConfig": {},
-      "logisticsCarrierInfo": {
-        "carrierId": "KD100_YTO",
-        "carrierName": "圆通速递"
-      },
-      "orderCustomer": {
-        "name": "张三",
-        "mobile": "13800000000"
-      }
+      "recipientName": "张三",
+      "recipientPhone": "13800000000",
+      "recipientAddress": "浙江省杭州市西湖区xxx",
+      "deliveryPkgStatus": "PENDING_PACKING",
+      "createTime": "2026-05-08T09:12:00Z",
+      "deliveryPkgItems": [
+        {
+          "orderItemId": "OI_2001",
+          "productionPieceId": ["PP_1001"],
+          "quantity": 2,
+          "previewUrl": "https://oss.example.com/previews/PP_1001.png"
+        }
+      ]
     }
   ]
 }
@@ -64,113 +72,87 @@
 ## 2) 新增打包
 
 - **URL**: `POST /api/manufacturerSide/deliveryPkg/add`
-- **说明**: 按指定零件与数量创建打包记录，并指定发货人、打印机；支持“自主配送”分支。
+- **说明**: 创建包裹并返回打印所需信息；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
 
-### 业务规则
+---
 
-1. `pieces` 不能为空，且每一项都要提供 `piece` 与 `quantity > 0`。
-2. `pieces` 内所有项必须属于**同一个 `orderId`**。
-3. `pieces` 内所有项必须属于**同一个 `logisticsCarrierInfo`**（按 `carrierId` 校验）。
-4. 非“自主配送”时：复用现有快递电子面单逻辑（调用 `toPkg`）。
-5. “自主配送”时：
-   - 必须提供 `routeId` 与 `routeNodeId`；
-   - 跳过快递电子面单逻辑，直接保存包裹信息并更新工序节点数量。
+## 3) 包裹信息重打
+
+- **URL**: `POST /api/manufacturerSide/deliveryPkg/reprint`
+- **说明**: 根据 `deliveryPkgId` 查询包裹并按 addPkg 出参结构返回 `DeliveryPkgAddResultVO`，用于重打。
 
 ### 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| manufacturerMetaId | string | 是 | 工厂（制造商）标识 |
-| deliveryManId | string | 是 | 发货人 ID |
-| deliverySiidId | string | 是 | 云打印机设备 ID |
-| carrierId | string | 否 | 快递方式 ID（非自主配送建议传入） |
-| routeId | string | 条件必填 | 当物流为“自主配送”时必填 |
-| routeNodeId | string | 条件必填 | 当物流为“自主配送”时必填（路线段落/节点） |
-| pieces | array | 是 | 打包零件列表 |
-| pieces[].quantity | integer | 是 | 本次该零件打包数量，需 > 0 |
-| pieces[].piece.productionPieceId | string | 是 | 生产零件 ID |
-| pieces[].piece.orderId | string | 是 | 订单 ID（用于同单校验） |
-| pieces[].piece.logisticsCarrierInfo.carrierId | string | 是 | 物流方式 ID（用于同物流校验） |
-| pieces[].piece.logisticsCarrierInfo.carrierName | string | 是 | 物流方式名称（`自主配送` 走特殊分支） |
+| deliveryPkgId | string | 是 | 包裹业务 ID |
 
-> 说明：`pieces[].piece` 可携带前端列表页返回的完整 `DeliveryPkgPieceVO`，后端关键使用字段如上。
-
-### 请求示例（普通快递）
+### 请求示例
 
 ```json
 {
-  "manufacturerMetaId": "MFR_10001",
-  "deliveryManId": "DM_001",
-  "deliverySiidId": "SIID_001",
-  "carrierId": "KD100_YTO",
-  "pieces": [
-    {
-      "quantity": 2,
-      "piece": {
-        "productionPieceId": "PP_1001",
-        "orderId": "ORD_3001",
-        "logisticsCarrierInfo": {
-          "carrierId": "KD100_YTO",
-          "carrierName": "圆通速递"
-        }
-      }
-    },
-    {
-      "quantity": 1,
-      "piece": {
-        "productionPieceId": "PP_1002",
-        "orderId": "ORD_3001",
-        "logisticsCarrierInfo": {
-          "carrierId": "KD100_YTO",
-          "carrierName": "圆通速递"
-        }
-      }
-    }
-  ]
+  "deliveryPkgId": "DP20260508001"
 }
 ```
 
-### 请求示例（自主配送）
-
-```json
-{
-  "manufacturerMetaId": "MFR_10001",
-  "deliveryManId": "DM_001",
-  "deliverySiidId": "SIID_001",
-  "routeId": "ROUTE_01",
-  "routeNodeId": "NODE_03",
-  "pieces": [
-    {
-      "quantity": 3,
-      "piece": {
-        "productionPieceId": "PP_2001",
-        "orderId": "ORD_5001",
-        "logisticsCarrierInfo": {
-          "carrierId": "SELF",
-          "carrierName": "自主配送"
-        }
-      }
-    }
-  ]
-}
-```
-
-### 返回示例（成功）
+### 返回示例
 
 ```json
 {
   "code": 200,
   "message": "success",
-  "data": "success"
+  "data": {
+    "pkgId": "DP20260508001",
+    "recipientName": "张三",
+    "recipientMobile": "13800000000",
+    "recipientAddress": "浙江省杭州市西湖区xxx",
+    "width": "70.00",
+    "height": "90.00",
+    "routeDesc": "华东线:西湖区-拱墅区",
+    "remark": "这是一个备注",
+    "qrCode": {
+      "format": "base64-png",
+      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/qr.jpeg",
+      "width": 30,
+      "height": 30
+    },
+    "barCode": {
+      "format": "base64-png",
+      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg",
+      "width": 70,
+      "height": 25
+    }
+  }
 }
 ```
 
-### 返回示例（失败）
+---
+
+## 4) 包裹释放
+
+- **URL**: `POST /api/manufacturerSide/deliveryPkg/release`
+- **说明**: 根据 `deliveryPkgId` 找到包裹及其 `deliveryPkgItems` 对应 `productionPiece`，将 item 的 `quantity` 从“已打包”节点回退到“待打包”节点。
+
+### 请求字段
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| deliveryPkgId | string | 是 | 包裹业务 ID |
+
+### 请求示例
 
 ```json
 {
-  "code": 400,
-  "message": "仅支持同一订单且同一物流方式一起打包",
-  "data": null
+  "deliveryPkgId": "DP20260508001"
+}
+```
+
+### 返回示例
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": true
 }
 ```
