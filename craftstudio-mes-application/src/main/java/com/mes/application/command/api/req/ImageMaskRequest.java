@@ -85,7 +85,7 @@ public class ImageMaskRequest {
 
         imageMaskRequest.setRawImage(rawImage);
 
-        if (hasSpecialShape) {
+        if (hasSpecialShape || hasCutting) {
             ImageFile maskImgFile = orderItem.getMaskImgFile();
             if (maskImgFile == null || maskImgFile.getFilePreview() == null || maskImgFile.getFilePreview().getRaw() == null) {
                 throw new RuntimeException("存在异形工艺但蒙版图片不存在：" + orderItem.getOrderItemId());

@@ -22,10 +22,7 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class OrderInfoService {
@@ -438,9 +435,10 @@ public class OrderInfoService {
         // 先添加订单主表
         OrderInfo savedOrder = orderInfoRepository.add(orderInfo);
 
-        // 批量添加订单项
-        orderItemRepository.batchAdd(orderItems);
+        // 批量添加订单项，并获取带有ID的结果
+        Collection<OrderItem> savedOrderItemsCollection = orderItemRepository.batchAdd(orderItems);
+        List<OrderItem> orderItemsResult = new ArrayList<>(savedOrderItemsCollection);
 
-        return orderItems;
+        return orderItemsResult;
     }
 }

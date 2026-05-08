@@ -370,7 +370,7 @@ public class AppOrderPreprocessingService {
      */
     private void updateOrderItemStatusToInProduction(String orderItemId) {
         try {
-            OrderItem orderItem = orderItemService.findById(orderItemId);
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
             if (orderItem != null) {
                 orderItem.setStatus(OrderStatus.IN_PRODUCTION);
                 orderItemService.updateOrderItem(orderItem);

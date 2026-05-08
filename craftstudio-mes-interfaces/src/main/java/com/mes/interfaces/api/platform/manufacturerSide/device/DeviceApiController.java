@@ -4,16 +4,17 @@ import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.dto.req.device.DeviceListRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.device.DeviceListResponse;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.device.entity.Device;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
+import com.mes.interfaces.api.platform.configSide.device.DeviceController;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,6 +45,19 @@ public class DeviceApiController {
                 .collect(Collectors.toList());
 
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
+    }
+
+    /**
+     * 获取所有设备类型
+     * @return 设备类型列表
+     */
+    @GetMapping("/types")
+    public ApiResponse<List<DeviceController.DeviceTypeVO>> getAllDeviceTypes() {
+        List<DeviceController.DeviceTypeVO> typeVOs = Arrays.stream(DeviceType.values())
+                .map(type -> new DeviceController.DeviceTypeVO(type.getCode(), type.getChineseName()))
+                .collect(Collectors.toList());
+
+        return ApiResponse.success(typeVOs);
     }
 
 

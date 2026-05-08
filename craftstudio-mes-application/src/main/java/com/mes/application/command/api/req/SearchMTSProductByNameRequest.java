@@ -8,4 +8,5 @@ public class SearchMTSProductByNameRequest {
     private String name;
     private Integer current;
     private Integer size;
+    private String rmfId;
 }

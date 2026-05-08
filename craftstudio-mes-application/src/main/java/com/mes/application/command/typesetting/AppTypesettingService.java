@@ -142,6 +142,9 @@ public class AppTypesettingService {
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
             new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
+            new TypesettingLayoutSpecVO("1040*2403", 1040, 2403),
+            new TypesettingLayoutSpecVO("1040*3210", 1040, 3210),
+            new TypesettingLayoutSpecVO("1040*9950", 1040, 9950),
             new TypesettingLayoutSpecVO("1270*50000", 1270, 50000)
     );
 
