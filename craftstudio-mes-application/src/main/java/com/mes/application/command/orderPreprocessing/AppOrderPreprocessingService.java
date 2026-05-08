@@ -24,6 +24,8 @@ import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
@@ -160,6 +162,12 @@ public class AppOrderPreprocessingService {
             return processWithoutCuttingAndMasking(orderItem,procedureFlow);
         } else{
             // 情况二：需要分切或抠图, 暂时不生成生产零件
+            // 仅存在"裁切"（超幅拼接）且不存在"异形切割"时，生成等宽高矩形蒙版，保证异步抠图接口可用
+            if (hasCutting && !hasSpecialShape) {
+                String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
+                populateOrderItemMaskImgFile(orderItem, generatedMaskImgUrl);
+                orderItemService.updateOrderItem(orderItem);
+            }
             ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape,hasCutting);
             //配置oss信息
             ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
@@ -311,6 +319,20 @@ public class AppOrderPreprocessingService {
         return ossTagUploadService.uploadTagSvg(orderItem.getOrderItemId(), svg.getBytes(StandardCharsets.UTF_8), uploadPath);
     }
 
+
+    private void populateOrderItemMaskImgFile(OrderItem orderItem, String maskUrl) {
+        if (StringUtils.isBlank(maskUrl)) {
+            return;
+        }
+        ImageFile maskImgFile = new ImageFile();
+        maskImgFile.setRawFile(maskUrl);
+        FilePreview preview = new FilePreview();
+        preview.setRaw(maskUrl);
+        preview.setPreview(maskUrl);
+        preview.setThumbnail(maskUrl);
+        maskImgFile.setFilePreview(preview);
+        orderItem.setMaskImgFile(maskImgFile);
+    }
 
     private Number invokeNumberGetter(Object target, String... methodNames) {
         for (String methodName : methodNames) {
