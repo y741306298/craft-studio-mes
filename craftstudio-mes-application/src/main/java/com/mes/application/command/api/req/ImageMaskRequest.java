@@ -11,6 +11,7 @@ import lombok.Data;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -75,11 +76,13 @@ public class ImageMaskRequest {
         com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties oriImageProperties = productionImgFile.getImageProperties();
 
         ImageProperties imageProperties = new ImageProperties();
-        imageProperties.setColorSpace(oriImageProperties.getColorSpace() != null ? oriImageProperties.getColorSpace() : "CMYK");
-        imageProperties.setDpiX((int) oriImageProperties.getDpiX());
-        imageProperties.setDpiY((int) oriImageProperties.getDpiY());
-        imageProperties.setWidth(oriImageProperties.getWidth());
-        imageProperties.setHeight(oriImageProperties.getHeight());
+        imageProperties.setColorSpace(oriImageProperties != null && oriImageProperties.getColorSpace() != null ? oriImageProperties.getColorSpace() : "CMYK");
+        if (oriImageProperties != null) {
+            imageProperties.setDpiX((int) oriImageProperties.getDpiX());
+            imageProperties.setDpiY((int) oriImageProperties.getDpiY());
+        }
+        imageProperties.setWidth(convertUsageSizeToMm(orderItem, "getWidth", "getW", "getX"));
+        imageProperties.setHeight(convertUsageSizeToMm(orderItem, "getHeight", "getH", "getY"));
 
         rawImage.setImageProperties(imageProperties);
 
@@ -99,6 +102,41 @@ public class ImageMaskRequest {
             }
         }
         return imageMaskRequest;
+    }
+
+    private static Double convertUsageSizeToMm(OrderItem orderItem, String... methodNames) {
+        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
+        }
+        Number value = invokeNumberGetter(usageSize3D, methodNames);
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value.doubleValue())
+                .multiply(BigDecimal.TEN)
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+    private static Number invokeNumberGetter(Object target, String... methodNames) {
+        for (String methodName : methodNames) {
+            try {
+                Method method = target.getClass().getMethod(methodName);
+                Object value = method.invoke(target);
+                if (value instanceof Number) {
+                    return (Number) value;
+                }
+                if (value != null) {
+                    String valueStr = String.valueOf(value).trim();
+                    if (!valueStr.isEmpty()) {
+                        return new BigDecimal(valueStr);
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private static Slice buildSliceFromProcessingNodes(List<ProcedureFlowNode> processingNodes) {
