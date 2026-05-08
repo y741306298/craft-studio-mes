@@ -4,6 +4,8 @@ import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
 import com.mes.application.command.print.vo.PrintReportResult;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
+import com.mes.domain.manufacturer.manufacturerMeta.service.ManufacturerDeviceCfgService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -39,7 +41,10 @@ public class AppPrintService {
     @Autowired
     private TypesettingPrintTaskService typesettingPrintTaskService;
 
-    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, int current, int size) {
+    @Autowired
+    private ManufacturerDeviceCfgService manufacturerDeviceCfgService;
+
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
@@ -50,11 +55,20 @@ public class AppPrintService {
             size = 20;
         }
 
+        String deviceCode = null;
+        if (StringUtils.isNotBlank(deviceCfgId)) {
+            ManufacturerDeviceCfg deviceCfg = manufacturerDeviceCfgService.findById(deviceCfgId);
+            if (deviceCfg != null) {
+                deviceCode = deviceCfg.getDeviceCode();
+            }
+        }
+
         List<TypesettingInfo> items = typesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.PRINTING.getCode(),
                 null,
                 null,
+                deviceCode,
                 current,
                 size
         );
@@ -63,7 +77,8 @@ public class AppPrintService {
                 manufacturerMetaId,
                 TypesettingStatus.PRINTING.getCode(),
                 null,
-                null
+                null,
+                deviceCode
         );
 
         List<PendingPrintTypesettingVO> resultItems = new ArrayList<>();

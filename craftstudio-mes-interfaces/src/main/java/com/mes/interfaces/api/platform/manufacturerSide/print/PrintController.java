@@ -31,9 +31,10 @@ public class PrintController {
     @GetMapping("/pending/list")
     public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(
             @RequestParam String manufacturerMetaId,
+            @RequestParam(required = false) String id,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
-        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, current, size));
+        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, id, current, size));
     }
 
     /**
