@@ -34,6 +34,7 @@ public class PrintController {
             @RequestParam(required = false) String id,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
+        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, current={}, size={}", manufacturerMetaId, id, current, size);
         return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, id, current, size));
     }
 

@@ -177,7 +177,8 @@ public class ImageMaskRequest {
             return coordinate;
         }
         if (rawValue instanceof Number || rawValue instanceof String) {
-            coordinate.setValue(parseInteger(rawValue));
+            Integer value = parseInteger(rawValue);
+            coordinate.setValue(value != null ? value * 10 : null);
             return coordinate;
         }
         if (rawValue instanceof Map<?, ?> valueMap) {
@@ -185,7 +186,7 @@ public class ImageMaskRequest {
             Object blood = valueMap.get("blood");
             Integer bloodValue = parseInteger(blood);
             Integer coordinateValue = parseInteger(value);
-            coordinate.setValue(coordinateValue != null ? coordinateValue : parseInteger(rawValue));
+            coordinate.setValue(coordinateValue != null ? coordinateValue * 10 : parseInteger(rawValue));
             coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
             return coordinate;
         }
@@ -194,7 +195,7 @@ public class ImageMaskRequest {
         Object blood = invokeGetter(rawValue, "getBlood");
         Integer bloodValue = parseInteger(blood);
         Integer coordinateValue = value != null ? parseInteger(value) : null;
-        coordinate.setValue(coordinateValue != null ? coordinateValue : parseInteger(rawValue));
+        coordinate.setValue(coordinateValue != null ? coordinateValue * 10 : parseInteger(rawValue));
         coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
         return coordinate;
     }

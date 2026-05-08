@@ -60,6 +60,7 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -85,6 +86,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class AppTypesettingService {
 
@@ -529,7 +531,7 @@ public class AppTypesettingService {
         } catch (Exception e) {
             return LayoutConfirmResult.failed(e.getMessage());
         }
-        System.out.println("nestingRequest========:"+JSON.toJSONString(nestingRequest));
+        log.info("nestingRequest========:{}",JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse;
             switch (layoutMode.getLayoutCategory()) {
@@ -664,7 +666,7 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        System.out.println(JSON.toJSONString(formeRequest));
+        log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
 
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
@@ -990,6 +992,7 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
+        log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
