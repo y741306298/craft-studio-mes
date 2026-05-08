@@ -133,7 +133,7 @@ public class AppOrderPreprocessingService {
         }
 
         if (!failedOrderItems.isEmpty()) {
-            throw new RuntimeException("订单预处理失败: " + String.join("; ", failedOrderItems));
+            System.err.println("订单预处理存在失败项: " + String.join("; ", failedOrderItems));
         }
     }
 

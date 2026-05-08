@@ -222,7 +222,7 @@ public class AppOrderService {
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
         // 添加完成后自动调用 OrderPreprocessingService.processOrder()预处理
-            orderPreprocessingService.preprocessOrder(orderItemsResult);
+        orderPreprocessingService.preprocessOrder(orderItemsResult);
         return orderInfo;
     }
 
