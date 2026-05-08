@@ -29,6 +29,7 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
+import com.mes.application.command.orderPreprocessing.strategy.OrderItemProcessingStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -87,6 +88,9 @@ public class AppOrderPreprocessingService {
     @Autowired
     private OssTagUploadService ossTagUploadService;
 
+    @Autowired
+    private List<OrderItemProcessingStrategy> orderItemProcessingStrategies;
+
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
 
@@ -144,59 +148,75 @@ public class AppOrderPreprocessingService {
      * @return 处理后的生产零件列表
      */
     private List<ProductionPiece> processSingleOrderItem(OrderItem orderItem) {
-        // 1. 解析工艺流程
-        String processingFlow = orderItem.getProcessingFlow();
-        //将订单工艺转化为生产工序
         ProcedureFlow procedureFlow = procedureFlowService.parseProcessingFlow(orderItem.getProcedureFlow());
-        List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
-
-        // 2. 判断是否有"裁切"工艺
-        boolean hasCutting = procedureFlowService.hasNodeWithName(processingNodes, "超幅拼接");
-
-        // 3. 判断是否有"异形"工艺
-        boolean hasSpecialShape = procedureFlowService.hasNodeWithName(processingNodes, "异形切割");
-
-        // 4. 根据不同情况处理
-        if (!hasCutting && !hasSpecialShape ) {
-            // 情况一：既不需要分切也不需要抠图,直接生成生产零件
-            return processWithoutCuttingAndMasking(orderItem,procedureFlow);
-        } else{
-            // 情况二：需要分切或抠图, 暂时不生成生产零件
-            // 仅存在"裁切"（超幅拼接）且不存在"异形切割"时，生成等宽高矩形蒙版，保证异步抠图接口可用
-            if (hasCutting && !hasSpecialShape) {
-                String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
-                populateOrderItemMaskImgFile(orderItem, generatedMaskImgUrl);
-                orderItemService.updateOrderItem(orderItem);
+        List<OrderItemProcessingStrategy> matchedStrategies = new ArrayList<>();
+        for (OrderItemProcessingStrategy strategy : orderItemProcessingStrategies) {
+            if (strategy.matches(orderItem, procedureFlow)) {
+                matchedStrategies.add(strategy);
             }
-            ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape,hasCutting);
-            //配置oss信息
-            ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
-            UploadConfig uploadConfig = new UploadConfig();
-            String manufacturerMetaId = orderItem.getManufacturerId();
-            String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "pieceImg/" : "pieceImg/" + manufacturerMetaId + "/";
-            uploadConfig.setUploadPath(uploadPath);
-            uploadConfig.setOssConfig(objectStorageTempAuthConfig);
-            imageMaskRequest.setUploadConfig(uploadConfig);
-            //配置callback信息
-            CallbackConfig callbackConfig = new CallbackConfig();
-            callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
-            CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
-            callbackCustomValue.setId(orderItem.getOrderItemId());
-            callbackConfig.setCallbackCustomValue(callbackCustomValue);
-            imageMaskRequest.setCallbackConfig(callbackConfig);
-            System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
-            ImageMaskResponse imageMaskResponse = algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
-//            ImageMaskResponse imageMaskResponse = algorithmCoreApiService.generateMaskFilesSync(imageMaskRequest);
-            return null;
         }
+
+        if (matchedStrategies.isEmpty()) {
+            return processWithoutCuttingAndMasking(orderItem, procedureFlow);
+        }
+
+        List<ProductionPiece> finalResult = null;
+        for (OrderItemProcessingStrategy strategy : matchedStrategies) {
+            System.out.println("命中订单预处理策略: type=" + strategy.getStrategyType() + ", remark=" + strategy.getStrategyRemark() + ", orderItemId=" + orderItem.getOrderItemId());
+            List<ProductionPiece> current = strategy.process(orderItem, procedureFlow, this);
+            if (current != null) {
+                if (finalResult == null) {
+                    finalResult = new ArrayList<>();
+                }
+                finalResult.addAll(current);
+            }
+        }
+        return finalResult;
     }
 
 
 
+
+    public List<ProductionPiece> processWithCuttingOrSpecialShape(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType) {
+        List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
+        boolean hasCutting = hasNodeWithName(procedureFlow, "超幅拼接");
+        boolean hasSpecialShape = hasNodeWithName(procedureFlow, "异形切割");
+
+        if (hasCutting && !hasSpecialShape) {
+            String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
+            populateOrderItemMaskImgFile(orderItem, generatedMaskImgUrl);
+            orderItemService.updateOrderItem(orderItem);
+        }
+
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape, hasCutting);
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+        UploadConfig uploadConfig = new UploadConfig();
+        String manufacturerMetaId = orderItem.getManufacturerId();
+        String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "pieceImg/" : "pieceImg/" + manufacturerMetaId + "/";
+        uploadConfig.setUploadPath(uploadPath);
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        imageMaskRequest.setUploadConfig(uploadConfig);
+
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setPresetType(presetType);
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        imageMaskRequest.setCallbackConfig(callbackConfig);
+        System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
+        algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+        return null;
+    }
+
+    public static boolean hasNodeWithName(ProcedureFlow procedureFlow, String nodeName) {
+        return procedureFlow != null && procedureFlow.getNodes() != null && procedureFlow.getNodes().stream().anyMatch(node -> nodeName.equals(node.getNodeName()));
+    }
+
     /**
      * 情况三：既不需要分切也不需要抠图的处理流程
      */
-    private List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem,ProcedureFlow procedureFlow) {
+    public List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem, ProcedureFlow procedureFlow) {
         // 校验工艺参数是否全部转化成功
         verifyProcedureParamsConverted(procedureFlow, orderItem.getOrderItemId());
 
