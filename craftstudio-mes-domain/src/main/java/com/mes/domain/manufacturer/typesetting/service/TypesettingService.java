@@ -30,18 +30,22 @@ public class TypesettingService {
     public List<TypesettingInfo> findTypesettingByConditions(
             String manufacturerMetaId,
             String status,
-            String material, 
+            String material,
             String nodeName,
+            String deviceCode,
             int current,
             int size) {
 
         Map<String, Object> filters = new HashMap<>();
-        filters.put("manufacturerMetaId",manufacturerMetaId);
+        filters.put("manufacturerMetaId", manufacturerMetaId);
         if (status != null) {
             filters.put("status", status);
         }
         if (StringUtils.isNotBlank(material)) {
             filters.put("material", material);
+        }
+        if (StringUtils.isNotBlank(deviceCode)) {
+            filters.put("deviceCode", deviceCode);
         }
         
         List<TypesettingInfo> allItems = typesettingRepository.filterList(current, size, filters);
@@ -61,6 +65,17 @@ public class TypesettingService {
         return allItems;
     }
 
+    
+    public List<TypesettingInfo> findTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String material,
+            String nodeName,
+            int current,
+            int size) {
+        return findTypesettingByConditions(manufacturerMetaId, status, material, nodeName, null, current, size);
+    }
+
     /**
      * 根据多条件查询排版信息总数
      * @param status 状态
@@ -72,9 +87,8 @@ public class TypesettingService {
             String status,
             String material, 
             String nodeName) {
-        return countTypesettingByConditions(null, status, material, nodeName);
+        return countTypesettingByConditions(null, status, material, nodeName, null);
     }
-
     /**
      * 根据多条件查询排版信息总数
      * @param manufacturerMetaId 厂商元数据ID
@@ -87,7 +101,8 @@ public class TypesettingService {
             String manufacturerMetaId,
             String status,
             String material,
-            String nodeName) {
+            String nodeName,
+            String deviceCode) {
         Map<String, Object> filters = new HashMap<>();
 
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
@@ -98,6 +113,9 @@ public class TypesettingService {
         }
         if (StringUtils.isNotBlank(material)) {
             filters.put("material", material);
+        }
+        if (StringUtils.isNotBlank(deviceCode)) {
+            filters.put("deviceCode", deviceCode);
         }
         
         long total = typesettingRepository.filterTotal(filters);
@@ -116,6 +134,14 @@ public class TypesettingService {
         }
         
         return total;
+    }
+
+    public long countTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String material,
+            String nodeName) {
+        return countTypesettingByConditions(manufacturerMetaId, status, material, nodeName, null);
     }
 
     /**
