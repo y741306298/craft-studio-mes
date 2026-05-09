@@ -27,6 +27,11 @@ public class TypesettingProductionPieceVO {
     private String orderItemId;
 
     /**
+     * 分组ID：生产工件用orderItemId，排版记录用typesettingId
+     */
+    private String groupId;
+
+    /**
      * 数量
      */
     private Integer quantity;
@@ -122,6 +127,7 @@ public class TypesettingProductionPieceVO {
             }
         }
         typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
+        typesettingProductionPieceVO.setGroupId(piece.getOrderItemId());
         typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
         typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
         if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
@@ -148,6 +154,7 @@ public class TypesettingProductionPieceVO {
         vo.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
         vo.setSourceId(info.getId());
         vo.setId(info.getId());
+        vo.setGroupId(info.getTypesettingId());
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
