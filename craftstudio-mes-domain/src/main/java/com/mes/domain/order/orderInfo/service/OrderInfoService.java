@@ -338,6 +338,55 @@ public class OrderInfoService {
         return orderInfoRepository.filterTotal(filters);
     }
 
+
+    private String buildProcessingFlow(List<ProcedureFlowNode> nodes, String materialName) {
+        if (nodes == null || nodes.isEmpty()) {
+            return "";
+        }
+        List<String> names = new ArrayList<>();
+        ProcedureFlowNode firstNode = nodes.get(0);
+        if (firstNode != null && StringUtils.isNotBlank(firstNode.getNodeName()) && StringUtils.isNotBlank(materialName)) {
+            names.add(firstNode.getNodeName() + "（" + materialName + "）");
+        }
+        for (ProcedureFlowNode node : nodes) {
+            if (node == null || StringUtils.isBlank(node.getNodeName())) {
+                continue;
+            }
+            names.add(resolveNodeDisplayName(node));
+        }
+        return String.join("-", names);
+    }
+
+    private String resolveNodeDisplayName(ProcedureFlowNode node) {
+        String nodeName = node.getNodeName();
+        if (!"覆板".equals(nodeName) && !"覆膜".equals(nodeName)) {
+            return nodeName;
+        }
+        if (node.getParamConfigs() == null) {
+            return nodeName;
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = invokeGetter(config, "getParam");
+            Object metaSnapshot = invokeGetter(param, "getProcessParamMetaSnapshot");
+            Object name = invokeGetter(metaSnapshot, "getName");
+            if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
+                return nodeName + "（" + name + "）";
+            }
+        }
+        return nodeName;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     /**
      * 统计符合条件的订单数量（包含客户手机号）
      * @param orderId 订单号
@@ -416,14 +465,10 @@ public class OrderInfoService {
                 MaterialConfig materialConfigFromMTOProduct = this.orderPreprocessingService.getMaterialConfigFromMTOProduct(item.getMtoProduct());
                 if (procedureFlow != null) {
                     List<ProcedureFlowNode> nodes = procedureFlow.getNodes();
-                    for (int i = 0; i < nodes.size(); i++) {
-                        ProcedureFlowNode node = nodes.get(i);
-                        processFlow = processFlow + node.getNodeName();
-                        if (i < nodes.size() - 1) {
-                            processFlow = processFlow + "-";
-                        }
-                    }
-
+                    String materialName = materialConfigFromMTOProduct != null && materialConfigFromMTOProduct.getMaterialSnapshot() != null
+                            ? materialConfigFromMTOProduct.getMaterialSnapshot().getName()
+                            : null;
+                    processFlow = buildProcessingFlow(nodes, materialName);
                     item.setProcedureFlow(procedureFlow);
                 }
                 item.setLogisticsCarrierInfo(item.getLogisticsCarrierInfo());

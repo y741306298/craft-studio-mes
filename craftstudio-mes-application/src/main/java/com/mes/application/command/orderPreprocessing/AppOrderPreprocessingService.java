@@ -506,7 +506,12 @@ public class AppOrderPreprocessingService {
                     }
                     
                     ProcedureFlow parsedFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
-                    
+                    String materialName = orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null
+                            ? orderItem.getMaterial().getMaterialSnapshot().getName()
+                            : null;
+                    String processingFlow = buildProcessingFlow(parsedFlow == null ? null : parsedFlow.getNodes(), materialName);
+                    orderItem.setProcessingFlow(processingFlow);
+
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
                         Double[] svgSize = resolveSvgWidthHeight(maskedImageUrl);
                         ProductionPiece piece = procedureService.createProductionPiece(
@@ -518,6 +523,7 @@ public class AppOrderPreprocessingService {
                                 svgSize[0],
                                 svgSize[1]
                         );
+                        piece.setProcessingFlow(processingFlow);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(pair.getPreviewImg()));
                             piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(pair.getThumbnail()));
@@ -561,6 +567,43 @@ public class AppOrderPreprocessingService {
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
         }
+    }
+
+    private String buildProcessingFlow(List<ProcedureFlowNode> nodes, String materialName) {
+        if (nodes == null || nodes.isEmpty()) {
+            return "";
+        }
+        List<String> names = new ArrayList<>();
+        ProcedureFlowNode firstNode = nodes.get(0);
+        if (firstNode != null && StringUtils.isNotBlank(firstNode.getNodeName()) && StringUtils.isNotBlank(materialName)) {
+            names.add(firstNode.getNodeName() + "（" + materialName + "）");
+        }
+        for (ProcedureFlowNode node : nodes) {
+            if (node == null || StringUtils.isBlank(node.getNodeName())) {
+                continue;
+            }
+            names.add(resolveNodeDisplayName(node));
+        }
+        return String.join("-", names);
+    }
+
+    private String resolveNodeDisplayName(ProcedureFlowNode node) {
+        String nodeName = node.getNodeName();
+        if (!"覆板".equals(nodeName) && !"覆膜".equals(nodeName)) {
+            return nodeName;
+        }
+        if (node.getParamConfigs() == null) {
+            return nodeName;
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = invokeGetter(config, "getParam");
+            Object metaSnapshot = invokeGetter(param, "getProcessParamMetaSnapshot");
+            Object name = invokeGetter(metaSnapshot, "getName");
+            if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
+                return nodeName + "（" + name + "）";
+            }
+        }
+        return nodeName;
     }
 
     /**
