@@ -10,4 +10,6 @@ import lombok.EqualsAndHashCode;
 public class ManufacturerDeviceCfgListRequest extends PagedApiRequest {
     @NotBlank(message = "manufacturerMetaId不能为空")
     private String manufacturerMetaId;
+    private String deviceName;
+    private String deviceCode;
 }

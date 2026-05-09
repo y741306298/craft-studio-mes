@@ -10,6 +10,7 @@ public class OrderListRequest extends PagedApiRequest {
     private String manufacturerId;
     private String orderId;
     private String status;
+    private String customerName;
     private String customerPhone;
     private String createDateStart;
     private String createDateEnd;

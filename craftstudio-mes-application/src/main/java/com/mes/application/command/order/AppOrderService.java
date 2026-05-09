@@ -59,9 +59,9 @@ public class AppOrderService {
         String status = query.getStatus() != null ? query.getStatus().getCode() : null;
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
+        var customerName = query.getCustomerName();
+        var customerPhone = query.getCustomerPhone();
         var pagedQuery = query.getPagedQuery();
-
-        long total;
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId", manufacturerId);
@@ -77,20 +77,51 @@ public class AppOrderService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-        List<OrderItem> orderItems = domainOrderItemService.filterList(
-                (int) pagedQuery.getCurrent(),
-                (int) pagedQuery.getSize(),
-                filters
-        );
-        total = domainOrderItemService.filterTotal(filters);
-        List<OrderItemVO> result = new ArrayList<OrderItemVO>();
-        for (OrderItem item : orderItems) {
-            String oid = item.getOrderId();
-            OrderInfo orderInfo = domainOrderInfoService.findByOrderId(oid);
-            OrderItemVO orderWithItemsVO = new OrderItemVO();
-            BeanUtils.copyProperties(item, orderWithItemsVO);
-            orderWithItemsVO.setCustomer(orderInfo.getCustomer());
-            result.add(orderWithItemsVO);
+
+        List<OrderItem> allOrderItems = new ArrayList<OrderItem>();
+        int current = 1;
+        int size = 200;
+        while (true) {
+            List<OrderItem> pageItems = domainOrderItemService.filterList(current, size, filters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            allOrderItems.addAll(pageItems);
+            if (pageItems.size() < size) {
+                break;
+            }
+            current++;
+        }
+
+        String nameKeyword = StringUtils.isNotBlank(customerName) ? customerName.toLowerCase() : null;
+        List<OrderItemVO> filtered = new ArrayList<OrderItemVO>();
+        for (OrderItem item : allOrderItems) {
+            OrderInfo orderInfo = domainOrderInfoService.findByOrderId(item.getOrderId());
+            if (orderInfo == null || orderInfo.getCustomer() == null) {
+                continue;
+            }
+            String name = orderInfo.getCustomer().getCustomerName();
+            String phone = orderInfo.getCustomer().getCustomerPhone();
+            if (nameKeyword != null && (name == null || !name.toLowerCase().contains(nameKeyword))) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(customerPhone) && (phone == null || !phone.equals(customerPhone))) {
+                continue;
+            }
+            OrderItemVO vo = new OrderItemVO();
+            BeanUtils.copyProperties(item, vo);
+            vo.setCustomer(orderInfo.getCustomer());
+            filtered.add(vo);
+        }
+
+        long total = filtered.size();
+        int from = (int) ((pagedQuery.getCurrent() - 1) * pagedQuery.getSize());
+        List<OrderItemVO> result;
+        if (from >= filtered.size()) {
+            result = new ArrayList<OrderItemVO>();
+        } else {
+            int to = Math.min(from + pagedQuery.getSize(), filtered.size());
+            result = new ArrayList<OrderItemVO>(filtered.subList(from, to));
         }
         return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
     }
