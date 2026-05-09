@@ -300,6 +300,29 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
+    private Object extractParamDisplayName(Object config) {
+        Object param = extractFieldValue(config, "param");
+        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
+        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
+            return String.valueOf(accessoryName);
+        }
+        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
+        Object metaName = extractFieldValue(metaSnapshot, "name");
+        return metaName == null ? null : String.valueOf(metaName);
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof java.util.Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        return invokeGetter(target, getterName);
+    }
+
     private Object invokeGetter(Object target, String methodName) {
         try {
             Method method = target.getClass().getMethod(methodName);
@@ -595,17 +618,15 @@ public class AppOrderPreprocessingService {
         if (node.getParamConfigs() == null) {
             return nodeName;
         }
+        List<String> paramNames = new ArrayList<>();
         for (Object config : node.getParamConfigs()) {
-            Object param = invokeGetter(config, "getParam");
-            Object accessorySnapshot = invokeGetter(param, "getAccessorySnapshot");
-            Object name = invokeGetter(accessorySnapshot, "getName");
-            if (name == null) {
-                Object metaSnapshot = invokeGetter(param, "getProcessParamMetaSnapshot");
-                name = invokeGetter(metaSnapshot, "getName");
+            String name = extractParamDisplayName(config);
+            if (StringUtils.isNotBlank(name)) {
+                paramNames.add(name);
             }
-            if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
-                return nodeName + "（" + name + "）";
-            }
+        }
+        if (!paramNames.isEmpty()) {
+            return nodeName + "（" + String.join("、", paramNames) + "）";
         }
         return nodeName;
     }
