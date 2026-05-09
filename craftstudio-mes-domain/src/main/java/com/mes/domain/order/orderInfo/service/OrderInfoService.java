@@ -367,8 +367,12 @@ public class OrderInfoService {
         }
         for (Object config : node.getParamConfigs()) {
             Object param = invokeGetter(config, "getParam");
-            Object metaSnapshot = invokeGetter(param, "getProcessParamMetaSnapshot");
-            Object name = invokeGetter(metaSnapshot, "getName");
+            Object accessorySnapshot = invokeGetter(param, "getAccessorySnapshot");
+            Object name = invokeGetter(accessorySnapshot, "getName");
+            if (name == null) {
+                Object metaSnapshot = invokeGetter(param, "getProcessParamMetaSnapshot");
+                name = invokeGetter(metaSnapshot, "getName");
+            }
             if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
                 return nodeName + "（" + name + "）";
             }
