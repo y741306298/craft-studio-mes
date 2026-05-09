@@ -300,6 +300,29 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
+    private Object extractParamDisplayName(Object config) {
+        Object param = extractFieldValue(config, "param");
+        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
+        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
+            return String.valueOf(accessoryName);
+        }
+        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
+        Object metaName = extractFieldValue(metaSnapshot, "name");
+        return metaName == null ? null : String.valueOf(metaName);
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof java.util.Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        return invokeGetter(target, getterName);
+    }
+
     private Object invokeGetter(Object target, String methodName) {
         try {
             Method method = target.getClass().getMethod(methodName);
@@ -506,7 +529,12 @@ public class AppOrderPreprocessingService {
                     }
                     
                     ProcedureFlow parsedFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
-                    
+                    String materialName = orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null
+                            ? orderItem.getMaterial().getMaterialSnapshot().getName()
+                            : null;
+                    String processingFlow = buildProcessingFlow(parsedFlow == null ? null : parsedFlow.getNodes(), materialName);
+                    orderItem.setProcessingFlow(processingFlow);
+
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
                         Double[] svgSize = resolveSvgWidthHeight(maskedImageUrl);
                         ProductionPiece piece = procedureService.createProductionPiece(
@@ -518,6 +546,7 @@ public class AppOrderPreprocessingService {
                                 svgSize[0],
                                 svgSize[1]
                         );
+                        piece.setProcessingFlow(processingFlow);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(pair.getPreviewImg()));
                             piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(pair.getThumbnail()));
@@ -561,6 +590,45 @@ public class AppOrderPreprocessingService {
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
         }
+    }
+
+    private String buildProcessingFlow(List<ProcedureFlowNode> nodes, String materialName) {
+        if (nodes == null || nodes.isEmpty()) {
+            return "";
+        }
+        List<String> names = new ArrayList<>();
+        ProcedureFlowNode firstNode = nodes.get(0);
+        if (firstNode != null && StringUtils.isNotBlank(firstNode.getNodeName()) && StringUtils.isNotBlank(materialName)) {
+            names.add(firstNode.getNodeName() + "（" + materialName + "）");
+        }
+        for (ProcedureFlowNode node : nodes) {
+            if (node == null || StringUtils.isBlank(node.getNodeName())) {
+                continue;
+            }
+            names.add(resolveNodeDisplayName(node));
+        }
+        return String.join("-", names);
+    }
+
+    private String resolveNodeDisplayName(ProcedureFlowNode node) {
+        String nodeName = node.getNodeName();
+        if (!"覆板".equals(nodeName) && !"覆膜".equals(nodeName)) {
+            return nodeName;
+        }
+        if (node.getParamConfigs() == null) {
+            return nodeName;
+        }
+        List<String> paramNames = new ArrayList<>();
+        for (Object config : node.getParamConfigs()) {
+            String name = extractParamDisplayName(config);
+            if (StringUtils.isNotBlank(name)) {
+                paramNames.add(name);
+            }
+        }
+        if (!paramNames.isEmpty()) {
+            return nodeName + "（" + String.join("、", paramNames) + "）";
+        }
+        return nodeName;
     }
 
     /**
