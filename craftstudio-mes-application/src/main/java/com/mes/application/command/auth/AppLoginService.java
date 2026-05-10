@@ -56,6 +56,8 @@ public class AppLoginService {
         response.setManufacturerMetaId(user.getManufacturerMetaId());
         ManufacturerMeta manufacturerMeta = appManufacturerMetaService.findByManufacturerMetaId(user.getManufacturerMetaId());
         response.setManufacturerMetaName(manufacturerMeta == null ? null : manufacturerMeta.getName());
+        response.setUserName(user.getName());
+        response.setIsAdmin(Boolean.TRUE.equals(user.getIsAdmin()));
         response.setTokenExpireAt(expireAt);
 
         redisTemplate.opsForValue().set(buildLoginTokenCacheKey(token), user.getManufacturerMetaId(), tokenValidDays, TimeUnit.DAYS);
