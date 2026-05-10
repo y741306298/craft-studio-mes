@@ -15,6 +15,7 @@ public class ManufacturerUserPo extends BasePO<ManufacturerUser> {
     private String manufacturerMetaId;
     private String name;
     private String phone;
+    private Boolean isAdmin;
 
     @Override
     public ManufacturerUser toDO() {
@@ -25,6 +26,7 @@ public class ManufacturerUserPo extends BasePO<ManufacturerUser> {
         user.setManufacturerMetaId(this.manufacturerMetaId);
         user.setName(this.name);
         user.setPhone(this.phone);
+        user.setIsAdmin(this.isAdmin);
         return user;
     }
 
@@ -38,6 +40,7 @@ public class ManufacturerUserPo extends BasePO<ManufacturerUser> {
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.name = _do.getName();
         this.phone = _do.getPhone();
+        this.isAdmin = _do.getIsAdmin();
         return this;
     }
 }

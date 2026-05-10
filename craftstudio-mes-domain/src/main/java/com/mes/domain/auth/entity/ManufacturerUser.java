@@ -12,4 +12,5 @@ public class ManufacturerUser extends BaseEntity {
     private String manufacturerMetaId;
     private String name;
     private String phone;
+    private Boolean isAdmin;
 }

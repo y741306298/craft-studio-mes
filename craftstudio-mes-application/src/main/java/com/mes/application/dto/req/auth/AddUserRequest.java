@@ -16,4 +16,5 @@ public class AddUserRequest {
 
     private String name;
     private String phone;
+    private Boolean isAdmin;
 }

@@ -43,6 +43,7 @@ public class AuthController {
      * <ul>
      *     <li>token: 登录令牌</li>
      *     <li>manufacturerMetaId: 用户所属工厂ID</li>
+     *     <li>manufacturerMetaName: 用户所属工厂名称</li>
      *     <li>tokenExpireAt: 令牌过期时间（默认3天）</li>
      * </ul>
      * </p>
@@ -68,6 +69,7 @@ public class AuthController {
      *     <li>manufacturerMetaId: 工厂ID（必填）</li>
      *     <li>name: 用户名称（可选）</li>
      *     <li>phone: 用户手机号（可选）</li>
+     *     <li>isAdmin: 是否管理员（可选，默认 false）</li>
      * </ul>
      * 返回字段：
      * <ul>

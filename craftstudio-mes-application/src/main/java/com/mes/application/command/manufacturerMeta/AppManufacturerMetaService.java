@@ -243,6 +243,7 @@ public class AppManufacturerMetaService {
         user.setManufacturerMetaId(manufacturerMeta.getManufacturerMetaId());
         user.setName(manufacturerMeta.getConsignee().getName());
         user.setPhone(account);
+        user.setIsAdmin(true);
         manufacturerUserService.add(user);
     }
     
