@@ -15,8 +15,6 @@ import com.aliyun.dashvector.proto.CollectionInfo;
 import com.aliyun.oss.ClientBuilderConfiguration;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.common.auth.CredentialsProviderFactory;
-import com.aliyun.oss.common.auth.EnvironmentVariableCredentialsProvider;
 import com.aliyun.oss.common.comm.SignVersion;
 import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.OSSObjectSummary;
@@ -34,7 +32,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-public class ImageToImageSearchExample implements ImageToImageSearchService {
+public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
 
     @Value("${ali-cloud.dashscope_api_key}")
     private String dashscopeApiKey;

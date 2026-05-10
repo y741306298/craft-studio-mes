@@ -16,10 +16,7 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
-import com.mes.infra.oss.ImageToImageSearchExample;
-import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
-import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
-import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
+import com.mes.infra.oss.ImageToImageSearchServiceImp;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +37,7 @@ public class DeliveryPkgController {
     private final DeliveryRouteService deliveryRouteService;
     private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
     @Autowired
-    private ImageToImageSearchExample imageSearch;
+    private ImageToImageSearchServiceImp imageSearch;
 
     /**
      * 查询待打包零件全量列表
@@ -196,7 +193,7 @@ public class DeliveryPkgController {
     }
 
     @GetMapping("/testEndToEndImageSearch")
-    public ApiResponse<List<ImageToImageSearchExample.ImageSearchResult>> testEndToEndImageSearch(
+    public ApiResponse<List<ImageToImageSearchServiceImp.ImageSearchResult>> testEndToEndImageSearch(
             @RequestParam String queryImageUrl,
             @RequestParam(defaultValue = "5") Integer topK) {
         try {
@@ -205,7 +202,7 @@ public class DeliveryPkgController {
             System.out.println("Query vector generated, dimension: " + queryVector.length);
 
             System.out.println("Step 2: Searching for similar images in DashVector...");
-            List<ImageToImageSearchExample.ImageSearchResult> results = 
+            List<ImageToImageSearchServiceImp.ImageSearchResult> results =
                 imageSearch.searchSimilarImages(queryVector, topK);
             
             System.out.println("Search completed, found " + results.size() + " results");
