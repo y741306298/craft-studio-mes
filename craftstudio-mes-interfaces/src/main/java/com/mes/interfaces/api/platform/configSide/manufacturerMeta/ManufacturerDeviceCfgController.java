@@ -1,14 +1,20 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
+import com.alibaba.fastjson.JSON;
+import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.device.AppDeviceService;
 import com.mes.application.command.manufacturerMeta.AppManufacturerDeviceCfgService;
-import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgListRequest;
-import com.mes.application.dto.req.manufacturerMeta.ManufacturerDeviceCfgRequest;
+import com.mes.application.dto.req.manufacturerMeta.*;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.manufacturerMeta.DeviceCfgSummary;
 import com.mes.domain.manufacturer.device.entity.Device;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
+import com.mes.interfaces.api.platform.manufacturerSide.manufacturer.ManufacturerFactoryDeviceBindResp;
+import com.mes.interfaces.api.platform.manufacturerSide.manufacturer.ManufacturerFactoryDeviceResp;
+import com.mes.interfaces.api.platform.manufacturerSide.manufacturer.ManufacturerFactoryDownloadTaskResp;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -19,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping("/api/configSide/deviceCfg")
@@ -29,6 +36,11 @@ public class ManufacturerDeviceCfgController {
 
     @Autowired
     private AppDeviceService appDeviceService;
+
+    @Autowired
+    private AppLoginService appLoginService;
+
+    Logger logger = Logger.getLogger(com.mes.interfaces.api.platform.manufacturerSide.manufacturer.ManufacturerDeviceCfgController.class.getName());
 
     /**
      * 分页查询设备配置列表（根据制造商 ID）
@@ -108,5 +120,122 @@ public class ManufacturerDeviceCfgController {
     public ApiResponse<String> deleteDeviceCfg(@PathVariable String id) {
         appDeviceCfgService.deleteDeviceCfg(id);
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 查询工厂设备列表（根据 jwtToken 自动识别工厂）
+     * @param jwtToken 登录 token（header）
+     * @return 工厂设备信息
+     */
+    @GetMapping("/factory/list")
+    public ApiResponse<List<ManufacturerFactoryDeviceResp>> listFactoryDevices(
+            @RequestHeader("jwtToken") String jwtToken) {
+        String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
+        List<ManufacturerDeviceCfg> cfgList = appDeviceCfgService.listDeviceCfgsByManufacturerId(manufacturerMetaId);
+        List<ManufacturerFactoryDeviceResp> response = new ArrayList<ManufacturerFactoryDeviceResp>();
+        for (ManufacturerDeviceCfg cfg : cfgList) {
+            if (cfg.getDeviceType() != DeviceType.PRINT) {
+                continue;
+            }
+            ManufacturerFactoryDeviceResp item = new ManufacturerFactoryDeviceResp();
+            item.setId(cfg.getId());
+            item.setName(cfg.getDeviceName());
+            item.setSn(cfg.getDeviceType() != null ? cfg.getDeviceType().getCode() : null);
+            item.setCode(cfg.getDeviceCode());
+            item.setBound(cfg.isBound());
+            response.add(item);
+        }
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 绑定工厂设备（POST 请求体中的 id 为 ManufacturerDeviceCfg 数据 id）
+     * @param request 请求体
+     * @return 绑定结果
+     */
+    @PostMapping("/factory/bind")
+    public ApiResponse<ManufacturerFactoryDeviceBindResp> bindFactoryDevice(
+            @Valid @RequestBody ManufacturerFactoryDeviceBindRequest request) {
+        ManufacturerDeviceCfg cfg;
+        try {
+            cfg = appDeviceCfgService.bindDeviceById(request.getId());
+        } catch (IllegalStateException ex) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, ex.getMessage());
+        }
+        if (cfg == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
+        }
+
+        ManufacturerFactoryDeviceBindResp response = new ManufacturerFactoryDeviceBindResp();
+        response.setName(cfg.getDeviceName());
+        response.setSn(cfg.getDeviceType() != null ? cfg.getDeviceType().getCode() : null);
+        response.setCode(cfg.getDeviceCode());
+        response.setVersion(cfg.getBoundVersion());
+        ApiResponse<ManufacturerFactoryDeviceBindResp> apiResponse = ApiResponse.success(response);
+        apiResponse.setMessage("succes");
+        return apiResponse;
+    }
+
+    /**
+     * 解绑工厂设备（根据 jwtToken + ManufacturerDeviceCfg.id）
+     * @param jwtToken 登录 token（header）
+     * @param request 请求体
+     * @return 解绑结果
+     */
+    @PostMapping("/factory/unbind")
+    public ApiResponse<String> unbindFactoryDevice(
+            @RequestHeader("jwtToken") String jwtToken,
+            @Valid @RequestBody ManufacturerFactoryDeviceUnbindRequest request) {
+        String manufacturerMetaId = appLoginService.getManufacturerMetaIdByToken(jwtToken);
+        ManufacturerDeviceCfg cfg = appDeviceCfgService.unbindDeviceByManufacturerAndId(
+                manufacturerMetaId, request.getId());
+        if (cfg == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
+        }
+        return ApiResponse.success("success");
+    }
+
+    /**
+     * 领取下载任务
+     * @param request 机器信息（设备id与绑定版本）
+     * @return 下载任务列表
+     */
+    @PostMapping("/factory/task/claim")
+    public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> claimFactoryDownloadTasks(
+            @Valid @RequestBody ManufacturerFactoryDownloadTaskRequest request) {
+        logger.info("接收到轮询领取任务，入参为"+ JSON.toJSONString(request));
+        List<TypesettingDownloadTaskData> tasks;
+        try {
+            tasks = appDeviceCfgService.listDownloadTasksByDeviceCfg(
+                    request.getMachine().getId(), request.getMachine().getVersion());
+        } catch (IllegalStateException ex) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, ex.getMessage());
+        }
+
+        if (tasks == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.notFound, "设备不存在");
+        }
+
+        List<ManufacturerFactoryDownloadTaskResp> response = new ArrayList<ManufacturerFactoryDownloadTaskResp>();
+        for (TypesettingDownloadTaskData task : tasks) {
+            ManufacturerFactoryDownloadTaskResp item = new ManufacturerFactoryDownloadTaskResp();
+            item.setId(task.getId());
+            List<String> images = new ArrayList<>();
+            if (task.getImamges() != null) {
+                images.addAll(task.getImamges());
+            }
+            if (task.getMarks() != null) {
+                images.addAll(task.getMarks());
+            }
+            item.setImamges(images);
+            item.setPlts(task.getPlts());
+            item.setJsons(task.getJsons());
+            response.add(item);
+        }
+
+        ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
+        apiResponse.setMessage("succes");
+        logger.info("轮询领取任务结束，出参为"+ JSON.toJSONString(apiResponse));
+        return apiResponse;
     }
 }

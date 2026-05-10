@@ -18,4 +18,8 @@ public class OssConfig {
     private String bucketName;
 
     private String savePath;
+
+    private String region;
+
+    private String dashscopeApiKey;
 }

@@ -16,6 +16,7 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
+import com.mes.infra.oss.ImageToImageSearchExample;
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
 import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
@@ -24,10 +25,7 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Objects;
@@ -41,6 +39,8 @@ public class DeliveryPkgController {
     private final DeliveryPkgService deliveryPkgService;
     private final DeliveryRouteService deliveryRouteService;
     private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
+    @Autowired
+    private ImageToImageSearchExample imageSearch;
 
     /**
      * 查询待打包零件全量列表
@@ -118,7 +118,7 @@ public class DeliveryPkgController {
         result.setRecipientAddress(deliveryPkg.getRecipientAddress());
         result.setWidth("70.00");
         result.setHeight("90.00");
-        
+
         DeliveryPkgAddResultVO.QrCodeInfo qrCode = new DeliveryPkgAddResultVO.QrCodeInfo();
         qrCode.setFormat("base64-png");
         qrCode.setWidth(30.00);
@@ -174,5 +174,67 @@ public class DeliveryPkgController {
         }
 
         return ApiResponse.success(Boolean.TRUE);
+    }
+
+    /**
+     * 将oss下的图片变为向量并保存
+     * @param prefix
+     * @return
+     */
+    @GetMapping("/testScanAndIndexImages")
+    public ApiResponse<String> testScanAndIndexImages(@RequestParam(required = false) String prefix) {
+        try {
+            System.out.println("Starting to scan and index images from OSS...");
+            String scanPrefix = prefix != null ? prefix : "pieceImg/";
+            int count = imageSearch.scanAndIndexImagesFromOSS(scanPrefix);
+            return ApiResponse.success("Successfully indexed " + count + " images");
+        } catch (Exception e) {
+            System.err.println("Failed to scan and index images: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "Failed: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/testEndToEndImageSearch")
+    public ApiResponse<List<ImageToImageSearchExample.ImageSearchResult>> testEndToEndImageSearch(
+            @RequestParam String queryImageUrl,
+            @RequestParam(defaultValue = "5") Integer topK) {
+        try {
+            System.out.println("Step 1: Generating embedding for query image: " + queryImageUrl);
+            float[] queryVector = imageSearch.generateImageEmbedding(queryImageUrl);
+            System.out.println("Query vector generated, dimension: " + queryVector.length);
+
+            System.out.println("Step 2: Searching for similar images in DashVector...");
+            List<ImageToImageSearchExample.ImageSearchResult> results = 
+                imageSearch.searchSimilarImages(queryVector, topK);
+            
+            System.out.println("Search completed, found " + results.size() + " results");
+            return ApiResponse.success(results);
+
+        } catch (Exception e) {
+            System.err.println("End-to-end test failed: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "Failed: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/testUpsertImageVector")
+    public void testUpsertImageVector() {
+        try {
+            String imageUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/pieceImg/69fb388ed7913b07a47afef1/dd82cd9dc39bf2d304f7802fd4c1ad8d_part001_thumbnail.png";
+            String docId = "test-image-001";
+
+            System.out.println("Step 1: Generating embedding for image...");
+            float[] vector = imageSearch.generateImageEmbedding(imageUrl);
+            System.out.println("Vector generated, dimension: " + vector.length);
+
+            System.out.println("Step 2: Upserting vector to DashVector...");
+            boolean success = imageSearch.upsertImageVector(docId, imageUrl, vector);
+            System.out.println("Upsert result: " + (success ? "SUCCESS" : "FAILED"));
+
+        } catch (Exception e) {
+            System.err.println("Upsert test failed: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

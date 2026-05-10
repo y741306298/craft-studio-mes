@@ -61,7 +61,6 @@ public class TypesettingController {
     @GetMapping("/list/condition")
     public ApiResponse<TypesettingAndProductionPiecesResponse> listByCondition(
             @RequestParam String manufacturerMetaId,
-            @RequestParam(required = false) String typesettingId,
             @RequestParam(required = false) String materialName,
             @RequestParam(required = false) String processingFlow) {
         TypesettingQuery query = new TypesettingQuery();
@@ -69,15 +68,10 @@ public class TypesettingController {
         PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
 
-        if (typesettingId != null && !typesettingId.isBlank()) {
-            items = items.stream()
-                    .filter(item -> typesettingId.equals(item.getId()) || typesettingId.equals(item.getGroupId()))
-                    .collect(Collectors.toList());
-        }
         if (materialName != null && !materialName.isBlank()) {
             items = items.stream()
                     .filter(item -> item.getMaterialConfig() != null
-                            && materialName.equals(item.getMaterialConfig().getName()))
+                            && materialName.equals(item.getMaterialConfig().getMaterialSnapshot().getName()))
                     .collect(Collectors.toList());
         }
         if (processingFlow != null && !processingFlow.isBlank()) {
