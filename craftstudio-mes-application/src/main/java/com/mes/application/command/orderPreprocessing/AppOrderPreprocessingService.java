@@ -300,7 +300,7 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
-    private Object extractParamDisplayName(Object config) {
+    private String extractParamDisplayName(Object config) {
         Object param = extractFieldValue(config, "param");
         Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
         Object accessoryName = extractFieldValue(accessorySnapshot, "name");

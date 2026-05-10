@@ -104,7 +104,7 @@ public class ImageMaskRequest {
         return imageMaskRequest;
     }
 
-    private static Double convertUsageSizeToMm(OrderItem orderItem, String... methodNames) {
+    private static Integer convertUsageSizeToMm(OrderItem orderItem, String... methodNames) {
         Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
         if (usageSize3D == null) {
             return null;
@@ -116,7 +116,7 @@ public class ImageMaskRequest {
         return BigDecimal.valueOf(value.doubleValue())
                 .multiply(BigDecimal.TEN)
                 .setScale(2, RoundingMode.HALF_UP)
-                .doubleValue();
+                .intValue();
     }
 
     private static Number invokeNumberGetter(Object target, String... methodNames) {

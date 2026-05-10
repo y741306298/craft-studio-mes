@@ -34,6 +34,17 @@ public class DeliveryPkgRepositoryImp extends BaseRepositoryImp<DeliveryPkg, Del
     }
 
     /**
+     * 根据包裹ID查询
+     */
+    @Override
+    public List<DeliveryPkg> findByDeliveryPkgId(String deliveryPkgId) {
+        Criteria criteria = Criteria.where("deliveryPkgId").is(deliveryPkgId);
+        Query query = new Query(criteria);
+        List<DeliveryPkgPo> pos = mongoTemplate.find(query, poClass());
+        return pos.stream().map(DeliveryPkgPo::toDO).toList();
+    }
+
+    /**
      * 根据状态查询包裹
      */
     @Override

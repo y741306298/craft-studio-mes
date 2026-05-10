@@ -17,6 +17,11 @@ public interface DeliveryPkgRepository extends BaseRepository<DeliveryPkg> {
     List<DeliveryPkg> findByDeliveryPkgCode(String deliveryPkgCode);
 
     /**
+     * 根据包裹ID查询
+     */
+    List<DeliveryPkg> findByDeliveryPkgId(String deliveryPkgId);
+
+    /**
      * 根据状态查询包裹
      */
     List<DeliveryPkg> findByStatus(DeliveryPkgStatus status);

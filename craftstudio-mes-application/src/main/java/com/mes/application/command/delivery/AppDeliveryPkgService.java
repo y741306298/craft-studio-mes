@@ -391,9 +391,8 @@ public class AppDeliveryPkgService {
             pkgItem.setOrderItemId(item.getPiece().getOrderItemId());
             pkgItem.setProductionPieceId(Collections.singletonList(item.getPiece().getProductionPieceId()));
             pkgItem.setQuantity(item.getQuantity());
-            if (item.getPiece().getProductImageFile() != null
-                    && item.getPiece().getProductImageFile().getFilePreview() != null) {
-                pkgItem.setPreviewUrl(item.getPiece().getProductImageFile().getFilePreview().getPreview());
+            if (item.getPiece().getPreviewUrl() != null) {
+                pkgItem.setPreviewUrl(item.getPiece().getPreviewUrl());
             }
             pkgItems.add(pkgItem);
         }
@@ -417,7 +416,7 @@ public class AppDeliveryPkgService {
         if (StringUtils.isBlank(deliveryPkgId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "deliveryPkgId不能为空");
         }
-        List<DeliveryPkg> deliveryPkgs = deliveryPkgService.queryByConditions(null, null, null, null, null, null, null, 1, 1_000);
+        List<DeliveryPkg> deliveryPkgs = deliveryPkgService.findByDeliveryPkgId(deliveryPkgId);
         return deliveryPkgs.stream()
                 .filter(pkg -> deliveryPkgId.equals(pkg.getDeliveryPkgId()))
                 .findFirst()

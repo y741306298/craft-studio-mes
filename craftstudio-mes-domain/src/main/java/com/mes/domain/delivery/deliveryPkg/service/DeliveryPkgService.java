@@ -76,6 +76,16 @@ public class DeliveryPkgService {
     }
 
     /**
+     * 根据包裹ID查询
+     */
+    public List<DeliveryPkg> findByDeliveryPkgId(String deliveryPkgId) {
+        if (StringUtils.isBlank(deliveryPkgId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹ID不能为空");
+        }
+        return deliveryPkgRepository.findByDeliveryPkgId(deliveryPkgId);
+    }
+
+    /**
      * 根据运单号查询
      */
     public List<DeliveryPkg> findByTrackingNumber(String trackingNumber) {
