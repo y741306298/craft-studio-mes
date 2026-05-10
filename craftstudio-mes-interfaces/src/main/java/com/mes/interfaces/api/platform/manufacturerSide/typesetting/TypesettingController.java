@@ -24,8 +24,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -45,12 +49,88 @@ public class TypesettingController {
      * @return 分页查询结果
      */
     @PostMapping("/list")
-    public ApiResponse<List<TypesettingProductionPieceVO>> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
+    public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
         
         PagedResult<TypesettingProductionPieceVO> result = 
                 appTypesettingService.findTypesettingAndProductionPieces(request);
         
-        return ApiResponse.success((List<TypesettingProductionPieceVO>) result.items());
+        List<TypesettingProductionPieceVO> items = (List<TypesettingProductionPieceVO>) result.items();
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
+    }
+
+    @GetMapping("/list/condition")
+    public ApiResponse<TypesettingAndProductionPiecesResponse> listByCondition(
+            @RequestParam String manufacturerMetaId,
+            @RequestParam(required = false) String typesettingId,
+            @RequestParam(required = false) String materialName,
+            @RequestParam(required = false) String processingFlow) {
+        TypesettingQuery query = new TypesettingQuery();
+        query.setManufacturerMetaId(manufacturerMetaId);
+        PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
+        List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
+
+        if (typesettingId != null && !typesettingId.isBlank()) {
+            items = items.stream()
+                    .filter(item -> typesettingId.equals(item.getId()) || typesettingId.equals(item.getGroupId()))
+                    .collect(Collectors.toList());
+        }
+        if (materialName != null && !materialName.isBlank()) {
+            items = items.stream()
+                    .filter(item -> item.getMaterialConfig() != null
+                            && materialName.equals(item.getMaterialConfig().getName()))
+                    .collect(Collectors.toList());
+        }
+        if (processingFlow != null && !processingFlow.isBlank()) {
+            items = items.stream()
+                    .filter(item -> item.getProcessingFlow() != null && item.getProcessingFlow().contains(processingFlow))
+                    .collect(Collectors.toList());
+        }
+
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
+    }
+
+    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items) {
+        List<String> processingFlowList = buildProcessingFlowList(items);
+        return new TypesettingAndProductionPiecesResponse(items, processingFlowList);
+    }
+
+    private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
+        LinkedHashSet<String> fullFlowSet = items.stream()
+                .map(TypesettingProductionPieceVO::getProcessingFlow)
+                .filter(Objects::nonNull)
+                .filter(flow -> !flow.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        LinkedHashSet<String> coatingFlowSet = new LinkedHashSet<>();
+        for (String flow : fullFlowSet) {
+            String coatingFlow = getFlowUntilFumo(flow);
+            if (coatingFlow != null) {
+                coatingFlowSet.add(coatingFlow);
+            }
+        }
+
+        List<String> result = new ArrayList<>(coatingFlowSet);
+        for (String flow : fullFlowSet) {
+            if (!result.contains(flow)) {
+                result.add(flow);
+            }
+        }
+        return result;
+    }
+
+    private String getFlowUntilFumo(String processingFlow) {
+        String[] nodes = processingFlow.split("-");
+        StringBuilder sb = new StringBuilder();
+        for (String node : nodes) {
+            if (sb.length() > 0) {
+                sb.append("-");
+            }
+            sb.append(node);
+            if ("覆膜".equals(node)) {
+                return sb.toString();
+            }
+        }
+        return null;
     }
 
     /**
