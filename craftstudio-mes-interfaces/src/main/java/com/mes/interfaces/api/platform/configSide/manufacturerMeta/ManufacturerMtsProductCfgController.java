@@ -275,4 +275,35 @@ public class ManufacturerMtsProductCfgController {
         return responseEntity;
     }
 
+    /**
+     * 【已配置】成品商品-按名字搜索
+     *
+     * Path: /api/internal/mes/product/mts/searchConfiguredMTSProduct
+     * Method: POST
+     */
+    @PostMapping("/searchConfiguredMTSProduct")
+    public ResponseEntity<byte[]> searchConfiguredMTSProduct(
+            HttpServletRequest request,
+            @Valid @RequestBody SearchMTSProductByNameRequest searchRequest) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/product/mts/searchConfiguredMTSProduct", productCoreUrl));
+
+        byte[] requestBody = null;
+        try {
+            requestBody = com.alibaba.fastjson.JSON.toJSONString(searchRequest).getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("Failed to serialize request: " + e.getMessage());
+        }
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, requestBody, urlBuilder.toString(), paramMap);
+
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
 }
