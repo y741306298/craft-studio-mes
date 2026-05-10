@@ -9,17 +9,17 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGenerator;
 
 @SpringBootApplication(
-	scanBasePackages = {
-			"com.mes.interfaces",
-			"com.mes.application",
-			"com.mes.domain",
-			"com.mes.infra",
-	},
-	nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class,
-	exclude = {
-		DataSourceAutoConfiguration.class,
-		DataSourceTransactionManagerAutoConfiguration.class
-	}
+		scanBasePackages = {
+				"com.mes.interfaces",
+				"com.mes.application",
+				"com.mes.domain",
+				"com.mes.infra",
+		},
+		nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class,
+		exclude = {
+				DataSourceAutoConfiguration.class,
+				DataSourceTransactionManagerAutoConfiguration.class
+		}
 )
 @ComponentScan(
 	basePackages = {
