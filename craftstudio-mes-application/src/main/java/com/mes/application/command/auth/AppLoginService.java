@@ -5,9 +5,11 @@ import com.mes.application.dto.req.auth.DeleteUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.req.auth.UpdateUserPasswordRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
+import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
 import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.service.ManufacturerUserService;
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +33,8 @@ public class AppLoginService {
 
     @Autowired
     private ManufacturerUserService manufacturerUserService;
+    @Autowired
+    private AppManufacturerMetaService appManufacturerMetaService;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -50,6 +54,8 @@ public class AppLoginService {
         LoginResponse response = new LoginResponse();
         response.setToken(token);
         response.setManufacturerMetaId(user.getManufacturerMetaId());
+        ManufacturerMeta manufacturerMeta = appManufacturerMetaService.findByManufacturerMetaId(user.getManufacturerMetaId());
+        response.setManufacturerMetaName(manufacturerMeta == null ? null : manufacturerMeta.getName());
         response.setTokenExpireAt(expireAt);
 
         redisTemplate.opsForValue().set(buildLoginTokenCacheKey(token), user.getManufacturerMetaId(), tokenValidDays, TimeUnit.DAYS);
@@ -72,6 +78,7 @@ public class AppLoginService {
         user.setManufacturerMetaId(request.getManufacturerMetaId());
         user.setName(request.getName());
         user.setPhone(request.getPhone());
+        user.setIsAdmin(Boolean.TRUE.equals(request.getIsAdmin()));
         manufacturerUserService.add(user);
     }
 

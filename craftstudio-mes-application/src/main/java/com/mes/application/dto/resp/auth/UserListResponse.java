@@ -10,6 +10,7 @@ public class UserListResponse {
     private String manufacturerMetaId;
     private String name;
     private String phone;
+    private Boolean isAdmin;
 
     public static UserListResponse from(ManufacturerUser user) {
         UserListResponse response = new UserListResponse();
@@ -18,6 +19,7 @@ public class UserListResponse {
         response.setManufacturerMetaId(user.getManufacturerMetaId());
         response.setName(user.getName());
         response.setPhone(user.getPhone());
+        response.setIsAdmin(user.getIsAdmin());
         return response;
     }
 }

@@ -8,5 +8,6 @@ import java.util.Date;
 public class LoginResponse {
     private String token;
     private String manufacturerMetaId;
+    private String manufacturerMetaName;
     private Date tokenExpireAt;
 }
