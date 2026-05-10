@@ -544,6 +544,7 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     result.setDocId(doc.getId());
                     result.setImageUrl((String) doc.getFields().get("imageUrl"));
                     result.setScore(doc.getScore());
+                    result.setProductionPieceId((String) doc.getFields().get("productionPieceId"));
 
                     results.add(result);
                 }
@@ -653,6 +654,7 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
         private String docId;
         private String imageUrl;
         private float score;
+        private String productionPieceId;
 
         public String getDocId() {
             return docId;
@@ -678,12 +680,21 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
             this.score = score;
         }
 
+        public String getProductionPieceId() {
+            return productionPieceId;
+        }
+
+        public void setProductionPieceId(String productionPieceId) {
+            this.productionPieceId = productionPieceId;
+        }
+
         @Override
         public String toString() {
             return "ImageSearchResult{" +
                     "docId='" + docId + '\'' +
                     ", imageUrl='" + imageUrl + '\'' +
                     ", score=" + score +
+                    ", productionPieceId='" + productionPieceId + '\'' +
                     '}';
         }
     }

@@ -16,6 +16,9 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/deliveryPkg")
@@ -36,6 +40,7 @@ public class DeliveryPkgController {
     private final DeliveryPkgService deliveryPkgService;
     private final DeliveryRouteService deliveryRouteService;
     private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
+    private final ProductionPieceService productionPieceService;
     @Autowired
     private ImageToImageSearchServiceImp imageSearch;
 
@@ -192,8 +197,8 @@ public class DeliveryPkgController {
         }
     }
 
-    @GetMapping("/testEndToEndImageSearch")
-    public ApiResponse<List<ImageToImageSearchServiceImp.ImageSearchResult>> testEndToEndImageSearch(
+    @GetMapping("/EndToEndImageSearch")
+    public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(
             @RequestParam String queryImageUrl,
             @RequestParam(defaultValue = "5") Integer topK) {
         try {
@@ -204,15 +209,36 @@ public class DeliveryPkgController {
             System.out.println("Step 2: Searching for similar images in DashVector...");
             List<ImageToImageSearchServiceImp.ImageSearchResult> results =
                 imageSearch.searchSimilarImages(queryVector, topK);
-            
-            System.out.println("Search completed, found " + results.size() + " results");
-            return ApiResponse.success(results);
+
+            List<DeliveryPkgPieceVO> pieceVOS = results.stream()
+                    .map(ImageToImageSearchServiceImp.ImageSearchResult::getProductionPieceId)
+                    .filter(StringUtils::isNotBlank)
+                    .map(productionPieceService::findByProductionPieceId)
+                    .filter(Objects::nonNull)
+                    .filter(this::hasPendingPackagingQuantity)
+                    .map(DeliveryPkgPieceVO::fromProductionPiece)
+                    .collect(Collectors.toList());
+
+            System.out.println("Search completed, found " + pieceVOS.size() + " packaging-ready pieces");
+            return ApiResponse.success(pieceVOS);
 
         } catch (Exception e) {
             System.err.println("End-to-end test failed: " + e.getMessage());
             e.printStackTrace();
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "Failed: " + e.getMessage());
         }
+    }
+
+    private boolean hasPendingPackagingQuantity(ProductionPiece piece) {
+        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+            if ("待打包".equals(node.getNodeName())) {
+                return node.getPieceQuantity() != null && node.getPieceQuantity() > 0;
+            }
+        }
+        return false;
     }
 
     @GetMapping("/testUpsertImageVector")
