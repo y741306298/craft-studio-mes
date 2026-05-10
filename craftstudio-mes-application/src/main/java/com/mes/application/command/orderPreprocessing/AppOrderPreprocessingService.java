@@ -30,6 +30,7 @@ import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloud
 import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTempAuthConfig;
 import io.micrometer.common.util.StringUtils;
 import com.mes.application.command.orderPreprocessing.strategy.OrderItemProcessingStrategy;
+import com.mes.infra.oss.ImageToImageSearchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -90,6 +91,9 @@ public class AppOrderPreprocessingService {
 
     @Autowired
     private List<OrderItemProcessingStrategy> orderItemProcessingStrategies;
+
+    @Autowired
+    private ImageToImageSearchService imageToImageSearchService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -241,6 +245,7 @@ public class AppOrderPreprocessingService {
         );
 
         productionPieceService.addProductionPiece(piece);
+        indexProductionPieceImage(piece);
 
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
@@ -558,6 +563,7 @@ public class AppOrderPreprocessingService {
                             piece.setBlood(blood);
                         }
                         productionPieceService.addProductionPiece(piece);
+                        indexProductionPieceImage(piece);
                         resultPieces.add(piece);
                     }
                 } catch (Exception e) {
@@ -590,6 +596,18 @@ public class AppOrderPreprocessingService {
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
         }
+    }
+
+
+    private void indexProductionPieceImage(ProductionPiece piece) {
+        if (piece == null || piece.getProductImageFile() == null || piece.getProductImageFile().getFilePreview() == null) {
+            return;
+        }
+        String previewUrl = piece.getProductImageFile().getFilePreview().getPreview();
+        if (StringUtils.isBlank(previewUrl) || StringUtils.isBlank(piece.getProductionPieceId())) {
+            return;
+        }
+        imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl);
     }
 
     private String buildProcessingFlow(List<ProcedureFlowNode> nodes, String materialName) {

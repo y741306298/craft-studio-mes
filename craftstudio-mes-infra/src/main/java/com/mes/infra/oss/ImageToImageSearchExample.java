@@ -34,7 +34,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
-public class ImageToImageSearchExample {
+public class ImageToImageSearchExample implements ImageToImageSearchService {
 
     @Value("${ali-cloud.dashscope_api_key}")
     private String dashscopeApiKey;
@@ -167,6 +167,20 @@ public class ImageToImageSearchExample {
         } catch (Exception e) {
             System.err.println("Error creating collection: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+
+    @Override
+    public void indexImage(String docId, String imageUrl) {
+        if (docId == null || docId.isEmpty() || imageUrl == null || imageUrl.isEmpty()) {
+            return;
+        }
+        try {
+            float[] vector = generateImageEmbedding(imageUrl);
+            upsertImageVector(docId, imageUrl, vector);
+        } catch (Exception e) {
+            System.err.println("Failed to index image vector, docId=" + docId + ", error=" + e.getMessage());
         }
     }
 
@@ -354,6 +368,7 @@ public class ImageToImageSearchExample {
     /**
      * 使用DashScope API将图片转换为向量
      */
+    @Override
     public float[] generateImageEmbedding(String imageUrl) throws IOException {
         String url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding";
 
@@ -406,6 +421,7 @@ public class ImageToImageSearchExample {
     /**
      * 上传图片向量到 DashVector
      */
+    @Override
     public boolean upsertImageVector(String docId, String imageUrl, float[] vector) {
         try {
             if (collection == null) {
