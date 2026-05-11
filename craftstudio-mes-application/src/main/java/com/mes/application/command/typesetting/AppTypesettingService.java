@@ -13,6 +13,7 @@ import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
+import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -116,6 +117,9 @@ public class AppTypesettingService {
 
     @Autowired
     private AliCloudAuthService aliCloudAuthService;
+
+    @Autowired
+    private NestingManifestStrategy nestingManifestStrategy;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -932,8 +936,10 @@ public class AppTypesettingService {
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
         manifest.setSpacing(layoutMode.getNestingSpacingMm());
+        manifest.setRequirePlt(Boolean.TRUE);
         manifest.setContainers(containers);
         manifest.setElements(elements);
+        nestingManifestStrategy.apply(manifest, productionPieces, typesettingInfos);
 
         CallbackConfig callbackConfig = new CallbackConfig();
         if ("grid_typesetting".equals(layoutMode.getLayoutCategory())
@@ -1701,6 +1707,7 @@ public class AppTypesettingService {
             return null;
         }
     }
+
 
     /**
      * 排版算法回调方法
