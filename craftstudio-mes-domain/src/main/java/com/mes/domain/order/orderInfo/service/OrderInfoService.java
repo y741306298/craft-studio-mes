@@ -357,57 +357,25 @@ public class OrderInfoService {
 
     private String resolveNodeDisplayName(ProcedureFlowNode node) {
         String nodeName = node.getNodeName();
-        if (!"覆板".equals(nodeName) && !"覆膜".equals(nodeName)) {
-            return nodeName;
-        }
         if (node.getParamConfigs() == null) {
             return nodeName;
         }
-        List<String> paramNames = new ArrayList<>();
-        for (Object config : node.getParamConfigs()) {
-            String name = extractParamDisplayName(config);
+        List<String> accessoryNames = new ArrayList<>();
+        for (MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
+            if (config == null || !"ACC".equals(config.getType()) || config.getParam() == null) {
+                continue;
+            }
+            String name = config.getParam().getAccessorySnapshot() == null
+                    ? null
+                    : config.getParam().getAccessorySnapshot().getName();
             if (StringUtils.isNotBlank(name)) {
-                paramNames.add(name);
+                accessoryNames.add(name);
             }
         }
-        if (!paramNames.isEmpty()) {
-            return nodeName + "（" + String.join("、", paramNames) + "）";
+        if (!accessoryNames.isEmpty()) {
+            return nodeName + "（" + String.join("、", accessoryNames) + "）";
         }
         return nodeName;
-    }
-
-    private String extractParamDisplayName(Object config) {
-        Object param = extractFieldValue(config, "param");
-        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
-        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
-        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
-            return String.valueOf(accessoryName);
-        }
-        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
-        Object metaName = extractFieldValue(metaSnapshot, "name");
-        return metaName == null ? null : String.valueOf(metaName);
-    }
-
-    private Object extractFieldValue(Object target, String fieldName) {
-        if (target == null || StringUtils.isBlank(fieldName)) {
-            return null;
-        }
-        if (target instanceof java.util.Map<?, ?> map) {
-            return map.get(fieldName);
-        }
-        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
-        return invokeGetter(target, getterName);
-    }
-
-    private Object invokeGetter(Object target, String methodName) {
-        if (target == null) {
-            return null;
-        }
-        try {
-            return target.getClass().getMethod(methodName).invoke(target);
-        } catch (Exception ignored) {
-            return null;
-        }
     }
 
     /**
