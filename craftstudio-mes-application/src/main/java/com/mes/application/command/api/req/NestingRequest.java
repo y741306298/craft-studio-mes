@@ -14,6 +14,18 @@ public class NestingRequest {
     @Data
     public static class NestManifest {
         private Integer spacing;
+        /**
+         * 是否需要生成 plt 结果
+         */
+        private Boolean requirePlt;
+        /**
+         * 是否需要生成镜像结果
+         */
+        private Boolean mirrorAppend;
+        /**
+         * 镜像结果是否需要 plt
+         */
+        private Boolean mirrorRequirePlt;
         private List<Container> containers;
         private List<Element> elements;
     }
@@ -28,6 +40,10 @@ public class NestingRequest {
     public static class Element {
         private String id;
         private String img;
+        /**
+         * 兼容算法侧字段命名
+         */
+        private String imgFile;
         private Boolean forme;
         private String svg;
         private Integer counts;

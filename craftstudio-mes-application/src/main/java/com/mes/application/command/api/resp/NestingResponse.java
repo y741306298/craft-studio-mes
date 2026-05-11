@@ -15,6 +15,18 @@ public class NestingResponse {
     @Data
     public static class Result {
         private String nestedSvg;
+        /**
+         * 可选：算法返回的 plt 路径
+         */
+        private String nestedPlt;
+        /**
+         * 可选：算法返回的镜像 svg 路径
+         */
+        private String mirrorNestedSvg;
+        /**
+         * 可选：算法返回的镜像 plt 路径
+         */
+        private String mirrorNestedPlt;
         private BigDecimal utilization;
         /**
          * 兼容历史返回：部分算法版本会直接回传 width/height。
