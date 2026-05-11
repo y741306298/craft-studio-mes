@@ -9,6 +9,8 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
 
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
