@@ -223,6 +223,41 @@ public class AppOrderPreprocessingService {
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
     }
 
+    /**
+     * 双面对裱专用异步调用：
+     * 1) 强制携带 maskSvgUrl（即使无超幅拼接/异形切割）；
+     * 2) 若存在超幅拼接则仍保留 slice；
+     * 3) 补充 mirrorUrl 并发起异步调用。
+     */
+    public void callMaskAsyncForDoubleSide(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, String mirrorUrl) {
+        List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
+        boolean hasCutting = hasNodeWithName(procedureFlow, "超幅拼接");
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, true, hasCutting);
+
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+        UploadConfig uploadConfig = new UploadConfig();
+        String manufacturerMetaId = orderItem.getManufacturerId();
+        String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "pieceImg/" : "pieceImg/" + manufacturerMetaId + "/";
+        uploadConfig.setUploadPath(uploadPath);
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        imageMaskRequest.setUploadConfig(uploadConfig);
+
+        if (StringUtils.isNotBlank(mirrorUrl)) {
+            imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
+        }
+
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setPresetType(presetType);
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        imageMaskRequest.setCallbackConfig(callbackConfig);
+
+        System.out.println("doubleSide imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
+        algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+    }
+
     public static boolean hasNodeWithName(ProcedureFlow procedureFlow, String nodeName) {
         return procedureFlow != null && procedureFlow.getNodes() != null && procedureFlow.getNodes().stream().anyMatch(node -> nodeName.equals(node.getNodeName()));
     }

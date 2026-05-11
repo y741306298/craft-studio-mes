@@ -29,8 +29,8 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         }
         // 步骤3：读取反面节点 rawFile 并作为 mirrorUrl 传入算法。
         String mirrorUrl = resolveMirrorRawFile(procedureFlow);
-        // 步骤4：异步调用 generateMaskFilesAsync。
-        processingService.callMaskAsyncForStrategy(orderItem, procedureFlow, getStrategyType(), hasSpecialShape, hasCutting, mirrorUrl);
+        // 步骤4：调用双面对裱专用异步方法，确保无超幅/异形时仍携带完整 mask 数据。
+        processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(), mirrorUrl);
         return null;
     }
 
