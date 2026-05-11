@@ -362,12 +362,17 @@ public class OrderInfoService {
         }
         List<String> accessoryNames = new ArrayList<>();
         for (MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
-            if (config == null || !"ACC".equals(config.getType()) || config.getParam() == null) {
+            if (config == null) {
                 continue;
             }
-            String name = config.getParam().getAccessorySnapshot() == null
-                    ? null
-                    : config.getParam().getAccessorySnapshot().getName();
+            Object type = extractFieldValue(config, "type");
+            if (!"ACC".equals(type == null ? null : String.valueOf(type))) {
+                continue;
+            }
+            Object param = extractFieldValue(config, "param");
+            Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+            Object nameValue = extractFieldValue(accessorySnapshot, "name");
+            String name = nameValue == null ? null : String.valueOf(nameValue);
             if (StringUtils.isNotBlank(name)) {
                 accessoryNames.add(name);
             }
@@ -376,6 +381,21 @@ public class OrderInfoService {
             return nodeName + "（" + String.join("、", accessoryNames) + "）";
         }
         return nodeName;
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        try {
+            return target.getClass().getMethod(getterName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /**
