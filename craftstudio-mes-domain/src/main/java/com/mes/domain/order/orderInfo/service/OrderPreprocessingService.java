@@ -72,21 +72,51 @@ public class OrderPreprocessingService {
      * 获取 processFlow 的 ID
      */
     private String getProcessFlowId(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
-        return processFlowDTO.getId();
+        String id = invokeStringGetter(processFlowDTO, "getId");
+        if (id != null) {
+            return id;
+        }
+        MTOProductSpecDTO.ProcessDTO rootProcess = processFlowDTO.getRootProcess();
+        return rootProcess != null ? rootProcess.getProcessMetaId() : null;
     }
 
     /**
      * 获取 processFlow 的名称
      */
     private String getProcessFlowName(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
-        return processFlowDTO.getName();
+        String name = invokeStringGetter(processFlowDTO, "getName");
+        if (name != null) {
+            return name;
+        }
+        MTOProductSpecDTO.ProcessDTO rootProcess = processFlowDTO.getRootProcess();
+        if (rootProcess == null || rootProcess.getProcessMetaSnapshot() == null) {
+            return null;
+        }
+        return rootProcess.getProcessMetaSnapshot().getName();
     }
 
     /**
      * 获取 processFlow 的描述
      */
     private String getProcessFlowDescription(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
-        return processFlowDTO.getDescription();
+        String description = invokeStringGetter(processFlowDTO, "getDescription");
+        if (description != null) {
+            return description;
+        }
+        return getProcessFlowName(processFlowDTO);
+    }
+
+    private String invokeStringGetter(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            java.lang.reflect.Method method = target.getClass().getMethod(methodName);
+            Object value = method.invoke(target);
+            return value instanceof String ? (String) value : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /**
