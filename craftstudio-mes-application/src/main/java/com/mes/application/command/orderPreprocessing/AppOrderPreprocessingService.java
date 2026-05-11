@@ -42,7 +42,6 @@ import org.springframework.web.client.RestTemplate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -305,38 +304,6 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
-    private String extractParamDisplayName(Object config) {
-        Object param = extractFieldValue(config, "param");
-        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
-        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
-        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
-            return String.valueOf(accessoryName);
-        }
-        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
-        Object metaName = extractFieldValue(metaSnapshot, "name");
-        return metaName == null ? null : String.valueOf(metaName);
-    }
-
-    private Object extractFieldValue(Object target, String fieldName) {
-        if (target == null || StringUtils.isBlank(fieldName)) {
-            return null;
-        }
-        if (target instanceof java.util.Map<?, ?> map) {
-            return map.get(fieldName);
-        }
-        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
-        return invokeGetter(target, getterName);
-    }
-
-    private Object invokeGetter(Object target, String methodName) {
-        try {
-            Method method = target.getClass().getMethod(methodName);
-            return method.invoke(target);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
         Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
         Integer width = null;
@@ -533,11 +500,10 @@ public class AppOrderPreprocessingService {
                         newProcedureFlow.setNodes(newNodes);
                     }
                     
-                    ProcedureFlow parsedFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
                     String materialName = orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null
                             ? orderItem.getMaterial().getMaterialSnapshot().getName()
                             : null;
-                    String processingFlow = buildProcessingFlow(parsedFlow == null ? null : parsedFlow.getNodes(), materialName);
+                    String processingFlow = buildProcessingFlow(newProcedureFlow.getNodes(), materialName);
                     orderItem.setProcessingFlow(processingFlow);
 
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
@@ -546,7 +512,7 @@ public class AppOrderPreprocessingService {
                                 orderItem,
                                 "ORIGINAL",
                                 rawImageUrl,
-                                parsedFlow,
+                                newProcedureFlow,
                                 maskedImageUrl,
                                 svgSize[0],
                                 svgSize[1]
@@ -630,23 +596,74 @@ public class AppOrderPreprocessingService {
 
     private String resolveNodeDisplayName(ProcedureFlowNode node) {
         String nodeName = node.getNodeName();
-        if (!"覆板".equals(nodeName) && !"覆膜".equals(nodeName)) {
-            return nodeName;
-        }
         if (node.getParamConfigs() == null) {
             return nodeName;
         }
-        List<String> paramNames = new ArrayList<>();
-        for (Object config : node.getParamConfigs()) {
-            String name = extractParamDisplayName(config);
+        List<String> accessoryNames = new ArrayList<>();
+        for (MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
+            if (config == null) {
+                continue;
+            }
+            if (!"ACC".equals(resolveConfigType(config))) {
+                continue;
+            }
+            Object nameValue = extractParamDisplayName(config);
+            String name = nameValue == null ? null : String.valueOf(nameValue);
             if (StringUtils.isNotBlank(name)) {
-                paramNames.add(name);
+                accessoryNames.add(name);
             }
         }
-        if (!paramNames.isEmpty()) {
-            return nodeName + "（" + String.join("、", paramNames) + "）";
+        if (!accessoryNames.isEmpty()) {
+            return nodeName + "（" + String.join("、", accessoryNames) + "）";
         }
         return nodeName;
+    }
+
+    private String resolveConfigType(Object config) {
+        Object directType = extractFieldValue(config, "type");
+        if (directType != null && StringUtils.isNotBlank(String.valueOf(directType))) {
+            return String.valueOf(directType);
+        }
+        Object param = extractFieldValue(config, "param");
+        Object paramType = extractFieldValue(param, "type");
+        return paramType == null ? null : String.valueOf(paramType);
+    }
+
+    private Object extractParamDisplayName(Object config) {
+        Object param = extractFieldValue(config, "param");
+        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
+        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
+            return accessoryName;
+        }
+        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
+        return extractFieldValue(metaSnapshot, "name");
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        try {
+            return target.getClass().getMethod(getterName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null || StringUtils.isBlank(methodName)) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /**
