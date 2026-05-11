@@ -14,6 +14,7 @@ import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.productionPiece.AppPieceCirculationService;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
+import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
@@ -163,7 +164,7 @@ public class AppOrderPreprocessingService {
         }
 
         if (matchedStrategies.isEmpty()) {
-            return processWithoutCuttingAndMasking(orderItem, procedureFlow);
+            return new ArrayList<>();
         }
 
         List<ProductionPiece> finalResult = null;
@@ -183,18 +184,56 @@ public class AppOrderPreprocessingService {
 
 
 
-    public List<ProductionPiece> processWithCuttingOrSpecialShape(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType) {
+
+    public String generateRectMaskSvgForStrategy(OrderItem orderItem) {
+        return generateAndUploadRectMaskSvg(orderItem);
+    }
+
+    public void saveMaskToOrderItemForStrategy(OrderItem orderItem, String maskUrl) {
+        populateOrderItemMaskImgFile(orderItem, maskUrl);
+        orderItemService.updateOrderItem(orderItem);
+    }
+
+    public void callMaskAsyncForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, boolean hasSpecialShape, boolean hasCutting, String mirrorUrl) {
+        // 步骤1：按工艺节点与订单项组装 ImageMaskRequest。
+        List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape, hasCutting);
+        // 步骤2：注入上传配置与 STS 临时凭证。
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+        UploadConfig uploadConfig = new UploadConfig();
+        String manufacturerMetaId = orderItem.getManufacturerId();
+        String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "pieceImg/" : "pieceImg/" + manufacturerMetaId + "/";
+        uploadConfig.setUploadPath(uploadPath);
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        imageMaskRequest.setUploadConfig(uploadConfig);
+        if (StringUtils.isNotBlank(mirrorUrl)) {
+            // 步骤3：双面场景下补充 mirrorUrl。
+            imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
+        }
+        // 步骤4：设置回调元信息（orderItemId/presetType）。
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setPresetType(presetType);
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        imageMaskRequest.setCallbackConfig(callbackConfig);
+        // 步骤5：异步调用 generateMaskFilesAsync。
+        System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
+        algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+    }
+
+    /**
+     * 双面对裱专用异步调用：
+     * 1) 强制携带 maskSvgUrl（即使无超幅拼接/异形切割）；
+     * 2) 若存在超幅拼接则仍保留 slice；
+     * 3) 补充 mirrorUrl 并发起异步调用。
+     */
+    public void callMaskAsyncForDoubleSide(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, String mirrorUrl) {
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
         boolean hasCutting = hasNodeWithName(procedureFlow, "超幅拼接");
-        boolean hasSpecialShape = hasNodeWithName(procedureFlow, "异形切割");
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, true, hasCutting);
 
-        if (hasCutting && !hasSpecialShape) {
-            String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
-            populateOrderItemMaskImgFile(orderItem, generatedMaskImgUrl);
-            orderItemService.updateOrderItem(orderItem);
-        }
-
-        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape, hasCutting);
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
         UploadConfig uploadConfig = new UploadConfig();
         String manufacturerMetaId = orderItem.getManufacturerId();
@@ -203,6 +242,10 @@ public class AppOrderPreprocessingService {
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         imageMaskRequest.setUploadConfig(uploadConfig);
 
+        if (StringUtils.isNotBlank(mirrorUrl)) {
+            imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
+        }
+
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
         CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
@@ -210,9 +253,9 @@ public class AppOrderPreprocessingService {
         callbackCustomValue.setPresetType(presetType);
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         imageMaskRequest.setCallbackConfig(callbackConfig);
-        System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
+
+        System.out.println("doubleSide imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
-        return null;
     }
 
     public static boolean hasNodeWithName(ProcedureFlow procedureFlow, String nodeName) {
@@ -535,6 +578,21 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
+                        ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
+                        if (mirrorResult != null) {
+                            MirrorConfig mirrorConfig = new MirrorConfig();
+                            mirrorConfig.setImg(mirrorResult.getImg());
+                            mirrorConfig.setSvg(mirrorResult.getSvg());
+                            mirrorConfig.setPreviewImg(completeOssUrl(mirrorResult.getPreviewImg()));
+                            mirrorConfig.setThumbnail(completeOssUrl(mirrorResult.getThumbnail()));
+                            if (mirrorResult.getBlood() != null) {
+                                Blood mirrorBlood = new Blood();
+                                mirrorBlood.setX(mirrorResult.getBlood().getX());
+                                mirrorBlood.setY(mirrorResult.getBlood().getY());
+                                mirrorConfig.setBlood(mirrorBlood);
+                            }
+                            piece.setMirrorConfigs(List.of(mirrorConfig));
+                        }
                         productionPieceService.addProductionPiece(piece);
                         indexProductionPieceImage(piece);
                         resultPieces.add(piece);
@@ -581,6 +639,18 @@ public class AppOrderPreprocessingService {
             return;
         }
         imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl);
+    }
+
+    public void indexProductionPieceImageForStrategy(ProductionPiece piece) {
+        indexProductionPieceImage(piece);
+    }
+
+    public ProcedureService getProcedureService() {
+        return procedureService;
+    }
+
+    public ProductionPieceService getProductionPieceService() {
+        return productionPieceService;
     }
 
     private String buildProcessingFlow(List<ProcedureFlowNode> nodes, String materialName) {
