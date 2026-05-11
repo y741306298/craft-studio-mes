@@ -200,7 +200,7 @@ public class DeliveryPkgController {
     @GetMapping("/EndToEndImageSearch")
     public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(
             @RequestParam String queryImageUrl,
-            @RequestParam(defaultValue = "5") Integer topK) {
+            @RequestParam(defaultValue = "20") Integer topK) {
         try {
             System.out.println("Step 1: Generating embedding for query image: " + queryImageUrl);
             float[] queryVector = imageSearch.generateImageEmbedding(queryImageUrl);
