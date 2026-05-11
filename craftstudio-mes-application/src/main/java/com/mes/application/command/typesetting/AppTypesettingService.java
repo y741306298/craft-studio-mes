@@ -1737,6 +1737,10 @@ public class AppTypesettingService {
                 String templateCode = buildTemplateCode(i + 1, total);
                 TypesettingElement element = new TypesettingElement();
                 element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
+                String nestedMirrorSvg = StringUtils.isNotBlank(callbackResult.getNestedMirrorSvg())
+                        ? callbackResult.getNestedMirrorSvg()
+                        : callbackResult.getMirrorNestedSvg();
+                element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
                 element.setUtilization(callbackResult.getUtilization());
                 if (callbackResult.getContainerSize() != null) {
                     element.setWidth(callbackResult.getContainerSize().getWidth());

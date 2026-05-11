@@ -16,11 +16,16 @@ public class NestingResponse {
     public static class Result {
         private String nestedSvg;
         /**
+         * 当前算法回调字段：镜像排版 svg 路径
+         */
+        private String nestedMirrorSvg;
+        /**
          * 可选：算法返回的 plt 路径
          */
         private String nestedPlt;
         /**
          * 可选：算法返回的镜像 svg 路径
+         * 兼容历史字段 mirrorNestedSvg
          */
         private String mirrorNestedSvg;
         /**

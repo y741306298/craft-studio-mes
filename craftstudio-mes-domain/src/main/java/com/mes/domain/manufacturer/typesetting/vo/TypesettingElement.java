@@ -15,6 +15,10 @@ public class TypesettingElement {
      */
     private String nestedSvg;
     /**
+     * 算法输出的镜像排版 svg 路径
+     */
+    private String nestedMirrorSvg;
+    /**
      * 排版利用率，如 0.636334
      */
     private BigDecimal utilization;
