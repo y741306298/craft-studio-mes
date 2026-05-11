@@ -637,6 +637,17 @@ public class AppOrderPreprocessingService {
         }
     }
 
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null || StringUtils.isBlank(methodName)) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     /**
      * 调用 API 生成 PLT 文件
      *
