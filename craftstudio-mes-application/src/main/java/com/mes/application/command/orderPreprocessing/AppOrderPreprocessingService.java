@@ -24,6 +24,7 @@ import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
@@ -39,6 +40,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.lang.reflect.Method;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
