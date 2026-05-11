@@ -224,6 +224,34 @@ public class AlgorithmCoreApiService {
         return callAlgorithmAsync("http://craftstsvg-nest-lmadlddfst.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
+    
+    /**
+     * 排版算法 - 同步模式
+     * 将多个零件SVG进行智能排版，生成优化的排版方案
+     * 适用于耗时较短的场景或对实时性要求不高的场景
+     * 请求发起方需一直等处理结束才释放连接
+     *
+     * @param request 排版请求参数
+     * @return 排版结果
+     */
+    public NestingResponse generateNestedFilesSync(NestingRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getNestManifest() == null) {
+            throw new RuntimeException("排版清单不能为空");
+        }
+        if (request.getNestManifest().getContainers() == null || request.getNestManifest().getContainers().isEmpty()) {
+            throw new RuntimeException("排版容器列表不能为空");
+        }
+        if (request.getNestManifest().getElements() == null || request.getNestManifest().getElements().isEmpty()) {
+            throw new RuntimeException("排版元素列表不能为空");
+        }
+
+        return callAlgorithmSync("http://craftstsvg-nest-lmadlddfst.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
+                NestingResponse.class);
+    }
+
 
     /**
      * 网格排版算法 - 异步模式（推荐）

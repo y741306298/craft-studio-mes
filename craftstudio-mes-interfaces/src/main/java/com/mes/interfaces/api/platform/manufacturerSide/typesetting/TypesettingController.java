@@ -171,7 +171,7 @@ public class TypesettingController {
      * 服务层会按 id 读取最新排版记录并构建 Forme 生成请求。
      */
     @PostMapping("/confirmLayout")
-    public ApiResponse<LayoutConfirmResult> confirmLayout(@RequestBody TypesettingInfo request) {
+        public ApiResponse<LayoutConfirmResult> confirmLayout(@RequestBody TypesettingInfo request) {
         LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
         if (!result.isSuccess()) {
             ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
