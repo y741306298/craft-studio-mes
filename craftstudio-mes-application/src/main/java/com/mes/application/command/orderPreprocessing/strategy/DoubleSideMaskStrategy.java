@@ -25,7 +25,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         // 步骤1：识别是否同时存在超幅拼接/异形切割，决定是否预先生成等幅蒙版。
         boolean hasCutting = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接");
         boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
-        String mirrorUrl = resolveMirrorRawFile(procedureFlow);
+        MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow);
         if (!hasSpecialShape && !hasCutting) {
             // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
             String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
@@ -39,11 +39,11 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
             ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                     orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-            if (mirrorUrl != null && !mirrorUrl.isBlank()) {
+            if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
                 MirrorConfig mirrorConfig = new MirrorConfig();
-                mirrorConfig.setImg(mirrorUrl);
-                mirrorConfig.setPreviewImg(mirrorUrl);
-                mirrorConfig.setThumbnail(mirrorUrl);
+                mirrorConfig.setImg(mirrorImageData.raw);
+                mirrorConfig.setPreviewImg(mirrorImageData.preview);
+                mirrorConfig.setThumbnail(mirrorImageData.thumbnail);
                 piece.setMirrorConfigs(List.of(mirrorConfig));
             }
             processingService.getProductionPieceService().addProductionPiece(piece);
@@ -53,7 +53,8 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             return pieces;
         }
         // 步骤3：存在超幅拼接/异形切割时才调用异步蒙版算法。
-        processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(), mirrorUrl);
+        processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(),
+                mirrorImageData == null ? null : mirrorImageData.raw);
         return null;
     }
 
@@ -79,10 +80,10 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
      * 双面对裱镜像图提取步骤：
      * 1) 定位“反面相同画面/反面不同画面”节点；
      * 2) 遍历 paramConfigs；
-     * 3) 读取 param.file.rawFile；
-     * 4) 返回第一个有效 rawFile 作为 mirrorUrl。
+     * 3) 读取 param.file.filePreview 下 raw/preview/thumbnail；
+     * 4) 返回第一个有效镜像文件信息。
      */
-    private String resolveMirrorRawFile(ProcedureFlow procedureFlow) {
+    private MirrorImageData resolveMirrorImageData(ProcedureFlow procedureFlow) {
         if (procedureFlow == null || procedureFlow.getNodes() == null) {
             return null;
         }
@@ -99,13 +100,36 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             for (Object config : node.getParamConfigs()) {
                 Object param = extractFieldValue(config, "param");
                 Object file = extractFieldValue(param, "file");
-                Object rawFile = extractFieldValue(file, "rawFile");
-                if (rawFile != null && !String.valueOf(rawFile).isBlank()) {
-                    return String.valueOf(rawFile);
+                Object filePreview = extractFieldValue(file, "filePreview");
+                String raw = toNonBlankString(extractFieldValue(filePreview, "raw"));
+                String preview = toNonBlankString(extractFieldValue(filePreview, "preview"));
+                String thumbnail = toNonBlankString(extractFieldValue(filePreview, "thumbnail"));
+                if (raw != null) {
+                    return new MirrorImageData(raw, preview, thumbnail);
                 }
             }
         }
         return null;
+    }
+
+    private String toNonBlankString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String str = String.valueOf(value);
+        return str.isBlank() ? null : str;
+    }
+
+    private static class MirrorImageData {
+        private final String raw;
+        private final String preview;
+        private final String thumbnail;
+
+        private MirrorImageData(String raw, String preview, String thumbnail) {
+            this.raw = raw;
+            this.preview = preview;
+            this.thumbnail = thumbnail;
+        }
     }
 
     private Object extractFieldValue(Object target, String fieldName) {
