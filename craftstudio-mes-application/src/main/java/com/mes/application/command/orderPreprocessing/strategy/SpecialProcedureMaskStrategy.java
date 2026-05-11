@@ -13,13 +13,28 @@ public class SpecialProcedureMaskStrategy implements OrderItemProcessingStrategy
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
-        return AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接")
+        boolean hasCuttingOrSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接")
                 || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
+        boolean hasDoubleSide = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "双面对裱")
+                || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "覆双面");
+        return hasCuttingOrSpecialShape && !hasDoubleSide;
     }
 
     @Override
     public List<ProductionPiece> process(OrderItem orderItem, ProcedureFlow procedureFlow, AppOrderPreprocessingService processingService) {
-        return processingService.processWithCuttingOrSpecialShape(orderItem, procedureFlow, getStrategyType());
+        // 步骤1：识别超幅拼接/异形切割组合。
+        boolean hasCutting = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接");
+        boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
+
+        if (hasCutting && !hasSpecialShape) {
+            // 步骤2：仅超幅拼接时先生成等幅 SVG 蒙版并保存。
+            String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
+            processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
+        }
+
+        // 步骤3：异步触发蒙版算法（无 mirrorUrl）。
+        processingService.callMaskAsyncForStrategy(orderItem, procedureFlow, getStrategyType(), hasSpecialShape, hasCutting, null);
+        return null;
     }
 
     @Override
