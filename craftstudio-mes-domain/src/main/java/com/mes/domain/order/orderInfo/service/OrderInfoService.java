@@ -461,7 +461,25 @@ public class OrderInfoService {
             String processFlow = "";
             if (item.getMtoProduct() != null) {
                 MTOProductSpecDTO mtoProductDto = item.getMtoProduct();
-                fillProductionAndMaskImage(item, mtoProductDto);
+                MTOProductSpec mtoProductSpec = mtoProductDto.toDO();
+                // 获取首个可用的 ASSET 参数图片作为生产图（避免直接强转）
+                ImageFile productionImgFile = getFirstAssetImageFile(mtoProductSpec);
+                if (productionImgFile != null) {
+                    item.setProductionImgFile(productionImgFile);
+                }
+                //再判断是否存在异形切割图片
+                Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
+                if(processWithContourSliceImg != null){
+                    FileAssetParam maskParam = (FileAssetParam) processWithContourSliceImg.getParamConfigs().get(0).getParam();
+                    File file1 = maskParam.getFile();
+                    ImageFile maskfile;
+                    if (file1 instanceof ImageFile) {
+                        maskfile = (ImageFile) file1;
+                    } else {
+                        maskfile = ImageFile.cloneFromFile(file1);
+                    }
+                    item.setMaskImgFile(maskfile);
+                }
                 ProcedureFlow procedureFlow = orderPreprocessingService.convertProcessFlowToProcedureFlow(mtoProductDto);
                 MaterialConfig materialConfigFromMTOProduct = this.orderPreprocessingService.getMaterialConfigFromMTOProduct(item.getMtoProduct());
                 if (procedureFlow != null) {
@@ -488,54 +506,24 @@ public class OrderInfoService {
         return orderItemsResult;
     }
 
-    private void fillProductionAndMaskImage(OrderItem item, MTOProductSpecDTO mtoProductDto) {
-        List<MTOProductSpecDTO.ProcessDTO> processNodes = flattenProcessNodes(mtoProductDto);
-        if (processNodes.isEmpty()) {
-            return;
-        }
-
-        ImageFile productionImg = extractImageFromProcessParamConfigs(processNodes.get(0).getParamConfigs(), "ASSET");
-        if (productionImg == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "第一个节点的 ASSET 参数缺失");
-        }
-        item.setProductionImgFile(productionImg);
-
-        for (MTOProductSpecDTO.ProcessDTO processNode : processNodes) {
-            ImageFile maskImg = extractImageFromProcessParamConfigs(processNode.getParamConfigs(), "SLICE");
-            if (maskImg != null) {
-                item.setMaskImgFile(maskImg);
-                return;
-            }
-        }
-    }
-
-    private List<MTOProductSpecDTO.ProcessDTO> flattenProcessNodes(MTOProductSpecDTO mtoProductDto) {
-        List<MTOProductSpecDTO.ProcessDTO> nodes = new ArrayList<>();
-        if (mtoProductDto == null || mtoProductDto.getProcessFlow() == null) {
-            return nodes;
-        }
-        MTOProductSpecDTO.ProcessDTO current = mtoProductDto.getProcessFlow().getRootProcess();
-        while (current != null) {
-            nodes.add(current);
-            current = current.getNext();
-        }
-        return nodes;
-    }
-
-    private ImageFile extractImageFromProcessParamConfigs(List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs, String type) {
-        if (paramConfigs == null || paramConfigs.isEmpty()) {
+    private ImageFile getFirstAssetImageFile(MTOProductSpec mtoProductSpec) {
+        if (mtoProductSpec == null || mtoProductSpec.getFirstProcessParamConfigs() == null) {
             return null;
         }
-        for (MTOProductSpecDTO.ProcessParamConfigDTO paramConfig : paramConfigs) {
-            if (paramConfig == null || paramConfig.getParam() == null) {
+
+        List<ProcessParamConfig> firstProcessParamConfigs = mtoProductSpec.getFirstProcessParamConfigs();
+        for (ProcessParamConfig processParamConfig : firstProcessParamConfigs) {
+            if (processParamConfig == null || processParamConfig.getParam() == null) {
                 continue;
             }
-            MTOProductSpecDTO.ProcessParamDTO param = paramConfig.getParam();
-            ProcessParam aDo = param.toDO();
-            if (!StringUtils.equals(type, String.valueOf(aDo.getType())) || param.getFile() == null) {
+            ProcessParam param = processParamConfig.getParam();
+            if (!StringUtils.equals("ASSET", String.valueOf(param.getType())) || !(param instanceof FileAssetParam)) {
                 continue;
             }
-            File file = param.getFile().toDO();
+            File file = ((FileAssetParam) param).getFile();
+            if (file == null) {
+                continue;
+            }
             if (file instanceof ImageFile) {
                 return (ImageFile) file;
             }
