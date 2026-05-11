@@ -63,49 +63,58 @@ public class OrderPreprocessingService {
 
     /**
      * 从 MTOProductSpecDTO 中获取 processFlow
-     * 注意：此处需要使用反射或其他方式访问外部 DTO 的字段
      */
     private MTOProductSpecDTO.ProcessFlowDTO getProcessFlowFromMTOProduct(MTOProductSpecDTO mtoProduct) {
-        try {
-            java.lang.reflect.Method getProcessFlowMethod = mtoProduct.getClass().getDeclaredMethod("getProcessFlow");
-            return (MTOProductSpecDTO.ProcessFlowDTO) getProcessFlowMethod.invoke(mtoProduct);
-        } catch (Exception e) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "无法获取 processFlow 信息：" + e.getMessage());
-        }
+        return mtoProduct.getProcessFlow();
     }
 
     /**
      * 获取 processFlow 的 ID
      */
-    private String getProcessFlowId(Object processFlowDTO) {
-        try {
-            java.lang.reflect.Method getIdMethod = processFlowDTO.getClass().getDeclaredMethod("getId");
-            return (String) getIdMethod.invoke(processFlowDTO);
-        } catch (Exception e) {
-            return null;
+    private String getProcessFlowId(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
+        String id = invokeStringGetter(processFlowDTO, "getId");
+        if (id != null) {
+            return id;
         }
+        MTOProductSpecDTO.ProcessDTO rootProcess = processFlowDTO.getRootProcess();
+        return rootProcess != null ? rootProcess.getProcessMetaId() : null;
     }
 
     /**
      * 获取 processFlow 的名称
      */
-    private String getProcessFlowName(Object processFlowDTO) {
-        try {
-            java.lang.reflect.Method getNameMethod = processFlowDTO.getClass().getDeclaredMethod("getName");
-            return (String) getNameMethod.invoke(processFlowDTO);
-        } catch (Exception e) {
+    private String getProcessFlowName(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
+        String name = invokeStringGetter(processFlowDTO, "getName");
+        if (name != null) {
+            return name;
+        }
+        MTOProductSpecDTO.ProcessDTO rootProcess = processFlowDTO.getRootProcess();
+        if (rootProcess == null || rootProcess.getProcessMetaSnapshot() == null) {
             return null;
         }
+        return rootProcess.getProcessMetaSnapshot().getName();
     }
 
     /**
      * 获取 processFlow 的描述
      */
-    private String getProcessFlowDescription(Object processFlowDTO) {
+    private String getProcessFlowDescription(MTOProductSpecDTO.ProcessFlowDTO processFlowDTO) {
+        String description = invokeStringGetter(processFlowDTO, "getDescription");
+        if (description != null) {
+            return description;
+        }
+        return getProcessFlowName(processFlowDTO);
+    }
+
+    private String invokeStringGetter(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
         try {
-            java.lang.reflect.Method getDescriptionMethod = processFlowDTO.getClass().getDeclaredMethod("getDescription");
-            return (String) getDescriptionMethod.invoke(processFlowDTO);
-        } catch (Exception e) {
+            java.lang.reflect.Method method = target.getClass().getMethod(methodName);
+            Object value = method.invoke(target);
+            return value instanceof String ? (String) value : null;
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -118,29 +127,19 @@ public class OrderPreprocessingService {
             return new ArrayList<>();
         }
         
-        try {
-            // 获取根节点
-            java.lang.reflect.Method getRootProcessMethod = processFlowDTO.getClass().getDeclaredMethod("getRootProcess");
-            MTOProductSpecDTO.ProcessDTO rootProcess = (MTOProductSpecDTO.ProcessDTO) getRootProcessMethod.invoke(processFlowDTO);
-            
-            if (rootProcess == null) {
-                return new ArrayList<>();
-            }
-            
-            // 从根节点开始递归收集所有节点
-            List<MTOProductSpecDTO.ProcessDTO> allNodes = new ArrayList<>();
-            collectProcesses(rootProcess, allNodes);
-            return allNodes;
-        } catch (Exception e) {
-            System.err.println("获取 processFlow 节点失败：" + e.getMessage());
+        MTOProductSpecDTO.ProcessDTO rootProcess = processFlowDTO.getRootProcess();
+        if (rootProcess == null) {
             return new ArrayList<>();
         }
+        List<MTOProductSpecDTO.ProcessDTO> allNodes = new ArrayList<>();
+        collectProcesses(rootProcess, allNodes);
+        return allNodes;
     }
 
     /**
      * 递归收集工艺流程中的所有节点
      */
-    private void collectProcesses(MTOProductSpecDTO.ProcessDTO process, List<MTOProductSpecDTO.ProcessDTO> allNodes) throws Exception {
+    private void collectProcesses(MTOProductSpecDTO.ProcessDTO process, List<MTOProductSpecDTO.ProcessDTO> allNodes) {
         if (process == null) {
             return;
         }
@@ -148,15 +147,9 @@ public class OrderPreprocessingService {
         // 添加当前节点
         allNodes.add(process);
         
-        // 获取下一个节点（next）
-        try {
-            java.lang.reflect.Method getNextMethod = process.getClass().getDeclaredMethod("getNext");
-            MTOProductSpecDTO.ProcessDTO nextProcess = (MTOProductSpecDTO.ProcessDTO) getNextMethod.invoke(process);
-            if (nextProcess != null) {
-                collectProcesses(nextProcess, allNodes);
-            }
-        } catch (NoSuchMethodException e) {
-            // 没有 next 方法则停止
+        MTOProductSpecDTO.ProcessDTO nextProcess = process.getNext();
+        if (nextProcess != null) {
+            collectProcesses(nextProcess, allNodes);
         }
     }
 
@@ -224,7 +217,8 @@ public class OrderPreprocessingService {
 
         try {
             ProcessParam processParam = source.getParam().toDO();
-            target.setParam(MTOProductSpecDTO.ProcessParamDTO.fromDO(processParam));
+            MTOProductSpecDTO.ProcessParamDTO typedParam = MTOProductSpecDTO.ProcessParamDTO.fromDO(processParam);
+            target.setParam(typedParam);
             return target;
         } catch (Exception ex) {
             try {
