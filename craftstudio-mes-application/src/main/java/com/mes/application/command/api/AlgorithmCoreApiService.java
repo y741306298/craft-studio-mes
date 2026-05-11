@@ -130,6 +130,7 @@ public class AlgorithmCoreApiService {
         if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
+        validateSliceBloodDirection(request);
         String jsonString = JSON.toJSONString(request);
         System.out.println(jsonString);
         return callAlgorithmAsync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request,
@@ -157,13 +158,44 @@ public class AlgorithmCoreApiService {
         if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
+        validateSliceBloodDirection(request);
         String jsonString = JSON.toJSONString(request);
         System.out.println(jsonString);
         return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, ImageMaskResponse.class);
     }
 
 
-    /**
+    
+    private void validateSliceBloodDirection(ImageMaskRequest request) {
+        ImageMaskRequest.Slice slice = request.getSlice();
+        if (slice == null) {
+            return;
+        }
+        validateCoordinateDirections(slice.getXs(), "xs");
+        validateCoordinateDirections(slice.getYs(), "ys");
+    }
+
+    private void validateCoordinateDirections(java.util.List<ImageMaskRequest.Coordinate> coordinates, String axis) {
+        if (coordinates == null || coordinates.isEmpty()) {
+            return;
+        }
+        Integer expectedSign = null;
+        for (ImageMaskRequest.Coordinate coordinate : coordinates) {
+            if (coordinate == null || coordinate.getBlood() == null || coordinate.getBlood() == 0) {
+                continue;
+            }
+            int sign = coordinate.getBlood() > 0 ? 1 : -1;
+            if (expectedSign == null) {
+                expectedSign = sign;
+                continue;
+            }
+            if (expectedSign != sign) {
+                throw new RuntimeException(axis + " 的 blood 出血方向必须保持一致（同为正或同为负）");
+            }
+        }
+    }
+
+/**
      * 排版算法 - 异步模式（推荐）
      * 将多个零件SVG进行智能排版，生成优化的排版方案
      * 适用于耗时较长的场景，建议优先使用此模式

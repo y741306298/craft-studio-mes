@@ -26,6 +26,7 @@ public class ImageMaskRequest {
     @Data
     public static class RawImage {
         private String url;
+        private String mirrorUrl;
         private ImageProperties imageProperties;
     }
 
