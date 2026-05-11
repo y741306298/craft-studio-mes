@@ -2,6 +2,7 @@ package com.mes.infra.dal.manufacurer.ProductionPiece.po;
 
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
+import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.infra.base.BasePO;
@@ -38,6 +39,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String processingFlow;
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
+    private List<MirrorConfig> mirrorConfigs;
 
     @Override
     public ProductionPiece toDO() {
@@ -66,6 +68,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setProcessingFlow(this.processingFlow);
         piece.setProcedureFlow(this.procedureFlow);
         piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
+        piece.setMirrorConfigs(this.mirrorConfigs);
 
         return piece;
     }
@@ -96,6 +99,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.processingFlow = _do.getProcessingFlow();
         this.procedureFlow = _do.getProcedureFlow();
         this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
+        this.mirrorConfigs = _do.getMirrorConfigs();
 
         return this;
     }

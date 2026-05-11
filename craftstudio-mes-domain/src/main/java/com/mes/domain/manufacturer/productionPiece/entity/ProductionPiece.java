@@ -36,5 +36,6 @@ public class ProductionPiece extends BaseEntity {
     private String processingFlow;
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
+    private List<MirrorConfig> mirrorConfigs;
 
 }
