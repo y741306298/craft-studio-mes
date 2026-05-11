@@ -13,6 +13,7 @@ import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.file.vo.File;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -530,7 +531,8 @@ public class OrderInfoService {
                 continue;
             }
             MTOProductSpecDTO.ProcessParamDTO param = paramConfig.getParam();
-            if (!StringUtils.equals(type, String.valueOf(param.getType())) || param.getFile() == null) {
+            ProcessParam aDo = param.toDO();
+            if (!StringUtils.equals(type, String.valueOf(aDo.getType())) || param.getFile() == null) {
                 continue;
             }
             File file = param.getFile().toDO();
