@@ -2,10 +2,13 @@ package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import org.springframework.stereotype.Service;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -22,15 +25,53 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         // 步骤1：识别是否同时存在超幅拼接/异形切割，决定是否预先生成等幅蒙版。
         boolean hasCutting = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接");
         boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
+        String mirrorUrl = resolveMirrorRawFile(procedureFlow);
         if (!hasSpecialShape && !hasCutting) {
-            // 步骤2：仅双面对裱场景先生成等幅 SVG 并回写到 orderItem.maskImgFile。
+            // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
             String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
             processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
+
+            String productionImgUrl = orderItem.getProductionImgFile() != null
+                    && orderItem.getProductionImgFile().getFilePreview() != null
+                    ? orderItem.getProductionImgFile().getFilePreview().getRaw()
+                    : null;
+            Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
+            Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
+            ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
+                    orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
+            if (mirrorUrl != null && !mirrorUrl.isBlank()) {
+                MirrorConfig mirrorConfig = new MirrorConfig();
+                mirrorConfig.setImg(mirrorUrl);
+                mirrorConfig.setPreviewImg(mirrorUrl);
+                mirrorConfig.setThumbnail(mirrorUrl);
+                piece.setMirrorConfigs(List.of(mirrorConfig));
+            }
+            processingService.getProductionPieceService().addProductionPiece(piece);
+            processingService.indexProductionPieceImageForStrategy(piece);
+            List<ProductionPiece> pieces = new ArrayList<>();
+            pieces.add(piece);
+            return pieces;
         }
-        // 步骤3：读取反面节点 rawFile 并作为 mirrorUrl 传入算法。
-        String mirrorUrl = resolveMirrorRawFile(procedureFlow);
-        // 步骤4：调用双面对裱专用异步方法，确保无超幅/异形时仍携带完整 mask 数据。
+        // 步骤3：存在超幅拼接/异形切割时才调用异步蒙版算法。
         processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(), mirrorUrl);
+        return null;
+    }
+
+    private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
+        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
+        }
+        for (String methodName : methodNames) {
+            try {
+                Method method = usageSize3D.getClass().getMethod(methodName);
+                Object value = method.invoke(usageSize3D);
+                if (value instanceof Number number) {
+                    return number.doubleValue();
+                }
+            } catch (Exception ignored) {
+            }
+        }
         return null;
     }
 
