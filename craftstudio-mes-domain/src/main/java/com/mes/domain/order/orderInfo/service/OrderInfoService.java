@@ -13,7 +13,8 @@ import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.file.vo.File;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
-import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.ProcessParamConfig;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.FileAssetParam;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -468,7 +469,7 @@ public class OrderInfoService {
                     item.setProductionImgFile(productionImgFile);
                 }
                 //再判断是否存在异形切割图片
-                Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
+                com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
                 if(processWithContourSliceImg != null){
                     FileAssetParam maskParam = (FileAssetParam) processWithContourSliceImg.getParamConfigs().get(0).getParam();
                     File file1 = maskParam.getFile();
@@ -516,11 +517,10 @@ public class OrderInfoService {
             if (processParamConfig == null || processParamConfig.getParam() == null) {
                 continue;
             }
-            ProcessParam param = processParamConfig.getParam();
-            if (!StringUtils.equals("ASSET", String.valueOf(param.getType())) || !(param instanceof FileAssetParam)) {
+            if (!(processParamConfig.getParam() instanceof FileAssetParam)) {
                 continue;
             }
-            File file = ((FileAssetParam) param).getFile();
+            File file = ((FileAssetParam) processParamConfig.getParam()).getFile();
             if (file == null) {
                 continue;
             }
