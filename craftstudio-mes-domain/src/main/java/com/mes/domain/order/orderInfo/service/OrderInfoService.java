@@ -12,6 +12,7 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.file.vo.File;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.entity.MTOProductSpec;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.ProcessParamConfig;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.FileAssetParam;
