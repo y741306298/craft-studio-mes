@@ -480,8 +480,12 @@ public class AppOrderPreprocessingService {
             List<ProductionPiece> resultPieces = new ArrayList<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 try {
-                    String rawImageUrl = pair.getImg();
-                    String maskedImageUrl = pair.getSvg();
+                    ImageMaskResponse.SideResult sideResult = pair.getPrimaryResult();
+                    if (sideResult == null) {
+                        continue;
+                    }
+                    String rawImageUrl = sideResult.getImg();
+                    String maskedImageUrl = sideResult.getSvg();
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
                     ProcedureFlow newProcedureFlow = new ProcedureFlow();
@@ -522,13 +526,13 @@ public class AppOrderPreprocessingService {
                         );
                         piece.setProcessingFlow(processingFlow);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
-                            piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(pair.getPreviewImg()));
-                            piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(pair.getThumbnail()));
+                            piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
+                            piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(sideResult.getThumbnail()));
                         }
-                        if (pair.getBlood() != null) {
+                        if (sideResult.getBlood() != null) {
                             Blood blood = new Blood();
-                            blood.setX(pair.getBlood().getX());
-                            blood.setY(pair.getBlood().getY());
+                            blood.setX(sideResult.getBlood().getX());
+                            blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
                         productionPieceService.addProductionPiece(piece);
