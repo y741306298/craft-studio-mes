@@ -303,7 +303,6 @@ public class AppOrderPreprocessingService {
 
         return false;
     }
-    }
 
     private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
         Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
