@@ -14,10 +14,8 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.File;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.entity.MTOProductSpec;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
-import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.Process;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.ProcessParamConfig;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.FileAssetParam;
-import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -466,15 +464,13 @@ public class OrderInfoService {
             if (item.getMtoProduct() != null) {
                 MTOProductSpecDTO mtoProductDto = item.getMtoProduct();
                 MTOProductSpec mtoProductSpec = mtoProductDto.toDO();
-                //获取第一个节点下的,默认为FileAssetParam,获取生产图片
-                List<ProcessParamConfig> firstProcessParamConfigs = mtoProductSpec.getFirstProcessParamConfigs();
-                ProcessParamConfig processParamConfig = firstProcessParamConfigs.get(0);
-                if(processParamConfig == null) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "第一个节点的配置参数缺失");
-                FileAssetParam processParam = (FileAssetParam) processParamConfig.getParam();
-                ImageFile file = (ImageFile) processParam.getFile();
-                item.setProductionImgFile(file);
+                // 获取首个可用的 ASSET 参数图片作为生产图（避免直接强转）
+                ImageFile productionImgFile = getFirstAssetImageFile(mtoProductSpec);
+                if (productionImgFile != null) {
+                    item.setProductionImgFile(productionImgFile);
+                }
                 //再判断是否存在异形切割图片
-                Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
+                com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.Process processWithContourSliceImg = mtoProductSpec.findProcessWithContourSliceImg();
                 if(processWithContourSliceImg != null){
                     FileAssetParam maskParam = (FileAssetParam) processWithContourSliceImg.getParamConfigs().get(0).getParam();
                     File file1 = maskParam.getFile();
@@ -510,5 +506,30 @@ public class OrderInfoService {
         List<OrderItem> orderItemsResult = new ArrayList<>(savedOrderItemsCollection);
 
         return orderItemsResult;
+    }
+
+    private ImageFile getFirstAssetImageFile(MTOProductSpec mtoProductSpec) {
+        if (mtoProductSpec == null || mtoProductSpec.getFirstProcessParamConfigs() == null) {
+            return null;
+        }
+
+        List<ProcessParamConfig> firstProcessParamConfigs = mtoProductSpec.getFirstProcessParamConfigs();
+        for (ProcessParamConfig processParamConfig : firstProcessParamConfigs) {
+            if (processParamConfig == null || processParamConfig.getParam() == null) {
+                continue;
+            }
+            if (!(processParamConfig.getParam() instanceof FileAssetParam)) {
+                continue;
+            }
+            File file = ((FileAssetParam) processParamConfig.getParam()).getFile();
+            if (file == null) {
+                continue;
+            }
+            if (file instanceof ImageFile) {
+                return (ImageFile) file;
+            }
+            return ImageFile.cloneFromFile(file);
+        }
+        return null;
     }
 }
