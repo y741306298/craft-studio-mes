@@ -607,13 +607,10 @@ public class AppOrderPreprocessingService {
             if (config == null) {
                 continue;
             }
-            Object type = extractFieldValue(config, "type");
-            if (!"ACC".equals(type == null ? null : String.valueOf(type))) {
+            if (!"ACC".equals(resolveConfigType(config))) {
                 continue;
             }
-            Object param = extractFieldValue(config, "param");
-            Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
-            Object nameValue = extractFieldValue(accessorySnapshot, "name");
+            Object nameValue = extractParamDisplayName(config);
             String name = nameValue == null ? null : String.valueOf(nameValue);
             if (StringUtils.isNotBlank(name)) {
                 accessoryNames.add(name);
@@ -623,6 +620,27 @@ public class AppOrderPreprocessingService {
             return nodeName + "（" + String.join("、", accessoryNames) + "）";
         }
         return nodeName;
+    }
+
+    private String resolveConfigType(Object config) {
+        Object directType = extractFieldValue(config, "type");
+        if (directType != null && StringUtils.isNotBlank(String.valueOf(directType))) {
+            return String.valueOf(directType);
+        }
+        Object param = extractFieldValue(config, "param");
+        Object paramType = extractFieldValue(param, "type");
+        return paramType == null ? null : String.valueOf(paramType);
+    }
+
+    private Object extractParamDisplayName(Object config) {
+        Object param = extractFieldValue(config, "param");
+        Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+        Object accessoryName = extractFieldValue(accessorySnapshot, "name");
+        if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
+            return accessoryName;
+        }
+        Object metaSnapshot = extractFieldValue(param, "processParamMetaSnapshot");
+        return extractFieldValue(metaSnapshot, "name");
     }
 
     private Object extractFieldValue(Object target, String fieldName) {
