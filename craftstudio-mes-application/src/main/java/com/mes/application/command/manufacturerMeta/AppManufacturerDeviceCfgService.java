@@ -1,5 +1,6 @@
 package com.mes.application.command.manufacturerMeta;
 
+import com.mes.domain.manufacturer.device.enums.DeviceType;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.service.ManufacturerDeviceCfgService;
@@ -46,6 +47,56 @@ public class AppManufacturerDeviceCfgService {
         }
 
         return new PagedResult<ManufacturerDeviceCfg>(items, total, query.getSize(), query.getCurrent());
+    }
+
+
+    public PagedResult<ManufacturerDeviceCfg> findDeviceCfgsByConditions(String manufacturerMetaId, String deviceName, DeviceType deviceType, PagedQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("分页参数不能为空");
+        }
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+
+        List<ManufacturerDeviceCfg> allItems = listDeviceCfgsByManufacturerId(manufacturerMetaId);
+        List<ManufacturerDeviceCfg> filteredItems = new ArrayList<ManufacturerDeviceCfg>();
+        String targetName = deviceName == null ? null : deviceName.trim().toLowerCase();
+        for (ManufacturerDeviceCfg item : allItems) {
+            if (item == null) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(targetName)) {
+                String currentName = item.getDeviceName() == null ? "" : item.getDeviceName().toLowerCase();
+                if (!currentName.contains(targetName)) {
+                    continue;
+                }
+            }
+            if (deviceType != null && item.getDeviceType() != deviceType) {
+                continue;
+            }
+            filteredItems.add(item);
+        }
+
+        filteredItems.sort((a, b) -> {
+            if (a.getCreateTime() == null && b.getCreateTime() == null) {
+                return 0;
+            }
+            if (a.getCreateTime() == null) {
+                return 1;
+            }
+            if (b.getCreateTime() == null) {
+                return -1;
+            }
+            return b.getCreateTime().compareTo(a.getCreateTime());
+        });
+
+        int fromIndex = (int) Math.max(0, (query.getCurrent() - 1) * query.getSize());
+        int toIndex = Math.min(filteredItems.size(), fromIndex + query.getSize());
+        List<ManufacturerDeviceCfg> pageItems = fromIndex >= filteredItems.size()
+                ? new ArrayList<ManufacturerDeviceCfg>()
+                : new ArrayList<ManufacturerDeviceCfg>(filteredItems.subList(fromIndex, toIndex));
+
+        return new PagedResult<ManufacturerDeviceCfg>(pageItems, filteredItems.size(), query.getSize(), query.getCurrent());
     }
 
     public void addDeviceCfg(ManufacturerDeviceCfg command) {
