@@ -6,7 +6,7 @@ import com.mes.domain.manufacturer.procedure.entity.Procedure;
 import com.mes.domain.manufacturer.procedure.repository.ProcedureRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
-import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
+import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -31,6 +31,9 @@ public class ProcedureService {
 
     @Autowired
     private ProcedureRepository procedureRepository;
+
+    @Autowired
+    private ProcedureFlowService procedureFlowService;
 
     @Value("${ali-cloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}")
     private String ossEndpoint;
@@ -181,9 +184,11 @@ public class ProcedureService {
         ProductionPiece piece = new ProductionPiece();
         piece.setOrderItemId(orderItem.getOrderItemId());
 
-        if (orderItem.getProcedureFlow() != null) {
-            piece.setProcedureFlow(orderItem.getProcedureFlow());
-            piece.setProcedureFlowId(orderItem.getProcedureFlow().getProcedureFlowId());
+        ProcedureFlow sourceProcedureFlow = procedureFlow != null ? procedureFlow : orderItem.getProcedureFlow();
+        ProcedureFlow normalizedProcedureFlow = enrichProcedureFlowForProductionPiece(sourceProcedureFlow);
+        if (normalizedProcedureFlow != null) {
+            piece.setProcedureFlow(normalizedProcedureFlow);
+            piece.setProcedureFlowId(normalizedProcedureFlow.getProcedureFlowId());
         }
 
         piece.setProductionPieceType(pieceType);
@@ -191,15 +196,13 @@ public class ProcedureService {
         piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
         piece.setCarrierId(orderItem.getLogisticsCarrierInfo().getCarrierId());
-        MaterialConfig materialConfig = getProcedureMaterial(procedureFlow);
+        MaterialConfig materialConfig = getProcedureMaterial(sourceProcedureFlow);
         if (materialConfig == null) {
             materialConfig = orderItem.getMaterial();
         }
         piece.setMaterialConfig(materialConfig);
         piece.setProcessingFlow(orderItem.getProcessingFlow());
         piece.setManufacturerId(orderItem.getManufacturerId());
-        piece.setProcedureFlow(procedureFlow);
-
         String completeImageUrl = buildCompleteOssUrl(imageUrl);
         String previewImageUrl = completeImageUrl;
         String thumbnailImageUrl = completeImageUrl;
@@ -240,6 +243,13 @@ public class ProcedureService {
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
         piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
         return piece;
+    }
+
+    private ProcedureFlow enrichProcedureFlowForProductionPiece(ProcedureFlow procedureFlow) {
+        if (procedureFlow == null) {
+            return procedureFlow;
+        }
+        return procedureFlowService.parseProcessingFlow(procedureFlow);
     }
 
 
