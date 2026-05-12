@@ -1740,7 +1740,9 @@ public class AppTypesettingService {
                 String nestedMirrorSvg = StringUtils.isNotBlank(callbackResult.getNestedMirrorSvg())
                         ? callbackResult.getNestedMirrorSvg()
                         : callbackResult.getMirrorNestedSvg();
-                element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
+                if (StringUtils.isNotBlank(nestedMirrorSvg)) {
+                    element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
+                }
                 element.setUtilization(callbackResult.getUtilization());
                 if (callbackResult.getContainerSize() != null) {
                     element.setWidth(callbackResult.getContainerSize().getWidth());
