@@ -11,7 +11,6 @@ import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
-import com.mes.application.command.productionPiece.AppPieceCirculationService;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -21,6 +20,7 @@ import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.procedure.service.ProcedureService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -80,8 +80,6 @@ public class AppOrderPreprocessingService {
     @Autowired
     private RestTemplate restTemplate;
 
-    @Autowired
-    private AppPieceCirculationService appPieceCirculationService;
 
     @Autowired
     private AlgorithmCoreApiService algorithmCoreApiService;
@@ -129,7 +127,7 @@ public class AppOrderPreprocessingService {
                     resultPieces.addAll(pieces);
                     //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
                     for (ProductionPiece resultPiece : pieces) {
-                        appPieceCirculationService.moveToNextNode(resultPiece, 1);
+                        movePretreatmentToPendingTypesetting(resultPiece.getProductionPieceId());
                         //暂时默认将零件状态改为待排版
                         productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
                     }
@@ -609,7 +607,7 @@ public class AppOrderPreprocessingService {
                 updateOrderItemStatusToInProduction(orderItemId);
                 
                 for (ProductionPiece resultPiece : resultPieces) {
-                    appPieceCirculationService.moveToNextNode(resultPiece, 1);
+                    movePretreatmentToPendingTypesetting(resultPiece.getProductionPieceId());
                     productionPieceService.updateProductionPieceStatusByproductionPieceId(
                             resultPiece.getProductionPieceId(), 
                             ProductionPieceStatus.PENDING_TYPESITTING
@@ -640,6 +638,37 @@ public class AppOrderPreprocessingService {
             return;
         }
         imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl);
+    }
+
+    private void movePretreatmentToPendingTypesetting(String productionPieceId) {
+        if (StringUtils.isBlank(productionPieceId)) {
+            return;
+        }
+        ProductionPiece latestPiece = productionPieceService.findByProductionPieceId(productionPieceId);
+        if (latestPiece == null || latestPiece.getProcedureFlow() == null || latestPiece.getProcedureFlow().getNodes() == null) {
+            return;
+        }
+
+        List<ProcedureFlowNode> nodes = latestPiece.getProcedureFlow().getNodes();
+        ProcedureFlowNode preTreatmentNode = nodes.stream()
+                .filter(node -> node != null && "预处理".equals(node.getNodeName()))
+                .findFirst()
+                .orElse(null);
+        ProcedureFlowNode pendingTypesettingNode = nodes.stream()
+                .filter(node -> node != null && "待排版".equals(node.getNodeName()))
+                .findFirst()
+                .orElse(null);
+        if (preTreatmentNode == null || pendingTypesettingNode == null) {
+            return;
+        }
+
+        int preTreatmentQty = preTreatmentNode.getPieceQuantity() != null ? preTreatmentNode.getPieceQuantity() : 0;
+        int pendingQty = pendingTypesettingNode.getPieceQuantity() != null ? pendingTypesettingNode.getPieceQuantity() : 0;
+        pendingTypesettingNode.setPieceQuantity(pendingQty + preTreatmentQty);
+        preTreatmentNode.setPieceQuantity(0);
+        preTreatmentNode.setNodeStatus(NodeStatus.COMPLETED);
+        pendingTypesettingNode.setNodeStatus(NodeStatus.PENDING);
+        productionPieceService.updateProductionPiece(latestPiece);
     }
 
     public void indexProductionPieceImageForStrategy(ProductionPiece piece) {
