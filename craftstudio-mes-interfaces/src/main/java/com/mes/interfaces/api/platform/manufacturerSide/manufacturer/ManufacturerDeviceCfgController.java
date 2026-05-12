@@ -55,7 +55,7 @@ public class ManufacturerDeviceCfgController {
         String manufacturerMetaId = request.getManufacturerMetaId();
         PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByConditions(
                 manufacturerMetaId, request.getDeviceName(), request.getDeviceType(), query);
-        List<ManufacturerDeviceCfg> items = result.items();
+        Collection<ManufacturerDeviceCfg> items = result.items();
         List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
         for (ManufacturerDeviceCfg item : items) {
             String deviceInfoId = item.getDeviceInfoId();
