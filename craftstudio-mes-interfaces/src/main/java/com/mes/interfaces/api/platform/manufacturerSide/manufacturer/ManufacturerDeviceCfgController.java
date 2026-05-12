@@ -24,7 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -54,8 +53,9 @@ public class ManufacturerDeviceCfgController {
 
         PagedQuery query = request.toPagedQuery();
         String manufacturerMetaId = request.getManufacturerMetaId();
-        PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
-        Collection<ManufacturerDeviceCfg> items = result.items();
+        PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByConditions(
+                manufacturerMetaId, request.getDeviceName(), request.getDeviceType(), query);
+        List<ManufacturerDeviceCfg> items = result.items();
         List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
         for (ManufacturerDeviceCfg item : items) {
             String deviceInfoId = item.getDeviceInfoId();
