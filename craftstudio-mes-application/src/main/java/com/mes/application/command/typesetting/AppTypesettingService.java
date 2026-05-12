@@ -996,6 +996,8 @@ public class AppTypesettingService {
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
         manifest.setSpacing(layoutMode.getNestingSpacingMm());
         manifest.setRequirePlt(Boolean.TRUE);
+        manifest.setMirrorAppend(Boolean.FALSE);
+        manifest.setMirrorRequirePlt(Boolean.FALSE);
         manifest.setContainers(containers);
         manifest.setElements(elements);
         nestingManifestStrategy.apply(manifest, productionPieces, typesettingInfos);
