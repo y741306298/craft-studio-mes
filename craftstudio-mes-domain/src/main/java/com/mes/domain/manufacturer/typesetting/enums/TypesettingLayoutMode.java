@@ -23,6 +23,20 @@ public enum TypesettingLayoutMode {
             2
     ),
     /**
+     * 双面对裱排版模式：
+     * 需要 json/svg，不需要 plt；标签使用左右箭头，不生成二维码。
+     */
+    DOUBLE_SIDE_MOUNTING_LAYOUT(
+            "double_side_mounting_layout",
+            "双面对裱排版模式",
+            "shaped_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "circle",
+            2
+    ),
+    /**
      * 网格排版（plt二维码）-圆形定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
      */
