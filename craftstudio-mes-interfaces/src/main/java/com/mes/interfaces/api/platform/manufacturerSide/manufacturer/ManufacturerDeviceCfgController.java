@@ -54,7 +54,8 @@ public class ManufacturerDeviceCfgController {
 
         PagedQuery query = request.toPagedQuery();
         String manufacturerMetaId = request.getManufacturerMetaId();
-        PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByManufacturerId(manufacturerMetaId, query);
+        PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByConditions(
+                manufacturerMetaId, request.getDeviceName(), request.getDeviceType(), query);
         Collection<ManufacturerDeviceCfg> items = result.items();
         List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
         for (ManufacturerDeviceCfg item : items) {

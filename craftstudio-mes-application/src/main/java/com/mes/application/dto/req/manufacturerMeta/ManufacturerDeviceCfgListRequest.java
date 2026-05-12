@@ -1,6 +1,7 @@
 package com.mes.application.dto.req.manufacturerMeta;
 
 import com.mes.application.dto.req.base.PagedApiRequest;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -10,4 +11,8 @@ import lombok.EqualsAndHashCode;
 public class ManufacturerDeviceCfgListRequest extends PagedApiRequest {
     @NotBlank(message = "manufacturerMetaId不能为空")
     private String manufacturerMetaId;
+
+    private String deviceName;
+
+    private DeviceType deviceType;
 }
