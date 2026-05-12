@@ -53,6 +53,11 @@ import java.util.Optional;
 @Service
 public class AppDeliveryPkgService {
 
+    private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
+    private static final String NODE_ID_PACKED = "NODE_PACKAGED";
+    private static final String NODE_NAME_PENDING_PACKING = "待打包";
+    private static final String NODE_NAME_PACKED = "已打包";
+
     @Autowired
     private WorldRepository worldRepository;
 
@@ -104,11 +109,11 @@ public class AppDeliveryPkgService {
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
-            int pendingQty = getNodeQuantity(productionPiece, "待打包");
+            int pendingQty = getNodeQuantity(productionPiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
             if (pendingQty <= 0) {
                 continue;
             }
-            int packedQty = getNodeQuantity(productionPiece, "已打包");
+            int packedQty = getNodeQuantity(productionPiece, NODE_ID_PACKED, NODE_NAME_PACKED);
 
             DeliveryPkgPieceVO vo = DeliveryPkgPieceVO.fromProductionPiece(productionPiece);
             vo.setPendingPkgQuantity(pendingQty);
@@ -142,13 +147,13 @@ public class AppDeliveryPkgService {
         return items;
     }
 
-    private int getNodeQuantity(ProductionPiece piece, String nodeName) {
+    private int getNodeQuantity(ProductionPiece piece, String nodeId, String nodeName) {
         if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
             return 0;
         }
         return piece.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
-                .filter(node -> nodeName.equals(node.getNodeName()))
+                .filter(node -> nodeId.equals(node.getNodeId()) || nodeName.equals(node.getNodeName()))
                 .map(ProcedureFlowNode::getPieceQuantity)
                 .filter(Objects::nonNull)
                 .findFirst()
