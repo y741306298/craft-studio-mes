@@ -549,6 +549,7 @@ public class AppOrderPreprocessingService {
                         }
                         newProcedureFlow.setNodes(newNodes);
                     }
+                    newProcedureFlow = procedureFlowService.parseProcessingFlow(newProcedureFlow);
                     
                     String materialName = orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null
                             ? orderItem.getMaterial().getMaterialSnapshot().getName()
