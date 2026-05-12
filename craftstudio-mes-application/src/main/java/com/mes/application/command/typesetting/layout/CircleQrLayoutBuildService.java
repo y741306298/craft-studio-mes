@@ -46,6 +46,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
+    private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
+    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
 
@@ -92,6 +94,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
+        boolean hasDoubleSideMounting = hasDoubleSideMounting(context.getTypesettingInfo());
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
@@ -102,6 +105,9 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
             marks.put("elementFRotated", elementFRotated);
+            if (hasDoubleSideMounting) {
+                marks.put("elementG", RIGHT_ARROW_URL);
+            }
             context.getTypesettingInfo().setMarks(marks);
         }
 
@@ -115,7 +121,17 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
         bottom.setPosition(createPosition(nestedStartX, elementOriginY + context.getNestedHeight().intValue()));
-        result.setMarks(Arrays.asList(top, bottom));
+        List<FormeGenerationRequest.Mark> marks = new ArrayList<>(Arrays.asList(top, bottom));
+        if (hasDoubleSideMounting) {
+            FormeGenerationRequest.Mark rightArrow = new FormeGenerationRequest.Mark();
+            rightArrow.setImg(RIGHT_ARROW_URL);
+            rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
+            int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
+            int arrowY = marginTop + context.getNestedHeight().intValue() / 2 - QR_SIZE_MM / 2;
+            rightArrow.setPosition(createPosition(arrowX, arrowY));
+            marks.add(rightArrow);
+        }
+        result.setMarks(marks);
 
         // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 30mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
@@ -179,6 +195,13 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
+    }
+
+    private boolean hasDoubleSideMounting(TypesettingInfo info) {
+        return info != null
+                && info.getProcedureFlow() != null
+                && info.getProcedureFlow().getNodes() != null
+                && info.getProcedureFlow().getNodes().stream().anyMatch(node -> node != null && DOUBLE_SIDE_NODE_NAME.equals(node.getNodeName()));
     }
 
     private List<String> buildElementAExtInfos(TypesettingInfo info) {

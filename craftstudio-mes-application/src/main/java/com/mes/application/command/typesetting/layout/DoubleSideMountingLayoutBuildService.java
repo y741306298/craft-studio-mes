@@ -28,8 +28,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
-
+public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int TAG_DPI = 300;
     private static final double MM_PER_INCH = 25.4D;
     private static final int QR_LEFT_MM = 10;
@@ -47,24 +46,23 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
-    private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
+    private static final String LEFT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/leftarrow.png";
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
 
-    public SquareQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    public DoubleSideMountingLayoutBuildService(OssTagUploadService ossTagUploadService) {
         this.ossTagUploadService = ossTagUploadService;
     }
-
     /**
-     * 方形二维码排版模式构建器：
+     * 圆形二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
      * - marks 使用 C+B+A 拼接生成的标签条；
-     * - 定位点使用 basetag/square.svg。
+     * - 定位点使用 basetag/circle.svg。
      */
     @Override
     public TypesettingLayoutMode supportMode() {
-        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
+        return TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT;
     }
 
     @Override
@@ -93,12 +91,11 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
-        log.info("Square QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
+        log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
-        boolean hasDoubleSideMounting = hasDoubleSideMounting(context.getTypesettingInfo());
-        String elementC = context.getQrDataUriGenerator().apply(elementB);
-        String elementCC = context.getQrDataUriGenerator().apply(elementBB);
+        String elementC = LEFT_ARROW_URL;
+        String elementCC = LEFT_ARROW_URL;
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
         String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
@@ -107,9 +104,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
             marks.put("elementFRotated", elementFRotated);
-            if (hasDoubleSideMounting) {
-                marks.put("elementG", RIGHT_ARROW_URL);
-            }
+            marks.put("elementG", RIGHT_ARROW_URL);
             context.getTypesettingInfo().setMarks(marks);
         }
 
@@ -123,19 +118,15 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
         bottom.setPosition(createPosition(nestedStartX, elementOriginY + context.getNestedHeight().intValue()));
-        List<FormeGenerationRequest.Mark> marks = new ArrayList<>(Arrays.asList(top, bottom));
-        if (hasDoubleSideMounting) {
-            FormeGenerationRequest.Mark rightArrow = new FormeGenerationRequest.Mark();
-            rightArrow.setImg(RIGHT_ARROW_URL);
-            rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
-            int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
-            int arrowY = marginTop + context.getNestedHeight().intValue() / 2 - QR_SIZE_MM / 2;
-            rightArrow.setPosition(createPosition(arrowX, arrowY));
-            marks.add(rightArrow);
-        }
-        result.setMarks(marks);
+        FormeGenerationRequest.Mark rightArrow = new FormeGenerationRequest.Mark();
+        rightArrow.setImg(RIGHT_ARROW_URL);
+        rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
+        int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
+        int arrowY = marginTop + context.getNestedHeight().intValue() / 2 - QR_SIZE_MM / 2;
+        rightArrow.setPosition(createPosition(arrowX, arrowY));
+        result.setMarks(Arrays.asList(top, bottom, rightArrow));
 
-        // 4) 在上/下 margin 区域插入 4 个方形定位点（左右各 30mm）
+        // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 30mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
         int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
@@ -143,29 +134,29 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
         int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
-        String squareSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
+        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("square.png");
-        tl.setSvg(squareSvgUrl);
+        tl.setImg("circle.png");
+        tl.setSvg(circleSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("square.png");
-        tr.setSvg(squareSvgUrl);
+        tr.setImg("circle.png");
+        tr.setSvg(circleSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("square.png");
-        bl.setSvg(squareSvgUrl);
+        bl.setImg("circle.png");
+        bl.setSvg(circleSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("square.png");
-        br.setSvg(squareSvgUrl);
+        br.setImg("circle.png");
+        br.setSvg(circleSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(bottomRightX, bottomY));
         List<FormeGenerationRequest.AnchorPoint> anchorPoints = new ArrayList<>(Arrays.asList(tl, tr, bl, br));
@@ -176,14 +167,14 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - ANCHOR_SIZE_MM / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("square.png");
-                leftPoint.setSvg(squareSvgUrl);
+                leftPoint.setImg("circle.png");
+                leftPoint.setSvg(circleSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("square.png");
-                rightPoint.setSvg(squareSvgUrl);
+                rightPoint.setImg("circle.png");
+                rightPoint.setSvg(circleSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));
                 rightPoint.setPosition(createPosition(rightExpandCenterX, pointY));
 
@@ -197,13 +188,6 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
-    }
-
-    private boolean hasDoubleSideMounting(TypesettingInfo info) {
-        return info != null
-                && info.getProcedureFlow() != null
-                && info.getProcedureFlow().getNodes() != null
-                && info.getProcedureFlow().getNodes().stream().anyMatch(node -> node != null && DOUBLE_SIDE_NODE_NAME.equals(node.getNodeName()));
     }
 
     private List<String> buildElementAExtInfos(TypesettingInfo info) {

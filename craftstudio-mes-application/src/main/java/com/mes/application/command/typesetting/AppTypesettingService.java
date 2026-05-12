@@ -671,7 +671,19 @@ public class AppTypesettingService {
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
         log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
-        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
+        algorithmCoreApiService.generateFormeAsync(formeRequest);
+
+        TypesettingInfo mirrorTypesettingInfo = buildMirrorTypesettingInfoIfNeed(typesettingInfo);
+        if (mirrorTypesettingInfo != null) {
+            FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                    mirrorTypesettingInfo,
+                    TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                    businessId + "-mirror"
+            );
+            mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            log.info("mirrorFormeRequest========:{}", JSON.toJSONString(mirrorFormeRequest));
+            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
+        }
 
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
@@ -752,6 +764,53 @@ public class AppTypesettingService {
         return request;
     }
 
+
+
+    private TypesettingInfo buildMirrorTypesettingInfoIfNeed(TypesettingInfo origin) {
+        if (!hasDoubleSideMounting(origin) || origin == null || origin.getElement() == null) {
+            return null;
+        }
+        if (StringUtils.isBlank(origin.getElement().getNestedMirrorSvg())) {
+            return null;
+        }
+        if (!doubleSideNodeAsset(origin)) {
+            throw new IllegalArgumentException("双面对裱节点参数类型必须是ASSET");
+        }
+        TypesettingInfo mirror = JSON.parseObject(JSON.toJSONString(origin), TypesettingInfo.class);
+        mirror.setTypesettingId(origin.getTypesettingId() + "-Mirror");
+        mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
+        mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
+        return mirror;
+    }
+
+    private boolean hasDoubleSideMounting(TypesettingInfo info) {
+        if (info == null || info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        return info.getProcedureFlow().getNodes().stream().anyMatch(n -> n != null && "双面对裱".equals(n.getNodeName()));
+    }
+
+    private boolean doubleSideNodeAsset(TypesettingInfo info) {
+        if (!hasDoubleSideMounting(info)) {
+            return false;
+        }
+        return info.getProcedureFlow().getNodes().stream()
+                .filter(n -> n != null && "双面对裱".equals(n.getNodeName()))
+                .flatMap(n -> n.getParamConfigs() == null ? java.util.stream.Stream.empty() : n.getParamConfigs().stream())
+                .map(cfg -> invokeGetter(cfg, "getParam"))
+                .map(param -> param instanceof Map ? ((Map<?, ?>) param).get("type") : invokeGetter(param, "getType"))
+                .anyMatch(type -> type != null && "ASSET".equalsIgnoreCase(type.toString()));
+    }
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignore) {
+            return null;
+        }
+    }
 
     private void mergeAnchorPointMarks(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
         if (typesettingInfo == null || formeRequest == null || formeRequest.getForme() == null
