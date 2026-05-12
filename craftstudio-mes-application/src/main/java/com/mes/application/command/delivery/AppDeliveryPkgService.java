@@ -151,13 +151,14 @@ public class AppDeliveryPkgService {
         if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
             return 0;
         }
-        return piece.getProcedureFlow().getNodes().stream()
+        Integer quantity = piece.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
                 .filter(node -> nodeId.equals(node.getNodeId()) || nodeName.equals(node.getNodeName()))
                 .map(ProcedureFlowNode::getPieceQuantity)
                 .filter(Objects::nonNull)
-                .findFirst()
+                .max(Integer::compareTo)
                 .orElse(0);
+        return Math.max(quantity, 0);
     }
 
     private String resolvePackagingStatus(int pendingQty, int packedQty) {
