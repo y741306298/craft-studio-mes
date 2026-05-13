@@ -694,8 +694,10 @@ public class AppTypesettingService {
         log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
         algorithmCoreApiService.generateFormeAsync(formeRequest);
 
+        String formeOpRemark = "FORME_OP:LAYOUT";
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            mirrorTypesettingInfo.setRemark(formeOpRemark);
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
@@ -709,7 +711,7 @@ public class AppTypesettingService {
 
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-        typesettingInfo.setRemark("FORME_OP:LAYOUT");
+        typesettingInfo.setRemark(formeOpRemark);
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         LayoutConfirmResult result = new LayoutConfirmResult();
@@ -1071,8 +1073,11 @@ public class AppTypesettingService {
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
         log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
+        String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            mirrorTypesettingInfo.setRemark(formeOpRemark);
+            mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
@@ -1086,7 +1091,7 @@ public class AppTypesettingService {
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-        typesettingInfo.setRemark("FORME_OP:PRINT:" + request.getDeviceCode());
+        typesettingInfo.setRemark(formeOpRemark);
         typesettingInfo.setDeviceCode(request.getDeviceCode());
         typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
         domainTypesettingService.updateTypesetting(typesettingInfo);
