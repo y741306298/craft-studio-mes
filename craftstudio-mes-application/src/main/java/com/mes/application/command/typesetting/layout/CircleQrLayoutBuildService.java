@@ -127,7 +127,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             rightArrow.setImg(RIGHT_ARROW_URL);
             rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
             int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
-            int arrowY = marginTop + context.getNestedHeight().intValue() / 2 - QR_SIZE_MM / 2;
+            int arrowY = (marginHeight.intValue() - QR_SIZE_MM) / 2;
             rightArrow.setPosition(createPosition(arrowX, arrowY));
             marks.add(rightArrow);
         }

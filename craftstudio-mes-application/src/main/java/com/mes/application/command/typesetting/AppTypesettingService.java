@@ -36,6 +36,7 @@ import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDevic
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
+import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -697,6 +698,9 @@ public class AppTypesettingService {
         String formeOpRemark = "FORME_OP:LAYOUT";
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+            }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -705,6 +709,8 @@ public class AppTypesettingService {
                     businessId + "-mirror"
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             log.info("mirrorFormeRequest========:{}", JSON.toJSONString(mirrorFormeRequest));
             algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
         }
@@ -932,6 +938,7 @@ public class AppTypesettingService {
                 }
             }
         }
+        boolean mirrorTypesettingTask = StringUtils.isNotBlank(request.getId()) && request.getId().endsWith("-Mirror");
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -948,8 +955,9 @@ public class AppTypesettingService {
                 }
                 element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
                 element.setForme(Boolean.FALSE);
-                if (piece.getProductImageFile() != null && piece.getProductImageFile().getRawFile() != null) {
-                    element.setImg(piece.getTemplateCode());
+                String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
+                if (StringUtils.isNotBlank(pieceImg)) {
+                    element.setImg(pieceImg);
                 }
                 if (isVerticalTypesetting) {
                     element.setVMargin(0);
@@ -1076,8 +1084,13 @@ public class AppTypesettingService {
         String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+            }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
             mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
+            ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+            mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
@@ -1085,6 +1098,8 @@ public class AppTypesettingService {
                     businessId + "-mirror"
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             log.info("formeRequest-print-mirror========:{}",JSON.toJSONString(mirrorFormeRequest));
             algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
         }
@@ -2131,6 +2146,19 @@ public class AppTypesettingService {
                     return sourceCell;
                 })
                 .collect(Collectors.toList());
+    }
+
+    private String resolvePieceNestingImg(ProductionPiece piece, boolean mirrorTypesettingTask) {
+        if (!mirrorTypesettingTask) {
+            return piece.getTemplateCode();
+        }
+        if (piece.getMirrorConfigs() != null && !piece.getMirrorConfigs().isEmpty()) {
+            MirrorConfig mirrorConfig = piece.getMirrorConfigs().get(0);
+            if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getImg())) {
+                return mirrorConfig.getImg();
+            }
+        }
+        return piece.getTemplateCode();
     }
 
     private List<TypesettingSourceCell> extractUsedSourceCells(String typesettingId, String nestedSvgUrl) {
