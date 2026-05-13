@@ -301,12 +301,8 @@ public class AppDeliveryPkgService {
         }
 
         boolean isCustomPresetType = "CUSTOM".equalsIgnoreCase(presetType);
-        if (isCustomPresetType) {
-            if (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "CUSTOM物流方式必须指定路线和段落");
-            }
-        } else if (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
-                || StringUtils.isBlank(request.getManufacturerMetaId())) {
+        if (!isCustomPresetType && (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
+                || StringUtils.isBlank(request.getManufacturerMetaId()))) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "发货人、打印机、商家信息不能为空");
         }
 
@@ -342,7 +338,10 @@ public class AppDeliveryPkgService {
                     }
                     DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
                     deliveryPkgInfo.setCarrierId(carrierId);
-                    deliveryPkgInfo.setCarrierName(carrierName + "(" + request.getRouteId() + "/" + request.getRouteNodeId() + ")");
+                    String routeCarrierSuffix = (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId()))
+                            ? "(未自定义路线)"
+                            : "(" + request.getRouteId() + "/" + request.getRouteNodeId() + ")";
+                    deliveryPkgInfo.setCarrierName(carrierName + routeCarrierSuffix);
                     deliveryPkgInfo.setQuantity(quantity);
                     pkgInfos.add(deliveryPkgInfo);
                     productionPiece.setDeliveryPkgInfos(pkgInfos);
