@@ -13,6 +13,7 @@ import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
+import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
@@ -122,6 +123,8 @@ public class AppTypesettingService {
 
     @Autowired
     private NestingManifestStrategy nestingManifestStrategy;
+    @Autowired(required = false)
+    private List<MirrorFormeStrategy> mirrorFormeStrategies;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -691,8 +694,9 @@ public class AppTypesettingService {
         log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
         algorithmCoreApiService.generateFormeAsync(formeRequest);
 
-        TypesettingInfo mirrorTypesettingInfo = buildMirrorTypesettingInfoIfNeed(typesettingInfo);
+        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
@@ -784,50 +788,30 @@ public class AppTypesettingService {
 
 
 
-    private TypesettingInfo buildMirrorTypesettingInfoIfNeed(TypesettingInfo origin) {
-        if (!hasDoubleSideMounting(origin) || origin == null || origin.getElement() == null) {
+    private TypesettingInfo resolveMirrorTypesettingInfo(TypesettingInfo origin) {
+        if (mirrorFormeStrategies == null || mirrorFormeStrategies.isEmpty()) {
             return null;
         }
-        if (StringUtils.isBlank(origin.getElement().getNestedMirrorSvg())) {
-            return null;
-        }
-        if (!doubleSideNodeAsset(origin)) {
-            throw new IllegalArgumentException("双面对裱节点参数类型必须是ASSET");
-        }
-        TypesettingInfo mirror = JSON.parseObject(JSON.toJSONString(origin), TypesettingInfo.class);
-        mirror.setTypesettingId(origin.getTypesettingId() + "-Mirror");
-        mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
-        mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
-        return mirror;
+        return mirrorFormeStrategies.stream()
+                .filter(strategy -> strategy != null && strategy.supports(origin))
+                .findFirst()
+                .map(strategy -> strategy.buildMirrorTypesettingInfo(origin))
+                .orElse(null);
     }
 
-    private boolean hasDoubleSideMounting(TypesettingInfo info) {
-        if (info == null || info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
-            return false;
+    private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
+        if (mirrorTypesettingInfo == null || StringUtils.isBlank(mirrorTypesettingInfo.getTypesettingId())) {
+            return;
         }
-        return info.getProcedureFlow().getNodes().stream().anyMatch(n -> n != null && "双面对裱".equals(n.getNodeName()));
-    }
-
-    private boolean doubleSideNodeAsset(TypesettingInfo info) {
-        if (!hasDoubleSideMounting(info)) {
-            return false;
+        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+        if (existing == null) {
+            mirrorTypesettingInfo.setId(null);
+            domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
+            return;
         }
-        return info.getProcedureFlow().getNodes().stream()
-                .filter(n -> n != null && "双面对裱".equals(n.getNodeName()))
-                .flatMap(n -> n.getParamConfigs() == null ? java.util.stream.Stream.empty() : n.getParamConfigs().stream())
-                .map(cfg -> invokeGetter(cfg, "getParam"))
-                .map(param -> param instanceof Map ? ((Map<?, ?>) param).get("type") : invokeGetter(param, "getType"))
-                .anyMatch(type -> type != null && "ASSET".equalsIgnoreCase(type.toString()));
-    }
-    private Object invokeGetter(Object target, String methodName) {
-        if (target == null) {
-            return null;
-        }
-        try {
-            return target.getClass().getMethod(methodName).invoke(target);
-        } catch (Exception ignore) {
-            return null;
-        }
+        mirrorTypesettingInfo.setId(existing.getId());
+        mirrorTypesettingInfo.setCreateTime(existing.getCreateTime());
+        domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
     }
 
     private void mergeAnchorPointMarks(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
@@ -1079,6 +1063,18 @@ public class AppTypesettingService {
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
         log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
+        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+        if (mirrorTypesettingInfo != null) {
+            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
+            FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                    mirrorTypesettingInfo,
+                    TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                    businessId + "-mirror"
+            );
+            mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            log.info("formeRequest-print-mirror========:{}",JSON.toJSONString(mirrorFormeRequest));
+            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
+        }
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
