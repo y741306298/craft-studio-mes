@@ -493,7 +493,6 @@ public class AppTypesettingService {
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
                 }
-                validateNoMirrorTypesettingCellForDoubleSideStrategy(dbTypesettingInfo);
                 typesettingInfos.add(dbTypesettingInfo);
             }
         }
@@ -559,7 +558,7 @@ public class AppTypesettingService {
         log.info("nestingRequest========:{}",JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse;
-            switch (layoutMode.getLayoutCategory()) {
+        switch (layoutMode.getLayoutCategory()) {
             case "grid_typesetting":
                 nestingResponse = algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
                 break;
@@ -673,7 +672,6 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
         validateNoSecondaryTypesettingCells(typesettingInfo);
-        validateNoMirrorTypesettingCellForDoubleSideStrategy(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -696,9 +694,7 @@ public class AppTypesettingService {
         log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
         algorithmCoreApiService.generateFormeAsync(formeRequest);
 
-        TypesettingInfo mirrorTypesettingInfo = shouldSkipDoubleSideMountingStrategy(typesettingInfo)
-                ? null
-                : resolveMirrorTypesettingInfo(typesettingInfo);
+        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -1060,7 +1056,6 @@ public class AppTypesettingService {
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
-        validateNoMirrorTypesettingCellForDoubleSideStrategy(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -1076,9 +1071,7 @@ public class AppTypesettingService {
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
         log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-        TypesettingInfo mirrorTypesettingInfo = shouldSkipDoubleSideMountingStrategy(typesettingInfo)
-                ? null
-                : resolveMirrorTypesettingInfo(typesettingInfo);
+        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -1381,8 +1374,8 @@ public class AppTypesettingService {
     }
 
     private void collectCellTypesettingPltsRecursive(TypesettingInfo typesettingInfo,
-                                                    Set<String> pltSet,
-                                                    Set<String> visitedIds) {
+                                                     Set<String> pltSet,
+                                                     Set<String> visitedIds) {
         if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId()) || visitedIds.contains(typesettingInfo.getId())) {
             return;
         }
@@ -1580,16 +1573,16 @@ public class AppTypesettingService {
         }
 
         List<ProductionPiece> productionPieces = new ArrayList<>();
-        
+
         for (String pieceId : productionPieceIds) {
             try {
                 // 使用状态机方法更新为打印中状态
                 productionPieceService.startPrinting(pieceId);
-                
+
                 // 获取更新后的工件信息
                 ProductionPiece piece = productionPieceService.findById(pieceId);
                 productionPieces.add(piece);
-                
+
             } catch (Exception e) {
                 System.err.println("更新生产工件 " + pieceId + " 状态失败：" + e.getMessage());
             }
@@ -1631,27 +1624,27 @@ public class AppTypesettingService {
                 errorMessages.add("排版记录不存在: " + typesettingId);
                 continue;
             }
-                if (info == null || StringUtils.isBlank(info.getId())) {
+            if (info == null || StringUtils.isBlank(info.getId())) {
+                continue;
+            }
+            List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
+            if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
+                    && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
+                usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
+            }
+            for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
+                if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
                     continue;
                 }
-                List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
-                if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
-                        && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
-                    usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
-                }
-                for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
-                    if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                        continue;
-                    }
-                    int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
-                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
-                }
-                try {
-                    domainTypesettingService.deleteTypesetting(info.getId());
-                    deletedTypesettingCount++;
-                } catch (Exception e) {
-                    errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
-                }
+                int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
+                productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+            }
+            try {
+                domainTypesettingService.deleteTypesetting(info.getId());
+                deletedTypesettingCount++;
+            } catch (Exception e) {
+                errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
+            }
         }
 
         for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
@@ -1942,23 +1935,6 @@ public class AppTypesettingService {
             }
         }
         return null;
-    }
-
-
-    private void validateNoMirrorTypesettingCellForDoubleSideStrategy(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getTypesettingId())) {
-            return;
-        }
-        if (shouldSkipDoubleSideMountingStrategy(typesettingInfo)) {
-            throw new IllegalArgumentException("该印版 typesettingId 为镜像文件（-mirror），不允许再次进入双面对裱策略");
-        }
-    }
-
-    private boolean shouldSkipDoubleSideMountingStrategy(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getTypesettingId())) {
-            return false;
-        }
-        return StringUtils.endsWithIgnoreCase(typesettingInfo.getTypesettingId().trim(), "-mirror");
     }
 
     private void validateNoSecondaryTypesettingCells(TypesettingInfo typesettingInfo) {
@@ -2421,9 +2397,9 @@ public class AppTypesettingService {
         script.setResultType(String.class);
         script.setScriptText(
                 "local v = redis.call('LPOP', KEYS[1]); " +
-                "if (not v) then return nil end; " +
-                "redis.call('RPUSH', KEYS[1], v); " +
-                "return v;"
+                        "if (not v) then return nil end; " +
+                        "redis.call('RPUSH', KEYS[1], v); " +
+                        "return v;"
         );
         String code = redisTemplate.execute(script, Collections.singletonList(queueKey));
         if (StringUtils.isBlank(code)) {
