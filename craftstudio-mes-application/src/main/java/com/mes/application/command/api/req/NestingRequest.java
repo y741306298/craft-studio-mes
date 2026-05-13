@@ -41,6 +41,10 @@ public class NestingRequest {
         private String id;
         private String img;
         /**
+         * 双面对裱时使用的镜像原图地址
+         */
+        private String mirrorImg;
+        /**
          * 兼容算法侧字段命名
          */
         private String imgFile;

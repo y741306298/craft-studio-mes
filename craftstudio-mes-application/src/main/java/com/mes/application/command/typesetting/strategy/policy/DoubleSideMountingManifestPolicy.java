@@ -3,6 +3,7 @@ package com.mes.application.command.typesetting.strategy.policy;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import io.micrometer.common.util.StringUtils;
@@ -32,6 +33,36 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         }
         nestManifest.setMirrorAppend(Boolean.TRUE);
         nestManifest.setMirrorRequirePlt(Boolean.FALSE);
+        fillMirrorImgForElements(nestManifest, productionPieces);
+    }
+
+    private void fillMirrorImgForElements(NestingRequest.NestManifest nestManifest,
+                                          List<ProductionPiece> productionPieces) {
+        if (nestManifest.getElements() == null || productionPieces == null) {
+            return;
+        }
+        for (NestingRequest.Element element : nestManifest.getElements()) {
+            if (element == null || StringUtils.isBlank(element.getId())) {
+                continue;
+            }
+            ProductionPiece piece = findPieceById(productionPieces, element.getId());
+            if (piece == null || piece.getMirrorConfigs() == null || piece.getMirrorConfigs().isEmpty()) {
+                continue;
+            }
+            MirrorConfig mirrorConfig = piece.getMirrorConfigs().get(0);
+            if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getImg())) {
+                element.setMirrorImg(mirrorConfig.getImg());
+            }
+        }
+    }
+
+    private ProductionPiece findPieceById(List<ProductionPiece> productionPieces, String pieceId) {
+        for (ProductionPiece piece : productionPieces) {
+            if (piece != null && pieceId.equals(piece.getId())) {
+                return piece;
+            }
+        }
+        return null;
     }
 
     private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces,
