@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 订单预处理应用服务。
@@ -266,6 +267,11 @@ public class AppOrderPreprocessingService {
     public List<ProductionPiece> processWithoutCuttingAndMasking(OrderItem orderItem, ProcedureFlow procedureFlow) {
         // 校验工艺参数是否全部转化成功
         verifyProcedureParamsConverted(procedureFlow, orderItem.getOrderItemId());
+        String materialName = orderItem.getMaterial() != null && orderItem.getMaterial().getMaterialSnapshot() != null
+                ? orderItem.getMaterial().getMaterialSnapshot().getName()
+                : null;
+        String processingFlow = buildProcessingFlow(procedureFlow.getNodes(), materialName);
+        orderItem.setProcessingFlow(processingFlow);
 
         // 直接使用 orderItem 信息生成 ProductionPiece
         String productionImgUrl = orderItem.getProductionImgFile() != null
@@ -286,6 +292,7 @@ public class AppOrderPreprocessingService {
                 pieceWidth,
                 pieceHeight
         );
+        piece.setProcessingFlow(processingFlow);
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);
@@ -687,18 +694,32 @@ public class AppOrderPreprocessingService {
         if (nodes == null || nodes.isEmpty()) {
             return "";
         }
+        List<ProcedureFlowNode> displayNodes = nodes.stream()
+                .filter(Objects::nonNull)
+                .filter(node -> StringUtils.isNotBlank(node.getNodeName()))
+                .filter(node -> !isInternalProgressNode(node.getNodeName()))
+                .toList();
+        if (displayNodes.isEmpty()) {
+            return "";
+        }
         List<String> names = new ArrayList<>();
-        ProcedureFlowNode firstNode = nodes.get(0);
+        ProcedureFlowNode firstNode = displayNodes.get(0);
         if (firstNode != null && StringUtils.isNotBlank(firstNode.getNodeName()) && StringUtils.isNotBlank(materialName)) {
             names.add(firstNode.getNodeName() + "（" + materialName + "）");
         }
-        for (ProcedureFlowNode node : nodes) {
-            if (node == null || StringUtils.isBlank(node.getNodeName())) {
-                continue;
-            }
+        for (ProcedureFlowNode node : displayNodes) {
             names.add(resolveNodeDisplayName(node));
         }
         return String.join("-", names);
+    }
+
+    private boolean isInternalProgressNode(String nodeName) {
+        return "预处理".equals(nodeName)
+                || "待排版".equals(nodeName)
+                || "排版中".equals(nodeName)
+                || "打印中".equals(nodeName)
+                || "待打包".equals(nodeName)
+                || "已打包".equals(nodeName);
     }
 
     private String resolveNodeDisplayName(ProcedureFlowNode node) {
