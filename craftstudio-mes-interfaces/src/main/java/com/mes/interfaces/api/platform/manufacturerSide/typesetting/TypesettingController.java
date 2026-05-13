@@ -21,10 +21,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -62,24 +64,19 @@ public class TypesettingController {
     public ApiResponse<TypesettingAndProductionPiecesResponse> listByCondition(
             @RequestParam String manufacturerMetaId,
             @RequestParam(required = false) String materialName,
-            @RequestParam(required = false) String processingFlow) {
+            @RequestParam(required = false) String processingName,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date startTime,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endTime,
+            @RequestParam(required = false) String sourceType) {
         TypesettingQuery query = new TypesettingQuery();
         query.setManufacturerMetaId(manufacturerMetaId);
+        query.setMaterialName(materialName);
+        query.setProcessingName(processingName);
+        query.setStartTime(startTime);
+        query.setEndTime(endTime);
+        query.setSourceType(sourceType);
         PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
-
-        if (materialName != null && !materialName.isBlank()) {
-            items = items.stream()
-                    .filter(item -> item.getMaterialConfig() != null
-                            && materialName.equals(item.getMaterialConfig().getMaterialSnapshot().getName()))
-                    .collect(Collectors.toList());
-        }
-        if (processingFlow != null && !processingFlow.isBlank()) {
-            items = items.stream()
-                    .filter(item -> item.getProcessingFlow() != null && item.getProcessingFlow().contains(processingFlow))
-                    .collect(Collectors.toList());
-        }
-
         return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
     }
 

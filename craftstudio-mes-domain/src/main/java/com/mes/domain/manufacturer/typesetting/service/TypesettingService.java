@@ -30,8 +30,10 @@ public class TypesettingService {
     public List<TypesettingInfo> findTypesettingByConditions(
             String manufacturerMetaId,
             String status,
-            String material,
-            String nodeName,
+            String materialName,
+            String processingName,
+            Date startTime,
+            Date endTime,
             String deviceCode,
             int current,
             int size) {
@@ -41,27 +43,23 @@ public class TypesettingService {
         if (status != null) {
             filters.put("status", status);
         }
-        if (StringUtils.isNotBlank(material)) {
-            filters.put("material", material);
+        if (StringUtils.isNotBlank(materialName)) {
+            filters.put("materialConfig.materialSnapshot.name", materialName);
         }
         if (StringUtils.isNotBlank(deviceCode)) {
             filters.put("deviceCode", deviceCode);
         }
-        
-        List<TypesettingInfo> allItems = typesettingRepository.filterList(current, size, filters);
-        
-        if (StringUtils.isNotBlank(nodeName)) {
-            return allItems.stream()
-                .filter(item -> {
-                    if (item.getProcedureFlow() != null && item.getProcedureFlow().getNodes() != null) {
-                        return item.getProcedureFlow().getNodes().stream()
-                            .anyMatch(node -> nodeName.equals(node.getNodeName()));
-                    }
-                    return false;
-                })
-                .collect(Collectors.toList());
+        if (startTime != null) {
+            filters.put("createTime_gte", startTime);
+        }
+        if (endTime != null) {
+            filters.put("createTime_lte", endTime);
+        }
+        if (StringUtils.isNotBlank(processingName)) {
+            filters.put("procedureFlow.nodes.nodeName", processingName);
         }
         
+        List<TypesettingInfo> allItems = typesettingRepository.filterList(current, size, filters);
         return allItems;
     }
 
@@ -69,11 +67,11 @@ public class TypesettingService {
     public List<TypesettingInfo> findTypesettingByConditions(
             String manufacturerMetaId,
             String status,
-            String material,
-            String nodeName,
+            String materialName,
+            String processingName,
             int current,
             int size) {
-        return findTypesettingByConditions(manufacturerMetaId, status, material, nodeName, null, current, size);
+        return findTypesettingByConditions(manufacturerMetaId, status, materialName, processingName, null, null, null, current, size);
     }
 
     /**
