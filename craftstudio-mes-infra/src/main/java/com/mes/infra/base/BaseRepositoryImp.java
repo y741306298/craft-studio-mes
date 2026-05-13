@@ -189,6 +189,13 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 String fieldName = key.substring(0, key.length() - 4);
                 rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
                               .setLte(value);
+            } else if (key.endsWith("_like")) {
+                String fieldName = key.substring(0, key.length() - 5);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).regex(String.valueOf(value), "i");
+                } else {
+                    criteria.and(fieldName).regex(String.valueOf(value), "i");
+                }
             } else {
                 if (criteria == null) {
                     criteria = Criteria.where(key).is(value);
@@ -246,6 +253,13 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 String fieldName = key.substring(0, key.length() - 4);
                 rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
                               .setLte(value);
+            } else if (key.endsWith("_like")) {
+                String fieldName = key.substring(0, key.length() - 5);
+                if (criteria == null) {
+                    criteria = Criteria.where(fieldName).regex(String.valueOf(value), "i");
+                } else {
+                    criteria.and(fieldName).regex(String.valueOf(value), "i");
+                }
             } else {
                 if (criteria == null) {
                     criteria = Criteria.where(key).is(value);

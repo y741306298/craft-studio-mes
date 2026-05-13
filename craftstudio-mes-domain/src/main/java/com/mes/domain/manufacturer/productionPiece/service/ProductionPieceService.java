@@ -50,7 +50,7 @@ public class ProductionPieceService {
             filters.put("status", status);
         }
         if (StringUtils.isNotBlank(materialName)) {
-            filters.put("materialConfig.materialSnapshot.name", materialName);
+            filters.put("materialConfig.materialSnapshot.name_like", materialName);
         }
         if (startTime != null) {
             filters.put("createTime_gte", startTime);

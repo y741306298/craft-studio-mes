@@ -65,7 +65,7 @@ public class TypesettingService {
             filters.put("status", status);
         }
         if (StringUtils.isNotBlank(materialName)) {
-            filters.put("materialConfig.materialSnapshot.name", materialName);
+            filters.put("materialConfig.materialSnapshot.name_like", materialName);
         }
         if (StringUtils.isNotBlank(deviceCode)) {
             filters.put("deviceCode", deviceCode);
