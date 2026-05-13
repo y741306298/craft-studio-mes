@@ -493,6 +493,7 @@ public class AppTypesettingService {
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
                 }
+                validateNoMirrorTypesettingCellForDoubleSideStrategy(dbTypesettingInfo);
                 typesettingInfos.add(dbTypesettingInfo);
             }
         }
@@ -672,6 +673,7 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
         validateNoSecondaryTypesettingCells(typesettingInfo);
+        validateNoMirrorTypesettingCellForDoubleSideStrategy(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -694,7 +696,9 @@ public class AppTypesettingService {
         log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
         algorithmCoreApiService.generateFormeAsync(formeRequest);
 
-        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+        TypesettingInfo mirrorTypesettingInfo = shouldSkipDoubleSideMountingStrategy(typesettingInfo)
+                ? null
+                : resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -1056,6 +1060,7 @@ public class AppTypesettingService {
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
+        validateNoMirrorTypesettingCellForDoubleSideStrategy(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -1071,7 +1076,9 @@ public class AppTypesettingService {
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
         log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
-        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+        TypesettingInfo mirrorTypesettingInfo = shouldSkipDoubleSideMountingStrategy(typesettingInfo)
+                ? null
+                : resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -1935,6 +1942,23 @@ public class AppTypesettingService {
             }
         }
         return null;
+    }
+
+
+    private void validateNoMirrorTypesettingCellForDoubleSideStrategy(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getTypesettingId())) {
+            return;
+        }
+        if (shouldSkipDoubleSideMountingStrategy(typesettingInfo)) {
+            throw new IllegalArgumentException("该印版 typesettingId 为镜像文件（-mirror），不允许再次进入双面对裱策略");
+        }
+    }
+
+    private boolean shouldSkipDoubleSideMountingStrategy(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getTypesettingId())) {
+            return false;
+        }
+        return StringUtils.endsWithIgnoreCase(typesettingInfo.getTypesettingId().trim(), "-mirror");
     }
 
     private void validateNoSecondaryTypesettingCells(TypesettingInfo typesettingInfo) {
