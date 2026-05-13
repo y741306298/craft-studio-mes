@@ -32,6 +32,27 @@ public class TypesettingService {
             String status,
             String materialName,
             String processingName,
+            String deviceCode,
+            int current,
+            int size) {
+        return findTypesettingByConditions(
+                manufacturerMetaId,
+                status,
+                materialName,
+                processingName,
+                null,
+                null,
+                deviceCode,
+                current,
+                size
+        );
+    }
+
+    public List<TypesettingInfo> findTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
+            String processingName,
             Date startTime,
             Date endTime,
             String deviceCode,
