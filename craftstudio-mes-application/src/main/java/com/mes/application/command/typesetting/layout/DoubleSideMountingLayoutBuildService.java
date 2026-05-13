@@ -36,15 +36,8 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
     private static final int QR_BOTTOM_GAP_MM = 2;
     private static final int ELEMENT_GAP_MM = 30;
     private static final int EXTRA_INFO_GAP_MM = 5;
-    private static final int ANCHOR_SIZE_MM = 4;
-    private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
-    private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
-    private static final int TOP_ANCHOR_RIGHT_MM = 80;
-    private static final int BOTTOM_ANCHOR_LEFT_MM = 80;
-    private static final int BOTTOM_ANCHOR_RIGHT_MM = 40;
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
-    private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     private static final String LEFT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/leftarrow.png";
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
@@ -67,7 +60,6 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        BigDecimal anchorSize = BigDecimal.valueOf(ANCHOR_SIZE_MM);
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
@@ -77,7 +69,6 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         int marginTop = marginHeight.intValue();
         int marginRight = needSideExpand ? SIDE_EXPAND_MM : 0;
         int marginBottom = marginHeight.intValue();
-        int elementOriginX = 0;
         int elementOriginY = marginTop;
         int nestedStartX = marginLeft;
 
@@ -122,67 +113,12 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         rightArrow.setImg(RIGHT_ARROW_URL);
         rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
         int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
-        int arrowY = marginTop + context.getNestedHeight().intValue() / 2 - QR_SIZE_MM / 2;
+        int arrowY = (marginHeight.intValue() - QR_SIZE_MM) / 2;
         rightArrow.setPosition(createPosition(arrowX, arrowY));
         result.setMarks(Arrays.asList(top, bottom, rightArrow));
 
-        // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 30mm）
-        int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
-        int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
-        int width = context.getNestedWidth().intValue();
-        int expandedWidth = width + marginLeft + marginRight;
-        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
-        int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
-        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
-        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
-
-        FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("circle.png");
-        tl.setSvg(circleSvgUrl);
-        tl.setSize(createSize(anchorSize, anchorSize));
-        tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
-
-        FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("circle.png");
-        tr.setSvg(circleSvgUrl);
-        tr.setSize(createSize(anchorSize, anchorSize));
-        tr.setPosition(createPosition(topRightX, topY));
-
-        FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("circle.png");
-        bl.setSvg(circleSvgUrl);
-        bl.setSize(createSize(anchorSize, anchorSize));
-        bl.setPosition(createPosition(bottomLeftX, bottomY));
-
-        FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("circle.png");
-        br.setSvg(circleSvgUrl);
-        br.setSize(createSize(anchorSize, anchorSize));
-        br.setPosition(createPosition(bottomRightX, bottomY));
-        List<FormeGenerationRequest.AnchorPoint> anchorPoints = new ArrayList<>(Arrays.asList(tl, tr, bl, br));
-        if (needSideExpand) {
-            int leftExpandCenterX = elementOriginX + (marginLeft / 2) - ANCHOR_SIZE_MM / 2;
-            int rightExpandCenterX = elementOriginX + expandedWidth - (marginRight / 2) - ANCHOR_SIZE_MM / 2;
-            for (int offsetY = SIDE_ANCHOR_INTERVAL_MM; offsetY <= nestedHeight; offsetY += SIDE_ANCHOR_INTERVAL_MM) {
-                int pointY = elementOriginY + offsetY - ANCHOR_SIZE_MM / 2;
-
-                FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("circle.png");
-                leftPoint.setSvg(circleSvgUrl);
-                leftPoint.setSize(createSize(anchorSize, anchorSize));
-                leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
-
-                FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("circle.png");
-                rightPoint.setSvg(circleSvgUrl);
-                rightPoint.setSize(createSize(anchorSize, anchorSize));
-                rightPoint.setPosition(createPosition(rightExpandCenterX, pointY));
-
-                anchorPoints.add(leftPoint);
-                anchorPoints.add(rightPoint);
-            }
-        }
-        result.setAnchorPoints(anchorPoints);
+        // 双面对裱镜像印版不需要生成定位点
+        result.setAnchorPoints(new ArrayList<>());
 
         // 5) 输出配置与上传目录
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));

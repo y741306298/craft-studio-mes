@@ -697,6 +697,9 @@ public class AppTypesettingService {
         String formeOpRemark = "FORME_OP:LAYOUT";
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+            }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -705,6 +708,8 @@ public class AppTypesettingService {
                     businessId + "-mirror"
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             log.info("mirrorFormeRequest========:{}", JSON.toJSONString(mirrorFormeRequest));
             algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
         }
@@ -1076,8 +1081,13 @@ public class AppTypesettingService {
         String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+            }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
             mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
+            ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+            mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
@@ -1085,6 +1095,8 @@ public class AppTypesettingService {
                     businessId + "-mirror"
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             log.info("formeRequest-print-mirror========:{}",JSON.toJSONString(mirrorFormeRequest));
             algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
         }
