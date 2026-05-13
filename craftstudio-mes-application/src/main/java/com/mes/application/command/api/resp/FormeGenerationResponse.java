@@ -9,7 +9,19 @@ public class FormeGenerationResponse {
     private String error;
     private String status;
     private String id;
+    private CallbackConfig callbackConfig;
     private Result result;
+
+
+    @Data
+    public static class CallbackConfig {
+        private CallbackCustomValue callbackCustomValue;
+    }
+
+    @Data
+    public static class CallbackCustomValue {
+        private String id;
+    }
 
     @Data
     public static class Result {
