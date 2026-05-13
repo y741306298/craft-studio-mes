@@ -1124,10 +1124,20 @@ public class AppTypesettingService {
     }
 
     public void handleGenerateFormeCallback(FormeGenerationResponse response) {
-        if (response == null || StringUtils.isBlank(response.getId())) {
+        if (response == null) {
             return;
         }
-        TypesettingInfo typesettingInfo = domainTypesettingService.findById(response.getId());
+        String recordId = null;
+        if (response.getCallbackConfig() != null && response.getCallbackConfig().getCallbackCustomValue() != null) {
+            recordId = response.getCallbackConfig().getCallbackCustomValue().getId();
+        }
+        if (StringUtils.isBlank(recordId)) {
+            recordId = response.getId();
+        }
+        if (StringUtils.isBlank(recordId)) {
+            return;
+        }
+        TypesettingInfo typesettingInfo = domainTypesettingService.findById(recordId);
         if (typesettingInfo == null) {
             return;
         }
