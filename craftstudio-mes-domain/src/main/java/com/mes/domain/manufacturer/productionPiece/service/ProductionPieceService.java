@@ -36,10 +36,10 @@ public class ProductionPieceService {
     public List<ProductionPiece> findProductionPiecesByConditions(
             String manufacturerId,
             String status,
-            String material,
-            String nodeName,
-            Date startDate,
-            Date endDate,
+            String materialName,
+            String processingName,
+            Date startTime,
+            Date endTime,
             int current,
             int size) {
 
@@ -49,31 +49,20 @@ public class ProductionPieceService {
         if (StringUtils.isNotBlank(status)) {
             filters.put("status", status);
         }
-        if (StringUtils.isNotBlank(material)) {
-            filters.put("material", material);
+        if (StringUtils.isNotBlank(materialName)) {
+            filters.put("materialConfig.materialSnapshot.name_like", materialName);
         }
-        if (startDate != null) {
-            filters.put("createTime_gte", startDate);
+        if (startTime != null) {
+            filters.put("createTime_gte", startTime);
         }
-        if (endDate != null) {
-            filters.put("createTime_lte", endDate);
+        if (endTime != null) {
+            filters.put("createTime_lte", endTime);
         }
-
-        List<ProductionPiece> allItems = productionPieceRepository.filterList(current, size, filters);
-
-        if (StringUtils.isNotBlank(nodeName)) {
-            return allItems.stream()
-                .filter(piece -> {
-                    if (piece.getProcedureFlow() != null && piece.getProcedureFlow().getNodes() != null) {
-                        return piece.getProcedureFlow().getNodes().stream()
-                            .anyMatch(node -> nodeName.equals(node.getNodeName()));
-                    }
-                    return false;
-                })
-                .collect(Collectors.toList());
+        if (StringUtils.isNotBlank(processingName)) {
+            filters.put("procedureFlow.nodes.nodeName", processingName);
         }
 
-        return allItems;
+        return productionPieceRepository.filterList(current, size, filters);
     }
 
     /**
