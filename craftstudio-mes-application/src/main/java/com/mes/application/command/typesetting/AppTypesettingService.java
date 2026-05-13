@@ -938,7 +938,10 @@ public class AppTypesettingService {
                 }
             }
         }
-        boolean mirrorTypesettingTask = StringUtils.isNotBlank(request.getId()) && request.getId().endsWith("-Mirror");
+        boolean mirrorTypesettingTask = typesettingInfos.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingInfo::getTypesettingId)
+                .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
