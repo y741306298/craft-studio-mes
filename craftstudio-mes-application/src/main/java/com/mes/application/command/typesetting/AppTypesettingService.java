@@ -39,6 +39,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingPrintTaskStatus;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
@@ -620,7 +621,7 @@ public class AppTypesettingService {
                         .filter(Objects::nonNull)
                         .findFirst()
                         .orElse(null));
-        String commonProcessingFlow = buildCommonProcessingFlow(productionPieces, typesettingInfos);
+        String commonProcessingFlow = resolveProcessingFlowFromOrderItem(productionPieces, typesettingInfos);
         if (materialConfigs.isEmpty() && unifiedMaterialConfig != null && StringUtils.isNotBlank(unifiedMaterialConfig.getMaterialId())) {
             materialConfigs = Collections.singletonList(unifiedMaterialConfig.getMaterialId());
         }
@@ -667,6 +668,7 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
+        validateNoSecondaryTypesettingCells(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -1913,46 +1915,33 @@ public class AppTypesettingService {
         return target;
     }
 
-    private String buildCommonProcessingFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
-        List<String> flows = new ArrayList<>();
+    private String resolveProcessingFlowFromOrderItem(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         if (productionPieces != null) {
-            flows.addAll(productionPieces.stream()
-                    .map(ProductionPiece::getProcessingFlow)
-                    .filter(StringUtils::isNotBlank)
-                    .collect(Collectors.toList()));
-        }
-        if (typesettingInfos != null) {
-            flows.addAll(typesettingInfos.stream()
-                    .map(TypesettingInfo::getProcessingFlow)
-                    .filter(StringUtils::isNotBlank)
-                    .collect(Collectors.toList()));
-        }
-        if (flows.isEmpty()) {
-            return null;
-        }
-        List<String[]> splitFlows = flows.stream()
-                .map(flow -> Arrays.stream(flow.split("-"))
-                        .map(String::trim)
-                        .filter(StringUtils::isNotBlank)
-                        .toArray(String[]::new))
-                .collect(Collectors.toList());
-        int minLength = splitFlows.stream().mapToInt(parts -> parts.length).min().orElse(0);
-        List<String> common = new ArrayList<>();
-        for (int i = 0; i < minLength; i++) {
-            String candidate = splitFlows.get(0)[i];
-            boolean allMatch = true;
-            for (int j = 1; j < splitFlows.size(); j++) {
-                if (!candidate.equals(splitFlows.get(j)[i])) {
-                    allMatch = false;
-                    break;
+            for (ProductionPiece piece : productionPieces) {
+                if (piece != null && StringUtils.isNotBlank(piece.getProcessingFlow())) {
+                    return piece.getProcessingFlow();
                 }
             }
-            if (!allMatch) {
-                break;
-            }
-            common.add(candidate);
         }
-        return common.isEmpty() ? null : String.join("-", common);
+        if (typesettingInfos != null) {
+            for (TypesettingInfo info : typesettingInfos) {
+                if (info != null && StringUtils.isNotBlank(info.getProcessingFlow())) {
+                    return info.getProcessingFlow();
+                }
+            }
+        }
+        return null;
+    }
+
+    private void validateNoSecondaryTypesettingCells(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || typesettingInfo.getTypesettingCells() == null) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell != null && TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                throw new IllegalArgumentException("该印版已是二次排版生成的印版，不能继续排版");
+            }
+        }
     }
 
 

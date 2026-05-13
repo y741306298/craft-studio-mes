@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting.vo;
 
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
@@ -50,6 +51,11 @@ public class TypesettingProductionPieceVO {
      * 工艺流程
      */
     private String processingFlow;
+
+    /**
+     * 工序流
+     */
+    private ProcedureFlow procedureFlow;
 
     /**
      * 预览 URL
@@ -130,6 +136,7 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setGroupId(piece.getOrderItemId());
         typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
         typesettingProductionPieceVO.setProcessingFlow(piece.getProcessingFlow());
+        typesettingProductionPieceVO.setProcedureFlow(piece.getProcedureFlow());
         if(piece.getProductImageFile() != null) typesettingProductionPieceVO.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         typesettingProductionPieceVO.setSourceType(TypesettingSourceType.PART.getCode());
         typesettingProductionPieceVO.setSourceId(piece.getId());
@@ -160,6 +167,7 @@ public class TypesettingProductionPieceVO {
         vo.setMaterialConfigs(info.getMaterialConfigs());
         vo.setMaterialConfig(info.getMaterialConfig());
         vo.setProcessingFlow(info.getProcessingFlow());
+        vo.setProcedureFlow(info.getProcedureFlow());
         vo.setPreviewUrl(info.getElement().getFormeSvg());
         vo.setStatus(info.getStatus());
         vo.setRemark(info.getRemark());
