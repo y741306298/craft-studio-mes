@@ -86,6 +86,7 @@ import java.util.concurrent.TimeUnit;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
+import java.util.Comparator;
 
 @Slf4j
 @Service
@@ -197,38 +198,49 @@ public class AppTypesettingService {
         }
 
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
+        boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
 
-        List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
-                query.getManufacturerMetaId(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-        for (ProductionPiece piece : productionPieces) {
-            if (getPendingTypesettingQuantity(piece) > 0) {
-                items.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+        if (!queryTypesettingOnly) {
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                    query.getManufacturerMetaId(),
+                    null,
+                    query.getMaterialName(),
+                    query.getProcessingName(),
+                    query.getStartTime(),
+                    query.getEndTime(),
+                    1,
+                    Integer.MAX_VALUE
+            );
+            for (ProductionPiece piece : productionPieces) {
+                if (getPendingTypesettingQuantity(piece) > 0) {
+                    items.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+                }
             }
         }
 
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
-                query.getManufacturerMetaId(),
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-        for (TypesettingInfo info : typesettingInfos) {
-            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-            boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
-            if (leaveQuantity > 0 && isPending) {
-                items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+        if (!queryPartOnly) {
+            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                    query.getManufacturerMetaId(),
+                    null,
+                    query.getMaterialName(),
+                    query.getProcessingName(),
+                    query.getStartTime(),
+                    query.getEndTime(),
+                    1,
+                    Integer.MAX_VALUE
+            );
+            for (TypesettingInfo info : typesettingInfos) {
+                Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+                boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
+                if (leaveQuantity > 0 && isPending) {
+                    items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+                }
             }
         }
+
+        items.sort(Comparator.comparing(TypesettingProductionPieceVO::getCreateTime,
+                Comparator.nullsLast(Date::compareTo)).reversed());
 
         long total = items.size();
         return new PagedResult<>(items, total, items.size(), 1);
@@ -358,10 +370,10 @@ public class AppTypesettingService {
         List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
                 query.getManufacturerMetaId(),
                 ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
-                query.getMaterial(),
-                query.getNodeName(),
-                query.getStartDate(),
-                query.getEndDate(),
+                query.getMaterialName(),
+                query.getProcessingName(),
+                query.getStartTime(),
+                query.getEndTime(),
                 1,
                 Integer.MAX_VALUE
         );
@@ -394,8 +406,10 @@ public class AppTypesettingService {
         List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByConditions(
                 query.getManufacturerMetaId(),
                 query.getStatus(),
-                query.getMaterial(),
-                query.getNodeName(),
+                query.getMaterialName(),
+                query.getProcessingName(),
+                query.getStartTime(),
+                query.getEndTime(),
                 1,
                 Integer.MAX_VALUE
         );

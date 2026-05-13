@@ -12,8 +12,9 @@ public class TypesettingQuery {
     private String manufacturerMetaId;
     private String queryType;
     private String status;
-    private String material;
-    private String nodeName;
-    private Date startDate;
-    private Date endDate;
+    private String materialName;
+    private String processingName;
+    private Date startTime;
+    private Date endTime;
+    private String sourceType;
 }
