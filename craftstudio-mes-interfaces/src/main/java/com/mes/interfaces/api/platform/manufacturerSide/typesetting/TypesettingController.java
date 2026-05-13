@@ -2,6 +2,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.typesetting;
 
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.typesetting.AppTypesettingService;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.TypesettingQuery;
 import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
@@ -88,46 +89,47 @@ public class TypesettingController {
 
     private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items) {
         List<String> processingFlowList = buildProcessingFlowList(items);
-        return new TypesettingAndProductionPiecesResponse(items, processingFlowList);
+        List<String> materialList = buildMaterialList(items);
+        List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
+        return new TypesettingAndProductionPiecesResponse(items, processingFlowList, materialList, sourceType);
     }
 
     private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
-        LinkedHashSet<String> fullFlowSet = items.stream()
-                .map(TypesettingProductionPieceVO::getProcessingFlow)
+        return items.stream()
                 .filter(Objects::nonNull)
-                .filter(flow -> !flow.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-
-        LinkedHashSet<String> coatingFlowSet = new LinkedHashSet<>();
-        for (String flow : fullFlowSet) {
-            String coatingFlow = getFlowUntilFumo(flow);
-            if (coatingFlow != null) {
-                coatingFlowSet.add(coatingFlow);
-            }
-        }
-
-        List<String> result = new ArrayList<>(coatingFlowSet);
-        for (String flow : fullFlowSet) {
-            if (!result.contains(flow)) {
-                result.add(flow);
-            }
-        }
-        return result;
+                .map(TypesettingProductionPieceVO::getProcedureFlow)
+                .filter(Objects::nonNull)
+                .map(ProcedureFlow::getNodes)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .filter(Objects::nonNull)
+                .filter(nodeName -> !nodeName.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .collect(Collectors.toList());
     }
 
-    private String getFlowUntilFumo(String processingFlow) {
-        String[] nodes = processingFlow.split("-");
-        StringBuilder sb = new StringBuilder();
-        for (String node : nodes) {
-            if (sb.length() > 0) {
-                sb.append("-");
-            }
-            sb.append(node);
-            if ("覆膜".equals(node)) {
-                return sb.toString();
-            }
-        }
-        return null;
+    private List<String> buildMaterialList(List<TypesettingProductionPieceVO> items) {
+        return items.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingProductionPieceVO::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(materialConfig -> materialConfig.getMaterialSnapshot())
+                .filter(Objects::nonNull)
+                .map(materialSnapshot -> materialSnapshot.getName())
+                .filter(Objects::nonNull)
+                .filter(name -> !name.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .collect(Collectors.toList());
+    }
+
+    private List<TypesettingAndProductionPiecesResponse.SourceTypeOption> buildSourceTypeList() {
+        return Arrays.stream(TypesettingSourceType.values())
+                .map(type -> new TypesettingAndProductionPiecesResponse.SourceTypeOption(type.getCode(), type.getDescription()))
+                .collect(Collectors.toList());
     }
 
 
