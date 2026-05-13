@@ -64,4 +64,3 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         }
     }
 }
-

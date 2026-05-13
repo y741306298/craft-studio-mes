@@ -696,6 +696,7 @@ public class AppTypesettingService {
 
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
@@ -796,6 +797,21 @@ public class AppTypesettingService {
                 .findFirst()
                 .map(strategy -> strategy.buildMirrorTypesettingInfo(origin))
                 .orElse(null);
+    }
+
+    private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
+        if (mirrorTypesettingInfo == null || StringUtils.isBlank(mirrorTypesettingInfo.getTypesettingId())) {
+            return;
+        }
+        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+        if (existing == null) {
+            mirrorTypesettingInfo.setId(null);
+            domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
+            return;
+        }
+        mirrorTypesettingInfo.setId(existing.getId());
+        mirrorTypesettingInfo.setCreateTime(existing.getCreateTime());
+        domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
     }
 
     private void mergeAnchorPointMarks(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
@@ -1049,6 +1065,7 @@ public class AppTypesettingService {
         FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
+            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
