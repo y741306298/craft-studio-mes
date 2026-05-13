@@ -14,6 +14,8 @@ import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -44,6 +46,8 @@ public class TypesettingController {
 
     Logger logger = Logger.getLogger(TypesettingController.class.getName());
 
+    private static final java.util.Set<String> PREPROCESS_NODE_NAMES = new java.util.HashSet<>(Arrays.asList("预处理", "待排版", "排版中", "待打包", "已打包"));
+
     /**
      * 统一查询排版和生产工件列表
      *
@@ -57,6 +61,7 @@ public class TypesettingController {
                 appTypesettingService.findTypesettingAndProductionPieces(request);
         
         List<TypesettingProductionPieceVO> items = (List<TypesettingProductionPieceVO>) result.items();
+        sanitizeProcedureFlow(items);
         return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
     }
 
@@ -77,6 +82,7 @@ public class TypesettingController {
         query.setSourceType(sourceType);
         PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
+        sanitizeProcedureFlow(items);
         return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
     }
 
@@ -122,6 +128,27 @@ public class TypesettingController {
             }
         }
         return null;
+    }
+
+
+
+    private void sanitizeProcedureFlow(List<TypesettingProductionPieceVO> items) {
+        if (items == null) {
+            return;
+        }
+        for (TypesettingProductionPieceVO item : items) {
+            ProcedureFlow flow = item.getProcedureFlow();
+            if (flow == null || flow.getNodes() == null) {
+                continue;
+            }
+            List<ProcedureFlowNode> filteredNodes = flow.getNodes().stream()
+                    .filter(Objects::nonNull)
+                    .filter(node -> !PREPROCESS_NODE_NAMES.contains(node.getNodeName()))
+                    .collect(Collectors.toList());
+            flow.setNodes(filteredNodes);
+            flow.setTotalNodes(filteredNodes.size());
+            item.setProcedureFlow(flow);
+        }
     }
 
     /**
