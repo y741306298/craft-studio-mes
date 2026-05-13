@@ -227,6 +227,7 @@ public class AppTypesettingService {
                     query.getProcessingName(),
                     query.getStartTime(),
                     query.getEndTime(),
+                    null,
                     1,
                     Integer.MAX_VALUE
             );
@@ -410,6 +411,7 @@ public class AppTypesettingService {
                 query.getProcessingName(),
                 query.getStartTime(),
                 query.getEndTime(),
+                null,
                 1,
                 Integer.MAX_VALUE
         );
