@@ -31,6 +31,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
             return null;
         }
         TypesettingInfo mirror = JSON.parseObject(JSON.toJSONString(origin), TypesettingInfo.class);
+        mirror.setId(null);
         mirror.setTypesettingId(origin.getTypesettingId() + "-Mirror");
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());

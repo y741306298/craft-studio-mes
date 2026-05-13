@@ -806,7 +806,15 @@ public class AppTypesettingService {
         TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
         if (existing == null) {
             mirrorTypesettingInfo.setId(null);
-            domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
+            TypesettingInfo created = domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
+            if (created != null && StringUtils.isNotBlank(created.getId())) {
+                mirrorTypesettingInfo.setId(created.getId());
+            } else {
+                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+                if (persisted != null && StringUtils.isNotBlank(persisted.getId())) {
+                    mirrorTypesettingInfo.setId(persisted.getId());
+                }
+            }
             return;
         }
         mirrorTypesettingInfo.setId(existing.getId());
