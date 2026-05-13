@@ -145,12 +145,12 @@ public class DeliveryPkgController {
 
     private String buildRouteDesc(DeliveryPkg deliveryPkg) {
         if (StringUtils.isBlank(deliveryPkg.getRouteId()) || StringUtils.isBlank(deliveryPkg.getRouteNodeId())) {
-            return "";
+            return "未自定义路线";
         }
         DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
         DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
         if (deliveryRoute == null || routeNode == null) {
-            return "";
+            return "未自定义路线";
         }
         return deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();
     }
