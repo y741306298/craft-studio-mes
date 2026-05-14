@@ -144,11 +144,23 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         }
         return info.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
-                .filter(node -> "覆板".equals(node.getNodeName()) || "覆膜".equals(node.getNodeName()))
+                .filter(node -> shouldExtractAccessoryLabel(node.getNodeName()))
                 .map(this::extractAccessoryLabelFromNode)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
+    }
+
+    private boolean shouldExtractAccessoryLabel(String nodeName) {
+        if (StringUtils.isBlank(nodeName)) {
+            return false;
+        }
+        return !"预处理".equals(nodeName)
+                && !"待排版".equals(nodeName)
+                && !"排版中".equals(nodeName)
+                && !"打印中".equals(nodeName)
+                && !"待打包".equals(nodeName)
+                && !"已打包".equals(nodeName);
     }
 
     private String extractAccessoryLabelFromNode(ProcedureFlowNode node) {
@@ -160,7 +172,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
             Object accessorySnapshot = param instanceof Map ? ((Map<?, ?>) param).get("accessorySnapshot") : invokeGetter(param, "getAccessorySnapshot");
             Object name = accessorySnapshot instanceof Map ? ((Map<?, ?>) accessorySnapshot).get("name") : invokeGetter(accessorySnapshot, "getName");
             if (name != null && StringUtils.isNotBlank(name.toString())) {
-                return node.getNodeName() + "：" + name;
+                return node.getNodeName() + "：<font color='red'>" + name + "</font>";
             }
         }
         return "";
