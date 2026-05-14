@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
+public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private static final int TAG_DPI = 300;
     private static final double MM_PER_INCH = 25.4D;
@@ -52,19 +52,19 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private final OssTagUploadService ossTagUploadService;
 
-    public SquareQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
         this.ossTagUploadService = ossTagUploadService;
     }
 
     /**
-     * 方形二维码排版模式构建器：
+     * 十字二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
      * - marks 使用 C+B+A 拼接生成的标签条；
-     * - 定位点使用 basetag/square.svg。
+     * - 定位点使用 basetag/cross.svg。
      */
     @Override
     public TypesettingLayoutMode supportMode() {
-        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
+        return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS;
     }
 
     @Override
@@ -93,7 +93,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
-        log.info("Square QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
+        log.info("Cross QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         boolean hasDoubleSideMounting = hasDoubleSideMounting(context.getTypesettingInfo());
@@ -135,7 +135,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
         result.setMarks(marks);
 
-        // 4) 在上/下 margin 区域插入 4 个方形定位点（左右各 30mm）
+        // 4) 在上/下 margin 区域插入 4 个十字定位点（左右各 30mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
         int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
@@ -143,29 +143,29 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
         int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
-        String squareSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
+        String crossSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/cross.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("square.png");
-        tl.setSvg(squareSvgUrl);
+        tl.setImg("cross.png");
+        tl.setSvg(crossSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("square.png");
-        tr.setSvg(squareSvgUrl);
+        tr.setImg("cross.png");
+        tr.setSvg(crossSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("square.png");
-        bl.setSvg(squareSvgUrl);
+        bl.setImg("cross.png");
+        bl.setSvg(crossSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("square.png");
-        br.setSvg(squareSvgUrl);
+        br.setImg("cross.png");
+        br.setSvg(crossSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(bottomRightX, bottomY));
         List<FormeGenerationRequest.AnchorPoint> anchorPoints = new ArrayList<>(Arrays.asList(tl, tr, bl, br));
@@ -176,14 +176,14 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - ANCHOR_SIZE_MM / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("square.png");
-                leftPoint.setSvg(squareSvgUrl);
+                leftPoint.setImg("cross.png");
+                leftPoint.setSvg(crossSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("square.png");
-                rightPoint.setSvg(squareSvgUrl);
+                rightPoint.setImg("cross.png");
+                rightPoint.setSvg(crossSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));
                 rightPoint.setPosition(createPosition(rightExpandCenterX, pointY));
 
