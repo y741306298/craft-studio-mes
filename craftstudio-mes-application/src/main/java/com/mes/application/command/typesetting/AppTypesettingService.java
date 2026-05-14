@@ -1198,10 +1198,13 @@ public class AppTypesettingService {
                 collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
                 int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                         ? typesettingInfo.getLeaveQuantity() : 1;
-                transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
-                Set<String> productionPieceIds = productionPieceUsage.keySet();
-                String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
+                String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+                if (!StringUtils.contains(callbackTypesettingId, "-Mirror")) {
+                    transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
+                }
+                Set<String> productionPieceIds = productionPieceUsage.keySet();
+                String printTaskTypesettingId = callbackTypesettingId;
                 String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
                 Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
                 TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
