@@ -255,7 +255,7 @@ public class SquareQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 return node.getNodeName() + "：<font color='red'>" + name + "</font>";
             }
         }
-        return StringUtils.defaultString(node.getNodeName());
+        return node.getNodeName() == null ? "" : node.getNodeName();
     }
 
     private Object invokeGetter(Object target, String methodName) {
