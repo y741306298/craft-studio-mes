@@ -41,9 +41,10 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
                     orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
             if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
                 MirrorConfig mirrorConfig = new MirrorConfig();
-                mirrorConfig.setImg(mirrorImageData.raw);
-                mirrorConfig.setPreviewImg(mirrorImageData.preview);
-                mirrorConfig.setThumbnail(mirrorImageData.thumbnail);
+                mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
+                mirrorConfig.setSvg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
+                mirrorConfig.setPreviewImg(processingService.completeOssUrlForStrategy(mirrorImageData.preview));
+                mirrorConfig.setThumbnail(processingService.completeOssUrlForStrategy(mirrorImageData.thumbnail));
                 piece.setMirrorConfigs(List.of(mirrorConfig));
             }
             processingService.getProductionPieceService().addProductionPiece(piece);
