@@ -703,6 +703,7 @@ public class AppTypesettingService {
                 mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
             }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
+            mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,

@@ -23,6 +23,20 @@ public enum TypesettingLayoutMode {
             2
     ),
     /**
+     * 异形切割（plt二维码）-十字定位点：
+     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
+     */
+    SHAPED_CUTTING_PLT_QR_CROSS(
+            "shaped_cutting_plt_qr_cross",
+            "异形切割（plt二维码）-十字定位点",
+            "shaped_typesetting",
+            true, true, true,
+            "plt_qr",
+            "xxx",
+            "cross",
+            5
+    ),
+    /**
      * 双面对裱排版模式：
      * 需要 json/svg，不需要 plt；标签使用左右箭头，不生成二维码。
      */
@@ -64,20 +78,7 @@ public enum TypesettingLayoutMode {
             "none",
             5
     ),
-    /**
-     * 异形切割（plt二维码）-十字定位点：
-     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
-     */
-    SHAPED_CUTTING_PLT_QR_CROSS(
-            "shaped_cutting_plt_qr_cross",
-            "异形切割（plt二维码）-十字定位点",
-            "shaped_typesetting",
-            true, true, true,
-            "plt_qr",
-            "xxx",
-            "cross",
-            5
-    ),
+
     /**
      * xy切割(切割辅助线-裁赋A20PR0）：
      * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
