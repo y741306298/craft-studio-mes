@@ -1185,35 +1185,42 @@ public class AppTypesettingService {
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
-        if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
-            String deviceCode = remark.substring("FORME_OP:PRINT:".length());
-            typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
-            typesettingInfo.setDeviceCode(deviceCode);
-            typesettingInfo.setLeaveQuantity(1);
-            Set<String> visitedTypesettingKeys = new HashSet<>();
-            Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-            collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
-            int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
-                    ? typesettingInfo.getLeaveQuantity() : 1;
-            transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
-            Set<String> productionPieceIds = productionPieceUsage.keySet();
-            String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
-                    ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-            String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
-            Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
-            TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
-                    printTaskTypesettingId,
-                    deviceInfoId,
-                    deviceCode,
-                    typesettingInfo.getElement(),
-                    allMarks,
-                    productionPieceIds);
-            typesettingInfo.setRemark(null);
-            domainTypesettingService.updateTypesetting(typesettingInfo);
-            TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
-            savePrintTaskByDeviceCode(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
-            savePltBroadcastPrintTask(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
+        log.info("开始进行打印印版回调参数remark,{}", JSON.toJSONString(remark));
+        try {
+            if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
+                log.info("开始进行打印印版回调参数,{}", JSON.toJSONString(typesettingInfo));
+                String deviceCode = remark.substring("FORME_OP:PRINT:".length());
+                typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
+                typesettingInfo.setDeviceCode(deviceCode);
+                typesettingInfo.setLeaveQuantity(1);
+                Set<String> visitedTypesettingKeys = new HashSet<>();
+                Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
+                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
+                int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
+                        ? typesettingInfo.getLeaveQuantity() : 1;
+                transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
+                Set<String> productionPieceIds = productionPieceUsage.keySet();
+                String printTaskTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
+                        ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+                String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
+                Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
+                TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
+                        printTaskTypesettingId,
+                        deviceInfoId,
+                        deviceCode,
+                        typesettingInfo.getElement(),
+                        allMarks,
+                        productionPieceIds);
+                typesettingInfo.setRemark(null);
+                domainTypesettingService.updateTypesetting(typesettingInfo);
+                TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
+                savePrintTaskByDeviceCode(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
+                savePltBroadcastPrintTask(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
+            }
+        }catch (Exception e) {
+            log.error("处理打印印版回调异常", e);
         }
+
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
