@@ -692,8 +692,9 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        log.info("formeRequest========:{}",JSON.toJSONString(formeRequest));
-        algorithmCoreApiService.generateFormeAsync(formeRequest);
+        String formeRequestJson = JSON.toJSONString(formeRequest);
+        log.info("formeRequest========:{}", formeRequestJson);
+        algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
 
         String formeOpRemark = "FORME_OP:LAYOUT";
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
@@ -711,8 +712,9 @@ public class AppTypesettingService {
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
             domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
-            log.info("mirrorFormeRequest========:{}", JSON.toJSONString(mirrorFormeRequest));
-            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
+            String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
+            log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
+            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
         }
 
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
@@ -1082,8 +1084,9 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        log.info("formeRequest-print========:{}",JSON.toJSONString(formeRequest));
-        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequest);
+        String formeRequestJson = JSON.toJSONString(formeRequest);
+        log.info("formeRequest-print========:{}", formeRequestJson);
+        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
         String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
@@ -1103,8 +1106,9 @@ public class AppTypesettingService {
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
             domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
-            log.info("formeRequest-print-mirror========:{}",JSON.toJSONString(mirrorFormeRequest));
-            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequest);
+            String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
+            log.info("formeRequest-print-mirror========:{}", mirrorFormeRequestJson);
+            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
         }
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());

@@ -345,6 +345,18 @@ public class AlgorithmCoreApiService {
                 request.getCallbackConfig().getCallbackUrl(), FormeGenerationResponse.class);
     }
 
+    public FormeGenerationResponse generateFormeAsync(String requestJson, String callbackUrl) {
+        if (requestJson == null || requestJson.isEmpty()) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (callbackUrl == null || callbackUrl.isEmpty()) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
+        }
+
+        return callAlgorithmAsync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", requestJson,
+                callbackUrl, FormeGenerationResponse.class);
+    }
+
     /**
      * 印版生成 - 同步模式
      * 根据排版SVG生成印版文件，包括JSON、PLT和印版SVG格式
