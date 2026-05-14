@@ -587,8 +587,8 @@ public class AppOrderPreprocessingService {
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
-                            mirrorConfig.setImg(mirrorResult.getImg());
-                            mirrorConfig.setSvg(mirrorResult.getSvg());
+                            mirrorConfig.setImg(completeOssUrl(mirrorResult.getImg()));
+                            mirrorConfig.setSvg(completeOssUrl(mirrorResult.getSvg()));
                             mirrorConfig.setPreviewImg(completeOssUrl(mirrorResult.getPreviewImg()));
                             mirrorConfig.setThumbnail(completeOssUrl(mirrorResult.getThumbnail()));
                             if (mirrorResult.getBlood() != null) {
@@ -937,6 +937,11 @@ public class AppOrderPreprocessingService {
             return result;
         }
     }
+
+    public String completeOssUrlForStrategy(String url) {
+        return completeOssUrl(url);
+    }
+
 
 
     private String completeOssUrl(String url) {
