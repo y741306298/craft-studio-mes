@@ -1095,6 +1095,7 @@ public class AppTypesettingService {
             }
             mirrorTypesettingInfo.setRemark(formeOpRemark);
             mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
+            mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
             ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
             mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
             ensureMirrorTypesettingExists(mirrorTypesettingInfo);
