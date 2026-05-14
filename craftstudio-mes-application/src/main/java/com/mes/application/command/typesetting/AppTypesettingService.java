@@ -1200,7 +1200,7 @@ public class AppTypesettingService {
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (!StringUtils.contains(callbackTypesettingId, "-Mirror")) {
+                if (callbackTypesettingId == null || !callbackTypesettingId.contains("-Mirror")) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
