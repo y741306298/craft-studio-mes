@@ -65,17 +65,17 @@ public enum TypesettingLayoutMode {
             5
     ),
     /**
-     * 异形切割（plt二维码）-方形定位点：
+     * 异形切割（plt二维码）-十字定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
      */
-    SHAPED_CUTTING_PLT_QR_SQUARE(
-            "shaped_cutting_plt_qr_square",
-            "异形切割（plt二维码）-方形定位点",
+    SHAPED_CUTTING_PLT_QR_CROSS(
+            "shaped_cutting_plt_qr_cross",
+            "异形切割（plt二维码）-十字定位点",
             "shaped_typesetting",
             true, true, true,
             "plt_qr",
             "xxx",
-            "square",
+            "cross",
             5
     ),
     /**
@@ -253,6 +253,9 @@ public enum TypesettingLayoutMode {
             if (mode.code.equalsIgnoreCase(code)) {
                 return mode;
             }
+        }
+        if ("shaped_cutting_plt_qr_square".equalsIgnoreCase(code)) {
+            return SHAPED_CUTTING_PLT_QR_CROSS;
         }
         if ("xy_cutting_aux_line_caifu".equalsIgnoreCase(code)) {
             return XY_CUTTING_AUX_LINE_CAIFU_A20PR0;

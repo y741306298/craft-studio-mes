@@ -1229,7 +1229,7 @@ public class AppTypesettingService {
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
-                || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE == layoutMode
+                || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS == layoutMode
                 || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode;
     }
 
@@ -2364,7 +2364,7 @@ public class AppTypesettingService {
 
     private boolean isPrintingPlateLayoutMode(TypesettingLayoutMode layoutMode) {
         return layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
-                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_SQUARE;
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS;
     }
 
 
