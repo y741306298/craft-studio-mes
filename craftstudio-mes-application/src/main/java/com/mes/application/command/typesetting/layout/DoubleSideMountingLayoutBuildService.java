@@ -95,7 +95,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
             marks.put("elementFRotated", elementFRotated);
-            marks.put("elementG", RIGHT_ARROW_URL);
+            marks.put("elementG", LEFT_ARROW_URL);
             context.getTypesettingInfo().setMarks(marks);
         }
 
@@ -109,13 +109,13 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
         bottom.setPosition(createPosition(nestedStartX, elementOriginY + context.getNestedHeight().intValue()));
-        FormeGenerationRequest.Mark rightArrow = new FormeGenerationRequest.Mark();
-        rightArrow.setImg(RIGHT_ARROW_URL);
-        rightArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
-        int arrowX = context.getNestedWidth().intValue() - QR_LEFT_MM - QR_SIZE_MM;
+        FormeGenerationRequest.Mark leftArrow = new FormeGenerationRequest.Mark();
+        leftArrow.setImg(LEFT_ARROW_URL);
+        leftArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
+        int arrowX = QR_LEFT_MM;
         int arrowY = (marginHeight.intValue() - QR_SIZE_MM) / 2;
-        rightArrow.setPosition(createPosition(arrowX, arrowY));
-        result.setMarks(Arrays.asList(top, bottom, rightArrow));
+        leftArrow.setPosition(createPosition(arrowX, arrowY));
+        result.setMarks(Arrays.asList(top, bottom, leftArrow));
 
         // 双面对裱镜像印版不需要生成定位点
         result.setAnchorPoints(new ArrayList<>());
