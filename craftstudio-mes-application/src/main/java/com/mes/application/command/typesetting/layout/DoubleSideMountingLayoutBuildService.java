@@ -175,7 +175,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
                 return node.getNodeName() + "：<font color='red'>" + name + "</font>";
             }
         }
-        return "";
+        return StringUtils.defaultString(node.getNodeName());
     }
 
     private Object invokeGetter(Object target, String methodName) {
@@ -237,7 +237,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
                         continue;
                     }
                     drawTextRotate180(g, extInfo, currentX, textBaseLineY, fontMetrics);
-                    currentX += fontMetrics.stringWidth(extInfo) + mmToPx(EXTRA_INFO_GAP_MM);
+                    currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
                 }
             }
 
@@ -265,7 +265,8 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
 
     private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
         String safeText = text == null ? "" : text;
-        int textWidth = fontMetrics.stringWidth(safeText);
+        String plainText = extractDisplayText(safeText);
+        int textWidth = fontMetrics.stringWidth(plainText);
         if (textWidth <= 0) {
             return;
         }
@@ -274,11 +275,53 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         double centerY = baselineY - fontMetrics.getAscent() + textHeight / 2.0D;
 
         AffineTransform origin = g.getTransform();
+        Color originColor = g.getColor();
         try {
             g.rotate(Math.PI, centerX, centerY);
-            g.drawString(safeText, x, baselineY);
+            drawRichText(g, safeText, x, baselineY, fontMetrics);
         } finally {
+            g.setColor(originColor);
             g.setTransform(origin);
+        }
+    }
+
+    private String extractDisplayText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("<font\\s+color='red'>", "").replace("</font>", "");
+    }
+
+    private void drawRichText(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
+        String safeText = text == null ? "" : text;
+        String openTag = "<font color='red'>";
+        String closeTag = "</font>";
+        int openIdx = safeText.indexOf(openTag);
+        int closeIdx = safeText.indexOf(closeTag);
+        if (openIdx < 0 || closeIdx < 0 || closeIdx <= openIdx) {
+            g.setColor(Color.BLACK);
+            g.drawString(safeText, x, baselineY);
+            return;
+        }
+
+        String prefix = safeText.substring(0, openIdx);
+        String redText = safeText.substring(openIdx + openTag.length(), closeIdx);
+        String suffix = safeText.substring(closeIdx + closeTag.length());
+
+        int currentX = x;
+        if (StringUtils.isNotEmpty(prefix)) {
+            g.setColor(Color.BLACK);
+            g.drawString(prefix, currentX, baselineY);
+            currentX += fontMetrics.stringWidth(prefix);
+        }
+        if (StringUtils.isNotEmpty(redText)) {
+            g.setColor(Color.RED);
+            g.drawString(redText, currentX, baselineY);
+            currentX += fontMetrics.stringWidth(redText);
+        }
+        if (StringUtils.isNotEmpty(suffix)) {
+            g.setColor(Color.BLACK);
+            g.drawString(suffix, currentX, baselineY);
         }
     }
 
