@@ -21,7 +21,7 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
 
     @Override
     public boolean matches(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
-        return hasDoubleSideMounting(productionPieces, typesettingInfos);
+        return hasDoubleSideMounting(productionPieces);
     }
 
     @Override
@@ -65,18 +65,10 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         return null;
     }
 
-    private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces,
-                                          List<TypesettingInfo> typesettingInfos) {
+    private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces) {
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
                 if (piece != null && procedureFlowHasNode(piece.getProcedureFlow(), DOUBLE_SIDE_NODE_NAME)) {
-                    return true;
-                }
-            }
-        }
-        if (typesettingInfos != null) {
-            for (TypesettingInfo info : typesettingInfos) {
-                if (info != null && procedureFlowHasNode(info.getProcedureFlow(), DOUBLE_SIDE_NODE_NAME)) {
                     return true;
                 }
             }
