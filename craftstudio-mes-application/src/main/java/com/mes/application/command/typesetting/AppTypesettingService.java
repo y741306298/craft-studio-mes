@@ -1383,12 +1383,20 @@ public class AppTypesettingService {
                                                               Map<String, String> marks,
                                                               Set<String> productionPieceIds) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
+        boolean isMirrorTypesetting = StringUtils.isNotBlank(typesettingInfoId) && typesettingInfoId.contains("-Mirror");
         for (String productionPieceId : productionPieceIds) {
             ProductionPiece piece = productionPieceService.findById(productionPieceId);
             if (piece == null) {
                 continue;
             }
             appendRawFile(imageSet, piece.getProductImageFile() == null ? null : piece.getProductImageFile().getRawFile());
+            if (isMirrorTypesetting) {
+                if (piece.getMirrorConfigs() != null && !piece.getMirrorConfigs().isEmpty()) {
+                    appendRawFile(imageSet, piece.getMirrorConfigs().get(0).getImg());
+                }
+            } else {
+                appendRawFile(imageSet, piece.getProductImageFile() == null ? null : piece.getProductImageFile().getRawFile());
+            }
             appendRawFile(imageSet, piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
         }
         LinkedHashSet<String> pltSet = new LinkedHashSet<>();
