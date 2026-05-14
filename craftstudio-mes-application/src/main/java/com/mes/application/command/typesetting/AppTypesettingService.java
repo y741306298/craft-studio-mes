@@ -1667,6 +1667,7 @@ public class AppTypesettingService {
         }
 
         Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
+        Map<String, Integer> typesettingRollbackQuantity = new LinkedHashMap<>();
         List<String> releasedPieceIds = new ArrayList<>();
         List<String> errorMessages = new ArrayList<>();
         List<String> deletedLayoutIds = new ArrayList<>();
@@ -1687,11 +1688,15 @@ public class AppTypesettingService {
                 usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
             }
             for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
-                if (usedCell == null || !TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType()) || StringUtils.isBlank(usedCell.getSourceId())) {
                     continue;
                 }
                 int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
-                productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
+                    typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                }
             }
 
             try {
@@ -1714,6 +1719,26 @@ public class AppTypesettingService {
                 deletedLayoutIds.add(mirrorTypesetting.getId());
             } catch (Exception e) {
                 errorMessages.add("删除镜像排版记录失败(" + mirrorTypesetting.getId() + "): " + e.getMessage());
+            }
+        }
+
+        for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
+            String sourceTypesettingId = entry.getKey();
+            Integer rollbackQuantity = entry.getValue();
+            if (StringUtils.isBlank(sourceTypesettingId) || rollbackQuantity == null || rollbackQuantity <= 0) {
+                continue;
+            }
+            try {
+                TypesettingInfo sourceTypesetting = domainTypesettingService.findById(sourceTypesettingId);
+                if (sourceTypesetting == null || StringUtils.isBlank(sourceTypesetting.getId())) {
+                    errorMessages.add("来源印版不存在: " + sourceTypesettingId);
+                    continue;
+                }
+                sourceTypesetting.setStatus(TypesettingStatus.PENDING.getCode());
+                sourceTypesetting.setLeaveQuantity(rollbackQuantity);
+                domainTypesettingService.updateTypesetting(sourceTypesetting);
+            } catch (Exception e) {
+                errorMessages.add("回退印版失败(" + sourceTypesettingId + "): " + e.getMessage());
             }
         }
 
