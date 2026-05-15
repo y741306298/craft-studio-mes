@@ -145,8 +145,8 @@ public class AppDeliveryPkgService {
 
         return items.stream().filter(item -> {
             boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
-                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerPhone())
-                    && item.getOrderCustomer().getCustomerPhone().contains(request.getCustomerPhone()));
+                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getMobile())
+                    && item.getOrderCustomer().getMobile().contains(request.getCustomerPhone()));
             boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
                     || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
                     && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
