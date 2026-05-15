@@ -51,7 +51,7 @@ public enum TypesettingLayoutMode {
             null,
             "circle",
             2,
-            true
+            false
     ),
     /**
      * 网格排版（plt二维码）-圆形定位点：
@@ -97,7 +97,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             5,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-裁赋A30小图）：
@@ -112,7 +112,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-裁赋A30大板）：
@@ -127,7 +127,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-裁赋开背A30H覆膜）：
@@ -157,7 +157,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             6,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-九段）：
@@ -172,7 +172,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-六渡大板模式）：
@@ -187,7 +187,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-六渡小图模式）：
@@ -202,7 +202,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * xy切割(切割辅助线-全自动打扣）：
@@ -217,7 +217,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     ),
     /**
      * 竖直排版：
