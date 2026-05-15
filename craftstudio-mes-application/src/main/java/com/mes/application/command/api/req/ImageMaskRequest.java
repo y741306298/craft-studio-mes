@@ -78,8 +78,8 @@ public class ImageMaskRequest {
         ImageProperties imageProperties = new ImageProperties();
         imageProperties.setColorSpace(oriImageProperties != null && oriImageProperties.getColorSpace() != null ? oriImageProperties.getColorSpace() : "CMYK");
         if (oriImageProperties != null) {
-            imageProperties.setDpiX((int) oriImageProperties.getDpiX());
-            imageProperties.setDpiY((int) oriImageProperties.getDpiY());
+            imageProperties.setDpiX(oriImageProperties.getDpiX());
+            imageProperties.setDpiY(oriImageProperties.getDpiY());
         }
         if (oriImageProperties != null) {
             imageProperties.setWidth((int) oriImageProperties.getWidth());
