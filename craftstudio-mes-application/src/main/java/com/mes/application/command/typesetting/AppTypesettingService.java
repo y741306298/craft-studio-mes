@@ -1156,26 +1156,34 @@ public class AppTypesettingService {
         }
         Integer bloodX = piece.getBlood().getX();
         Integer bloodY = piece.getBlood().getY();
-        boolean hasXBlood = bloodX != null && bloodX != 0;
         boolean hasYBlood = bloodY != null && bloodY != 0;
-        if (!hasXBlood && !hasYBlood) {
+        if (!hasYBlood) {
             return;
         }
-        if (hasXBlood) {
-            return;
-        }
-        if (piece.getProductImageFile() == null || StringUtils.isBlank(piece.getProductImageFile().getRawFile())) {
-            return;
-        }
-        String rotatedUrl = rotate90CCWAndUploadForCaifu(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
-        if (StringUtils.isNotBlank(rotatedUrl)) {
-            piece.getProductImageFile().setRawFile(rotatedUrl);
-            if (piece.getProductImageFile().getFilePreview() != null) {
-                piece.getProductImageFile().getFilePreview().setRaw(rotatedUrl);
+
+        String rotatedProductRawFile = null;
+        if (piece.getProductImageFile() != null && StringUtils.isNotBlank(piece.getProductImageFile().getRawFile())) {
+            rotatedProductRawFile = rotate90CCWAndUploadForCaifu(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
+            if (StringUtils.isNotBlank(rotatedProductRawFile)) {
+                piece.getProductImageFile().setRawFile(rotatedProductRawFile);
+                if (piece.getProductImageFile().getFilePreview() != null) {
+                    piece.getProductImageFile().getFilePreview().setRaw(rotatedProductRawFile);
+                }
+                piece.setTemplateCode(rotatedProductRawFile);
             }
-            piece.setTemplateCode(rotatedUrl);
-            piece.getBlood().setX(bloodY);
         }
+
+        if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
+            String rotatedMaskRawFile = rotate90CCWAndUploadForCaifu(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
+            if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
+                piece.getMaskImageFile().setRawFile(rotatedMaskRawFile);
+                if (piece.getMaskImageFile().getFilePreview() != null) {
+                    piece.getMaskImageFile().getFilePreview().setRaw(rotatedMaskRawFile);
+                }
+            }
+        }
+
+        piece.getBlood().setX(bloodY);
     }
 
     private String rotate90CCWAndUploadForCaifu(String rawFile, String manufacturerMetaId, String authKey) {
