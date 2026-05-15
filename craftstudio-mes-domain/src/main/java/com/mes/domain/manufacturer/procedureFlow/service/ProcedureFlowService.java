@@ -254,6 +254,12 @@ public class ProcedureFlowService {
                 if ("NODE_PRINTING_IN_PROGRESS".equals(node.getNodeId()) || "打印中".equals(node.getNodeName())) {
                     continue;
                 }
+                if ("NODE_PENDING_PACKING".equals(node.getNodeId()) || "待打包".equals(node.getNodeName())) {
+                    continue;
+                }
+                if ("NODE_PACKED".equals(node.getNodeId()) || "已打包".equals(node.getNodeName())) {
+                    continue;
+                }
                 customNodes.add(node);
             }
             for (int i = 0; i < customNodes.size(); i++) {
