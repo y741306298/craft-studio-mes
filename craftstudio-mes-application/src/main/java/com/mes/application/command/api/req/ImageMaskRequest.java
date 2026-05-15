@@ -98,7 +98,7 @@ public class ImageMaskRequest {
             imageMaskRequest.setMaskSvgUrl(maskImgFile.getRawFile());
         }
         if (hasCutting){
-            Slice slice = buildSliceFromProcessingNodes(processingNodes);
+            Slice slice = buildSliceFromProcessingNodes(processingNodes, orderItem, rawImage);
             if (slice != null) {
                 imageMaskRequest.setSlice(slice);
             }
@@ -106,7 +106,7 @@ public class ImageMaskRequest {
         return imageMaskRequest;
     }
 
-    private static Slice buildSliceFromProcessingNodes(List<ProcedureFlowNode> processingNodes) {
+    private static Slice buildSliceFromProcessingNodes(List<ProcedureFlowNode> processingNodes, OrderItem orderItem, RawImage rawImage) {
         if (processingNodes == null || processingNodes.isEmpty()) {
             return null;
         }
@@ -121,7 +121,7 @@ public class ImageMaskRequest {
                 if (paramConfigs != null) {
                     for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
                         Object paramValue = config.getParam();
-                        resolveCoordinates(paramValue, xs, ys);
+                        resolveCoordinates(paramValue, xs, ys, orderItem, rawImage);
                     }
                 }
             }
@@ -137,22 +137,22 @@ public class ImageMaskRequest {
         return (!xs.isEmpty() || !ys.isEmpty()) ? slice : null;
     }
 
-    private static void resolveCoordinates(Object paramValue, List<Coordinate> xs, List<Coordinate> ys) {
+    private static void resolveCoordinates(Object paramValue, List<Coordinate> xs, List<Coordinate> ys, OrderItem orderItem, RawImage rawImage) {
         if (paramValue == null) {
             return;
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, 10);
-            addCoordinatesFromList(mapValue.get("ys"), ys, 20);
+            addCoordinatesFromList(mapValue.get("xs"), xs, 10, "xs", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("ys"), ys, 20, "ys", orderItem, rawImage);
             return;
         }
 
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), 10));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), 20));
+                    xs.add(buildCoordinate(coordinates.get(i), 10, "xs", orderItem, rawImage));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), 20, "ys", orderItem, rawImage));
                 }
             }
             return;
@@ -161,29 +161,29 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, 10);
-        addCoordinatesFromList(ysValue, ys, 20);
+        addCoordinatesFromList(xsValue, xs, 10, "xs", orderItem, rawImage);
+        addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
     }
 
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood) {
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         if (!(listObj instanceof List<?> values)) {
             return;
         }
         for (Object value : values) {
-            target.add(buildCoordinate(value, defaultBlood));
+            target.add(buildCoordinate(value, defaultBlood, axis, orderItem, rawImage));
         }
     }
 
-    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood) {
+    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         Coordinate coordinate = new Coordinate();
-        coordinate.setBlood(defaultBlood);
+        coordinate.setBlood(convertBloodMmToPx(defaultBlood, axis, rawImage));
 
         if (rawValue == null) {
             return coordinate;
         }
         if (rawValue instanceof Number || rawValue instanceof String) {
             Integer value = parseInteger(rawValue);
-            coordinate.setValue(value != null ? value * 10 : null);
+            coordinate.setValue(convertValueToPx(value, axis, orderItem, rawImage));
             return coordinate;
         }
         if (rawValue instanceof Map<?, ?> valueMap) {
@@ -191,8 +191,8 @@ public class ImageMaskRequest {
             Object blood = valueMap.get("blood");
             Integer bloodValue = parseInteger(blood);
             Integer coordinateValue = parseInteger(value);
-            coordinate.setValue(coordinateValue != null ? coordinateValue * 10 : parseInteger(rawValue));
-            coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
+            coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
+            coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
             return coordinate;
         }
 
@@ -200,11 +200,73 @@ public class ImageMaskRequest {
         Object blood = invokeGetter(rawValue, "getBlood");
         Integer bloodValue = parseInteger(blood);
         Integer coordinateValue = value != null ? parseInteger(value) : null;
-        coordinate.setValue(coordinateValue != null ? coordinateValue * 10 : parseInteger(rawValue));
-        coordinate.setBlood(bloodValue != null ? bloodValue : defaultBlood);
+        coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
+        coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
         return coordinate;
     }
 
+
+    private static Integer convertBloodMmToPx(Integer bloodMm, String axis, RawImage rawImage) {
+        if (bloodMm == null) {
+            return null;
+        }
+        double dpi = resolveAxisDpi(axis, rawImage);
+        if (dpi <= 0) {
+            return bloodMm;
+        }
+        return (int) Math.round((bloodMm / 25.4D) * dpi);
+    }
+
+    private static Integer convertValueToPx(Integer value, String axis, OrderItem orderItem, RawImage rawImage) {
+        if (value == null) {
+            return null;
+        }
+        Integer rawSize = resolveAxisRawSize(axis, rawImage);
+        Double usageSize = resolveAxisUsageSizeMm(axis, orderItem);
+        if (rawSize == null || rawSize <= 0 || usageSize == null || usageSize <= 0) {
+            return value;
+        }
+        return (int) Math.round((value / usageSize) * rawSize);
+    }
+
+    private static double resolveAxisDpi(String axis, RawImage rawImage) {
+        if (rawImage == null || rawImage.getImageProperties() == null) {
+            return 0D;
+        }
+        if ("ys".equalsIgnoreCase(axis)) {
+            return rawImage.getImageProperties().getDpiY();
+        }
+        return rawImage.getImageProperties().getDpiX();
+    }
+
+    private static Integer resolveAxisRawSize(String axis, RawImage rawImage) {
+        if (rawImage == null || rawImage.getImageProperties() == null) {
+            return null;
+        }
+        return "ys".equalsIgnoreCase(axis) ? rawImage.getImageProperties().getHeight() : rawImage.getImageProperties().getWidth();
+    }
+
+    private static Double resolveAxisUsageSizeMm(String axis, OrderItem orderItem) {
+        if (orderItem == null || orderItem.getMaterial() == null) {
+            return null;
+        }
+        Object usageSize3D = orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
+        }
+        Object sizeValue = invokeGetter(usageSize3D, "ys".equalsIgnoreCase(axis) ? "getHeight" : "getWidth");
+        if (sizeValue instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (sizeValue != null) {
+            try {
+                return new BigDecimal(String.valueOf(sizeValue)).doubleValue();
+            } catch (Exception ignore) {
+                return null;
+            }
+        }
+        return null;
+    }
     private static Integer parseInteger(Object value) {
         if (value == null) {
             return null;
