@@ -3,6 +3,7 @@ package com.mes.application.dto.req.delivery;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import lombok.Data;
 
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -16,6 +17,13 @@ public class DeliveryPkgRequest {
     private String userId;
     private String manufacturerMetaId;
     private String remark;
+    private String customerPhone;
+    private Date startTime;
+    private Date endTime;
+    private String carrierName;
+    private String materialName;
+    private String processName;
+    private Double width;
 
 
 }

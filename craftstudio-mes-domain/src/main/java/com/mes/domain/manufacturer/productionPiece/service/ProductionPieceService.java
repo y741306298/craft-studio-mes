@@ -65,6 +65,10 @@ public class ProductionPieceService {
         return productionPieceRepository.filterList(current, size, filters);
     }
 
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {
+        return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width);
+    }
+
     /**
      * 根据多条件查询生产工件总数
      * @param status 状态

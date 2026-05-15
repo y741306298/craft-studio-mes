@@ -10,4 +10,6 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      * @param productionPiece 生产工件对象（包含 productionPieceId）
      */
     void updateByProductionPieceId(ProductionPiece productionPiece);
+
+    java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
 }
