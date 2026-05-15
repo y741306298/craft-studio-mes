@@ -4,7 +4,12 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Repository
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
@@ -35,5 +40,29 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         // 设置 id 后调用父类的 update 方法
         productionPiece.setId(existing.getId());
         update(productionPiece);
+    }
+
+    @Override
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {
+        List<Criteria> criteriaList = new ArrayList<>();
+        criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
+                Criteria.where("nodeName").is("待打包").and("pieceQuantity").gt(0)
+        ));
+
+        if (materialName != null && !materialName.isBlank()) {
+            criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName));
+        }
+        if (processName != null && !processName.isBlank()) {
+            criteriaList.add(Criteria.where("procedureFlow.nodes.nodeName").is(processName));
+        }
+        if (width != null) {
+            criteriaList.add(Criteria.where("width").is(width));
+        }
+
+        Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        query.addCriteria(Criteria.where("deleteAt").is(null));
+        return mongoTemplate.find(query, ProductionPiecePo.class)
+                .stream().map(ProductionPiecePo::toDO).toList();
     }
 }

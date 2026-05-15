@@ -22,6 +22,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
@@ -49,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.LinkedHashSet;
+import java.util.stream.Collectors;
 
 @Service
 public class AppDeliveryPkgService {
@@ -91,21 +94,17 @@ public class AppDeliveryPkgService {
     private DeliveryPkgService deliveryPkgService;
 
 
-    public List<DeliveryPkgPieceVO> listPendingPackagingPieces(String manufacturerMetaId) {
+    public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
+        String manufacturerMetaId = request.getManufacturerMetaId();
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
 
-        List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+        List<ProductionPiece> productionPieces = productionPieceService.listPendingPackagingPiecesByConditions(
                 manufacturerMetaId,
-                null,
-                null,
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
+                request.getMaterialName(),
+                request.getProcessName(),
+                request.getWidth());
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
@@ -144,9 +143,48 @@ public class AppDeliveryPkgService {
             items.add(vo);
         }
 
-        return items;
+        return items.stream().filter(item -> {
+            boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
+                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getMobile())
+                    && item.getOrderCustomer().getMobile().contains(request.getCustomerPhone()));
+            boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
+                    || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
+                    && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
+            boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
+            boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
+            return matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
+        }).collect(Collectors.toList());
     }
 
+
+    public List<String> buildMaterialList(List<DeliveryPkgPieceVO> items) {
+        return items.stream().filter(Objects::nonNull)
+                .map(DeliveryPkgPieceVO::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(MaterialConfig::getMaterialSnapshot)
+                .filter(Objects::nonNull)
+                .map(snapshot -> snapshot.getName())
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new)).stream().collect(Collectors.toList());
+    }
+
+    public List<String> buildProcessList(List<DeliveryPkgPieceVO> items) {
+        return items.stream().filter(Objects::nonNull)
+                .map(DeliveryPkgPieceVO::getProcedureFlow)
+                .filter(Objects::nonNull)
+                .map(flow -> flow.getNodes())
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new)).stream().collect(Collectors.toList());
+    }
+
+    public List<Double> buildSizeList(List<DeliveryPkgPieceVO> items) {
+        return items.stream().map(DeliveryPkgPieceVO::getWidth).filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new)).stream().collect(Collectors.toList());
+    }
     private int getNodeQuantity(ProductionPiece piece, String nodeId, String nodeName) {
         if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
             return 0;
