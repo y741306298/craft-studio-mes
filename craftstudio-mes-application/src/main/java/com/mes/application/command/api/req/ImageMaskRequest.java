@@ -234,9 +234,9 @@ public class ImageMaskRequest {
             return 0D;
         }
         if ("ys".equalsIgnoreCase(axis)) {
-            return rawImage.getImageProperties().getDpiY() == null ? 0D : rawImage.getImageProperties().getDpiY();
+            return rawImage.getImageProperties().getDpiY();
         }
-        return rawImage.getImageProperties().getDpiX() == null ? 0D : rawImage.getImageProperties().getDpiX();
+        return rawImage.getImageProperties().getDpiX();
     }
 
     private static Integer resolveAxisRawSize(String axis, RawImage rawImage) {
