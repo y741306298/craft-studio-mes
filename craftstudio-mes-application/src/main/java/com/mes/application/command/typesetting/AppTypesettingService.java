@@ -1083,7 +1083,10 @@ public class AppTypesettingService {
                 if (containerInfo == null || containerInfo.getWidth() == null || containerInfo.getHeight() == null) {
                     continue;
                 }
-                containerShortSide = Math.min(containerInfo.getWidth(), containerInfo.getHeight());
+                containerShortSide = Math.min(
+                        containerInfo.getWidth().doubleValue(),
+                        containerInfo.getHeight().doubleValue()
+                );
                 break;
             }
         }
