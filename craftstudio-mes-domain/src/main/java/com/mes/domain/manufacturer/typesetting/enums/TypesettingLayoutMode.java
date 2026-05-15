@@ -20,7 +20,8 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "circle",
-            2
+            2,
+            true
     ),
     /**
      * 异形切割（plt二维码）-十字定位点：
@@ -34,7 +35,8 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "cross",
-            5
+            5,
+            true
     ),
     /**
      * 双面对裱排版模式：
@@ -48,7 +50,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "circle",
-            2
+            2,
+            true
     ),
     /**
      * 网格排版（plt二维码）-圆形定位点：
@@ -62,7 +65,8 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "circle",
-            5
+            5,
+            true
     ),
     /**
      * 基础网格排版：
@@ -76,7 +80,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            5
+            5,
+            true
     ),
 
     /**
@@ -91,7 +96,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            5
+            5,
+            true
     ),
     /**
      * xy切割(切割辅助线-裁赋A30小图）：
@@ -105,7 +111,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * xy切割(切割辅助线-裁赋A30大板）：
@@ -119,7 +126,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * xy切割(切割辅助线-裁赋开背A30H覆膜）：
@@ -133,7 +141,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            3
+            3,
+            true
     ),
     /**
      * xy切割(切割辅助线-裁赋开背A30H不覆膜）：
@@ -147,7 +156,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            6
+            6,
+            true
     ),
     /**
      * xy切割(切割辅助线-九段）：
@@ -161,7 +171,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * xy切割(切割辅助线-六渡大板模式）：
@@ -175,7 +186,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * xy切割(切割辅助线-六渡小图模式）：
@@ -189,7 +201,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * xy切割(切割辅助线-全自动打扣）：
@@ -203,7 +216,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     ),
     /**
      * 竖直排版：
@@ -217,7 +231,8 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            10
+            10,
+            true
     );
 
     private final String code;
@@ -230,10 +245,12 @@ public enum TypesettingLayoutMode {
     private final String tempCodeFormat;
     private final String anchorPointShape;
     private final int nestingSpacingMm;
+    private final boolean queryable;
 
     TypesettingLayoutMode(String code, String description, String layoutCategory,
                           boolean requireJsonFile, boolean requirePltFile, boolean requireSvgFile,
-                          String codeGenerateType, String tempCodeFormat, String anchorPointShape, int nestingSpacingMm) {
+                          String codeGenerateType, String tempCodeFormat, String anchorPointShape, int nestingSpacingMm,
+                          boolean queryable) {
         this.code = code;
         this.description = description;
         this.layoutCategory = layoutCategory;
@@ -244,6 +261,7 @@ public enum TypesettingLayoutMode {
         this.tempCodeFormat = tempCodeFormat;
         this.anchorPointShape = anchorPointShape;
         this.nestingSpacingMm = nestingSpacingMm;
+        this.queryable = queryable;
     }
 
     public static TypesettingLayoutMode fromCode(String code) {
@@ -308,5 +326,9 @@ public enum TypesettingLayoutMode {
 
     public int getNestingSpacingMm() {
         return nestingSpacingMm;
+    }
+
+    public boolean isQueryable() {
+        return queryable;
     }
 }

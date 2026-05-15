@@ -264,6 +264,7 @@ public class AppTypesettingService {
      */
     public List<TypesettingLayoutModeVO> listLayoutModes() {
         return Arrays.stream(TypesettingLayoutMode.values())
+                .filter(TypesettingLayoutMode::isQueryable)
                 .map(TypesettingLayoutModeVO::from)
                 .collect(Collectors.toList());
     }

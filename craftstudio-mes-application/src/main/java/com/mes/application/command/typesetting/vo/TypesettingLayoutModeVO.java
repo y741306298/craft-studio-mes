@@ -18,6 +18,7 @@ public class TypesettingLayoutModeVO {
     private String tempCodeFormat;
     private String anchorPointShape;
     private int nestingSpacingMm;
+    private boolean queryable;
 
     public static TypesettingLayoutModeVO from(TypesettingLayoutMode mode) {
         TypesettingLayoutModeVO vo = new TypesettingLayoutModeVO();
@@ -31,6 +32,7 @@ public class TypesettingLayoutModeVO {
         vo.setTempCodeFormat(mode.getTempCodeFormat());
         vo.setAnchorPointShape(mode.getAnchorPointShape());
         vo.setNestingSpacingMm(mode.getNestingSpacingMm());
+        vo.setQueryable(mode.isQueryable());
         return vo;
     }
 }
