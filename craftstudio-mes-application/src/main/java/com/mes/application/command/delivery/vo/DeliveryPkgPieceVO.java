@@ -1,6 +1,7 @@
 package com.mes.application.command.delivery.vo;
 
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
@@ -22,7 +23,11 @@ public class DeliveryPkgPieceVO {
     private String address;
     private String status;
     private String previewUrl;
+    private java.util.Date createTime;
+    private Double width;
+    private Double height;
     private MaterialConfig materialConfig;
+    private ProcedureFlow procedureFlow;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
 
@@ -32,6 +37,10 @@ public class DeliveryPkgPieceVO {
         vo.setOrderItemId(piece.getOrderItemId());
         vo.setQuantity(piece.getQuantity());
         vo.setMaterialConfig(piece.getMaterialConfig());
+        vo.setProcedureFlow(piece.getProcedureFlow());
+        vo.setCreateTime(piece.getCreateTime());
+        vo.setWidth(piece.getWidth());
+        vo.setHeight(piece.getHeight());
         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
             vo.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         }

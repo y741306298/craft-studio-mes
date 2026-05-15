@@ -7,6 +7,7 @@ import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
+import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
@@ -48,9 +49,15 @@ public class DeliveryPkgController {
      * 查询待打包零件全量列表
      */
     @PostMapping("/list")
-    public PagedApiResponse<DeliveryPkgPieceVO> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
-        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request.getManufacturerMetaId());
-        return PagedApiResponse.success(items, 1, items.size(), items.size());
+    public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
+        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
+        DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
+                items,
+                appDeliveryPkgService.buildMaterialList(items),
+                appDeliveryPkgService.buildSizeList(items),
+                appDeliveryPkgService.buildProcessList(items)
+        );
+        return ApiResponse.success(response);
     }
 
 
