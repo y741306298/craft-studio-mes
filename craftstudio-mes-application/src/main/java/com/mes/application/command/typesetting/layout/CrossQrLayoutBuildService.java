@@ -222,10 +222,15 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         if (info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
             return new ArrayList<>();
         }
-        return info.getProcedureFlow().getNodes().stream()
+        List<ProcedureFlowNode> nodes = info.getProcedureFlow().getNodes().stream()
                 .filter(Objects::nonNull)
                 .filter(node -> shouldExtractAccessoryLabel(node.getNodeName()))
-                .map(this::extractAccessoryLabelFromNode)
+                .collect(Collectors.toList());
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < nodes.size(); i++) {
+            labels.add(extractAccessoryLabelFromNode(nodes.get(i), i == 0 ? resolveFirstNodeLabel(info) : null));
+        }
+        return labels.stream()
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
@@ -243,19 +248,28 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 && !"已打包".equals(nodeName);
     }
 
-    private String extractAccessoryLabelFromNode(ProcedureFlowNode node) {
+    private String extractAccessoryLabelFromNode(ProcedureFlowNode node, String overrideNodeName) {
+        String displayName = StringUtils.isNotBlank(overrideNodeName) ? overrideNodeName : node.getNodeName();
         if (node.getParamConfigs() == null) {
-            return "";
+            return displayName == null ? "" : displayName;
         }
         for (Object config : node.getParamConfigs()) {
             Object param = invokeGetter(config, "getParam");
             Object accessorySnapshot = param instanceof Map ? ((Map<?, ?>) param).get("accessorySnapshot") : invokeGetter(param, "getAccessorySnapshot");
             Object name = accessorySnapshot instanceof Map ? ((Map<?, ?>) accessorySnapshot).get("name") : invokeGetter(accessorySnapshot, "getName");
             if (name != null && StringUtils.isNotBlank(name.toString())) {
-                return node.getNodeName() + "：<font color='red'>" + name + "</font>";
+                return displayName + "：<font color='red'>" + name + "</font>";
             }
         }
-        return node.getNodeName() == null ? "" : node.getNodeName();
+        return displayName == null ? "" : displayName;
+    }
+
+    private String resolveFirstNodeLabel(TypesettingInfo info) {
+        if (info.getMaterialConfig() == null || info.getMaterialConfig().getMaterialSnapshot() == null) {
+            return null;
+        }
+        String materialName = info.getMaterialConfig().getMaterialSnapshot().getName();
+        return StringUtils.isBlank(materialName) ? null : "<font color='red'>" + materialName + "</font>";
     }
 
     private Object invokeGetter(Object target, String methodName) {
