@@ -160,6 +160,8 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
+    private static final double MM_PER_INCH = 25.4D;
+    private static final int TYPESETTING_SIZE_CHECK_DPI = 300;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
             new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
@@ -1098,8 +1100,9 @@ public class AppTypesettingService {
             if (piece == null || piece.getWidth() == null || piece.getHeight() == null) {
                 continue;
             }
-            double pieceShortSide = Math.min(piece.getWidth(), piece.getHeight());
-            if (pieceShortSide > containerShortSide) {
+            double pieceShortSideMm = Math.min(piece.getWidth(), piece.getHeight());
+            double pieceShortSidePx = mmToPx(pieceShortSideMm);
+            if (pieceShortSidePx > containerShortSide) {
                 String pieceId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
@@ -1110,12 +1113,20 @@ public class AppTypesettingService {
                     || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
                 continue;
             }
-            double typesettingShortSide = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
-            if (typesettingShortSide > containerShortSide) {
+            double typesettingShortSideMm = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
+            double typesettingShortSidePx = mmToPx(typesettingShortSideMm);
+            if (typesettingShortSidePx > containerShortSide) {
                 String pieceId = StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
         }
+    }
+
+    private double mmToPx(double mm) {
+        if (mm <= 0) {
+            return 0D;
+        }
+        return mm * TYPESETTING_SIZE_CHECK_DPI / MM_PER_INCH;
     }
 
     private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
