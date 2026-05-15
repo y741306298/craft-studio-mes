@@ -1289,7 +1289,7 @@ public class AppTypesettingService {
                     ? Collections.emptyList()
                     : Collections.singletonList(nestedById);
             for (TypesettingInfo nestedInfo : nestedTypesettingInfos) {
-                if (nestedInfo == null) {
+                if (nestedInfo.getTypesettingId() == null || !nestedInfo.getTypesettingId().contains("-Mirror")) {
                     continue;
                 }
                 collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
