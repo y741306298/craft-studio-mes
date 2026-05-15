@@ -551,6 +551,11 @@ public class AppTypesettingService {
         if (!validateProcedureResult.equals("PASS")) {
             return LayoutConfirmResult.failed(validateProcedureResult);
         }
+        try {
+            validateCellSizeAgainstContainers(request, productionPieces, typesettingInfos);
+        } catch (IllegalArgumentException ex) {
+            return LayoutConfirmResult.failed(ex.getMessage());
+        }
         //记录id，供callback使用
         String cacheKey = generateTypesettingId(request.getManufacturerMetaId());
         try {
@@ -1067,6 +1072,47 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    private void validateCellSizeAgainstContainers(LayoutConfirmRequest request,
+                                                   List<ProductionPiece> productionPieces,
+                                                   List<TypesettingInfo> typesettingInfos) {
+        Double containerShortSide = null;
+        if (request.getContainers() != null) {
+            for (LayoutConfirmRequest.ContainerInfo containerInfo : request.getContainers()) {
+                if (containerInfo == null || containerInfo.getWidth() == null || containerInfo.getHeight() == null) {
+                    continue;
+                }
+                containerShortSide = Math.min(containerInfo.getWidth(), containerInfo.getHeight());
+                break;
+            }
+        }
+        if (containerShortSide == null) {
+            containerShortSide = Math.min(1500D, 1000D);
+        }
+
+        for (ProductionPiece piece : productionPieces) {
+            if (piece == null || piece.getWidth() == null || piece.getHeight() == null) {
+                continue;
+            }
+            double pieceShortSide = Math.min(piece.getWidth(), piece.getHeight());
+            if (pieceShortSide > containerShortSide) {
+                String pieceId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
+                throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
+            }
+        }
+
+        for (TypesettingInfo info : typesettingInfos) {
+            if (info == null || info.getElement() == null
+                    || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
+                continue;
+            }
+            double typesettingShortSide = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
+            if (typesettingShortSide > containerShortSide) {
+                String pieceId = StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
+                throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
+            }
+        }
     }
 
     private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
