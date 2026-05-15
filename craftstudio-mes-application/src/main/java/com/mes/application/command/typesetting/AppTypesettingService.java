@@ -1074,7 +1074,9 @@ public class AppTypesettingService {
         }
         Integer bloodX = piece.getBlood().getX();
         Integer bloodY = piece.getBlood().getY();
-        return bloodX != null && bloodY != null && bloodX != 0 && bloodY != 0;
+        boolean hasXBlood = bloodX != null && bloodX != 0;
+        boolean hasYBlood = bloodY != null && bloodY != 0;
+        return hasXBlood || hasYBlood;
     }
 
     /**
