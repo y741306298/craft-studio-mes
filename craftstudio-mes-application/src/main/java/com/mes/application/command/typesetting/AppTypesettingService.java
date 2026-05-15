@@ -9,6 +9,9 @@ import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.model.ObjectMetadata;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
@@ -75,6 +78,7 @@ import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -91,6 +95,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import java.util.Comparator;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.Graphics2D;
+import java.awt.geom.AffineTransform;
 
 @Slf4j
 @Service
@@ -911,6 +919,7 @@ public class AppTypesettingService {
         }
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         boolean isVerticalTypesetting = "vertical_typesetting".equals(layoutMode.getLayoutCategory());
+        boolean isCaifuOpenBackA30HFilm = layoutMode == TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM;
         List<ProductionPiece> productionPieces = new ArrayList<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
@@ -955,6 +964,9 @@ public class AppTypesettingService {
                 if (StringUtils.isBlank(piece.getTemplateCode())) {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
+                if (isCaifuOpenBackA30HFilm) {
+                    adjustCaifuOpenBackA30HFilmPieceImage(piece, request.getManufacturerMetaId());
+                }
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
                 if (piece.getMaskImageFile() != null && piece.getMaskImageFile().getRawFile() != null) {
@@ -970,6 +982,9 @@ public class AppTypesettingService {
                     element.setVMargin(0);
                     element.setHGravity("left");
                     element.setHMargin(0);
+                }
+                if (isCaifuOpenBackA30HFilm) {
+                    applyCaifuOpenBackA30HFilmElementStyle(element, piece);
                 }
                 elements.add(element);
             }
@@ -1051,6 +1066,111 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
+        element.setHGravity("right");
+        element.setVMargin(0);
+        if (isElementE(piece)) {
+            element.setHMargin(0);
+        } else {
+            element.setHMargin(30);
+        }
+    }
+
+    private boolean isElementE(ProductionPiece piece) {
+        if (piece == null || piece.getBlood() == null) {
+            return false;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        boolean hasXBlood = bloodX != null && bloodX != 0;
+        boolean hasYBlood = bloodY != null && bloodY != 0;
+        return hasXBlood || hasYBlood;
+    }
+
+    private void adjustCaifuOpenBackA30HFilmPieceImage(ProductionPiece piece, String manufacturerMetaId) {
+        if (piece == null || piece.getBlood() == null) {
+            return;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        boolean hasXBlood = bloodX != null && bloodX != 0;
+        boolean hasYBlood = bloodY != null && bloodY != 0;
+        if (!hasXBlood && !hasYBlood) {
+            return;
+        }
+        if (hasXBlood) {
+            return;
+        }
+        if (piece.getProductImageFile() == null || StringUtils.isBlank(piece.getProductImageFile().getRawFile())) {
+            return;
+        }
+        String rotatedUrl = rotate90CCWAndUploadForCaifu(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
+        if (StringUtils.isNotBlank(rotatedUrl)) {
+            piece.getProductImageFile().setRawFile(rotatedUrl);
+            if (piece.getProductImageFile().getFilePreview() != null) {
+                piece.getProductImageFile().getFilePreview().setRaw(rotatedUrl);
+            }
+            piece.setTemplateCode(rotatedUrl);
+            piece.getBlood().setX(bloodY);
+        }
+    }
+
+    private String rotate90CCWAndUploadForCaifu(String rawFile, String manufacturerMetaId, String authKey) {
+        try {
+            byte[] original = restTemplate.getForObject(rawFile, byte[].class);
+            if (original == null || original.length == 0) {
+                return rawFile;
+            }
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(original));
+            if (source == null) {
+                return rawFile;
+            }
+            BufferedImage rotated = new BufferedImage(source.getHeight(), source.getWidth(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = rotated.createGraphics();
+            AffineTransform transform = new AffineTransform();
+            transform.translate(0, source.getWidth());
+            transform.rotate(-Math.PI / 2D);
+            g2d.drawImage(source, transform, null);
+            g2d.dispose();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(rotated, "png", out);
+
+            ObjectStorageTempAuthConfig tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(authKey);
+            String objectKey = "caifu/" + manufacturerMetaId + "/" + extractFileName(rawFile);
+            OSS ossClient = null;
+            try {
+                ossClient = new OSSClientBuilder().build(
+                        "https://" + ossEndpoint,
+                        tempAuthConfig.getStsToken().getAccessKeyId(),
+                        tempAuthConfig.getStsToken().getAccessKeySecret(),
+                        tempAuthConfig.getStsToken().getSecurityToken()
+                );
+                ObjectMetadata metadata = new ObjectMetadata();
+                metadata.setContentType("image/png");
+                ossClient.putObject(ossBucket, objectKey, new ByteArrayInputStream(out.toByteArray()), metadata);
+                return "https://" + ossBucket + "." + ossEndpoint + "/" + objectKey;
+            } finally {
+                if (ossClient != null) {
+                    ossClient.shutdown();
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("A30H 覆膜图片逆时针旋转90°上传失败，继续使用原图。rawFile={}", rawFile, ex);
+            return rawFile;
+        }
+    }
+
+    private String extractFileName(String rawFile) {
+        if (StringUtils.isBlank(rawFile)) {
+            return "";
+        }
+        int idx = rawFile.lastIndexOf("/");
+        if (idx < 0 || idx == rawFile.length() - 1) {
+            return rawFile;
+        }
+        return rawFile.substring(idx + 1);
     }
 
     /**
