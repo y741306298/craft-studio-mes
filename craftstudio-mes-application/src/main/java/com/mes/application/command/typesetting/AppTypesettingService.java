@@ -1072,6 +1072,7 @@ public class AppTypesettingService {
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
+        validateConfirmPrintForSpecialProcedure(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -1124,6 +1125,48 @@ public class AppTypesettingService {
         result.setSuccess(true);
         result.setMessage("确认打印任务已提交，等待回调");
         return result;
+    }
+
+    private void validateConfirmPrintForSpecialProcedure(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || typesettingInfo.getProcedureFlow() == null
+                || CollectionUtils.isEmpty(typesettingInfo.getProcedureFlow().getNodes())) {
+            return;
+        }
+
+        String blockedProcedureName = findBlockedProcedureName(typesettingInfo.getProcedureFlow().getNodes());
+        if (StringUtils.isBlank(blockedProcedureName)) {
+            return;
+        }
+        if (!isAllPartCompositionTypesetting(typesettingInfo)) {
+            return;
+        }
+        throw new RuntimeException("该印版包含" + blockedProcedureName + "工艺，请先确认印版");
+    }
+
+    private String findBlockedProcedureName(List<ProcedureFlowNode> nodes) {
+        if (CollectionUtils.isEmpty(nodes)) {
+            return null;
+        }
+        List<String> blockedProcedureNames = Arrays.asList("双面对裱", "覆双面", "覆板");
+        for (String blockedProcedureName : blockedProcedureNames) {
+            boolean containsProcedure = nodes.stream()
+                    .filter(Objects::nonNull)
+                    .map(ProcedureFlowNode::getNodeName)
+                    .anyMatch(blockedProcedureName::equals);
+            if (containsProcedure) {
+                return blockedProcedureName;
+            }
+        }
+        return null;
+    }
+
+    private boolean isAllPartCompositionTypesetting(TypesettingInfo typesettingInfo) {
+        if (CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
+            return true;
+        }
+        return typesettingInfo.getTypesettingCells().stream()
+                .filter(Objects::nonNull)
+                .noneMatch(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()));
     }
 
     public LayoutConfirmResult batchConfirmLayout(BatchConfirmLayoutRequest request) {
