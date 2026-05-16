@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 public class OrderPreprocessTaskQueue {
 
     private final AppOrderPreprocessingService appOrderPreprocessingService;
-    private final BlockingQueue<OrderPreprocessTask> queue;
+    private BlockingQueue<OrderPreprocessTask> queue;
     private final ExecutorService workerExecutor;
 
     @Value("${order.preprocess.queue.capacity:1000}")
@@ -40,7 +40,6 @@ public class OrderPreprocessTaskQueue {
 
     public OrderPreprocessTaskQueue(AppOrderPreprocessingService appOrderPreprocessingService) {
         this.appOrderPreprocessingService = appOrderPreprocessingService;
-        this.queue = new LinkedBlockingQueue<>();
         this.workerExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "order-preprocess-worker");
             t.setDaemon(true);
@@ -50,6 +49,7 @@ public class OrderPreprocessTaskQueue {
 
     @PostConstruct
     public void start() {
+        this.queue = new LinkedBlockingQueue<>(queueCapacity);
         workerExecutor.submit(this::consumeLoop);
     }
 
@@ -57,10 +57,12 @@ public class OrderPreprocessTaskQueue {
         if (orderItems == null || orderItems.isEmpty()) {
             return;
         }
-        if (queue.size() >= queueCapacity) {
-            throw new IllegalStateException("订单预处理队列已满，请稍后重试");
+        try {
+            queue.put(new OrderPreprocessTask(orderItems, 0));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("订单预处理任务入队被中断", e);
         }
-        queue.offer(new OrderPreprocessTask(orderItems, 0));
     }
 
     private void consumeLoop() {
@@ -86,7 +88,12 @@ public class OrderPreprocessTaskQueue {
             int nextRetry = task.getRetryCount() + 1;
             if (nextRetry <= maxRetry) {
                 sleepQuietly(retryBackoffMs * nextRetry);
-                queue.offer(new OrderPreprocessTask(task.getOrderItems(), nextRetry));
+                try {
+                    queue.put(new OrderPreprocessTask(task.getOrderItems(), nextRetry));
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
                 System.err.println("订单预处理任务失败，已重试入队，retry=" + nextRetry + ", err=" + ex.getMessage());
                 return;
             }
