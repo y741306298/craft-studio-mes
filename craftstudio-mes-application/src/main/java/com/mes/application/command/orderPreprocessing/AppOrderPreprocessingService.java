@@ -58,7 +58,7 @@ import java.util.Objects;
  *
  * <p>方式使用备注：</p>
  * <ul>
- *     <li>同步入口：由 {@code AppOrderService#createOrder(...)} 在订单项创建完成后调用 {@link #preprocessOrder(List)}。</li>
+ *     <li>同步消费入口：由 {@code OrderPreprocessTaskQueue} 后台消费任务时调用 {@link #preprocessOrder(List)}。</li>
  *     <li>异步入口：当算法服务回调蒙版结果时，由控制器调用 {@link #handleGenerateMaskFilesCallback(ImageMaskResponse, String)}。</li>
  *     <li>PLT 入口：按需调用 {@link #generatePltFile(String, String)} 或 {@link #batchGeneratePltFiles(List, String)}。</li>
  * </ul>
