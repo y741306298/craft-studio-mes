@@ -123,8 +123,16 @@ public class DeliveryPkgController {
                 detail.setQuantity(item.getQuantity());
                 detail.setPreviewUrl(item.getPreviewUrl());
 
-                if (item.getProductionPieceId() != null && !item.getProductionPieceId().isEmpty()) {
-                    ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(item.getProductionPieceId().get(0));
+                String pieceId = null;
+                if (item.getProductionPieceId() != null) {
+                    pieceId = item.getProductionPieceId().stream()
+                            .filter(StringUtils::isNotBlank)
+                            .findFirst()
+                            .orElse(null);
+                }
+
+                if (StringUtils.isNotBlank(pieceId)) {
+                    ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(pieceId);
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
                         if (StringUtils.isBlank(detail.getOrderItemId())) {
