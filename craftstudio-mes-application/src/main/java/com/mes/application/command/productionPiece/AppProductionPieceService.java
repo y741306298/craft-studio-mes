@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AppProductionPieceService {
@@ -141,5 +142,17 @@ public class AppProductionPieceService {
 
         domainProductionPieceService.updateProductionPieceByProductionPieceId(productionPieceId, piece);
         return piece;
+    }
+
+    public List<ProductionPiece> batchIncreasePendingTypesettingQuantity(List<String> productionPieceIds, Integer increaseQuantity) {
+        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "productionPieceIds 不能为空");
+        }
+        return productionPieceIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .map(productionPieceId -> increasePendingTypesettingQuantity(productionPieceId, increaseQuantity))
+                .filter(Objects::nonNull)
+                .toList();
     }
 }
