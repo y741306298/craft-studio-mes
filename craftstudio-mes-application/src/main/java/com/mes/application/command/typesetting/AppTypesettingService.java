@@ -160,8 +160,6 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
-    private static final double MM_PER_INCH = 25.4D;
-    private static final int TYPESETTING_SIZE_CHECK_DPI = 300;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
             new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
@@ -1080,20 +1078,22 @@ public class AppTypesettingService {
                                                    List<ProductionPiece> productionPieces,
                                                    List<TypesettingInfo> typesettingInfos) {
         Double containerShortSide = null;
+        Double containerLongSide = null;
         if (request.getContainers() != null) {
             for (LayoutConfirmRequest.ContainerInfo containerInfo : request.getContainers()) {
                 if (containerInfo == null || containerInfo.getWidth() == null || containerInfo.getHeight() == null) {
                     continue;
                 }
-                containerShortSide = Math.min(
-                        containerInfo.getWidth().doubleValue(),
-                        containerInfo.getHeight().doubleValue()
-                );
+                double containerWidth = containerInfo.getWidth().doubleValue();
+                double containerHeight = containerInfo.getHeight().doubleValue();
+                containerShortSide = Math.min(containerWidth, containerHeight);
+                containerLongSide = Math.max(containerWidth, containerHeight);
                 break;
             }
         }
-        if (containerShortSide == null) {
+        if (containerShortSide == null || containerLongSide == null) {
             containerShortSide = Math.min(1500D, 1000D);
+            containerLongSide = Math.max(1500D, 1000D);
         }
 
         for (ProductionPiece piece : productionPieces) {
@@ -1101,8 +1101,8 @@ public class AppTypesettingService {
                 continue;
             }
             double pieceShortSideMm = Math.min(piece.getWidth(), piece.getHeight());
-            double pieceShortSidePx = mmToPx(pieceShortSideMm);
-            if (pieceShortSidePx > containerShortSide) {
+            double pieceLongSideMm = Math.max(piece.getWidth(), piece.getHeight());
+            if (pieceShortSideMm > containerShortSide || pieceLongSideMm > containerLongSide) {
                 String pieceId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
@@ -1114,19 +1114,12 @@ public class AppTypesettingService {
                 continue;
             }
             double typesettingShortSideMm = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
-            double typesettingShortSidePx = mmToPx(typesettingShortSideMm);
-            if (typesettingShortSidePx > containerShortSide) {
+            double typesettingLongSideMm = info.getElement().getWidth().max(info.getElement().getHeight()).doubleValue();
+            if (typesettingShortSideMm > containerShortSide || typesettingLongSideMm > containerLongSide) {
                 String pieceId = StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
         }
-    }
-
-    private double mmToPx(double mm) {
-        if (mm <= 0) {
-            return 0D;
-        }
-        return mm * TYPESETTING_SIZE_CHECK_DPI / MM_PER_INCH;
     }
 
     private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
