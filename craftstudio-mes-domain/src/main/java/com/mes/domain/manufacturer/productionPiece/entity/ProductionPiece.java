@@ -28,6 +28,8 @@ public class ProductionPiece extends BaseEntity {
     private String templateCode;
     private String positionType;
     private String positionCode;
+    private String routeImg;
+    private String routeSvg;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
     private Double width;

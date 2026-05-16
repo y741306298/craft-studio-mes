@@ -33,6 +33,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String positionCode;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    private String routeImg;
+    private String routeSvg;
     private Double width;
     private Double height;
     private Blood blood;
@@ -60,8 +62,16 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setTemplateCode(this.templateCode);
         piece.setPositionType(this.positionType);
         piece.setPositionCode(this.positionCode);
+        piece.setRouteImg(this.routeImg);
+        piece.setRouteSvg(this.routeSvg);
         piece.setProductImageFile(this.productImageFile);
         piece.setMaskImageFile(this.maskImageFile);
+        if (piece.getProductImageFile() != null && this.routeImg != null) {
+            piece.getProductImageFile().setRouteImg(this.routeImg);
+        }
+        if (piece.getMaskImageFile() != null && this.routeSvg != null) {
+            piece.getMaskImageFile().setRouteSvg(this.routeSvg);
+        }
         piece.setWidth(this.width);
         piece.setHeight(this.height);
         piece.setBlood(this.blood);
@@ -91,8 +101,16 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.templateCode = _do.getTemplateCode();
         this.positionType = _do.getPositionType();
         this.positionCode = _do.getPositionCode();
+        this.routeImg = _do.getRouteImg();
+        this.routeSvg = _do.getRouteSvg();
         this.productImageFile = _do.getProductImageFile();
         this.maskImageFile = _do.getMaskImageFile();
+        if (this.routeImg == null) {
+            this.routeImg = _do.getProductImageFile() == null ? null : _do.getProductImageFile().getRouteImg();
+        }
+        if (this.routeSvg == null) {
+            this.routeSvg = _do.getMaskImageFile() == null ? null : _do.getMaskImageFile().getRouteSvg();
+        }
         this.width = _do.getWidth();
         this.height = _do.getHeight();
         this.blood = _do.getBlood();
