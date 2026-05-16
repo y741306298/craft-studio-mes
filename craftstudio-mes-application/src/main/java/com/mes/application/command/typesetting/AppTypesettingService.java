@@ -1245,9 +1245,7 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(svgContent)) {
                 return rawFile;
             }
-            String rotatedSvg = rotateSvg90Ccw(svgContent);
-            rotatedSvg = rotatedSvg.replaceFirst(">", "><g transform=\"translate(0,100%) rotate(-90)\">");
-            rotatedSvg = rotatedSvg.replaceFirst("</svg>", "</g></svg>");
+            String rotatedSvg = wrapSvgContentWithRotationGroup(rotateSvg90Ccw(svgContent));
             ObjectStorageTempAuthConfig tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(authKey);
             String objectKey = "caifu/" + manufacturerMetaId + "/" + extractFileName(rawFile);
             OSS ossClient = null;
@@ -1271,6 +1269,32 @@ public class AppTypesettingService {
             log.warn("A30H 覆膜SVG逆时针旋转90°上传失败，继续使用原图。rawFile={}", rawFile, ex);
             return rawFile;
         }
+    }
+
+    private String wrapSvgContentWithRotationGroup(String svgContent) {
+        if (StringUtils.isBlank(svgContent)) {
+            return svgContent;
+        }
+        int svgOpenStart = svgContent.indexOf("<svg");
+        if (svgOpenStart < 0) {
+            return svgContent;
+        }
+        int svgOpenEnd = svgContent.indexOf(">", svgOpenStart);
+        if (svgOpenEnd < 0) {
+            return svgContent;
+        }
+        int svgCloseStart = svgContent.lastIndexOf("</svg>");
+        if (svgCloseStart <= svgOpenEnd) {
+            return svgContent;
+        }
+        String svgOpenTag = svgContent.substring(0, svgOpenEnd + 1);
+        String svgInnerContent = svgContent.substring(svgOpenEnd + 1, svgCloseStart);
+        String svgCloseTag = svgContent.substring(svgCloseStart);
+        return svgOpenTag
+                + "<g transform=\"translate(0,100%) rotate(-90)\">"
+                + svgInnerContent
+                + "</g>"
+                + svgCloseTag;
     }
 
     private String rotateSvg90Ccw(String svgContent) {
