@@ -209,7 +209,7 @@ public class DeliveryPkgController {
     }
 
     @PostMapping("/EndToEndImageSearch")
-    public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(@RequestBody ImageSearchRequest request) {
+    public ApiResponse<DeliveryPkgPiecesResponse> EndToEndImageSearch(@RequestBody ImageSearchRequest request) {
         try {
             System.out.println("Step 1: Generating embedding for query image base64");
             float[] queryVector = imageSearch.generateImageEmbeddingByBase64(request.getQueryImageBase64());
@@ -236,8 +236,15 @@ public class DeliveryPkgController {
                     .map(DeliveryPkgPieceVO::fromProductionPiece)
                     .collect(Collectors.toList());
 
+            DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
+                    pieceVOS,
+                    appDeliveryPkgService.buildMaterialList(pieceVOS),
+                    appDeliveryPkgService.buildSizeList(pieceVOS),
+                    appDeliveryPkgService.buildProcessList(pieceVOS)
+            );
+
             System.out.println("Search completed, found " + pieceVOS.size() + " packaging-ready pieces");
-            return ApiResponse.success(pieceVOS);
+            return ApiResponse.success(response);
 
         } catch (Exception e) {
             System.err.println("End-to-end test failed: " + e.getMessage());
