@@ -212,7 +212,7 @@ public class DeliveryPkgController {
 
     private String buildPkgDetailUrl(String pkgId) {
         return UriComponentsBuilder
-                .fromHttpUrl("https://craftstudio-mes.com/delivery-pkg")
+                .fromUriString("https://craftstudio-mes.com/delivery-pkg")
                 .queryParam("pkgId", pkgId)
                 .build()
                 .toUriString();
