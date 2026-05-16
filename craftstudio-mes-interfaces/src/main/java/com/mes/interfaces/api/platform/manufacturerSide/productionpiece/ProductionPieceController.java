@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.productionpiece;
 
 import com.mes.application.command.productionPiece.AppProductionPieceService;
+import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceRequest;
 import com.mes.application.dto.req.productionpiece.ProductionPieceListRequest;
 import com.mes.application.dto.req.productionpiece.UpdatePendingTypesettingQuantityRequest;
 import com.mes.domain.base.repository.ApiResponse;
@@ -13,6 +14,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/productionPiece")
@@ -119,5 +122,21 @@ public class ProductionPieceController {
                         request.getIncreaseQuantity()
                 );
         return ApiResponse.success(ProductionPieceResponse.from(piece));
+    }
+
+    @PostMapping("/batchRedo")
+    public ApiResponse<List<ProductionPieceResponse>> batchRedo(
+            @Valid @RequestBody BatchRedoProductionPieceRequest request) {
+        List<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> pieces =
+                appProductionPieceService.batchIncreasePendingTypesettingQuantity(
+                        request.getProductionPieceIds(),
+                        request.getIncreaseQuantity()
+                );
+
+        List<ProductionPieceResponse> responses = pieces.stream()
+                .map(ProductionPieceResponse::from)
+                .toList();
+
+        return ApiResponse.success(responses);
     }
 }
