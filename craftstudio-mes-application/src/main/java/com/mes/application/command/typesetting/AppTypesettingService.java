@@ -27,6 +27,7 @@ import com.mes.application.command.typesetting.vo.TypesettingLayoutModeVO;
 import com.mes.application.command.typesetting.vo.ReleaseLayoutResult;
 import com.mes.application.command.typesetting.vo.TypesettingLayoutSpecVO;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
+import com.mes.application.command.typesetting.vo.TypesettingPiecesQueryResult;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
 import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
 import com.mes.application.dto.TypesettingQuery;
@@ -203,7 +204,7 @@ public class AppTypesettingService {
      * @param query 查询参数
      * @return 分页结果
      */
-    public PagedResult<TypesettingProductionPieceVO> findTypesettingAndProductionPieces(TypesettingQuery query) {
+    public TypesettingPiecesQueryResult findTypesettingAndProductionPieces(TypesettingQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
@@ -265,7 +266,7 @@ public class AppTypesettingService {
         int toIndex = Math.min(fromIndex + size, allItems.size());
         List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
 
-        return new PagedResult<>(items, total, size, current);
+        return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
     }
 
     /**
