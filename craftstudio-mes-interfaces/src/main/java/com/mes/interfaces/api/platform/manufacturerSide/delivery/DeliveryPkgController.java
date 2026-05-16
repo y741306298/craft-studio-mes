@@ -32,6 +32,14 @@ import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
+
+import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 
 import java.time.Instant;
 import java.util.Date;
@@ -199,7 +207,8 @@ public class DeliveryPkgController {
         qrCode.setFormat("base64-png");
         qrCode.setWidth(30.00);
         qrCode.setHeight(30.00);
-        qrCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/qr.jpeg");
+        String qrTargetUrl = buildPkgDetailUrl(deliveryPkg.getDeliveryPkgId());
+        qrCode.setContent(generateQrCodeBase64(qrTargetUrl));
         result.setQrCode(qrCode);
 
         DeliveryPkgAddResultVO.BarCodeInfo barCode = new DeliveryPkgAddResultVO.BarCodeInfo();
@@ -215,6 +224,28 @@ public class DeliveryPkgController {
         result.setRemark("这是一个备注");
 
         return result;
+    }
+
+
+    private String buildPkgDetailUrl(String pkgId) {
+        return UriComponentsBuilder
+                .fromUriString("https://craftstudio-mes.com/delivery-pkg")
+                .queryParam("pkgId", pkgId)
+                .build()
+                .toUriString();
+    }
+
+    private String generateQrCodeBase64(String content) {
+        try {
+            QRCodeWriter writer = new QRCodeWriter();
+            BitMatrix bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
+            byte[] bytes = outputStream.toByteArray();
+            return Base64.getEncoder().encodeToString(bytes);
+        } catch (Exception e) {
+            throw new RuntimeException("生成二维码失败", e);
+        }
     }
 
     private String buildRouteDesc(DeliveryPkg deliveryPkg) {
