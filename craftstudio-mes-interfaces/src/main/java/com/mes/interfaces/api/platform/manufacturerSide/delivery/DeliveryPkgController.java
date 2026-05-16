@@ -126,6 +126,7 @@ public class DeliveryPkgController {
                 String pieceId = null;
                 if (item.getProductionPieceId() != null) {
                     pieceId = item.getProductionPieceId().stream()
+                            .map(String::trim)
                             .filter(StringUtils::isNotBlank)
                             .findFirst()
                             .orElse(null);
@@ -133,6 +134,9 @@ public class DeliveryPkgController {
 
                 if (StringUtils.isNotBlank(pieceId)) {
                     ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(pieceId);
+                    if (productionPiece == null) {
+                        productionPiece = productionPieceService.findById(pieceId);
+                    }
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
                         if (StringUtils.isBlank(detail.getOrderItemId())) {
@@ -142,7 +146,12 @@ public class DeliveryPkgController {
                 }
 
                 if (StringUtils.isNotBlank(detail.getOrderItemId())) {
-                    OrderItem orderItem = orderItemService.findByOrderItemId(detail.getOrderItemId());
+                    String orderItemId = detail.getOrderItemId().trim();
+                    detail.setOrderItemId(orderItemId);
+                    OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+                    if (orderItem == null) {
+                        orderItem = orderItemService.findById(orderItemId);
+                    }
                     if (orderItem != null) {
                         detail.setOrderId(orderItem.getOrderId());
                     }
