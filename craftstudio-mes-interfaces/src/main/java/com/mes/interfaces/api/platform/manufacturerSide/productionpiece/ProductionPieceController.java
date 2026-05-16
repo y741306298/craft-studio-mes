@@ -129,8 +129,7 @@ public class ProductionPieceController {
             @Valid @RequestBody BatchRedoProductionPieceRequest request) {
         List<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> pieces =
                 appProductionPieceService.batchIncreasePendingTypesettingQuantity(
-                        request.getProductionPieceIds(),
-                        request.getIncreaseQuantity()
+                        request.getPieces()
                 );
 
         List<ProductionPieceResponse> responses = pieces.stream()

@@ -1,5 +1,6 @@
 package com.mes.application.command.productionPiece;
 
+import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceRequest;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.base.repository.ApiResponse;
@@ -14,8 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 public class AppProductionPieceService {
@@ -144,14 +147,21 @@ public class AppProductionPieceService {
         return piece;
     }
 
-    public List<ProductionPiece> batchIncreasePendingTypesettingQuantity(List<String> productionPieceIds, Integer increaseQuantity) {
-        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "productionPieceIds 不能为空");
+    public List<ProductionPiece> batchIncreasePendingTypesettingQuantity(List<BatchRedoProductionPieceRequest.PieceRedoItem> pieceRedoItems) {
+        if (pieceRedoItems == null || pieceRedoItems.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "pieces 不能为空");
         }
-        return productionPieceIds.stream()
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .map(productionPieceId -> increasePendingTypesettingQuantity(productionPieceId, increaseQuantity))
+        return pieceRedoItems.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(
+                        BatchRedoProductionPieceRequest.PieceRedoItem::getProductionPieceId,
+                        BatchRedoProductionPieceRequest.PieceRedoItem::getIncreaseQuantity,
+                        (first, second) -> second,
+                        LinkedHashMap::new
+                ))
+                .entrySet()
+                .stream()
+                .map(entry -> increasePendingTypesettingQuantity(entry.getKey(), entry.getValue()))
                 .filter(Objects::nonNull)
                 .toList();
     }
