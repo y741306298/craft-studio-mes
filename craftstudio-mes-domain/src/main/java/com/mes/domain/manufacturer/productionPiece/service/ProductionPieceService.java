@@ -44,6 +44,13 @@ public class ProductionPieceService {
             int size) {
 
 
+        if (current < 1) {
+            current = 1;
+        }
+        if (size < 1) {
+            size = 50;
+        }
+
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId",manufacturerId);
         if (StringUtils.isNotBlank(status)) {
