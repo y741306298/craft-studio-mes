@@ -9,6 +9,8 @@ import java.util.Date;
 
 @Data
 public class TypesettingQuery {
+    private Integer current;
+    private Integer size;
     private String manufacturerMetaId;
     private String queryType;
     private String status;

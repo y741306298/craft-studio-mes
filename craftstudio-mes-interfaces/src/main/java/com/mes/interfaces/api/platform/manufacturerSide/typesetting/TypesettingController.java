@@ -19,6 +19,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.mes.application.command.typesetting.vo.TypesettingPiecesQueryResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,12 +59,12 @@ public class TypesettingController {
     @PostMapping("/list")
         public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
         
-        PagedResult<TypesettingProductionPieceVO> result = 
-                appTypesettingService.findTypesettingAndProductionPieces(request);
-        
-        List<TypesettingProductionPieceVO> items = (List<TypesettingProductionPieceVO>) result.items();
+        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(request);
+        List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
+        List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
+        sanitizeProcedureFlow(allItems);
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems));
     }
 
     @GetMapping("/list/condition")
@@ -73,7 +74,9 @@ public class TypesettingController {
             @RequestParam(required = false) String processingName,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endTime,
-            @RequestParam(required = false) String sourceType) {
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false, defaultValue = "1") Integer current,
+            @RequestParam(required = false, defaultValue = "50") Integer size) {
         TypesettingQuery query = new TypesettingQuery();
         query.setManufacturerMetaId(manufacturerMetaId);
         query.setMaterialName(materialName);
@@ -81,15 +84,20 @@ public class TypesettingController {
         query.setStartTime(startTime);
         query.setEndTime(endTime);
         query.setSourceType(sourceType);
-        PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
-        List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
+        query.setCurrent(current);
+        query.setSize(size);
+        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(query);
+        List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items));
+        List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
+        sanitizeProcedureFlow(allItems);
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems));
     }
 
-    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items) {
-        List<String> processingFlowList = buildProcessingFlowList(items);
-        List<String> materialList = buildMaterialList(items);
+    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
+                                                                                                 List<TypesettingProductionPieceVO> allItems) {
+        List<String> processingFlowList = buildProcessingFlowList(allItems);
+        List<String> materialList = buildMaterialList(allItems);
         List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
         return new TypesettingAndProductionPiecesResponse(items, processingFlowList, materialList, sourceType);
     }
