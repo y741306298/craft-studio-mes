@@ -9,6 +9,7 @@ import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
 import com.mes.application.dto.req.delivery.ImageSearchRequest;
 import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
+import com.mes.application.dto.resp.delivery.DeliveryPkgListItemResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
@@ -19,6 +20,8 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
@@ -26,6 +29,7 @@ import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,6 +37,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @RestController
@@ -45,6 +50,7 @@ public class DeliveryPkgController {
     private final DeliveryRouteService deliveryRouteService;
     private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
     private final ProductionPieceService productionPieceService;
+    private final OrderItemService orderItemService;
     @Autowired
     private ImageToImageSearchServiceImp imageSearch;
 
@@ -65,7 +71,7 @@ public class DeliveryPkgController {
 
 
     @PostMapping("/pkgList")
-    public PagedApiResponse<DeliveryPkg> listDeliveryPkgs(@Valid @RequestBody DeliveryPkgListRequest request) {
+    public PagedApiResponse<DeliveryPkgListItemResponse> listDeliveryPkgs(@Valid @RequestBody DeliveryPkgListRequest request) {
         DeliveryPkgStatus status = parseStatus(request.getStatus());
 
         List<DeliveryPkg> items = deliveryPkgService.queryByConditions(
@@ -80,6 +86,9 @@ public class DeliveryPkgController {
                 request.getSize()
         );
         items.forEach(item -> item.setRouteDesc(buildRouteDesc(item)));
+        List<DeliveryPkgListItemResponse> responseItems = items.stream()
+                .map(this::buildDeliveryPkgListItemResponse)
+                .collect(Collectors.toList());
         long total = deliveryPkgService.countByConditions(
                 status,
                 request.getManufacturerMetaId(),
@@ -89,7 +98,62 @@ public class DeliveryPkgController {
                 request.getCreateTimeStart(),
                 request.getCreateTimeEnd()
         );
-        return PagedApiResponse.success(items, request.getCurrent(), request.getSize(), total);
+        return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
+    }
+
+
+    private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
+        DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
+        BeanUtils.copyProperties(deliveryPkg, response);
+
+        List<DeliveryPkgListItemResponse.DeliveryPkgItemDetail> details = new ArrayList<>();
+        if (deliveryPkg.getDeliveryPkgItems() != null) {
+            deliveryPkg.getDeliveryPkgItems().forEach(item -> {
+                DeliveryPkgListItemResponse.DeliveryPkgItemDetail detail = new DeliveryPkgListItemResponse.DeliveryPkgItemDetail();
+                detail.setOrderItemId(item.getOrderItemId());
+                detail.setProductionPieceId(item.getProductionPieceId());
+                detail.setQuantity(item.getQuantity());
+                detail.setPreviewUrl(item.getPreviewUrl());
+
+                String pieceId = null;
+                if (item.getProductionPieceId() != null) {
+                    pieceId = item.getProductionPieceId().stream()
+                            .map(String::trim)
+                            .filter(StringUtils::isNotBlank)
+                            .findFirst()
+                            .orElse(null);
+                }
+
+                if (StringUtils.isNotBlank(pieceId)) {
+                    ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(pieceId);
+                    if (productionPiece == null) {
+                        productionPiece = productionPieceService.findById(pieceId);
+                    }
+                    if (productionPiece != null) {
+                        detail.setMaterialConfig(productionPiece.getMaterialConfig());
+                        if (StringUtils.isBlank(detail.getOrderItemId())) {
+                            detail.setOrderItemId(productionPiece.getOrderItemId());
+                        }
+                    }
+                }
+
+                if (StringUtils.isNotBlank(detail.getOrderItemId())) {
+                    String orderItemId = detail.getOrderItemId().trim();
+                    detail.setOrderItemId(orderItemId);
+                    OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+                    if (orderItem == null) {
+                        orderItem = orderItemService.findById(orderItemId);
+                    }
+                    if (orderItem != null) {
+                        detail.setOrderId(orderItem.getOrderId());
+                    }
+                }
+
+                details.add(detail);
+            });
+        }
+        response.setDeliveryPkgItems(details);
+        return response;
     }
 
     private DeliveryPkgStatus parseStatus(String statusValue) {
