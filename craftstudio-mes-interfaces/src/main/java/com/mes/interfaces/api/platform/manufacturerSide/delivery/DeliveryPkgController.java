@@ -28,6 +28,9 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -206,16 +209,24 @@ public class DeliveryPkgController {
 
     @GetMapping("/EndToEndImageSearch")
     public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(
-            @RequestParam String queryImageUrl,
+            @RequestParam String queryImageBase64,
+            @RequestParam String manufacturerMetaId,
+            @RequestParam String startTime,
             @RequestParam(defaultValue = "20") Integer topK) {
         try {
-            System.out.println("Step 1: Generating embedding for query image: " + queryImageUrl);
-            float[] queryVector = imageSearch.generateImageEmbedding(queryImageUrl);
+            System.out.println("Step 1: Generating embedding for query image base64");
+            float[] queryVector = imageSearch.generateImageEmbeddingByBase64(queryImageBase64);
             System.out.println("Query vector generated, dimension: " + queryVector.length);
+
+            Instant startAt = parseStartTime(startTime);
 
             System.out.println("Step 2: Searching for similar images in DashVector...");
             List<ImageToImageSearchServiceImp.ImageSearchResult> results =
-                imageSearch.searchSimilarImages(queryVector, topK);
+                imageSearch.searchSimilarImages(queryVector, topK * 5).stream()
+                        .filter(item -> manufacturerMetaId.equals(item.getManufacturerMetaId()))
+                        .filter(item -> isUploadedAfter(item.getUploadedAt(), startAt))
+                        .limit(topK)
+                        .collect(Collectors.toList());
 
             List<DeliveryPkgPieceVO> pieceVOS = results.stream()
                     .map(ImageToImageSearchServiceImp.ImageSearchResult::getProductionPieceId)
@@ -233,6 +244,31 @@ public class DeliveryPkgController {
             System.err.println("End-to-end test failed: " + e.getMessage());
             e.printStackTrace();
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "Failed: " + e.getMessage());
+        }
+    }
+
+
+    private Instant parseStartTime(String startTime) {
+        try {
+            return Instant.parse(startTime);
+        } catch (DateTimeParseException e) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "startTime格式错误，需为ISO-8601格式");
+        }
+    }
+
+    private boolean isUploadedAfter(String uploadedAt, Instant startAt) {
+        if (StringUtils.isBlank(uploadedAt)) {
+            return false;
+        }
+        try {
+            return Instant.parse(uploadedAt).isAfter(startAt);
+        } catch (Exception ignored) {
+            try {
+                Date parsed = new Date(uploadedAt);
+                return parsed.toInstant().isAfter(startAt);
+            } catch (Exception e) {
+                return false;
+            }
         }
     }
 
