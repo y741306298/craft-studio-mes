@@ -1134,22 +1134,7 @@ public class AppTypesettingService {
     private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
         element.setHGravity("right");
         element.setVMargin(0);
-        if (isElementE(piece)) {
-            element.setHMargin(0);
-        } else {
-            element.setHMargin(30);
-        }
-    }
-
-    private boolean isElementE(ProductionPiece piece) {
-        if (piece == null || piece.getBlood() == null) {
-            return false;
-        }
-        Integer bloodX = piece.getBlood().getX();
-        Integer bloodY = piece.getBlood().getY();
-        boolean hasXBlood = bloodX != null && bloodX != 0;
-        boolean hasYBlood = bloodY != null && bloodY != 0;
-        return hasXBlood || hasYBlood;
+        element.setHMargin(30);
     }
 
     private Double resolveMaxContainerWidth(LayoutConfirmRequest request) {
@@ -1181,6 +1166,7 @@ public class AppTypesettingService {
             rotatedProductRawFile = rotate90CCWAndUploadForCaifuRaster(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedProductRawFile)) {
                 piece.getProductImageFile().setRawFile(rotatedProductRawFile);
+                piece.getProductImageFile().setRouteImg(rotatedProductRawFile);
                 if (piece.getProductImageFile().getFilePreview() != null) {
                     piece.getProductImageFile().getFilePreview().setRaw(rotatedProductRawFile);
                 }
@@ -1192,10 +1178,16 @@ public class AppTypesettingService {
             String rotatedMaskRawFile = rotate90CCWAndUploadForCaifuSvg(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
                 piece.getMaskImageFile().setRawFile(rotatedMaskRawFile);
+                piece.getMaskImageFile().setRouteSvg(rotatedMaskRawFile);
                 if (piece.getMaskImageFile().getFilePreview() != null) {
                     piece.getMaskImageFile().getFilePreview().setRaw(rotatedMaskRawFile);
                 }
             }
+        }
+        if (piece.getBlood() != null) {
+            Integer bloodX = piece.getBlood().getX();
+            piece.getBlood().setX(piece.getBlood().getY());
+            piece.getBlood().setY(bloodX);
         }
         Double originalWidth = piece.getWidth();
         piece.setWidth(piece.getHeight());
@@ -1714,15 +1706,13 @@ public class AppTypesettingService {
             if (piece == null) {
                 continue;
             }
-            appendRawFile(imageSet, piece.getProductImageFile() == null ? null : piece.getProductImageFile().getRawFile());
+            String baseImage = resolveProductionPieceImageForDownload(piece);
+            appendRawFile(imageSet, baseImage);
             if (isMirrorTypesetting) {
                 if (piece.getMirrorConfigs() != null && !piece.getMirrorConfigs().isEmpty()) {
                     appendRawFile(imageSet, piece.getMirrorConfigs().get(0).getImg());
                 }
-            } else {
-                appendRawFile(imageSet, piece.getProductImageFile() == null ? null : piece.getProductImageFile().getRawFile());
             }
-            appendRawFile(imageSet, piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
         }
         LinkedHashSet<String> pltSet = new LinkedHashSet<>();
         LinkedHashSet<String> jsonSet = new LinkedHashSet<>();
@@ -1780,6 +1770,17 @@ public class AppTypesettingService {
         }
     }
 
+
+    private String resolveProductionPieceImageForDownload(ProductionPiece piece) {
+        if (piece == null || piece.getProductImageFile() == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(piece.getProductImageFile().getRouteImg())) {
+            return piece.getProductImageFile().getRouteImg();
+        }
+        return piece.getProductImageFile().getRawFile();
+    }
+
     private void appendRawFile(Set<String> container, String fileUrl) {
         if (StringUtils.isNotBlank(fileUrl)) {
             container.add(fileUrl);
@@ -1792,7 +1793,7 @@ public class AppTypesettingService {
             return;
         }
         String lower = markFileUrl.toLowerCase(Locale.ROOT);
-        if (lower.contains("/basetag/") && lower.endsWith(".svg")) {
+        if (lower.contains("/basetag/") && lower.contains(".svg")) {
             String pngUrl = markFileUrl.substring(0, markFileUrl.length() - 4) + ".png";
             appendRawFile(container, pngUrl);
         }
