@@ -7,6 +7,7 @@ import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
+import com.mes.application.dto.req.delivery.ImageSearchRequest;
 import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.base.repository.ApiResponse;
@@ -207,26 +208,24 @@ public class DeliveryPkgController {
         }
     }
 
-    @GetMapping("/EndToEndImageSearch")
-    public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(
-            @RequestParam String queryImageBase64,
-            @RequestParam String manufacturerMetaId,
-            @RequestParam String startTime,
-            @RequestParam(defaultValue = "20") Integer topK) {
+    @PostMapping("/EndToEndImageSearch")
+    public ApiResponse<List<DeliveryPkgPieceVO>> EndToEndImageSearch(@RequestBody ImageSearchRequest request) {
         try {
             System.out.println("Step 1: Generating embedding for query image base64");
-            float[] queryVector = imageSearch.generateImageEmbeddingByBase64(queryImageBase64);
+            float[] queryVector = imageSearch.generateImageEmbeddingByBase64(request.getQueryImageBase64());
             System.out.println("Query vector generated, dimension: " + queryVector.length);
 
-            Instant startAt = parseStartTime(startTime);
+            Instant startAt = parseStartTime(request.getStartTime());
 
             System.out.println("Step 2: Searching for similar images in DashVector...");
+            String filter = String.format("manufacturerMetaId = '%s'", request.getManufacturerMetaId());
+            if (startAt != null) {
+                filter += String.format(" and uploadedAt > '%s'", startAt.toString());
+            }
+
+            Integer topK = request.getTopK() != null ? request.getTopK() : 50;
             List<ImageToImageSearchServiceImp.ImageSearchResult> results =
-                imageSearch.searchSimilarImages(queryVector, topK * 5).stream()
-                        .filter(item -> manufacturerMetaId.equals(item.getManufacturerMetaId()))
-                        .filter(item -> isUploadedAfter(item.getUploadedAt(), startAt))
-                        .limit(topK)
-                        .collect(Collectors.toList());
+                    imageSearch.searchSimilarImages(queryVector, topK, filter);
 
             List<DeliveryPkgPieceVO> pieceVOS = results.stream()
                     .map(ImageToImageSearchServiceImp.ImageSearchResult::getProductionPieceId)

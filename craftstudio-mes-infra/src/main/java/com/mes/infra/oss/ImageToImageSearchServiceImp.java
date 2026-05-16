@@ -514,6 +514,70 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
     }
 
     /**
+     * 搜索相似图片（支持过滤条件）
+     * @param queryVector 查询向量
+     * @param topK 返回结果数量
+     * @param filter 过滤表达式，如："manufacturerMetaId = 'xxx' and uploadedAt > '2024-01-01'"
+     */
+    public List<ImageSearchResult> searchSimilarImages(float[] queryVector, int topK, String filter) {
+        try {
+            if (collection == null) {
+                System.err.println("DashVector collection not initialized");
+                return Collections.emptyList();
+            }
+
+            List<Float> vectorList = new ArrayList<>();
+            for (float v : queryVector) {
+                vectorList.add(v);
+            }
+
+            Vector vector = Vector.builder().value(vectorList).build();
+
+            // 构建请求
+            var requestBuilder = QueryDocRequest.builder()
+                    .vector(vector)
+                    .topk(topK)
+                    .includeVector(false);
+
+            // 添加过滤条件
+            if (filter != null && !filter.isEmpty()) {
+                requestBuilder.filter(filter);
+            }
+
+            QueryDocRequest request = requestBuilder.build();
+
+            Response<List<Doc>> resp = collection.query(request);
+
+            if (resp.isSuccess() && resp.getOutput() != null) {
+                List<ImageSearchResult> results = new ArrayList<>();
+
+                for (Doc doc : resp.getOutput()) {
+                    ImageSearchResult result = new ImageSearchResult();
+                    result.setDocId(doc.getId());
+                    result.setImageUrl((String) doc.getFields().get("imageUrl"));
+                    result.setScore(doc.getScore());
+                    result.setProductionPieceId((String) doc.getFields().get("productionPieceId"));
+                    result.setManufacturerMetaId((String) doc.getFields().get("manufacturerMetaId"));
+                    Object uploadedAt = doc.getFields().get("uploadedAt");
+                    result.setUploadedAt(uploadedAt == null ? null : uploadedAt.toString());
+
+                    results.add(result);
+                }
+
+                System.out.println("Found " + results.size() + " similar images with filter: " + filter);
+                return results;
+            } else {
+                System.err.println("Search failed: " + resp.getMessage());
+                return Collections.emptyList();
+            }
+        } catch (DashVectorException e) {
+            System.err.println("Error searching similar images: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    /**
      * 批量上传图片向量到 DashVector
      */
     public boolean batchUpsertImageVectors(List<ImageVectorData> imageVectors,String productionPieceId) {
@@ -562,6 +626,9 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
             return false;
         }
     }
+
+
+
 
     /**
      * 搜索相似图片
