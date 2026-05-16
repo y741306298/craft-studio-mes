@@ -170,13 +170,13 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
 
 
     @Override
-    public void indexImage(String docId, String imageUrl) {
+    public void indexImage(String docId, String imageUrl, String productionPieceId, String manufacturerMetaId) {
         if (docId == null || docId.isEmpty() || imageUrl == null || imageUrl.isEmpty()) {
             return;
         }
         try {
             float[] vector = generateImageEmbedding(imageUrl);
-            upsertImageVector(docId, imageUrl, vector);
+            upsertImageVector(docId, imageUrl, vector, productionPieceId, manufacturerMetaId);
         } catch (Exception e) {
             System.err.println("Failed to index image vector, docId=" + docId + ", error=" + e.getMessage());
         }
@@ -420,7 +420,7 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
      * 上传图片向量到 DashVector
      */
     @Override
-    public boolean upsertImageVector(String docId, String imageUrl, float[] vector) {
+    public boolean upsertImageVector(String docId, String imageUrl, float[] vector, String productionPieceId, String manufacturerMetaId) {
         try {
             if (collection == null) {
                 System.err.println("DashVector collection not initialized");
@@ -439,6 +439,8 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     .vector(vec)
                     .field("imageUrl", imageUrl)
                     .field("uploadedAt", new Date().toString())
+                    .field("productionPieceId", productionPieceId)
+                    .field("manufacturerMetaId", manufacturerMetaId)
                     .build();
 
             UpsertDocRequest request = UpsertDocRequest.builder()
