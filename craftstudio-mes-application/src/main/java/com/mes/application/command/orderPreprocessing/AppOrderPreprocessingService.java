@@ -377,7 +377,7 @@ public class AppOrderPreprocessingService {
         String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
                 + "\" viewBox=\"0 0 " + width + " " + height + "\">"
                 + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"" + height
-                + "\" fill=\"none\" stroke=\"#000\" stroke-width=\"1\"/>"
+                + "\" fill=\"#000000\" stroke=\"#000000\" stroke-width=\"1\"/>"
                 + "</svg>";
 
         String manufacturerMetaId = StringUtils.isBlank(orderItem.getManufacturerId()) ? "default" : orderItem.getManufacturerId();
