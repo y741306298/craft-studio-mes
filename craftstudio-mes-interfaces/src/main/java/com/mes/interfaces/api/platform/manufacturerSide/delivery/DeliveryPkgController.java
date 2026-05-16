@@ -246,7 +246,7 @@ public class DeliveryPkgController {
             return ApiResponse.success(response);
 
         } catch (BusinessNotAllowException e) {
-            return ApiResponse.fail(e.getRepStatusCode(), e.getMessage());
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, e.getMessage());
         } catch (Exception e) {
             System.err.println("End-to-end test failed: " + e.getMessage());
             e.printStackTrace();

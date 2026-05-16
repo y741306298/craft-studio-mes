@@ -1189,7 +1189,7 @@ public class AppTypesettingService {
                 }
             }
         }
-        Integer originalWidth = piece.getWidth();
+        Double originalWidth = piece.getWidth();
         piece.setWidth(piece.getHeight());
         piece.setHeight(originalWidth);
     }
