@@ -3,7 +3,7 @@ package com.mes.application.command.order;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
-import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -35,7 +35,7 @@ public class AppOrderService {
     private ProductionPieceService productionPieceService;
 
     @Autowired
-    private AppOrderPreprocessingService orderPreprocessingService;
+    private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
 
     /**
      * 根据多条件分页查询订单项列表，同时查询关联的订单
@@ -221,8 +221,8 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
-        // 添加完成后自动调用 OrderPreprocessingService.processOrder()预处理
-        orderPreprocessingService.preprocessOrder(orderItemsResult);
+        // 入库成功后立即返回，预处理改为异步队列执行
+        orderPreprocessTaskQueue.submit(orderItemsResult);
         return orderInfo;
     }
 
