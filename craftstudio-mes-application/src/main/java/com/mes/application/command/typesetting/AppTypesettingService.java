@@ -211,7 +211,10 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("manufacturerMetaId 不能为空");
         }
 
-        List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        int current = query.getCurrent() == null || query.getCurrent() < 1 ? 1 : query.getCurrent();
+        int size = query.getSize() == null || query.getSize() < 1 ? 50 : Math.min(query.getSize(), 100);
+
+        List<TypesettingProductionPieceVO> allItems = new ArrayList<>();
         boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
         boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
 
@@ -228,7 +231,7 @@ public class AppTypesettingService {
             );
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) > 0) {
-                    items.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+                    allItems.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
                 }
             }
         }
@@ -249,16 +252,20 @@ public class AppTypesettingService {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
                 boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
                 if (leaveQuantity > 0 && isPending) {
-                    items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+                    allItems.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
                 }
             }
         }
 
-        items.sort(Comparator.comparing(TypesettingProductionPieceVO::getCreateTime,
+        allItems.sort(Comparator.comparing(TypesettingProductionPieceVO::getCreateTime,
                 Comparator.nullsLast(Date::compareTo)).reversed());
 
-        long total = items.size();
-        return new PagedResult<>(items, total, items.size(), 1);
+        long total = allItems.size();
+        int fromIndex = Math.min((current - 1) * size, allItems.size());
+        int toIndex = Math.min(fromIndex + size, allItems.size());
+        List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
+
+        return new PagedResult<>(items, total, size, current);
     }
 
     /**

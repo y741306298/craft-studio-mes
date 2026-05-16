@@ -73,7 +73,9 @@ public class TypesettingController {
             @RequestParam(required = false) String processingName,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endTime,
-            @RequestParam(required = false) String sourceType) {
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false, defaultValue = "1") Integer current,
+            @RequestParam(required = false, defaultValue = "50") Integer size) {
         TypesettingQuery query = new TypesettingQuery();
         query.setManufacturerMetaId(manufacturerMetaId);
         query.setMaterialName(materialName);
@@ -81,6 +83,8 @@ public class TypesettingController {
         query.setStartTime(startTime);
         query.setEndTime(endTime);
         query.setSourceType(sourceType);
+        query.setCurrent(current);
+        query.setSize(size);
         PagedResult<TypesettingProductionPieceVO> result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.items());
         sanitizeProcedureFlow(items);
