@@ -416,6 +416,56 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
         }
     }
 
+
+
+    public float[] generateImageEmbeddingByBase64(String imageBase64) throws IOException {
+        String url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding";
+
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("model", "multimodal-embedding-v1");
+
+        JsonObject inputObj = new JsonObject();
+        JsonArray contentsArray = new JsonArray();
+
+        JsonObject contentObj = new JsonObject();
+        contentObj.addProperty("image", imageBase64);
+        contentsArray.add(contentObj);
+
+        inputObj.add("contents", contentsArray);
+        requestBody.add("input", inputObj);
+
+        okhttp3.Request request = new okhttp3.Request.Builder()
+                .url(url)
+                .post(RequestBody.create(gson.toJson(requestBody), MediaType.get("application/json")))
+                .addHeader("Authorization", "Bearer " + dashscopeApiKey)
+                .addHeader("Content-Type", "application/json")
+                .build();
+
+        try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("DashScope API error: " + response.code() + " - " + response.body().string());
+            }
+
+            String responseBody = response.body().string();
+            JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
+            JsonObject output = jsonResponse.getAsJsonObject("output");
+            JsonArray embeddingsArray = output.getAsJsonArray("embeddings");
+
+            if (embeddingsArray == null || embeddingsArray.size() == 0) {
+                throw new IOException("No embeddings returned from DashScope API");
+            }
+
+            JsonObject embedding = embeddingsArray.get(0).getAsJsonObject();
+            JsonArray vectorArray = embedding.getAsJsonArray("embedding");
+
+            float[] vector = new float[vectorArray.size()];
+            for (int i = 0; i < vectorArray.size(); i++) {
+                vector[i] = vectorArray.get(i).getAsFloat();
+            }
+
+            return vector;
+        }
+    }
     /**
      * 上传图片向量到 DashVector
      */
@@ -547,6 +597,9 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     result.setImageUrl((String) doc.getFields().get("imageUrl"));
                     result.setScore(doc.getScore());
                     result.setProductionPieceId((String) doc.getFields().get("productionPieceId"));
+                    result.setManufacturerMetaId((String) doc.getFields().get("manufacturerMetaId"));
+                    Object uploadedAt = doc.getFields().get("uploadedAt");
+                    result.setUploadedAt(uploadedAt == null ? null : uploadedAt.toString());
 
                     results.add(result);
                 }
@@ -657,6 +710,8 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
         private String imageUrl;
         private float score;
         private String productionPieceId;
+        private String manufacturerMetaId;
+        private String uploadedAt;
 
         public String getDocId() {
             return docId;
@@ -688,6 +743,22 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
 
         public void setProductionPieceId(String productionPieceId) {
             this.productionPieceId = productionPieceId;
+        }
+
+        public String getManufacturerMetaId() {
+            return manufacturerMetaId;
+        }
+
+        public void setManufacturerMetaId(String manufacturerMetaId) {
+            this.manufacturerMetaId = manufacturerMetaId;
+        }
+
+        public String getUploadedAt() {
+            return uploadedAt;
+        }
+
+        public void setUploadedAt(String uploadedAt) {
+            this.uploadedAt = uploadedAt;
         }
 
         @Override
