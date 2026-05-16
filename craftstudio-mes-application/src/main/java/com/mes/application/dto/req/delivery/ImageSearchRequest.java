@@ -2,6 +2,8 @@ package com.mes.application.dto.req.delivery;
 
 import lombok.Data;
 
+import java.util.Date;
+
 @Data
 public class ImageSearchRequest {
     /**
@@ -15,9 +17,9 @@ public class ImageSearchRequest {
     private String manufacturerMetaId;
 
     /**
-     * 开始时间（ISO-8601 格式）
+     * 开始时间
      */
-    private String startTime;
+    private Date startTime;
 
     /**
      * 返回结果数量，默认 50

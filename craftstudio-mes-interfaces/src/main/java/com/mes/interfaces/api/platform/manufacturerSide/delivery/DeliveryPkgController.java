@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -246,6 +245,8 @@ public class DeliveryPkgController {
             System.out.println("Search completed, found " + pieceVOS.size() + " packaging-ready pieces");
             return ApiResponse.success(response);
 
+        } catch (BusinessNotAllowException e) {
+            return ApiResponse.fail(e.getRepStatusCode(), e.getMessage());
         } catch (Exception e) {
             System.err.println("End-to-end test failed: " + e.getMessage());
             e.printStackTrace();
@@ -254,12 +255,11 @@ public class DeliveryPkgController {
     }
 
 
-    private Instant parseStartTime(String startTime) {
-        try {
-            return Instant.parse(startTime);
-        } catch (DateTimeParseException e) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "startTime格式错误，需为ISO-8601格式");
+    private Instant parseStartTime(Date startTime) {
+        if (startTime == null) {
+            return null;
         }
+        return startTime.toInstant();
     }
 
     private boolean isUploadedAfter(String uploadedAt, Instant startAt) {
