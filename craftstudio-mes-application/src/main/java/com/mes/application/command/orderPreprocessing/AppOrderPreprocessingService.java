@@ -644,7 +644,7 @@ public class AppOrderPreprocessingService {
         if (StringUtils.isBlank(previewUrl) || StringUtils.isBlank(piece.getProductionPieceId())) {
             return;
         }
-        imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl);
+        imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl, piece.getProductionPieceId(), piece.getManufacturerId());
     }
 
     private void movePretreatmentToPendingTypesetting(String productionPieceId) {

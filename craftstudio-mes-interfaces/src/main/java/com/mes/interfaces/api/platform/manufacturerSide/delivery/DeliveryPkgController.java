@@ -259,7 +259,7 @@ public class DeliveryPkgController {
             System.out.println("Vector generated, dimension: " + vector.length);
 
             System.out.println("Step 2: Upserting vector to DashVector...");
-            boolean success = imageSearch.upsertImageVector(docId, imageUrl, vector);
+            boolean success = imageSearch.upsertImageVector(docId, imageUrl, vector, null, null);
             System.out.println("Upsert result: " + (success ? "SUCCESS" : "FAILED"));
 
         } catch (Exception e) {
