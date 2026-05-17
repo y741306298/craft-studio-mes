@@ -1347,7 +1347,7 @@ public class AppTypesettingService {
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
-        validateConfirmPrintForSpecialProcedure(typesettingInfo);
+//        validateConfirmPrintForSpecialProcedure(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()

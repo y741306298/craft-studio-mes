@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 import com.google.zxing.BarcodeFormat;
@@ -62,6 +63,10 @@ public class DeliveryPkgController {
     private final OrderItemService orderItemService;
     @Autowired
     private ImageToImageSearchServiceImp imageSearch;
+
+
+    @Value("${business.pkg-detail-url:http://121.40.134.45:8083}")
+    private String pkgDetailBaseUrl;
 
     /**
      * 查询待打包零件全量列表
@@ -243,7 +248,7 @@ public class DeliveryPkgController {
 
     private String buildPkgDetailUrl(String pkgId) {
         return UriComponentsBuilder
-                .fromUriString("http://121.40.134.45:8083")
+                .fromUriString(pkgDetailBaseUrl)
                 .queryParam("deliveryPkgId", pkgId)
                 .build()
                 .toUriString();
