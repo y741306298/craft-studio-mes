@@ -1362,9 +1362,6 @@ public class AppTypesettingService {
         String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
         FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
         mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        String formeRequestJson = JSON.toJSONString(formeRequest);
-        log.info("formeRequest-print========:{}", formeRequestJson);
-        FormeGenerationResponse response = algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
         String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
         TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
         if (mirrorTypesettingInfo != null) {
@@ -1396,6 +1393,10 @@ public class AppTypesettingService {
         typesettingInfo.setDeviceCode(request.getDeviceCode());
         typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
         domainTypesettingService.updateTypesetting(typesettingInfo);
+
+        String formeRequestJson = JSON.toJSONString(formeRequest);
+        log.info("formeRequest-print========:{}", formeRequestJson);
+        algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
 
         ConfirmPrintResult result = new ConfirmPrintResult();
         result.setSuccess(true);
