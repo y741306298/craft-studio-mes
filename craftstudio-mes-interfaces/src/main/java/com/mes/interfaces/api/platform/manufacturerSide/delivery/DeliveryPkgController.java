@@ -39,6 +39,8 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Base64;
 
 import java.time.Instant;
@@ -109,6 +111,16 @@ public class DeliveryPkgController {
         return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
     }
 
+    @PostMapping("/pkgDetail")
+    public ApiResponse<DeliveryPkgListItemResponse> queryDeliveryPkgByPkgId(@RequestBody DeliveryPkgActionRequest request) {
+        if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "pkgId参数不能为空");
+        }
+        DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId().trim());
+        deliveryPkg.setRouteDesc(buildRouteDesc(deliveryPkg));
+        return ApiResponse.success(buildDeliveryPkgListItemResponse(deliveryPkg));
+    }
+
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
         DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
@@ -139,6 +151,9 @@ public class DeliveryPkgController {
                     }
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
+                        detail.setProcessingFlow(productionPiece.getProcessingFlow());
+                        detail.setWidth(scaleToTwoDecimal(productionPiece.getWidth()));
+                        detail.setHeight(scaleToTwoDecimal(productionPiece.getHeight()));
                         if (StringUtils.isBlank(detail.getOrderItemId())) {
                             detail.setOrderItemId(productionPiece.getOrderItemId());
                         }
@@ -162,6 +177,13 @@ public class DeliveryPkgController {
         }
         response.setDeliveryPkgItems(details);
         return response;
+    }
+
+    private Double scaleToTwoDecimal(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
     private DeliveryPkgStatus parseStatus(String statusValue) {
