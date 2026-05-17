@@ -109,6 +109,16 @@ public class DeliveryPkgController {
         return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
     }
 
+    @PostMapping("/pkgDetail")
+    public ApiResponse<DeliveryPkgListItemResponse> queryDeliveryPkgByPkgId(@RequestBody DeliveryPkgActionRequest request) {
+        if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "pkgId参数不能为空");
+        }
+        DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId().trim());
+        deliveryPkg.setRouteDesc(buildRouteDesc(deliveryPkg));
+        return ApiResponse.success(buildDeliveryPkgListItemResponse(deliveryPkg));
+    }
+
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
         DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
