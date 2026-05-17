@@ -39,7 +39,7 @@ public class AppLoginService {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    @Value("${mes.login.token-valid-days:3}")
+    @Value("${mes.login.token-valid-days:7}")
     private int tokenValidDays;
 
     public LoginResponse login(LoginRequest request) {

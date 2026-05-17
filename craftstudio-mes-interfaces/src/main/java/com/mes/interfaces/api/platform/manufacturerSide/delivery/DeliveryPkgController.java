@@ -232,7 +232,7 @@ public class DeliveryPkgController {
 
     private String buildPkgDetailUrl(String pkgId) {
         return UriComponentsBuilder
-                .fromUriString("https://craftstudio-mes.com/delivery-pkg")
+                .fromUriString("http://121.40.134.45:8083")
                 .queryParam("pkgId", pkgId)
                 .build()
                 .toUriString();
