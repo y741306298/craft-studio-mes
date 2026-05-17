@@ -1603,15 +1603,19 @@ public class AppTypesettingService {
             if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 continue;
             }
-            TypesettingInfo nestedById = domainTypesettingService.findById(cell.getSourceId());
-            List<TypesettingInfo> nestedTypesettingInfos = nestedById == null
-                    ? Collections.emptyList()
-                    : Collections.singletonList(nestedById);
-            for (TypesettingInfo nestedInfo : nestedTypesettingInfos) {
-                if (nestedInfo.getTypesettingId() == null || !nestedInfo.getTypesettingId().contains("-Mirror")) {
-                    continue;
+            TypesettingInfo nestedInfo = domainTypesettingService.findById(cell.getSourceId());
+            if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
+                continue;
+            }
+            collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
+
+            // 保留 mirror 特殊处理：普通印版若存在镜像印版，也需要继续统计其 cells 中的零件用量
+            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().contains("-Mirror")) {
+                TypesettingInfo mirrorNestedInfo = domainTypesettingService
+                        .findTypesettingByTypesettingId(nestedInfo.getTypesettingId() + "-Mirror");
+                if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
+                    collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
                 }
-                collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
             }
         }
         visitedTypesettingKeys.remove(currentKey);
