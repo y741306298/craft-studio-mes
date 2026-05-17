@@ -108,39 +108,10 @@ public class AppDeliveryPkgService {
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
-            int pendingQty = getNodeQuantity(productionPiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
-            if (pendingQty <= 0) {
-                continue;
+            DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
+            if (vo != null) {
+                items.add(vo);
             }
-            int packedQty = getNodeQuantity(productionPiece, NODE_ID_PACKED, NODE_NAME_PACKED);
-
-            DeliveryPkgPieceVO vo = DeliveryPkgPieceVO.fromProductionPiece(productionPiece);
-            vo.setPendingPkgQuantity(pendingQty);
-            vo.setPackedQuantity(packedQty);
-            vo.setStatus(resolvePackagingStatus(pendingQty, packedQty));
-
-            OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
-            if (orderItem != null) {
-                vo.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
-                if (orderItem.getMaterial() != null) {
-                    vo.setMaterialConfig(orderItem.getMaterial());
-                }
-                if (StringUtils.isBlank(vo.getOrderId())) {
-                    vo.setOrderId(orderItem.getOrderId());
-                }
-            }
-
-            if (StringUtils.isNotBlank(vo.getOrderId())) {
-                OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
-                if (orderInfo != null) {
-                    vo.setOrderCustomer(orderInfo.getCustomer());
-                    World world = worldRepository.loadWorld();
-                    Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
-                    String fullAddress = address.buildFullAddressString(world);
-                    vo.setAddress(fullAddress);
-                }
-            }
-            items.add(vo);
         }
 
         return items.stream().filter(item -> {
@@ -156,6 +127,54 @@ public class AppDeliveryPkgService {
         }).collect(Collectors.toList());
     }
 
+
+
+    public DeliveryPkgPieceVO findPendingPackagingPieceById(String productionPieceId) {
+        if (StringUtils.isBlank(productionPieceId)) {
+            return null;
+        }
+        ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(productionPieceId);
+        return buildPendingPackagingPieceVO(productionPiece);
+    }
+
+    private DeliveryPkgPieceVO buildPendingPackagingPieceVO(ProductionPiece productionPiece) {
+        if (productionPiece == null) {
+            return null;
+        }
+        int pendingQty = getNodeQuantity(productionPiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
+        if (pendingQty <= 0) {
+            return null;
+        }
+        int packedQty = getNodeQuantity(productionPiece, NODE_ID_PACKED, NODE_NAME_PACKED);
+
+        DeliveryPkgPieceVO vo = DeliveryPkgPieceVO.fromProductionPiece(productionPiece);
+        vo.setPendingPkgQuantity(pendingQty);
+        vo.setPackedQuantity(packedQty);
+        vo.setStatus(resolvePackagingStatus(pendingQty, packedQty));
+
+        OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
+        if (orderItem != null) {
+            vo.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
+            if (orderItem.getMaterial() != null) {
+                vo.setMaterialConfig(orderItem.getMaterial());
+            }
+            if (StringUtils.isBlank(vo.getOrderId())) {
+                vo.setOrderId(orderItem.getOrderId());
+            }
+        }
+
+        if (StringUtils.isNotBlank(vo.getOrderId())) {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
+            if (orderInfo != null) {
+                vo.setOrderCustomer(orderInfo.getCustomer());
+                World world = worldRepository.loadWorld();
+                Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
+                String fullAddress = address.buildFullAddressString(world);
+                vo.setAddress(fullAddress);
+            }
+        }
+        return vo;
+    }
 
     public List<String> buildMaterialList(List<DeliveryPkgPieceVO> items) {
         return items.stream().filter(Objects::nonNull)

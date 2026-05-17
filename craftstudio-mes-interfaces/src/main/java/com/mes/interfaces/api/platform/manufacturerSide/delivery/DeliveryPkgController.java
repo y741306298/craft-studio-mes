@@ -23,7 +23,6 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -325,12 +324,18 @@ public class DeliveryPkgController {
                     imageSearch.searchSimilarImages(queryVector, topK, filter);
 
             List<DeliveryPkgPieceVO> pieceVOS = results.stream()
-                    .map(ImageToImageSearchServiceImp.ImageSearchResult::getProductionPieceId)
-                    .filter(StringUtils::isNotBlank)
-                    .map(productionPieceService::findByProductionPieceId)
+                    .map(result -> {
+                        String productionPieceId = result.getProductionPieceId();
+                        if (StringUtils.isBlank(productionPieceId)) {
+                            return null;
+                        }
+                        DeliveryPkgPieceVO vo = appDeliveryPkgService.findPendingPackagingPieceById(productionPieceId);
+                        if (vo != null) {
+                            vo.setScore(result.getScore());
+                        }
+                        return vo;
+                    })
                     .filter(Objects::nonNull)
-                    .filter(this::hasPendingPackagingQuantity)
-                    .map(DeliveryPkgPieceVO::fromProductionPiece)
                     .collect(Collectors.toList());
 
             DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
@@ -360,51 +365,4 @@ public class DeliveryPkgController {
         return startTime.toInstant();
     }
 
-    private boolean isUploadedAfter(String uploadedAt, Instant startAt) {
-        if (StringUtils.isBlank(uploadedAt)) {
-            return false;
-        }
-        try {
-            return Instant.parse(uploadedAt).isAfter(startAt);
-        } catch (Exception ignored) {
-            try {
-                Date parsed = new Date(uploadedAt);
-                return parsed.toInstant().isAfter(startAt);
-            } catch (Exception e) {
-                return false;
-            }
-        }
-    }
-
-    private boolean hasPendingPackagingQuantity(ProductionPiece piece) {
-        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
-            return false;
-        }
-        for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
-            if ("待打包".equals(node.getNodeName())) {
-                return node.getPieceQuantity() != null && node.getPieceQuantity() > 0;
-            }
-        }
-        return false;
-    }
-
-    @GetMapping("/testUpsertImageVector")
-    public void testUpsertImageVector() {
-        try {
-            String imageUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/pieceImg/69fb388ed7913b07a47afef1/dd82cd9dc39bf2d304f7802fd4c1ad8d_part001_thumbnail.png";
-            String docId = "test-image-001";
-
-            System.out.println("Step 1: Generating embedding for image...");
-            float[] vector = imageSearch.generateImageEmbedding(imageUrl);
-            System.out.println("Vector generated, dimension: " + vector.length);
-
-            System.out.println("Step 2: Upserting vector to DashVector...");
-            boolean success = imageSearch.upsertImageVector(docId, imageUrl, vector, null, null);
-            System.out.println("Upsert result: " + (success ? "SUCCESS" : "FAILED"));
-
-        } catch (Exception e) {
-            System.err.println("Upsert test failed: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
 }
