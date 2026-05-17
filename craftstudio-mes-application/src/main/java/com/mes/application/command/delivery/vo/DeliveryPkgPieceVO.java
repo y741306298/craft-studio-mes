@@ -30,6 +30,7 @@ public class DeliveryPkgPieceVO {
     private ProcedureFlow procedureFlow;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
+    private float score;
 
     public static DeliveryPkgPieceVO fromProductionPiece(ProductionPiece piece) {
         DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
