@@ -59,5 +59,8 @@ public class DeliveryPkgListItemResponse extends BaseEntity {
         private Integer quantity;
         private String previewUrl;
         private MaterialConfig materialConfig;
+        private String processingFlow;
+        private Double width;
+        private Double height;
     }
 }

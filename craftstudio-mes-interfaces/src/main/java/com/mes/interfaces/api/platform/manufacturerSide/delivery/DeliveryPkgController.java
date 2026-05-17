@@ -38,6 +38,8 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Base64;
 
 import java.time.Instant;
@@ -141,6 +143,9 @@ public class DeliveryPkgController {
                     }
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
+                        detail.setProcessingFlow(productionPiece.getProcessingFlow());
+                        detail.setWidth(scaleToTwoDecimal(productionPiece.getWidth()));
+                        detail.setHeight(scaleToTwoDecimal(productionPiece.getHeight()));
                         if (StringUtils.isBlank(detail.getOrderItemId())) {
                             detail.setOrderItemId(productionPiece.getOrderItemId());
                         }
@@ -164,6 +169,13 @@ public class DeliveryPkgController {
         }
         response.setDeliveryPkgItems(details);
         return response;
+    }
+
+    private Double scaleToTwoDecimal(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
     private DeliveryPkgStatus parseStatus(String statusValue) {
