@@ -67,10 +67,10 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setProductImageFile(this.productImageFile);
         piece.setMaskImageFile(this.maskImageFile);
         if (piece.getProductImageFile() != null && this.routeImg != null) {
-            piece.getProductImageFile().setRouteImg(this.routeImg);
+            piece.setRouteImg(this.routeImg);
         }
         if (piece.getMaskImageFile() != null && this.routeSvg != null) {
-            piece.getMaskImageFile().setRouteSvg(this.routeSvg);
+            piece.setRouteSvg(this.routeSvg);
         }
         piece.setWidth(this.width);
         piece.setHeight(this.height);
@@ -106,10 +106,10 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.productImageFile = _do.getProductImageFile();
         this.maskImageFile = _do.getMaskImageFile();
         if (this.routeImg == null) {
-            this.routeImg = _do.getProductImageFile() == null ? null : _do.getProductImageFile().getRouteImg();
+            this.routeImg = _do.getProductImageFile() == null ? null : _do.getRouteImg();
         }
         if (this.routeSvg == null) {
-            this.routeSvg = _do.getMaskImageFile() == null ? null : _do.getMaskImageFile().getRouteSvg();
+            this.routeSvg = _do.getMaskImageFile() == null ? null : _do.getRouteSvg();
         }
         this.width = _do.getWidth();
         this.height = _do.getHeight();

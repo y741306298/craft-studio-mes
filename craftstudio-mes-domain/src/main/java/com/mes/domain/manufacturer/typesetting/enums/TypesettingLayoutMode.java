@@ -35,7 +35,7 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "cross",
-            5,
+            2,
             true
     ),
     /**
@@ -65,7 +65,7 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "circle",
-            5,
+            2,
             true
     ),
     /**

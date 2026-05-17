@@ -1166,7 +1166,7 @@ public class AppTypesettingService {
             rotatedProductRawFile = rotate90CCWAndUploadForCaifuRaster(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedProductRawFile)) {
                 piece.getProductImageFile().setRawFile(rotatedProductRawFile);
-                piece.getProductImageFile().setRouteImg(rotatedProductRawFile);
+                piece.setRouteImg(rotatedProductRawFile);
                 piece.setRouteImg(rotatedProductRawFile);
                 if (piece.getProductImageFile().getFilePreview() != null) {
                     piece.getProductImageFile().getFilePreview().setRaw(rotatedProductRawFile);
@@ -1179,7 +1179,7 @@ public class AppTypesettingService {
             String rotatedMaskRawFile = rotate90CCWAndUploadForCaifuSvg(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
                 piece.getMaskImageFile().setRawFile(rotatedMaskRawFile);
-                piece.getMaskImageFile().setRouteSvg(rotatedMaskRawFile);
+                piece.setRouteSvg(rotatedMaskRawFile);
                 piece.setRouteSvg(rotatedMaskRawFile);
                 if (piece.getMaskImageFile().getFilePreview() != null) {
                     piece.getMaskImageFile().getFilePreview().setRaw(rotatedMaskRawFile);
@@ -1780,8 +1780,8 @@ public class AppTypesettingService {
         if (StringUtils.isNotBlank(piece.getRouteImg())) {
             return piece.getRouteImg();
         }
-        if (StringUtils.isNotBlank(piece.getProductImageFile().getRouteImg())) {
-            return piece.getProductImageFile().getRouteImg();
+        if (StringUtils.isNotBlank(piece.getRouteImg())) {
+            return piece.getRouteImg();
         }
         return piece.getProductImageFile().getRawFile();
     }

@@ -123,14 +123,7 @@ public class DeliveryPkgController {
                 detail.setQuantity(item.getQuantity());
                 detail.setPreviewUrl(item.getPreviewUrl());
 
-                String pieceId = null;
-                if (item.getProductionPieceId() != null) {
-                    pieceId = item.getProductionPieceId().stream()
-                            .map(String::trim)
-                            .filter(StringUtils::isNotBlank)
-                            .findFirst()
-                            .orElse(null);
-                }
+                String pieceId = item.getProductionPieceId().get(0);
 
                 if (StringUtils.isNotBlank(pieceId)) {
                     ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(pieceId);
