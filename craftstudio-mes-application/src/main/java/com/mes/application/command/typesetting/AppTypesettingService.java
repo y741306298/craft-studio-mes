@@ -581,7 +581,6 @@ public class AppTypesettingService {
         } catch (Exception e) {
             return LayoutConfirmResult.failed(e.getMessage());
         }
-        log.info("nestingRequest========:{}",JSON.toJSONString(nestingRequest));
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse;
         switch (layoutMode.getLayoutCategory()) {

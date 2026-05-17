@@ -11,6 +11,8 @@ import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.resp.ImpositionResponse;
 import com.mes.application.command.api.resp.NestingResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -24,6 +26,8 @@ import java.util.Map;
 
 @Service
 public class AlgorithmCoreApiService {
+
+    private static final Logger log = LoggerFactory.getLogger(AlgorithmCoreApiService.class);
 
     @Autowired
     private RestTemplate restTemplate;
@@ -53,6 +57,7 @@ public class AlgorithmCoreApiService {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
+            log.info("AlgorithmCoreApiService request start: mode=sync, url={}, apiPath={}, requestBody={}", url, apiPath, JSON.toJSONString(requestBody));
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);
 
@@ -95,6 +100,7 @@ public class AlgorithmCoreApiService {
             headers.set("X-Fc-Invocation-Type", "Async");
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
+            log.info("AlgorithmCoreApiService request start: mode=async, url={}, apiPath={}, callbackUrl={}, requestBody={}", url, apiPath, callbackUrl, JSON.toJSONString(requestBody));
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);
 
@@ -131,8 +137,6 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         validateSliceBloodDirection(request);
-        String jsonString = JSON.toJSONString(request);
-        System.out.println(jsonString);
         return callAlgorithmAsync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request,
                 request.getCallbackConfig().getCallbackUrl(), ImageMaskResponse.class);
     }
@@ -159,8 +163,6 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         validateSliceBloodDirection(request);
-        String jsonString = JSON.toJSONString(request);
-        System.out.println(jsonString);
         return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, ImageMaskResponse.class);
     }
 
@@ -221,7 +223,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://craftstsvg-nest-lmadlddfst.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
+        return callAlgorithmAsync("http://test-crsvg-nest-ovqpvihcgo.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
     
@@ -248,7 +250,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("排版元素列表不能为空");
         }
 
-        return callAlgorithmSync("http://craftstsvg-nest-lmadlddfst.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
+        return callAlgorithmSync("http://test-crsvg-nest-ovqpvihcgo.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
                 NestingResponse.class);
     }
 

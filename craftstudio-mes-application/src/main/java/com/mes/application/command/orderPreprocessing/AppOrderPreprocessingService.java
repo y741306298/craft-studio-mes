@@ -218,7 +218,6 @@ public class AppOrderPreprocessingService {
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         imageMaskRequest.setCallbackConfig(callbackConfig);
         // 步骤5：异步调用 generateMaskFilesAsync。
-        System.out.println("imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
     }
 
@@ -253,7 +252,6 @@ public class AppOrderPreprocessingService {
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         imageMaskRequest.setCallbackConfig(callbackConfig);
 
-        System.out.println("doubleSide imageMaskRequest:" + JSON.toJSONString(imageMaskRequest));
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
     }
 
