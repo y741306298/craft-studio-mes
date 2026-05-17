@@ -38,6 +38,7 @@ public class ProductionPieceService {
             String status,
             String materialName,
             String processingName,
+            String orderItemId,
             Date startTime,
             Date endTime,
             int current,
@@ -68,8 +69,33 @@ public class ProductionPieceService {
         if (StringUtils.isNotBlank(processingName)) {
             filters.put("procedureFlow.nodes.nodeName", processingName);
         }
+        if (StringUtils.isNotBlank(orderItemId)) {
+            filters.put("orderItemId", orderItemId);
+        }
 
         return productionPieceRepository.filterList(current, size, filters);
+    }
+
+    public List<ProductionPiece> findProductionPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        return findProductionPiecesByConditions(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                null,
+                startTime,
+                endTime,
+                current,
+                size
+        );
     }
 
     public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {

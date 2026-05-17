@@ -16,6 +16,7 @@ public class TypesettingQuery {
     private String status;
     private String materialName;
     private String processingName;
+    private String orderItemId;
     private Date startTime;
     private Date endTime;
     private String sourceType;
