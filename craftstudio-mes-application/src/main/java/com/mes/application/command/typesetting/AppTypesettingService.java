@@ -1516,12 +1516,12 @@ public class AppTypesettingService {
                 typesettingInfo.setLeaveQuantity(1);
                 Set<String> visitedTypesettingKeys = new HashSet<>();
                 Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
+                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage, false);
                 int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (callbackTypesettingId == null || !callbackTypesettingId.contains("-Mirror")) {
+                if (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror")) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
@@ -1578,6 +1578,14 @@ public class AppTypesettingService {
                                              int multiplier,
                                              Set<String> visitedTypesettingKeys,
                                              Map<String, Integer> productionPieceUsage) {
+        collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, false);
+    }
+
+    private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
+                                             int multiplier,
+                                             Set<String> visitedTypesettingKeys,
+                                             Map<String, Integer> productionPieceUsage,
+                                             boolean mirrorBranch) {
         if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId())) {
             return;
         }
@@ -1597,7 +1605,9 @@ public class AppTypesettingService {
             int cellQuantity = cell.getQuantity() != null && cell.getQuantity() > 0 ? cell.getQuantity() : 1;
             int currentMultiplier = multiplier * cellQuantity;
             if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
-                productionPieceUsage.merge(cell.getSourceId(), currentMultiplier, Integer::sum);
+                if (!mirrorBranch) {
+                    productionPieceUsage.merge(cell.getSourceId(), currentMultiplier, Integer::sum);
+                }
                 continue;
             }
             if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
@@ -1607,14 +1617,16 @@ public class AppTypesettingService {
             if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
                 continue;
             }
-            collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
+            boolean nestedMirrorBranch = mirrorBranch || (StringUtils.isNotBlank(nestedInfo.getTypesettingId())
+                    && nestedInfo.getTypesettingId().endsWith("-Mirror"));
+            collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, nestedMirrorBranch);
 
-            // 保留 mirror 特殊处理：普通印版若存在镜像印版，也需要继续统计其 cells 中的零件用量
-            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().contains("-Mirror")) {
+            // 需要查看对应 -Mirror 印版，但其 productionPiece 用量不参与扣减统计
+            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().endsWith("-Mirror")) {
                 TypesettingInfo mirrorNestedInfo = domainTypesettingService
                         .findTypesettingByTypesettingId(nestedInfo.getTypesettingId() + "-Mirror");
                 if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
-                    collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
+                    collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, true);
                 }
             }
         }
