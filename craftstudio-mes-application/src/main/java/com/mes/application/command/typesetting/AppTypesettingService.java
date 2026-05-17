@@ -1387,6 +1387,7 @@ public class AppTypesettingService {
         }
 
         ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+        transferInProgressToPendingPrint(typesettingInfo);
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
         typesettingInfo.setRemark(formeOpRemark);
         typesettingInfo.setDeviceCode(request.getDeviceCode());
@@ -1401,6 +1402,68 @@ public class AppTypesettingService {
         result.setSuccess(true);
         result.setMessage("确认打印任务已提交，等待回调");
         return result;
+    }
+
+    private void transferInProgressToPendingPrint(TypesettingInfo rootTypesettingInfo) {
+        Map<String, Integer> pieceQuantityMap = new LinkedHashMap<>();
+        collectPieceQuantityFromTypesettingCells(rootTypesettingInfo, 1, pieceQuantityMap, new HashSet<>());
+        if (pieceQuantityMap.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Integer> entry : pieceQuantityMap.entrySet()) {
+            String productionPieceRecordId = entry.getKey();
+            Integer quantity = entry.getValue();
+            if (StringUtils.isBlank(productionPieceRecordId) || quantity == null || quantity <= 0) {
+                continue;
+            }
+            ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
+            if (piece == null || StringUtils.isBlank(piece.getId())) {
+                throw new RuntimeException("生产工件不存在: " + productionPieceRecordId);
+            }
+            productionPieceService.transferPieceQuantityBetweenNodes(
+                    piece.getId(),
+                    "NODE_TYPESETTING_IN_PROGRESS",
+                    "NODE_PRINTING",
+                    quantity
+            );
+        }
+    }
+
+    private void collectPieceQuantityFromTypesettingCells(TypesettingInfo typesettingInfo,
+                                                           int parentMultiplier,
+                                                           Map<String, Integer> pieceQuantityMap,
+                                                           Set<String> visitingTypesettingIds) {
+        if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
+            return;
+        }
+        String currentId = typesettingInfo.getId();
+        if (StringUtils.isNotBlank(currentId) && !visitingTypesettingIds.add(currentId)) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            int cellQuantity = (cell.getQuantity() == null || cell.getQuantity() <= 0) ? 1 : cell.getQuantity();
+            int totalQuantity = parentMultiplier * cellQuantity;
+            if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                pieceQuantityMap.merge(cell.getSourceId(), totalQuantity, Integer::sum);
+                continue;
+            }
+            if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
+                    && !"typesetting".equalsIgnoreCase(cell.getSourceType())
+                    && !"印版".equals(cell.getSourceType())) {
+                continue;
+            }
+            TypesettingInfo nestedInfo = domainTypesettingService.findById(cell.getSourceId());
+            if (nestedInfo == null) {
+                continue;
+            }
+            collectPieceQuantityFromTypesettingCells(nestedInfo, totalQuantity, pieceQuantityMap, visitingTypesettingIds);
+        }
+        if (StringUtils.isNotBlank(currentId)) {
+            visitingTypesettingIds.remove(currentId);
+        }
     }
 
     private void validateConfirmPrintForSpecialProcedure(TypesettingInfo typesettingInfo) {
