@@ -490,6 +490,11 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
         if (typesettingCells == null) {
             typesettingCells = new ArrayList<>();
+        } else {
+            typesettingCells = typesettingCells.stream()
+                    .filter(cell -> !Integer.valueOf(0).equals(cell.getQuantity()))
+                    .collect(Collectors.toList());
+            request.setTypesettingCells(typesettingCells);
         }
         for (TypesettingProductionPieceVO cell : typesettingCells) {
             if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
