@@ -1511,6 +1511,7 @@ public class AppTypesettingService {
             if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
                 log.info("开始进行打印印版回调参数,{}", JSON.toJSONString(typesettingInfo));
                 String deviceCode = remark.substring("FORME_OP:PRINT:".length());
+                boolean repeatedPrintCallback = TypesettingStatus.PRINTING.getCode().equals(typesettingInfo.getStatus());
                 typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
                 typesettingInfo.setDeviceCode(deviceCode);
                 typesettingInfo.setLeaveQuantity(1);
@@ -1521,7 +1522,7 @@ public class AppTypesettingService {
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror")) {
+                if (!repeatedPrintCallback && (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror"))) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
