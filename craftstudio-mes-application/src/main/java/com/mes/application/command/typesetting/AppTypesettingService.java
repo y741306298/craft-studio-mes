@@ -495,6 +495,9 @@ public class AppTypesettingService {
             if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
                 continue;
             }
+            if (Integer.valueOf(0).equals(cell.getQuantity())) {
+                continue;
+            }
             if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                 ProductionPiece productionPiece = cell.toProductionPiece();
                 ProductionPiece dbPiece = productionPieceService.findById(productionPiece.getId());
