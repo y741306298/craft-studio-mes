@@ -1603,16 +1603,11 @@ public class AppTypesettingService {
             if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 continue;
             }
-            TypesettingInfo nestedById = domainTypesettingService.findById(cell.getSourceId());
-            List<TypesettingInfo> nestedTypesettingInfos = nestedById == null
-                    ? Collections.emptyList()
-                    : Collections.singletonList(nestedById);
-            for (TypesettingInfo nestedInfo : nestedTypesettingInfos) {
-                if (nestedInfo.getTypesettingId() == null || !nestedInfo.getTypesettingId().contains("-Mirror")) {
-                    continue;
-                }
-                collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
+            TypesettingInfo nestedInfo = domainTypesettingService.findById(cell.getSourceId());
+            if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
+                continue;
             }
+            collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage);
         }
         visitedTypesettingKeys.remove(currentKey);
     }
