@@ -18,7 +18,6 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,9 +27,10 @@ import java.util.regex.Pattern;
 public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
 
     private static final String NODE_NAME = "四角打扣";
-    private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
+    private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/point.png";
     private static final BigDecimal MARK_SIZE = BigDecimal.valueOf(0.8D);
     private static final int EDGE_OFFSET_MM = 25;
+    private static final double EPSILON = 1e-6;
     private static final Pattern PATH_NUMBER_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");
 
     private final RestTemplate restTemplate;
@@ -62,12 +62,12 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
                 log.info("四角打扣策略未命中path: typesettingId={}, sourceId={}", typesettingInfo.getTypesettingId(), cell.getSourceId());
                 continue;
             }
-            Rect rect = parseRectangle(pathD);
+            RotatedRect rect = parseRectangle(pathD);
             if (rect == null || rect.width < EDGE_OFFSET_MM * 2 || rect.height < EDGE_OFFSET_MM * 2) {
                 log.info("四角打扣策略跳过非矩形或尺寸不足: typesettingId={}, sourceId={}", typesettingInfo.getTypesettingId(), cell.getSourceId());
                 continue;
             }
-            marks.addAll(buildCornerMarks(rect));
+            marks.addAll(buildCornerMarks(rect, typesettingInfo));
         }
         log.info("四角打扣策略执行完成: typesettingId={}, productionCellCount={}, addMarkCount={}",
                 typesettingInfo.getTypesettingId(), productionCellCount, marks.size() - beforeCount);
@@ -136,7 +136,7 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
         return null;
     }
 
-    private Rect parseRectangle(String pathD) {
+    private RotatedRect parseRectangle(String pathD) {
         if (StringUtils.isBlank(pathD)) {
             return null;
         }
@@ -149,39 +149,58 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
         if (values.size() != 8) {
             return null;
         }
-        double x1 = values.get(0);
-        double y1 = values.get(1);
-        double x2 = values.get(2);
-        double y2 = values.get(3);
-        double x3 = values.get(4);
-        double y3 = values.get(5);
-        double x4 = values.get(6);
-        double y4 = values.get(7);
-
-        if (Double.isNaN(x1 + y1 + x2 + y2 + x3 + y3 + x4 + y4)) {
+        Point p1 = new Point(values.get(0), values.get(1));
+        Point p2 = new Point(values.get(2), values.get(3));
+        Point p3 = new Point(values.get(4), values.get(5));
+        Point p4 = new Point(values.get(6), values.get(7));
+        if (!isValidNumber(p1.x + p1.y + p2.x + p2.y + p3.x + p3.y + p4.x + p4.y)) {
             return null;
         }
-        double minX = Math.min(Math.min(x1, x2), Math.min(x3, x4));
-        double maxX = Math.max(Math.max(x1, x2), Math.max(x3, x4));
-        double minY = Math.min(Math.min(y1, y2), Math.min(y3, y4));
-        double maxY = Math.max(Math.max(y1, y2), Math.max(y3, y4));
-        if (Math.abs((maxX - minX) * (maxY - minY)) < 1e-6) {
+        double w1 = distance(p1, p2);
+        double h1 = distance(p2, p3);
+        double w2 = distance(p3, p4);
+        double h2 = distance(p4, p1);
+        if (w1 < EPSILON || h1 < EPSILON || w2 < EPSILON || h2 < EPSILON) {
             return null;
         }
-        List<String> pts = Arrays.asList(minX + "," + minY, minX + "," + maxY, maxX + "," + minY, maxX + "," + maxY);
-        if (!pts.contains(x1 + "," + y1) || !pts.contains(x2 + "," + y2) || !pts.contains(x3 + "," + y3) || !pts.contains(x4 + "," + y4)) {
+        // 对边长度要近似相等，且相邻边近似垂直
+        if (Math.abs(w1 - w2) > 1e-3 || Math.abs(h1 - h2) > 1e-3) {
             return null;
         }
-        return new Rect((int) Math.round(minX), (int) Math.round(minY), (int) Math.round(maxX - minX), (int) Math.round(maxY - minY));
+        Point v12 = vector(p1, p2);
+        Point v23 = vector(p2, p3);
+        if (Math.abs(dot(v12, v23)) > 1e-3 * (length(v12) * length(v23))) {
+            return null;
+        }
+        return new RotatedRect(new Point[]{p1, p2, p3, p4}, w1, h1);
     }
 
-    private List<FormeGenerationRequest.Mark> buildCornerMarks(Rect rect) {
-        return Arrays.asList(
-                createMark(rect.x + EDGE_OFFSET_MM, rect.y + EDGE_OFFSET_MM),
-                createMark(rect.x + rect.width - EDGE_OFFSET_MM, rect.y + EDGE_OFFSET_MM),
-                createMark(rect.x + EDGE_OFFSET_MM, rect.y + rect.height - EDGE_OFFSET_MM),
-                createMark(rect.x + rect.width - EDGE_OFFSET_MM, rect.y + rect.height - EDGE_OFFSET_MM)
-        );
+    private List<FormeGenerationRequest.Mark> buildCornerMarks(RotatedRect rect, TypesettingInfo typesettingInfo) {
+        List<FormeGenerationRequest.Mark> result = new ArrayList<>();
+        Point[] points = rect.points;
+        for (int i = 0; i < points.length; i++) {
+            Point current = points[i];
+            Point prev = points[(i - 1 + points.length) % points.length];
+            Point next = points[(i + 1) % points.length];
+            Point inwardA = normalize(vector(current, prev));
+            Point inwardB = normalize(vector(current, next));
+            Point markPoint = new Point(
+                    current.x + inwardA.x * EDGE_OFFSET_MM + inwardB.x * EDGE_OFFSET_MM,
+                    current.y + inwardA.y * EDGE_OFFSET_MM + inwardB.y * EDGE_OFFSET_MM
+            );
+            int x = (int) Math.round(markPoint.x);
+            int y = convertSvgYToFormeY(markPoint.y, typesettingInfo);
+            result.add(createMark(x, y));
+        }
+        return result;
+    }
+
+    private int convertSvgYToFormeY(double svgY, TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || typesettingInfo.getElement() == null || typesettingInfo.getElement().getHeight() == null) {
+            return (int) Math.round(svgY);
+        }
+        double nestedHeight = typesettingInfo.getElement().getHeight().doubleValue();
+        return (int) Math.round(nestedHeight - svgY);
     }
 
     private FormeGenerationRequest.Mark createMark(int x, int y) {
@@ -235,17 +254,53 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
         return values;
     }
 
-    private static class Rect {
-        final int x;
-        final int y;
-        final int width;
-        final int height;
+    private boolean isValidNumber(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
+    }
 
-        private Rect(int x, int y, int width, int height) {
-            this.x = x;
-            this.y = y;
+    private double distance(Point p1, Point p2) {
+        return length(vector(p1, p2));
+    }
+
+    private Point vector(Point from, Point to) {
+        return new Point(to.x - from.x, to.y - from.y);
+    }
+
+    private double length(Point vector) {
+        return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+    }
+
+    private Point normalize(Point vector) {
+        double len = length(vector);
+        if (len < EPSILON) {
+            return new Point(0, 0);
+        }
+        return new Point(vector.x / len, vector.y / len);
+    }
+
+    private double dot(Point a, Point b) {
+        return a.x * b.x + a.y * b.y;
+    }
+
+    private static class RotatedRect {
+        final Point[] points;
+        final double width;
+        final double height;
+
+        private RotatedRect(Point[] points, double width, double height) {
+            this.points = points;
             this.width = width;
             this.height = height;
+        }
+    }
+
+    private static class Point {
+        final double x;
+        final double y;
+
+        private Point(double x, double y) {
+            this.x = x;
+            this.y = y;
         }
     }
 }
