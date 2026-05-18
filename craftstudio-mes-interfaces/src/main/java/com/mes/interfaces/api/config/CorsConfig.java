@@ -27,6 +27,12 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(manufacturerSideAuthInterceptor)
-                .addPathPatterns("/api/manufacturerSide/**");
+                .addPathPatterns("/api/manufacturerSide/**")
+                .excludePathPatterns(
+                        "/api/manufacturerSide/order/add",
+                        "/api/manufacturerSide/deliveryPkg/pkgDetail",
+                        "/api/manufacturerSide/**/callback/**",
+                        "/api/manufacturerSide/deviceCfg/factory/task/claim"
+                );
     }
 }

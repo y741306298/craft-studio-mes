@@ -310,7 +310,7 @@ public class ManufacturerMtsProductCfgController {
             HttpServletRequest request,
             @RequestBody(required = false) byte[] body) {
 
-        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/product/mts/searchConfiguredMTSProduct", productCoreUrl));
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/changeMTSProductSpecConfigState", productCoreUrl));
 
         HashMap<String, Object> paramMap = new HashMap<>();
         ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
