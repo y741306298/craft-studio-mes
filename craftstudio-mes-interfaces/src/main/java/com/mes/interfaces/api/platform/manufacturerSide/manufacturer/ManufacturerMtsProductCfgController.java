@@ -299,4 +299,28 @@ public class ManufacturerMtsProductCfgController {
         return responseEntity;
     }
 
+    /**
+     * 【已配置】成品商品规格-修改上架状态
+     *
+     * Path: /api/internal/mes/product/mts/searchConfiguredMTSProduct
+     * Method: POST
+     */
+    @PostMapping("/updateConfiguredMTSProductSpecState")
+    public ResponseEntity<byte[]> updateConfiguredMTSProductSpecState(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/product/mts/searchConfiguredMTSProduct", productCoreUrl));
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
+
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
 }
