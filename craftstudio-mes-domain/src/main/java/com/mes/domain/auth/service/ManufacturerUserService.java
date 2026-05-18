@@ -69,4 +69,44 @@ public class ManufacturerUserService {
         user.setPassword(password);
         manufacturerUserRepository.update(user);
     }
+
+    /**
+     * 更新用户信息（只更新非null字段）
+     * @param id 用户ID
+     * @param name 用户名称
+     * @param phone 手机号
+     * @param isAdmin 是否管理员
+     */
+    public void updateUser(String id, String name, String phone, Boolean isAdmin) {
+        if (StringUtils.isBlank(id)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "用户ID不能为空");
+        }
+        
+        ManufacturerUser user = manufacturerUserRepository.findById(id);
+        if (user == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "用户不存在");
+        }
+        
+        // 只更新非null的字段
+        boolean hasUpdate = false;
+        
+        if (name != null) {
+            user.setName(name);
+            hasUpdate = true;
+        }
+        
+        if (phone != null) {
+            user.setPhone(phone);
+            hasUpdate = true;
+        }
+        
+        if (isAdmin != null) {
+            user.setIsAdmin(isAdmin);
+            hasUpdate = true;
+        }
+        
+        if (hasUpdate) {
+            manufacturerUserRepository.update(user);
+        }
+    }
 }

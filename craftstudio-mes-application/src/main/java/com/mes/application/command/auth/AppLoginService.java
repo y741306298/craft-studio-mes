@@ -1,9 +1,6 @@
 package com.mes.application.command.auth;
 
-import com.mes.application.dto.req.auth.AddUserRequest;
-import com.mes.application.dto.req.auth.DeleteUserRequest;
-import com.mes.application.dto.req.auth.LoginRequest;
-import com.mes.application.dto.req.auth.UpdateUserPasswordRequest;
+import com.mes.application.dto.req.auth.*;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.application.command.manufacturerMeta.AppManufacturerMetaService;
 import com.mes.domain.auth.entity.ManufacturerUser;
@@ -96,6 +93,19 @@ public class AppLoginService {
 
     public void updateUserPassword(UpdateUserPasswordRequest request) {
         manufacturerUserService.updatePassword(request.getId(), request.getPassword());
+    }
+
+    /**
+     * 更新用户信息
+     * @param request 更新用户请求
+     */
+    public void updateUser(UpdateUserRequest request) {
+        manufacturerUserService.updateUser(
+            request.getId(),
+            request.getName(),
+            request.getPhone(),
+            request.getIsAdmin()
+        );
     }
 
     private String generateToken() {
