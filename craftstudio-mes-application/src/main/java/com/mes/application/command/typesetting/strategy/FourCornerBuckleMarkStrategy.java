@@ -67,7 +67,7 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
                 log.info("四角打扣策略跳过非矩形或尺寸不足: typesettingId={}, sourceId={}", typesettingInfo.getTypesettingId(), cell.getSourceId());
                 continue;
             }
-            marks.addAll(buildCornerMarks(rect, typesettingInfo));
+            marks.addAll(buildCornerMarks(rect, typesettingInfo, formeRequest));
         }
         log.info("四角打扣策略执行完成: typesettingId={}, productionCellCount={}, addMarkCount={}",
                 typesettingInfo.getTypesettingId(), productionCellCount, marks.size() - beforeCount);
@@ -175,7 +175,7 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
         return new RotatedRect(new Point[]{p1, p2, p3, p4}, w1, h1);
     }
 
-    private List<FormeGenerationRequest.Mark> buildCornerMarks(RotatedRect rect, TypesettingInfo typesettingInfo) {
+    private List<FormeGenerationRequest.Mark> buildCornerMarks(RotatedRect rect, TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
         List<FormeGenerationRequest.Mark> result = new ArrayList<>();
         Point[] points = rect.points;
         for (int i = 0; i < points.length; i++) {
@@ -188,19 +188,40 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
                     current.x + inwardA.x * EDGE_OFFSET_MM + inwardB.x * EDGE_OFFSET_MM,
                     current.y + inwardA.y * EDGE_OFFSET_MM + inwardB.y * EDGE_OFFSET_MM
             );
-            int x = (int) Math.round(markPoint.x);
-            int y = convertSvgYToFormeY(markPoint.y, typesettingInfo);
+            int x = convertSvgXToFormeX(markPoint.x, formeRequest);
+            int y = convertSvgYToFormeY(markPoint.y, typesettingInfo, formeRequest);
             result.add(createMark(x, y));
         }
         return result;
     }
 
-    private int convertSvgYToFormeY(double svgY, TypesettingInfo typesettingInfo) {
+    private int convertSvgXToFormeX(double svgX, FormeGenerationRequest formeRequest) {
+        int leftMargin = 0;
+        if (formeRequest != null && formeRequest.getForme() != null && formeRequest.getForme().getMargin() != null
+                && formeRequest.getForme().getMargin().getLeft() != null) {
+            leftMargin = formeRequest.getForme().getMargin().getLeft();
+        }
+        return (int) Math.round(svgX + leftMargin);
+    }
+
+    private int convertSvgYToFormeY(double svgY, TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
         if (typesettingInfo == null || typesettingInfo.getElement() == null || typesettingInfo.getElement().getHeight() == null) {
             return (int) Math.round(svgY);
         }
         double nestedHeight = typesettingInfo.getElement().getHeight().doubleValue();
-        return (int) Math.round(nestedHeight - svgY);
+        int topMargin = 0;
+        int bottomMargin = 0;
+        if (formeRequest != null && formeRequest.getForme() != null && formeRequest.getForme().getMargin() != null) {
+            if (formeRequest.getForme().getMargin().getTop() != null) {
+                topMargin = formeRequest.getForme().getMargin().getTop();
+            }
+            if (formeRequest.getForme().getMargin().getBottom() != null) {
+                bottomMargin = formeRequest.getForme().getMargin().getBottom();
+            }
+        }
+        double canvasHeight = nestedHeight + topMargin + bottomMargin;
+        double svgYInCanvas = topMargin + svgY;
+        return (int) Math.round(canvasHeight - svgYInCanvas);
     }
 
     private FormeGenerationRequest.Mark createMark(int x, int y) {
