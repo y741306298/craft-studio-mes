@@ -18,6 +18,7 @@ import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuild
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
+import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -136,6 +137,8 @@ public class AppTypesettingService {
     private NestingManifestStrategy nestingManifestStrategy;
     @Autowired(required = false)
     private List<MirrorFormeStrategy> mirrorFormeStrategies;
+    @Autowired(required = false)
+    private List<SpecialCraftMarkStrategy> specialCraftMarkStrategies;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -810,6 +813,8 @@ public class AppTypesettingService {
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
+        applySpecialCraftMarkStrategies(typesettingInfo, request);
+
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         UploadConfig uploadConfig = new UploadConfig();
@@ -825,6 +830,20 @@ public class AppTypesettingService {
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         request.setCallbackConfig(callbackConfig);
         return request;
+    }
+
+
+
+    private void applySpecialCraftMarkStrategies(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
+        if (specialCraftMarkStrategies == null || specialCraftMarkStrategies.isEmpty()) {
+            return;
+        }
+        for (SpecialCraftMarkStrategy strategy : specialCraftMarkStrategies) {
+            if (strategy == null) {
+                continue;
+            }
+            strategy.apply(typesettingInfo, formeRequest);
+        }
     }
 
 
