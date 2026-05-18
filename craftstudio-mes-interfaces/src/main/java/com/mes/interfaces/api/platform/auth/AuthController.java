@@ -5,6 +5,7 @@ import com.mes.application.dto.req.auth.AddUserRequest;
 import com.mes.application.dto.req.auth.DeleteUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.req.auth.UpdateUserPasswordRequest;
+import com.mes.application.dto.req.auth.UpdateUserRequest;
 import com.mes.application.dto.req.auth.UserListRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.auth.LoginResponse;
@@ -127,6 +128,37 @@ public class AuthController {
     @PostMapping("/user/password/update")
     public ApiResponse<String> updateUserPassword(@Valid @RequestBody UpdateUserPasswordRequest request) {
         appLoginService.updateUserPassword(request);
+        return ApiResponse.success("success");
+    }
+
+    /**
+     * 更新用户信息接口文档
+     * <p>
+     * URL: {@code POST /api/auth/user/update}
+     * </p>
+     * <p>
+     * 请求体字段：
+     * <ul>
+     *     <li>userId: 用户ID（必填）</li>
+     *     <li>name: 用户名称（可选，为null则不更新）</li>
+     *     <li>phone: 用户手机号（可选，为null则不更新）</li>
+     *     <li>isAdmin: 是否管理员（可选，为null则不更新）</li>
+     * </ul>
+     * 返回字段：
+     * <ul>
+     *     <li>data: success</li>
+     * </ul>
+     * </p>
+     * <p>
+     * 说明：只会更新请求中不为null的字段
+     * </p>
+     *
+     * @param request 更新用户参数
+     * @return 操作结果
+     */
+    @PostMapping("/user/update")
+    public ApiResponse<String> updateUser(@Valid @RequestBody UpdateUserRequest request) {
+        appLoginService.updateUser(request);
         return ApiResponse.success("success");
     }
 }
