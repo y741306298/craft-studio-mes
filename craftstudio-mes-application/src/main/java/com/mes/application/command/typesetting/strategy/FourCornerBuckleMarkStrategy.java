@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -29,6 +31,7 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
     private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/square.svg";
     private static final BigDecimal MARK_SIZE = BigDecimal.valueOf(0.8D);
     private static final int EDGE_OFFSET_MM = 25;
+    private static final Pattern PATH_NUMBER_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");
 
     private final RestTemplate restTemplate;
 
@@ -49,18 +52,25 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
             return;
         }
         List<FormeGenerationRequest.Mark> marks = ensureMarkList(formeRequest);
+        int beforeCount = marks.size();
+        int productionCellCount = 0;
 
         for (TypesettingSourceCell cell : filterProductionPieceCells(typesettingInfo.getTypesettingCells())) {
+            productionCellCount++;
             String pathD = findPathDById(svgContent, cell.getSourceId());
             if (StringUtils.isBlank(pathD)) {
+                log.info("四角打扣策略未命中path: typesettingId={}, sourceId={}", typesettingInfo.getTypesettingId(), cell.getSourceId());
                 continue;
             }
             Rect rect = parseRectangle(pathD);
             if (rect == null || rect.width < EDGE_OFFSET_MM * 2 || rect.height < EDGE_OFFSET_MM * 2) {
+                log.info("四角打扣策略跳过非矩形或尺寸不足: typesettingId={}, sourceId={}", typesettingInfo.getTypesettingId(), cell.getSourceId());
                 continue;
             }
             marks.addAll(buildCornerMarks(rect));
         }
+        log.info("四角打扣策略执行完成: typesettingId={}, productionCellCount={}, addMarkCount={}",
+                typesettingInfo.getTypesettingId(), productionCellCount, marks.size() - beforeCount);
     }
 
     private boolean containsNode(TypesettingInfo typesettingInfo) {
@@ -93,11 +103,31 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(svgContent.getBytes(StandardCharsets.UTF_8)));
+
+            // 1) 先按 path 本身的标识匹配
             NodeList pathNodes = document.getElementsByTagName("path");
             for (int i = 0; i < pathNodes.getLength(); i++) {
                 Element path = (Element) pathNodes.item(i);
-                if (id.equals(path.getAttribute("id"))) {
+                if (id.equals(path.getAttribute("id"))
+                        || id.equals(path.getAttribute("data-id"))
+                        || id.equals(path.getAttribute("data-source-id"))) {
                     return path.getAttribute("d");
+                }
+            }
+
+            // 2) 兼容示例：id 在 g 上，path 无 id
+            NodeList groupNodes = document.getElementsByTagName("g");
+            for (int i = 0; i < groupNodes.getLength(); i++) {
+                Element group = (Element) groupNodes.item(i);
+                if (!(id.equals(group.getAttribute("id"))
+                        || id.equals(group.getAttribute("data-id"))
+                        || id.equals(group.getAttribute("data-source-id")))) {
+                    continue;
+                }
+                NodeList children = group.getElementsByTagName("path");
+                if (children.getLength() > 0) {
+                    Element firstPath = (Element) children.item(0);
+                    return firstPath.getAttribute("d");
                 }
             }
         } catch (Exception e) {
@@ -107,21 +137,26 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
     }
 
     private Rect parseRectangle(String pathD) {
-        String normalized = pathD.replaceAll(",", " ").trim();
-        String[] tokens = normalized.split("\\s+");
-        if (tokens.length != 13 || !("M".equalsIgnoreCase(tokens[0]) && "L".equalsIgnoreCase(tokens[3])
-                && "L".equalsIgnoreCase(tokens[6]) && "L".equalsIgnoreCase(tokens[9])
-                && "Z".equalsIgnoreCase(tokens[12]))) {
+        if (StringUtils.isBlank(pathD)) {
             return null;
         }
-        double x1 = parseDouble(tokens[1]);
-        double y1 = parseDouble(tokens[2]);
-        double x2 = parseDouble(tokens[4]);
-        double y2 = parseDouble(tokens[5]);
-        double x3 = parseDouble(tokens[7]);
-        double y3 = parseDouble(tokens[8]);
-        double x4 = parseDouble(tokens[10]);
-        double y4 = parseDouble(tokens[11]);
+        String normalized = pathD.replace(',', ' ').trim();
+        String commandOnly = normalized.replaceAll("[^A-Za-z]", "").toUpperCase();
+        if (!"MLLLZ".equals(commandOnly)) {
+            return null;
+        }
+        List<Double> values = extractNumbers(normalized);
+        if (values.size() != 8) {
+            return null;
+        }
+        double x1 = values.get(0);
+        double y1 = values.get(1);
+        double x2 = values.get(2);
+        double y2 = values.get(3);
+        double x3 = values.get(4);
+        double y3 = values.get(5);
+        double x4 = values.get(6);
+        double y4 = values.get(7);
 
         if (Double.isNaN(x1 + y1 + x2 + y2 + x3 + y3 + x4 + y4)) {
             return null;
@@ -189,6 +224,15 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
         } catch (Exception ignored) {
             return Double.NaN;
         }
+    }
+
+    private List<Double> extractNumbers(String pathD) {
+        List<Double> values = new ArrayList<>();
+        Matcher matcher = PATH_NUMBER_PATTERN.matcher(pathD);
+        while (matcher.find()) {
+            values.add(parseDouble(matcher.group()));
+        }
+        return values;
     }
 
     private static class Rect {

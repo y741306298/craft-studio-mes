@@ -814,6 +814,7 @@ public class AppTypesettingService {
         request.setOutputs(modeResult.getOutputs());
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
+        mergeFormeMarkResources(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
@@ -843,6 +844,31 @@ public class AppTypesettingService {
                 continue;
             }
             strategy.apply(typesettingInfo, formeRequest);
+        }
+    }
+
+    private void mergeFormeMarkResources(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
+        if (typesettingInfo == null || formeRequest == null || formeRequest.getForme() == null
+                || formeRequest.getForme().getMarks() == null || formeRequest.getForme().getMarks().isEmpty()) {
+            return;
+        }
+        LinkedHashMap<String, String> markMap = new LinkedHashMap<>();
+        if (typesettingInfo.getMarks() != null && !typesettingInfo.getMarks().isEmpty()) {
+            markMap.putAll(typesettingInfo.getMarks());
+        }
+        LinkedHashSet<String> existingValues = new LinkedHashSet<>(markMap.values());
+        int index = markMap.size();
+        for (FormeGenerationRequest.Mark mark : formeRequest.getForme().getMarks()) {
+            if (mark == null || StringUtils.isBlank(mark.getImg())) {
+                continue;
+            }
+            if (existingValues.add(mark.getImg())) {
+                markMap.put("formeMarkImg_" + index, mark.getImg());
+                index++;
+            }
+        }
+        if (!markMap.isEmpty()) {
+            typesettingInfo.setMarks(markMap);
         }
     }
 
