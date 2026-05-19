@@ -27,6 +27,7 @@ import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -366,7 +367,9 @@ public class AppDeliveryPkgService {
         DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
 
         if (isCustomPresetType) {
+            java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
             for (ProductionPiece productionPiece : selectedPieces) {
+                touchedOrderItemIds.add(productionPiece.getOrderItemId());
                 List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
                 ProcedureFlowNode pendingPackingNode = null;
                 ProcedureFlowNode packedNode = null;
@@ -405,6 +408,7 @@ public class AppDeliveryPkgService {
                     productionPieceService.updateProductionPiece(productionPiece);
                 }
             }
+            refreshPackagingCompletionStatus(touchedOrderItemIds);
             return deliveryPkg;
         }
 
@@ -428,8 +432,80 @@ public class AppDeliveryPkgService {
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
+            java.util.Set<String> touchedOrderItemIds = selectedPieces.stream()
+                    .map(ProductionPiece::getOrderItemId)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toSet());
+            refreshPackagingCompletionStatus(touchedOrderItemIds);
         }
         return deliveryPkg;
+    }
+
+
+    private void refreshPackagingCompletionStatus(java.util.Set<String> touchedOrderItemIds) {
+        if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
+            return;
+        }
+        for (String orderItemId : touchedOrderItemIds) {
+            if (StringUtils.isBlank(orderItemId)) {
+                continue;
+            }
+            List<ProductionPiece> orderItemPieces = new ArrayList<>();
+            int current = 1;
+            while (true) {
+                List<ProductionPiece> page = productionPieceService.findProductionPiecesByOrderItemId(orderItemId, current, 100);
+                if (page == null || page.isEmpty()) {
+                    break;
+                }
+                orderItemPieces.addAll(page);
+                if (page.size() < 100) {
+                    break;
+                }
+                current++;
+            }
+
+            boolean allPacked = !orderItemPieces.isEmpty() && orderItemPieces.stream()
+                    .allMatch(this::isPieceFullyPacked);
+            if (!allPacked) {
+                continue;
+            }
+
+            for (ProductionPiece piece : orderItemPieces) {
+                if (!"已完成".equals(piece.getStatus())) {
+                    piece.setStatus("已完成");
+                    productionPieceService.updateProductionPiece(piece);
+                }
+            }
+
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            if (orderItem != null && orderItem.getStatus() != OrderStatus.PACKAGED) {
+                orderItem.setStatus(OrderStatus.PACKAGED);
+                orderItemService.updateOrderItem(orderItem);
+            }
+
+            String orderId = orderItem != null ? orderItem.getOrderId() : null;
+            if (StringUtils.isBlank(orderId)) {
+                continue;
+            }
+
+            Map<String, Object> filters = new HashMap<>();
+            filters.put("orderId", orderId);
+            List<OrderItem> orderItems = orderItemService.filterList(1, 100, filters);
+            boolean allOrderItemsPacked = orderItems != null && !orderItems.isEmpty()
+                    && orderItems.stream().allMatch(item -> item.getStatus() == OrderStatus.PACKAGED);
+            if (allOrderItemsPacked) {
+                orderItem.setStatus(OrderStatus.PACKAGED);
+                orderItemService.updateOrderItem(orderItem);
+            }
+        }
+    }
+
+    private boolean isPieceFullyPacked(ProductionPiece piece) {
+        if (piece == null || piece.getQuantity() == null || piece.getQuantity() <= 0) {
+            return false;
+        }
+        int packedQty = getNodeQuantity(piece, NODE_ID_PACKED, NODE_NAME_PACKED);
+        return packedQty == piece.getQuantity();
     }
 
 
