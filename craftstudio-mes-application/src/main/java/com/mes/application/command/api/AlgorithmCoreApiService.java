@@ -226,7 +226,7 @@ public class AlgorithmCoreApiService {
         return callAlgorithmAsync("http://test-crsvg-nest-ovqpvihcgo.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
-    
+
     /**
      * 排版算法 - 同步模式
      * 将多个零件SVG进行智能排版，生成优化的排版方案
