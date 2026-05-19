@@ -551,6 +551,8 @@ public class AppTypesettingService {
         if (!filmConsistencyResult.equals("PASS")) {
             return LayoutConfirmResult.failed(filmConsistencyResult);
         }
+        boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate)
+                || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
 
         ProcedureFlow commonProcedureFlow;
         try {
@@ -670,6 +672,7 @@ public class AppTypesettingService {
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
         typesettingInfo.setLeaveQuantity(1);
+        typesettingInfo.setHaveBlood(haveBlood);
         if (StringUtils.isNotBlank(request.getLayoutMode())) {
             typesettingInfo.setLayoutMode(request.getLayoutMode());
         } else if (!typesettingInfos.isEmpty()) {
@@ -1020,7 +1023,8 @@ public class AppTypesettingService {
                 .filter(Objects::nonNull)
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate)
+                || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
         boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
@@ -1077,7 +1081,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, false);
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, Boolean.TRUE.equals(info.getHaveBlood()));
                 elements.add(element);
             }
         }
@@ -1147,8 +1151,8 @@ public class AppTypesettingService {
 
     private void applyElementAlignAndSafeDistance(NestingRequest.Element element, boolean hasBloodPiece, boolean currentPieceHasBlood) {
         if (!hasBloodPiece) {
-            element.setAlign("left");
-            element.setSafeDistance(0.00D);
+            element.setAlign(null);
+            element.setSafeDistance(null);
             return;
         }
         if (currentPieceHasBlood) {
@@ -1254,15 +1258,6 @@ public class AppTypesettingService {
         piece.setWidth(piece.getHeight());
         piece.setHeight(originalWidth);
         return true;
-    }
-
-    private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
-        if (piece == null || piece.getBlood() == null) {
-            return false;
-        }
-        Integer bloodX = piece.getBlood().getX();
-        Integer bloodY = piece.getBlood().getY();
-        return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
     }
 
     private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
