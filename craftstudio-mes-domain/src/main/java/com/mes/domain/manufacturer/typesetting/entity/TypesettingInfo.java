@@ -85,6 +85,10 @@ public class TypesettingInfo extends BaseEntity {
      * 排版附加标记资源（例如 elementF / elementFRotated 的 OSS 地址）。
      */
     private Map<String, String> marks;
+    /**
+     * 是否包含满足 blood 条件（x==0 && y!=0）的零件。
+     */
+    private Boolean haveBlood;
 
     public void applyLayoutModeConfig() {
         TypesettingLayoutMode mode = TypesettingLayoutMode.fromCode(this.layoutMode);
