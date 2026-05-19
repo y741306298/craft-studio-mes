@@ -1030,9 +1030,8 @@ public class AppTypesettingService {
                 if (StringUtils.isBlank(piece.getTemplateCode())) {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
-                if (isVerticalTypesetting) {
-                    adjustVerticalTypesettingPieceImage(piece, request.getManufacturerMetaId(), maxContainerWidth);
-                }
+                //判断宽高，逆时针旋转90°，置换blood保证可以放下。
+                adjustVerticalTypesettingPieceImage(piece, request.getManufacturerMetaId(), maxContainerWidth);
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
                 if (StringUtils.isNotBlank(piece.getRouteSvg())) {
