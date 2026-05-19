@@ -42,6 +42,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String anchorPointShape;
     private String templateCode;
     private Map<String, String> marks;
+    private Boolean haveBlood;
     @Override
     public TypesettingInfo toDO() {
         TypesettingInfo typesettingInfo = new TypesettingInfo();
@@ -73,6 +74,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setAnchorPointShape(this.anchorPointShape);
         typesettingInfo.setTemplateCode(this.templateCode);
         typesettingInfo.setMarks(this.marks);
+        typesettingInfo.setHaveBlood(this.haveBlood);
         return typesettingInfo;
     }
 
@@ -103,6 +105,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.anchorPointShape = _do.getAnchorPointShape();
         this.templateCode = _do.getTemplateCode();
         this.marks = _do.getMarks();
+        this.haveBlood = _do.getHaveBlood();
         return this;
     }
 }
