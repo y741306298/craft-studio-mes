@@ -1035,7 +1035,9 @@ public class AppTypesettingService {
                 }
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
-                if (piece.getMaskImageFile() != null && piece.getMaskImageFile().getRawFile() != null) {
+                if (StringUtils.isNotBlank(piece.getRouteSvg())) {
+                    element.setSvg(piece.getRouteSvg());
+                } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
                     element.setSvg(piece.getMaskImageFile().getRawFile());
                 }
                 element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
@@ -1213,25 +1215,14 @@ public class AppTypesettingService {
         if (piece.getProductImageFile() != null && StringUtils.isNotBlank(piece.getProductImageFile().getRawFile())) {
             rotatedProductRawFile = rotate90CCWAndUploadForCaifuRaster(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedProductRawFile)) {
-                piece.getProductImageFile().setRawFile(rotatedProductRawFile);
                 piece.setRouteImg(rotatedProductRawFile);
-                piece.setRouteImg(rotatedProductRawFile);
-                if (piece.getProductImageFile().getFilePreview() != null) {
-                    piece.getProductImageFile().getFilePreview().setRaw(rotatedProductRawFile);
-                }
-                piece.setTemplateCode(rotatedProductRawFile);
             }
         }
 
         if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
             String rotatedMaskRawFile = rotate90CCWAndUploadForCaifuSvg(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
-                piece.getMaskImageFile().setRawFile(rotatedMaskRawFile);
                 piece.setRouteSvg(rotatedMaskRawFile);
-                piece.setRouteSvg(rotatedMaskRawFile);
-                if (piece.getMaskImageFile().getFilePreview() != null) {
-                    piece.getMaskImageFile().getFilePreview().setRaw(rotatedMaskRawFile);
-                }
             }
         }
         if (piece.getBlood() != null) {
@@ -2610,6 +2601,9 @@ public class AppTypesettingService {
     }
 
     private String resolvePieceNestingImg(ProductionPiece piece, boolean mirrorTypesettingTask) {
+        if (StringUtils.isNotBlank(piece.getRouteImg())) {
+            return piece.getRouteImg();
+        }
         if (!mirrorTypesettingTask) {
             return piece.getTemplateCode();
         }
