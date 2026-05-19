@@ -1020,8 +1020,8 @@ public class AppTypesettingService {
                 .filter(Objects::nonNull)
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::hasValidBlood);
-        Double maxContainerWidth = resolveMaxContainerWidth(request);
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
+        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -1031,8 +1031,8 @@ public class AppTypesettingService {
                 if (StringUtils.isBlank(piece.getTemplateCode())) {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
-                //判断宽高，逆时针旋转90°，置换blood保证可以放下。
-                adjustVerticalTypesettingPieceImage(piece, request.getManufacturerMetaId(), maxContainerWidth);
+                // 只要血位满足 x=0 且 y!=0，即执行逆时针旋转90°，并同步置换 blood 与宽高。
+                adjustPieceImageForBloodBasedRotation(piece, request.getManufacturerMetaId());
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
                 if (StringUtils.isNotBlank(piece.getRouteSvg())) {
@@ -1051,7 +1051,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, hasValidBlood(piece));
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, isBloodBasedRotationCandidate(piece));
                 elements.add(element);
             }
         }
@@ -1101,6 +1101,13 @@ public class AppTypesettingService {
             defaultContainer.setHeight(1000);
             containers.add(defaultContainer);
         }
+        if (hasBloodBasedRotationCandidate) {
+            for (NestingRequest.Container container : containers) {
+                if (container != null && container.getWidth() != null) {
+                    container.setWidth(container.getWidth() + 30);
+                }
+            }
+        }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
         manifest.setSpacing(layoutMode.getNestingSpacingMm());
@@ -1133,15 +1140,6 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
-    }
-
-    private boolean hasValidBlood(ProductionPiece piece) {
-        return piece != null
-                && piece.getBlood() != null
-                && piece.getBlood().getX() != null
-                && piece.getBlood().getY() != null
-                && piece.getBlood().getX() != 0
-                && piece.getBlood().getY() != 0;
     }
 
     private void applyElementAlignAndSafeDistance(NestingRequest.Element element, boolean hasBloodPiece, boolean currentPieceHasBlood) {
@@ -1213,26 +1211,16 @@ public class AppTypesettingService {
         element.setHMargin(30);
     }
 
-    private Double resolveMaxContainerWidth(LayoutConfirmRequest request) {
-        double maxContainerWidth = 1500D;
-        if (request != null && request.getContainers() != null) {
-            for (LayoutConfirmRequest.ContainerInfo containerInfo : request.getContainers()) {
-                if (containerInfo == null || containerInfo.getWidth() == null) {
-                    continue;
-                }
-                maxContainerWidth = Math.max(maxContainerWidth, containerInfo.getWidth().doubleValue());
-            }
-        }
-        return maxContainerWidth;
-    }
-
-    private void adjustVerticalTypesettingPieceImage(ProductionPiece piece, String manufacturerMetaId, Double maxContainerWidth) {
-        if (piece == null || piece.getWidth() == null || piece.getHeight() == null || maxContainerWidth == null) {
+    private void adjustPieceImageForBloodBasedRotation(ProductionPiece piece, String manufacturerMetaId) {
+        if (piece == null || piece.getWidth() == null || piece.getHeight() == null || piece.getBlood() == null) {
             return;
         }
-        double pieceWidth = piece.getWidth().doubleValue();
-        double pieceHeight = piece.getHeight().doubleValue();
-        boolean shouldRotate = pieceWidth > maxContainerWidth && pieceHeight < maxContainerWidth;
+        if (StringUtils.isNotBlank(piece.getRouteImg()) && StringUtils.isNotBlank(piece.getRouteSvg())) {
+            return;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        boolean shouldRotate = bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
         if (!shouldRotate) {
             return;
         }
@@ -1251,14 +1239,20 @@ public class AppTypesettingService {
                 piece.setRouteSvg(rotatedMaskRawFile);
             }
         }
-        if (piece.getBlood() != null) {
-            Integer bloodX = piece.getBlood().getX();
-            piece.getBlood().setX(piece.getBlood().getY());
-            piece.getBlood().setY(bloodX);
-        }
+        piece.getBlood().setX(bloodY);
+        piece.getBlood().setY(bloodX);
         Double originalWidth = piece.getWidth();
         piece.setWidth(piece.getHeight());
         piece.setHeight(originalWidth);
+    }
+
+    private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
+        if (piece == null || piece.getBlood() == null) {
+            return false;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
     }
 
     private String rotate90CCWAndUploadForCaifuRaster(String rawFile, String manufacturerMetaId, String authKey) {
