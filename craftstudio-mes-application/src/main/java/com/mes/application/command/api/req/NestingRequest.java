@@ -63,6 +63,14 @@ public class NestingRequest {
          * 横向边距
          */
         private Integer hMargin;
+        /**
+         * 算法侧对齐方式：left / right
+         */
+        private String align;
+        /**
+         * 安全距离
+         */
+        private Double safeDistance;
     }
 
 

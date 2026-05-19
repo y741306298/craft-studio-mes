@@ -1020,6 +1020,7 @@ public class AppTypesettingService {
                 .filter(Objects::nonNull)
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::hasValidBlood);
         Double maxContainerWidth = resolveMaxContainerWidth(request);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
@@ -1050,6 +1051,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, hasValidBlood(piece));
                 elements.add(element);
             }
         }
@@ -1072,6 +1074,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, false);
                 elements.add(element);
             }
         }
@@ -1130,6 +1133,30 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    private boolean hasValidBlood(ProductionPiece piece) {
+        return piece != null
+                && piece.getBlood() != null
+                && piece.getBlood().getX() != null
+                && piece.getBlood().getY() != null
+                && piece.getBlood().getX() != 0
+                && piece.getBlood().getY() != 0;
+    }
+
+    private void applyElementAlignAndSafeDistance(NestingRequest.Element element, boolean hasBloodPiece, boolean currentPieceHasBlood) {
+        if (!hasBloodPiece) {
+            element.setAlign("left");
+            element.setSafeDistance(0.00D);
+            return;
+        }
+        if (currentPieceHasBlood) {
+            element.setAlign("right");
+            element.setSafeDistance(0.00D);
+            return;
+        }
+        element.setAlign("left");
+        element.setSafeDistance(30.00D);
     }
 
     private void validateCellSizeAgainstContainers(LayoutConfirmRequest request,
