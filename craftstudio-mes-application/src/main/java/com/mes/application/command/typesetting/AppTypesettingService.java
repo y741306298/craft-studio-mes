@@ -551,7 +551,8 @@ public class AppTypesettingService {
         if (!filmConsistencyResult.equals("PASS")) {
             return LayoutConfirmResult.failed(filmConsistencyResult);
         }
-        boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate)
+        // 步骤备注1：聚合本次确认印版是否含血位特征（零件当前/历史 + 来源印版haveBlood）
+        boolean haveBlood = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
 
         ProcedureFlow commonProcedureFlow;
@@ -1023,9 +1024,11 @@ public class AppTypesettingService {
                 .filter(Objects::nonNull)
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate)
+        // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
-        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
+        // 步骤备注3：计算容器是否需要+30（当前或历史血位零件都触发）
+        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -1036,8 +1039,10 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
                 // 只要血位满足 x=0 且 y!=0，即执行逆时针旋转90°，并同步置换 blood 与宽高。
+                // 步骤备注4：按血位规则尝试旋转零件并更新route资源
                 boolean pieceChangedByRotation = adjustPieceImageForBloodBasedRotation(piece, request.getManufacturerMetaId());
                 if (pieceChangedByRotation) {
+                    // 步骤备注5：旋转后立刻持久化，避免route仅在内存生效
                     productionPieceService.updateProductionPiece(piece);
                 }
                 NestingRequest.Element element = new NestingRequest.Element();
@@ -1109,6 +1114,7 @@ public class AppTypesettingService {
             containers.add(defaultContainer);
         }
         if (hasBloodBasedRotationCandidate) {
+            // 步骤备注6：命中血位条件时，容器宽度统一增加30mm
             for (NestingRequest.Container container : containers) {
                 if (container != null && container.getWidth() != null) {
                     container.setWidth(container.getWidth() + 30);
@@ -1267,6 +1273,20 @@ public class AppTypesettingService {
         Integer bloodX = piece.getBlood().getX();
         Integer bloodY = piece.getBlood().getY();
         return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
+    }
+
+    /**
+     * 当前血位候选或历史血位候选：
+     * - 当前：blood.x == 0 && blood.y != 0
+     * - 历史：已存在 routeImg + routeSvg（表示已执行过血位旋转并持久化）
+     */
+    private boolean isCurrentOrHistoricalBloodPiece(ProductionPiece piece) {
+        if (isBloodBasedRotationCandidate(piece)) {
+            return true;
+        }
+        return piece != null
+                && StringUtils.isNotBlank(piece.getRouteImg())
+                && StringUtils.isNotBlank(piece.getRouteSvg());
     }
 
     private String rotate90CCWAndUploadForCaifuRaster(String rawFile, String manufacturerMetaId, String authKey) {
