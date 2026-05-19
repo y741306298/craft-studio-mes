@@ -14,6 +14,7 @@ import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ObjectMetadata;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
+import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -149,12 +150,16 @@ public class AppTypesettingService {
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
 
+    @Autowired(required = false)
+    private List<NestingRequestRuleService> nestingRequestRuleServices;
+
     /**
      * layoutMode -> builder 的运行时映射表。
      * 在容器初始化完成后由 initLayoutModeBuilders 填充。
      */
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeConfirmService> layoutModeConfirmServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, NestingRequestRuleService> nestingRequestRuleServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
@@ -181,6 +186,11 @@ public class AppTypesettingService {
         }
         for (TypesettingLayoutModeBuildService buildService : layoutModeBuildServices) {
             layoutModeBuildServiceMap.put(buildService.supportMode(), buildService);
+        }
+        if (nestingRequestRuleServices != null) {
+            for (NestingRequestRuleService ruleService : nestingRequestRuleServices) {
+                nestingRequestRuleServiceMap.put(ruleService.supportMode(), ruleService);
+            }
         }
         if (layoutModeConfirmServices == null) {
             return;
@@ -574,7 +584,7 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(validateProcedureResult);
         }
         try {
-            validateCellSizeAgainstContainers(request, productionPieces, typesettingInfos);
+            validateCellSizeAgainstContainers(request, productionPieces, typesettingInfos, TypesettingLayoutMode.fromCode(request.getLayoutMode()));
         } catch (IllegalArgumentException ex) {
             return LayoutConfirmResult.failed(ex.getMessage());
         }
@@ -1063,6 +1073,10 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
+                NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
+                if (nestingRequestRuleService != null) {
+                    nestingRequestRuleService.applyElementStyle(element, isCurrentOrHistoricalBloodPiece(piece));
+                }
                 applyElementAlignAndSafeDistance(element, hasBloodPiece, isBloodBasedRotationCandidate(piece));
                 elements.add(element);
             }
@@ -1085,6 +1099,10 @@ public class AppTypesettingService {
                     element.setVMargin(0);
                     element.setHGravity("left");
                     element.setHMargin(0);
+                }
+                NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
+                if (nestingRequestRuleService != null) {
+                    nestingRequestRuleService.applyElementStyle(element, Boolean.TRUE.equals(info.getHaveBlood()));
                 }
                 applyElementAlignAndSafeDistance(element, hasBloodPiece, Boolean.TRUE.equals(info.getHaveBlood()));
                 elements.add(element);
@@ -1172,7 +1190,8 @@ public class AppTypesettingService {
 
     private void validateCellSizeAgainstContainers(LayoutConfirmRequest request,
                                                    List<ProductionPiece> productionPieces,
-                                                   List<TypesettingInfo> typesettingInfos) {
+                                                   List<TypesettingInfo> typesettingInfos,
+                                                   TypesettingLayoutMode layoutMode) {
         Double containerShortSide = null;
         Double containerLongSide = null;
         if (request.getContainers() != null) {
@@ -1190,6 +1209,11 @@ public class AppTypesettingService {
         if (containerShortSide == null || containerLongSide == null) {
             containerShortSide = Math.min(1500D, 1000D);
             containerLongSide = Math.max(1500D, 1000D);
+        }
+
+        NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
+        if (nestingRequestRuleService != null) {
+            nestingRequestRuleService.validateBeforeBuild(request, productionPieces, typesettingInfos);
         }
 
         for (ProductionPiece piece : productionPieces) {
@@ -1216,12 +1240,6 @@ public class AppTypesettingService {
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
         }
-    }
-
-    private void applyCaifuOpenBackA30HFilmElementStyle(NestingRequest.Element element, ProductionPiece piece) {
-        element.setHGravity("right");
-        element.setVMargin(0);
-        element.setHMargin(30);
     }
 
     private boolean adjustPieceImageForBloodBasedRotation(ProductionPiece piece, String manufacturerMetaId) {
