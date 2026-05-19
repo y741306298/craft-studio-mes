@@ -1265,6 +1265,15 @@ public class AppTypesettingService {
         return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
     }
 
+    private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
+        if (piece == null || piece.getBlood() == null) {
+            return false;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
+    }
+
     private String rotate90CCWAndUploadForCaifuRaster(String rawFile, String manufacturerMetaId, String authKey) {
         try {
             byte[] original = restTemplate.getForObject(rawFile, byte[].class);
