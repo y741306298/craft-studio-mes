@@ -1032,7 +1032,10 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
                 // 只要血位满足 x=0 且 y!=0，即执行逆时针旋转90°，并同步置换 blood 与宽高。
-                adjustPieceImageForBloodBasedRotation(piece, request.getManufacturerMetaId());
+                boolean pieceChangedByRotation = adjustPieceImageForBloodBasedRotation(piece, request.getManufacturerMetaId());
+                if (pieceChangedByRotation) {
+                    productionPieceService.updateProductionPiece(piece);
+                }
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
                 if (StringUtils.isNotBlank(piece.getRouteSvg())) {
@@ -1211,25 +1214,27 @@ public class AppTypesettingService {
         element.setHMargin(30);
     }
 
-    private void adjustPieceImageForBloodBasedRotation(ProductionPiece piece, String manufacturerMetaId) {
+    private boolean adjustPieceImageForBloodBasedRotation(ProductionPiece piece, String manufacturerMetaId) {
         if (piece == null || piece.getWidth() == null || piece.getHeight() == null || piece.getBlood() == null) {
-            return;
+            return false;
         }
         if (StringUtils.isNotBlank(piece.getRouteImg()) && StringUtils.isNotBlank(piece.getRouteSvg())) {
-            return;
+            return false;
         }
         Integer bloodX = piece.getBlood().getX();
         Integer bloodY = piece.getBlood().getY();
         boolean shouldRotate = bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
         if (!shouldRotate) {
-            return;
+            return false;
         }
 
+        boolean routeUpdated = false;
         String rotatedProductRawFile = null;
         if (piece.getProductImageFile() != null && StringUtils.isNotBlank(piece.getProductImageFile().getRawFile())) {
             rotatedProductRawFile = rotate90CCWAndUploadForCaifuRaster(piece.getProductImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedProductRawFile)) {
                 piece.setRouteImg(rotatedProductRawFile);
+                routeUpdated = true;
             }
         }
 
@@ -1237,13 +1242,27 @@ public class AppTypesettingService {
             String rotatedMaskRawFile = rotate90CCWAndUploadForCaifuSvg(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
             if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
                 piece.setRouteSvg(rotatedMaskRawFile);
+                routeUpdated = true;
             }
+        }
+        if (!routeUpdated) {
+            return false;
         }
         piece.getBlood().setX(bloodY);
         piece.getBlood().setY(bloodX);
         Double originalWidth = piece.getWidth();
         piece.setWidth(piece.getHeight());
         piece.setHeight(originalWidth);
+        return true;
+    }
+
+    private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
+        if (piece == null || piece.getBlood() == null) {
+            return false;
+        }
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        return bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
     }
 
     private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
