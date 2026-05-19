@@ -985,7 +985,6 @@ public class AppTypesettingService {
         }
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         boolean isVerticalTypesetting = "vertical_typesetting".equals(layoutMode.getLayoutCategory());
-        boolean isCaifuOpenBackA30HFilm = layoutMode == TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM;
         List<ProductionPiece> productionPieces = new ArrayList<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
@@ -1049,9 +1048,6 @@ public class AppTypesettingService {
                     element.setVMargin(0);
                     element.setHGravity("left");
                     element.setHMargin(0);
-                }
-                if (isCaifuOpenBackA30HFilm) {
-                    applyCaifuOpenBackA30HFilmElementStyle(element, piece);
                 }
                 elements.add(element);
             }

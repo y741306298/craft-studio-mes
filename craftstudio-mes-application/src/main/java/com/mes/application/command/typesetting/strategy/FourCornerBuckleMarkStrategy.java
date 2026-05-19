@@ -28,7 +28,7 @@ public class FourCornerBuckleMarkStrategy implements SpecialCraftMarkStrategy {
 
     private static final String NODE_NAME = "四角打扣";
     private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/point.png";
-    private static final BigDecimal MARK_SIZE = BigDecimal.valueOf(0.8D);
+    private static final BigDecimal MARK_SIZE = BigDecimal.valueOf(8D);
     private static final int EDGE_OFFSET_MM = 25;
     private static final double EPSILON = 1e-6;
     private static final Pattern PATH_NUMBER_PATTERN = Pattern.compile("-?\\d+(?:\\.\\d+)?");

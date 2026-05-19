@@ -65,7 +65,7 @@ public enum TypesettingLayoutMode {
             "plt_qr",
             "xxx",
             "circle",
-            2,
+            0,
             true
     ),
     /**
@@ -80,7 +80,7 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            5,
+            0,
             true
     ),
 

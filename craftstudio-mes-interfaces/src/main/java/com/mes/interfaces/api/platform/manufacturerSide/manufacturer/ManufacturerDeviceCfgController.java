@@ -205,7 +205,6 @@ public class ManufacturerDeviceCfgController {
     @PostMapping("/factory/task/claim")
     public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> claimFactoryDownloadTasks(
             @Valid @RequestBody ManufacturerFactoryDownloadTaskRequest request) {
-        logger.info("接收到轮询领取任务，入参为"+ JSON.toJSONString(request));
         List<TypesettingDownloadTaskData> tasks;
         try {
             tasks = appDeviceCfgService.listDownloadTasksByDeviceCfg(
@@ -237,7 +236,6 @@ public class ManufacturerDeviceCfgController {
 
         ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
-        logger.info("轮询领取任务结束，出参为"+ JSON.toJSONString(apiResponse));
         return apiResponse;
     }
 }
