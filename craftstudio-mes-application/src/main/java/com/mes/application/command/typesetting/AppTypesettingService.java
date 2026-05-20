@@ -1077,7 +1077,7 @@ public class AppTypesettingService {
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, isCurrentOrHistoricalBloodPiece(piece));
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, isBloodBasedRotationCandidate(piece));
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, isCurrentOrHistoricalBloodPiece(piece));
                 elements.add(element);
             }
         }
