@@ -1,10 +1,10 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.NestingRequest;
-import com.mes.application.command.typesetting.api.req.LayoutConfirmRequest;
+import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
-import com.mes.domain.order.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 
 import java.util.List;
 
