@@ -20,8 +20,8 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     private static final int ELEMENT_A_WIDTH_MM = 3;
     private static final int ELEMENT_B_WIDTH_MM = 8;
     private static final int ELEMENT_B_HEIGHT_MM = 3;
-    private static final int ELEMENT_A_OFFSET_Y_MM = 295;
-    private static final int ELEMENT_B_X_OFFSET_MM = 8;
+    private static final int ELEMENT_B_OFFSET_Y_MM = 295;
+    private static final int ELEMENT_A_X_OFFSET_MM = 8;
     private static final int ELEMENT_D_WIDTH_TENTH_MM = 3;
     private static final int ELEMENT_D_HEIGHT_MM = 5;
     private static final int ELEMENT_D_OFFSET_Y_MM = 8;
@@ -69,7 +69,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         );
         String elementE = ossTagUploadService.uploadTagPng(
                 context.getBusinessId(),
-                createWhitePng(0.8, ELEMENT_D_HEIGHT_MM),
+                createBlackWhitePng(0.8, ELEMENT_D_HEIGHT_MM),
                 tagUploadSubDir
         );
 
@@ -88,27 +88,26 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (y == null) {
                 continue;
             }
-            int elementAY = (int) Math.round(y + ELEMENT_A_OFFSET_Y_MM);
-            if (elementAY > expandedHeight) {
-                continue;
+            int elementBY = (int) Math.round(y + ELEMENT_B_OFFSET_Y_MM);
+            if (elementBY <= expandedHeight) {
+                marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY));
             }
-            marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth, elementAY));
 
             int elementDY = (int) Math.round(y + ELEMENT_D_OFFSET_Y_MM);
             if (elementDY <= expandedHeight) {
                 marks.add(createMark(elementD,
                         ELEMENT_D_WIDTH_TENTH_MM / 10.0,
                         ELEMENT_D_HEIGHT_MM,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0),
+                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0 + EXPAND_RIGHT_MM),
                         elementDY));
                 marks.add(createMark(elementD,
                         ELEMENT_D_WIDTH_TENTH_MM / 10.0,
                         ELEMENT_D_HEIGHT_MM,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0),
+                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM),
                         elementDY));
             }
         }
-        marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth + ELEMENT_B_X_OFFSET_MM, 0));
+        marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth + ELEMENT_A_X_OFFSET_MM, 0));
 
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> markFiles = new LinkedHashMap<>();
@@ -134,18 +133,20 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return mark;
     }
 
-    private byte[] createWhitePng(double width, double height) {
+    private byte[] createBlackWhitePng(double width, double height) {
         try {
             java.awt.image.BufferedImage image = new java.awt.image.BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), java.awt.image.BufferedImage.TYPE_INT_RGB);
             java.awt.Graphics2D g = image.createGraphics();
-            g.setColor(java.awt.Color.WHITE);
-            g.fillRect(0, 0, image.getWidth(), image.getHeight());
+            for (int x = 0; x < image.getWidth(); x++) {
+                g.setColor(x % 2 == 0 ? java.awt.Color.BLACK : java.awt.Color.WHITE);
+                g.fillRect(x, 0, 1, image.getHeight());
+            }
             g.dispose();
             java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
             javax.imageio.ImageIO.write(image, "png", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
-            throw new IllegalStateException("生成白色 PNG 失败", e);
+            throw new IllegalStateException("生成黑白相间 PNG 失败", e);
         }
     }
 
