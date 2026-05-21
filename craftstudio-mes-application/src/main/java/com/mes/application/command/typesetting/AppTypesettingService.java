@@ -151,9 +151,6 @@ public class AppTypesettingService {
     @Autowired
     private OssTagUploadService ossTagUploadService;
 
-    @Autowired
-    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
-
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
 
@@ -985,6 +982,10 @@ public class AppTypesettingService {
                 continue;
             }
             ProductionPiece piece = productionPieceService.findByProductionPieceId(cell.getSourceId());
+            if (piece == null) {
+                // 兼容 sourceId 存的是 productionPiece Mongo _id 的场景
+                piece = productionPieceService.findById(cell.getSourceId());
+            }
             if (piece != null && piece.getSeq() != null && piece.getSeq() == 1) {
                 return true;
             }
