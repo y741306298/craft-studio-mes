@@ -15,6 +15,7 @@ import com.aliyun.oss.model.ObjectMetadata;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
+import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -146,6 +147,9 @@ public class AppTypesettingService {
 
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+
+    @Autowired
+    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -828,6 +832,7 @@ public class AppTypesettingService {
         request.setOutputs(modeResult.getOutputs());
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
+        superWidthSpliceMarkService.apply(typesettingInfo, request, businessId);
         mergeFormeMarkResources(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
@@ -885,8 +890,6 @@ public class AppTypesettingService {
             typesettingInfo.setMarks(markMap);
         }
     }
-
-
 
     private TypesettingInfo resolveMirrorTypesettingInfo(TypesettingInfo origin) {
         if (mirrorFormeStrategies == null || mirrorFormeStrategies.isEmpty()) {
