@@ -909,39 +909,38 @@ public class AppTypesettingService {
         String markDir = "mark/" + typesettingInfo.getManufacturerMetaId() + "/" + typesettingInfo.getTypesettingId();
         int idx = 0;
         for (FormeGenerationRequest.AnchorPoint anchorPoint : formeRequest.getForme().getAnchorPoints()) {
-            if (anchorPoint == null) {
+            if (anchorPoint == null || StringUtils.isBlank(anchorPoint.getSvg())) {
                 continue;
             }
-            if (StringUtils.isNotBlank(anchorPoint.getSvg())) {
-                String uploadedUrl = ossTagUploadService.uploadTagSvg(
-                        businessId,
-                        anchorPoint.getSvg().getBytes(StandardCharsets.UTF_8),
-                        markDir
-                );
-                FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
-                mark.setImg(uploadedUrl);
-                mark.setSize(anchorPoint.getSize());
-                mark.setPosition(anchorPoint.getPosition());
-                marks.add(mark);
-                typesettingInfo.getMarks().put("seqOneWhiteRect_" + idx, uploadedUrl);
-                idx++;
+            if (!isLikelyWhiteRectSvg(anchorPoint.getSvg())) {
+                continue;
             }
-            if (StringUtils.isNotBlank(anchorPoint.getImg())) {
-                String textImgUploadedUrl = uploadAnchorPointImgIfNeeded(anchorPoint.getImg(), businessId, markDir);
-                if (StringUtils.isNotBlank(textImgUploadedUrl)) {
-                    FormeGenerationRequest.Mark textMark = new FormeGenerationRequest.Mark();
-                    textMark.setImg(textImgUploadedUrl);
-                    textMark.setSize(anchorPoint.getSize());
-                    textMark.setPosition(anchorPoint.getPosition());
-                    marks.add(textMark);
-                    typesettingInfo.getMarks().put("seqOneTextMark_" + idx, textImgUploadedUrl);
-                    idx++;
-                }
+            String uploadedSvgUrl = ossTagUploadService.uploadTagSvg(
+                    businessId,
+                    anchorPoint.getSvg().getBytes(StandardCharsets.UTF_8),
+                    markDir
+            );
+            FormeGenerationRequest.Mark svgMark = new FormeGenerationRequest.Mark();
+            svgMark.setImg(uploadedSvgUrl);
+            svgMark.setSize(anchorPoint.getSize());
+            svgMark.setPosition(anchorPoint.getPosition());
+            marks.add(svgMark);
+            typesettingInfo.getMarks().put("seqOneWhiteRectSvg_" + idx, uploadedSvgUrl);
+
+            String uploadedPngUrl = uploadAnchorPointPngIfNeeded(anchorPoint.getImg(), businessId, markDir);
+            if (StringUtils.isNotBlank(uploadedPngUrl)) {
+                FormeGenerationRequest.Mark pngMark = new FormeGenerationRequest.Mark();
+                pngMark.setImg(uploadedPngUrl);
+                pngMark.setSize(anchorPoint.getSize());
+                pngMark.setPosition(anchorPoint.getPosition());
+                marks.add(pngMark);
+                typesettingInfo.getMarks().put("seqOneWhiteRectPng_" + idx, uploadedPngUrl);
             }
+            idx++;
         }
     }
 
-    private String uploadAnchorPointImgIfNeeded(String img, String businessId, String markDir) {
+    private String uploadAnchorPointPngIfNeeded(String img, String businessId, String markDir) {
         if (StringUtils.isBlank(img)) {
             return null;
         }
@@ -960,17 +959,22 @@ public class AppTypesettingService {
             String header = trimmed.substring(0, commaIdx).toLowerCase(Locale.ROOT);
             String base64Part = trimmed.substring(commaIdx + 1);
             byte[] bytes = Base64.getDecoder().decode(base64Part);
-            if (header.contains("image/svg+xml")) {
-                return ossTagUploadService.uploadTagSvg(businessId, bytes, markDir);
+            if (header.contains("image/png")) {
+                return ossTagUploadService.uploadTagPng(businessId, bytes, markDir);
             }
-            if (header.contains("image/jpeg") || header.contains("image/jpg")) {
-                return ossTagUploadService.uploadTagJpg(businessId, bytes, markDir);
-            }
-            return ossTagUploadService.uploadTagPng(businessId, bytes, markDir);
+            return null;
         } catch (Exception e) {
-            log.warn("上传锚点文字图失败，使用原始img: {}", e.getMessage());
-            return trimmed;
+            log.warn("上传锚点白矩形PNG失败: {}", e.getMessage());
+            return null;
         }
+    }
+
+    private boolean isLikelyWhiteRectSvg(String svg) {
+        if (StringUtils.isBlank(svg)) {
+            return false;
+        }
+        String normalized = svg.toLowerCase(Locale.ROOT);
+        return normalized.contains("<rect") && (normalized.contains("fill=\"white\"") || normalized.contains("fill='#fff'") || normalized.contains("fill=\"#fff\""));
     }
 
     private boolean containsSeqOnePiece(TypesettingInfo typesettingInfo) {
