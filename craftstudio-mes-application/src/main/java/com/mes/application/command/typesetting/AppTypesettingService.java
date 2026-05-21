@@ -20,6 +20,7 @@ import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfi
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -146,6 +147,8 @@ public class AppTypesettingService {
 
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+    @Autowired
+    private OssTagUploadService ossTagUploadService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -828,6 +831,7 @@ public class AppTypesettingService {
         request.setOutputs(modeResult.getOutputs());
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
+        appendSeqOneWhiteRectToMarks(typesettingInfo, request, businessId);
         mergeFormeMarkResources(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
@@ -884,6 +888,112 @@ public class AppTypesettingService {
         if (!markMap.isEmpty()) {
             typesettingInfo.setMarks(markMap);
         }
+    }
+
+    private void appendSeqOneWhiteRectToMarks(TypesettingInfo typesettingInfo,
+                                              FormeGenerationRequest formeRequest,
+                                              String businessId) {
+        if (!containsSeqOnePiece(typesettingInfo) || formeRequest == null || formeRequest.getForme() == null
+                || CollectionUtils.isEmpty(formeRequest.getForme().getAnchorPoints())) {
+            return;
+        }
+        List<FormeGenerationRequest.Mark> marks = formeRequest.getForme().getMarks();
+        if (marks == null) {
+            marks = new ArrayList<>();
+            formeRequest.getForme().setMarks(marks);
+        }
+        if (typesettingInfo.getMarks() == null) {
+            typesettingInfo.setMarks(new LinkedHashMap<>());
+        }
+        String markDir = "mark/" + typesettingInfo.getManufacturerMetaId() + "/" + typesettingInfo.getTypesettingId();
+        int idx = 0;
+        for (FormeGenerationRequest.AnchorPoint anchorPoint : formeRequest.getForme().getAnchorPoints()) {
+            if (anchorPoint == null || StringUtils.isBlank(anchorPoint.getSvg())) {
+                continue;
+            }
+            if (!isLikelyWhiteRectSvg(anchorPoint.getSvg())) {
+                continue;
+            }
+            String uploadedSvgUrl = ossTagUploadService.uploadTagSvg(
+                    businessId,
+                    anchorPoint.getSvg().getBytes(StandardCharsets.UTF_8),
+                    markDir
+            );
+            FormeGenerationRequest.Mark svgMark = new FormeGenerationRequest.Mark();
+            svgMark.setImg(uploadedSvgUrl);
+            svgMark.setSize(anchorPoint.getSize());
+            svgMark.setPosition(anchorPoint.getPosition());
+            marks.add(svgMark);
+            typesettingInfo.getMarks().put("seqOneWhiteRectSvg_" + idx, uploadedSvgUrl);
+
+            String uploadedPngUrl = uploadAnchorPointPngIfNeeded(anchorPoint.getImg(), businessId, markDir);
+            if (StringUtils.isNotBlank(uploadedPngUrl)) {
+                FormeGenerationRequest.Mark pngMark = new FormeGenerationRequest.Mark();
+                pngMark.setImg(uploadedPngUrl);
+                pngMark.setSize(anchorPoint.getSize());
+                pngMark.setPosition(anchorPoint.getPosition());
+                marks.add(pngMark);
+                typesettingInfo.getMarks().put("seqOneWhiteRectPng_" + idx, uploadedPngUrl);
+            }
+            idx++;
+        }
+    }
+
+    private String uploadAnchorPointPngIfNeeded(String img, String businessId, String markDir) {
+        if (StringUtils.isBlank(img)) {
+            return null;
+        }
+        String trimmed = img.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
+        }
+        if (!trimmed.startsWith("data:image/")) {
+            return trimmed;
+        }
+        try {
+            int commaIdx = trimmed.indexOf(',');
+            if (commaIdx < 0) {
+                return trimmed;
+            }
+            String header = trimmed.substring(0, commaIdx).toLowerCase(Locale.ROOT);
+            String base64Part = trimmed.substring(commaIdx + 1);
+            byte[] bytes = Base64.getDecoder().decode(base64Part);
+            if (header.contains("image/png")) {
+                return ossTagUploadService.uploadTagPng(businessId, bytes, markDir);
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("上传锚点白矩形PNG失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean isLikelyWhiteRectSvg(String svg) {
+        if (StringUtils.isBlank(svg)) {
+            return false;
+        }
+        String normalized = svg.toLowerCase(Locale.ROOT);
+        return normalized.contains("<rect") && (normalized.contains("fill=\"white\"") || normalized.contains("fill='#fff'") || normalized.contains("fill=\"#fff\""));
+    }
+
+    private boolean containsSeqOnePiece(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
+            return false;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || !TypesettingSourceType.PART.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            ProductionPiece piece = productionPieceService.findByProductionPieceId(cell.getSourceId());
+            if (piece == null) {
+                // 兼容 sourceId 存的是 productionPiece Mongo _id 的场景
+                piece = productionPieceService.findById(cell.getSourceId());
+            }
+            if (piece != null && piece.getSeq() != null && piece.getSeq() == 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
 

@@ -35,6 +35,8 @@ public class ProductionPiece extends BaseEntity {
     private Double width;
     private Double height;
     private Blood blood;
+    private String group;
+    private Integer seq;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
