@@ -527,8 +527,7 @@ public class AppOrderPreprocessingService {
             }
 
             Map<String, Integer> groupToSequenceNo = new HashMap<>();
-            Map<String, Integer> groupToMinSeq = new HashMap<>();
-            Map<String, Integer> groupToMaxSeq = new HashMap<>();
+            Map<String, Integer> groupToCount = new HashMap<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 if (pair == null) {
                     continue;
@@ -542,8 +541,7 @@ public class AppOrderPreprocessingService {
                 if (rawGroup == null || rawSeq == null) {
                     continue;
                 }
-                groupToMinSeq.merge(rawGroup, rawSeq, Math::min);
-                groupToMaxSeq.merge(rawGroup, rawSeq, Math::max);
+                groupToCount.merge(rawGroup, 1, Integer::sum);
             }
 
             // 4. 根据pairs生成生产零件
@@ -598,7 +596,7 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
-                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToMinSeq, groupToMaxSeq, groupToSequenceNo));
+                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToCount, groupToSequenceNo));
                         piece.setSeq(seq);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
@@ -676,17 +674,15 @@ public class AppOrderPreprocessingService {
     private String buildBloodGroup(String manufacturerMetaId,
                                    String rawGroup,
                                    Integer seq,
-                                   Map<String, Integer> groupToMinSeq,
-                                   Map<String, Integer> groupToMaxSeq,
+                                   Map<String, Integer> groupToCount,
                                    Map<String, Integer> groupToSequenceNo) {
         if (rawGroup == null || seq == null || StringUtils.isBlank(manufacturerMetaId)) {
             return null;
         }
         Integer sequenceNo = groupToSequenceNo.computeIfAbsent(rawGroup, key ->
                 typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.BLOOD));
-        int startSeq = groupToMinSeq.getOrDefault(rawGroup, seq);
-        int endSeq = groupToMaxSeq.getOrDefault(rawGroup, seq);
-        return sequenceNo + "#" + startSeq + "-" + endSeq;
+        int total = groupToCount.getOrDefault(rawGroup, 1);
+        return sequenceNo + "#" + seq + "-" + total;
     }
 
     private void movePretreatmentToPendingTypesetting(String productionPieceId) {
