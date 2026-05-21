@@ -526,9 +526,9 @@ public class AppOrderPreprocessingService {
                 return;
             }
 
-            Map<Integer, Integer> groupToSequenceNo = new HashMap<>();
-            Map<Integer, Integer> groupToMinSeq = new HashMap<>();
-            Map<Integer, Integer> groupToMaxSeq = new HashMap<>();
+            Map<String, Integer> groupToSequenceNo = new HashMap<>();
+            Map<String, Integer> groupToMinSeq = new HashMap<>();
+            Map<String, Integer> groupToMaxSeq = new HashMap<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 if (pair == null) {
                     continue;
@@ -537,7 +537,7 @@ public class AppOrderPreprocessingService {
                 if (sideResult == null) {
                     continue;
                 }
-                Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                String rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                 Integer rawSeq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                 if (rawGroup == null || rawSeq == null) {
                     continue;
@@ -556,7 +556,7 @@ public class AppOrderPreprocessingService {
                     }
                     String rawImageUrl = sideResult.getImg();
                     String maskedImageUrl = sideResult.getSvg();
-                    Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                    String rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                     Integer seq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
@@ -674,11 +674,11 @@ public class AppOrderPreprocessingService {
     }
 
     private String buildBloodGroup(String manufacturerMetaId,
-                                   Integer rawGroup,
+                                   String rawGroup,
                                    Integer seq,
-                                   Map<Integer, Integer> groupToMinSeq,
-                                   Map<Integer, Integer> groupToMaxSeq,
-                                   Map<Integer, Integer> groupToSequenceNo) {
+                                   Map<String, Integer> groupToMinSeq,
+                                   Map<String, Integer> groupToMaxSeq,
+                                   Map<String, Integer> groupToSequenceNo) {
         if (rawGroup == null || seq == null || StringUtils.isBlank(manufacturerMetaId)) {
             return null;
         }
