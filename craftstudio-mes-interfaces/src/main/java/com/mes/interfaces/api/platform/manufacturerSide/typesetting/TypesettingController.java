@@ -94,72 +94,7 @@ public class TypesettingController {
         return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems));
     }
 
-    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
-                                                                                                 List<TypesettingProductionPieceVO> allItems) {
-        List<String> processingFlowList = buildProcessingFlowList(allItems);
-        List<String> materialList = buildMaterialList(allItems);
-        List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
-        return new TypesettingAndProductionPiecesResponse(items, processingFlowList, materialList, sourceType);
-    }
 
-    private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
-        return items.stream()
-                .filter(Objects::nonNull)
-                .map(TypesettingProductionPieceVO::getProcedureFlow)
-                .filter(Objects::nonNull)
-                .map(ProcedureFlow::getNodes)
-                .filter(Objects::nonNull)
-                .flatMap(List::stream)
-                .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .filter(Objects::nonNull)
-                .filter(nodeName -> !nodeName.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .collect(Collectors.toList());
-    }
-
-    private List<String> buildMaterialList(List<TypesettingProductionPieceVO> items) {
-        return items.stream()
-                .filter(Objects::nonNull)
-                .map(TypesettingProductionPieceVO::getMaterialConfig)
-                .filter(Objects::nonNull)
-                .map(materialConfig -> materialConfig.getMaterialSnapshot())
-                .filter(Objects::nonNull)
-                .map(materialSnapshot -> materialSnapshot.getName())
-                .filter(Objects::nonNull)
-                .filter(name -> !name.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .collect(Collectors.toList());
-    }
-
-    private List<TypesettingAndProductionPiecesResponse.SourceTypeOption> buildSourceTypeList() {
-        return Arrays.stream(TypesettingSourceType.values())
-                .map(type -> new TypesettingAndProductionPiecesResponse.SourceTypeOption(type.getCode(), type.getDescription()))
-                .collect(Collectors.toList());
-    }
-
-
-
-    private void sanitizeProcedureFlow(List<TypesettingProductionPieceVO> items) {
-        if (items == null) {
-            return;
-        }
-        for (TypesettingProductionPieceVO item : items) {
-            ProcedureFlow flow = item.getProcedureFlow();
-            if (flow == null || flow.getNodes() == null) {
-                continue;
-            }
-            List<ProcedureFlowNode> filteredNodes = flow.getNodes().stream()
-                    .filter(Objects::nonNull)
-                    .filter(node -> !PREPROCESS_NODE_NAMES.contains(node.getNodeName()))
-                    .collect(Collectors.toList());
-            flow.setNodes(filteredNodes);
-            flow.setTotalNodes(filteredNodes.size());
-            item.setProcedureFlow(flow);
-        }
-    }
 
     /**
      * 查询状态为待确认（confirming）的排版信息列表（分页）
@@ -370,5 +305,72 @@ public class TypesettingController {
         return ApiResponse.success("回调处理成功");
     }
 
+
+    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
+                                                                                               List<TypesettingProductionPieceVO> allItems) {
+        List<String> processingFlowList = buildProcessingFlowList(allItems);
+        List<String> materialList = buildMaterialList(allItems);
+        List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
+        return new TypesettingAndProductionPiecesResponse(items, processingFlowList, materialList, sourceType);
+    }
+
+    private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
+        return items.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingProductionPieceVO::getProcedureFlow)
+                .filter(Objects::nonNull)
+                .map(ProcedureFlow::getNodes)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .filter(Objects::nonNull)
+                .filter(nodeName -> !nodeName.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .collect(Collectors.toList());
+    }
+
+    private List<String> buildMaterialList(List<TypesettingProductionPieceVO> items) {
+        return items.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingProductionPieceVO::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(materialConfig -> materialConfig.getMaterialSnapshot())
+                .filter(Objects::nonNull)
+                .map(materialSnapshot -> materialSnapshot.getName())
+                .filter(Objects::nonNull)
+                .filter(name -> !name.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .collect(Collectors.toList());
+    }
+
+    private List<TypesettingAndProductionPiecesResponse.SourceTypeOption> buildSourceTypeList() {
+        return Arrays.stream(TypesettingSourceType.values())
+                .map(type -> new TypesettingAndProductionPiecesResponse.SourceTypeOption(type.getCode(), type.getDescription()))
+                .collect(Collectors.toList());
+    }
+
+
+
+    private void sanitizeProcedureFlow(List<TypesettingProductionPieceVO> items) {
+        if (items == null) {
+            return;
+        }
+        for (TypesettingProductionPieceVO item : items) {
+            ProcedureFlow flow = item.getProcedureFlow();
+            if (flow == null || flow.getNodes() == null) {
+                continue;
+            }
+            List<ProcedureFlowNode> filteredNodes = flow.getNodes().stream()
+                    .filter(Objects::nonNull)
+                    .filter(node -> !PREPROCESS_NODE_NAMES.contains(node.getNodeName()))
+                    .collect(Collectors.toList());
+            flow.setNodes(filteredNodes);
+            flow.setTotalNodes(filteredNodes.size());
+            item.setProcedureFlow(flow);
+        }
+    }
 
 }
