@@ -22,6 +22,8 @@ import com.mes.domain.manufacturer.procedure.service.ProcedureService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingSequenceUsageType;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingSequencePoolService;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
@@ -96,6 +98,8 @@ public class AppOrderPreprocessingService {
 
     @Autowired
     private ImageToImageSearchService imageToImageSearchService;
+    @Autowired
+    private TypesettingSequencePoolService typesettingSequencePoolService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -522,6 +526,26 @@ public class AppOrderPreprocessingService {
                 return;
             }
 
+            Map<Integer, Integer> groupToSequenceNo = new HashMap<>();
+            Map<Integer, Integer> groupToMinSeq = new HashMap<>();
+            Map<Integer, Integer> groupToMaxSeq = new HashMap<>();
+            for (ImageMaskResponse.Pair pair : response.getPairs()) {
+                if (pair == null) {
+                    continue;
+                }
+                ImageMaskResponse.SideResult sideResult = pair.getPrimaryResult();
+                if (sideResult == null) {
+                    continue;
+                }
+                Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                Integer rawSeq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
+                if (rawGroup == null || rawSeq == null) {
+                    continue;
+                }
+                groupToMinSeq.merge(rawGroup, rawSeq, Math::min);
+                groupToMaxSeq.merge(rawGroup, rawSeq, Math::max);
+            }
+
             // 4. 根据pairs生成生产零件
             List<ProductionPiece> resultPieces = new ArrayList<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
@@ -532,7 +556,7 @@ public class AppOrderPreprocessingService {
                     }
                     String rawImageUrl = sideResult.getImg();
                     String maskedImageUrl = sideResult.getSvg();
-                    Integer group = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                    Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                     Integer seq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
@@ -574,7 +598,7 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
-                        piece.setGroup(group);
+                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToMinSeq, groupToMaxSeq, groupToSequenceNo));
                         piece.setSeq(seq);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
@@ -647,6 +671,22 @@ public class AppOrderPreprocessingService {
             return;
         }
         imageToImageSearchService.indexImage(piece.getProductionPieceId(), previewUrl, piece.getProductionPieceId(), piece.getManufacturerId());
+    }
+
+    private String buildBloodGroup(String manufacturerMetaId,
+                                   Integer rawGroup,
+                                   Integer seq,
+                                   Map<Integer, Integer> groupToMinSeq,
+                                   Map<Integer, Integer> groupToMaxSeq,
+                                   Map<Integer, Integer> groupToSequenceNo) {
+        if (rawGroup == null || seq == null || StringUtils.isBlank(manufacturerMetaId)) {
+            return null;
+        }
+        Integer sequenceNo = groupToSequenceNo.computeIfAbsent(rawGroup, key ->
+                typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.BLOOD));
+        int startSeq = groupToMinSeq.getOrDefault(rawGroup, seq);
+        int endSeq = groupToMaxSeq.getOrDefault(rawGroup, seq);
+        return sequenceNo + "#" + startSeq + "-" + endSeq;
     }
 
     private void movePretreatmentToPendingTypesetting(String productionPieceId) {

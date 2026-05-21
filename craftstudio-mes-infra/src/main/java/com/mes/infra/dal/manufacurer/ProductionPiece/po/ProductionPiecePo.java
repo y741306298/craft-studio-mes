@@ -38,7 +38,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private Double width;
     private Double height;
     private Blood blood;
-    private Integer group;
+    private String group;
     private Integer seq;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
