@@ -15,6 +15,8 @@ public class ImageMaskResponse {
 
     @Data
     public static class Pair {
+        private String group;
+        private Integer seq;
         /**
          * 新版结构：正面结果
          */
@@ -46,6 +48,8 @@ public class ImageMaskResponse {
             compat.setPreviewImg(previewImg);
             compat.setThumbnail(thumbnail);
             compat.setBlood(blood);
+            compat.setGroup(group);
+            compat.setSeq(seq);
             return compat;
         }
     }
@@ -57,6 +61,8 @@ public class ImageMaskResponse {
         private String previewImg;
         private String thumbnail;
         private Blood blood;
+        private String group;
+        private Integer seq;
     }
 
     @Data
