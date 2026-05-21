@@ -928,6 +928,9 @@ public class AppTypesettingService {
             typesettingInfo.getMarks().put("seqOneWhiteRectSvg_" + idx, uploadedSvgUrl);
 
             String uploadedPngUrl = uploadAnchorPointPngIfNeeded(anchorPoint.getImg(), businessId, markDir);
+            if (StringUtils.isBlank(uploadedPngUrl)) {
+                uploadedPngUrl = uploadWhiteRectPngBySize(anchorPoint.getSize(), businessId, markDir);
+            }
             if (StringUtils.isNotBlank(uploadedPngUrl)) {
                 FormeGenerationRequest.Mark pngMark = new FormeGenerationRequest.Mark();
                 pngMark.setImg(uploadedPngUrl);
@@ -937,6 +940,30 @@ public class AppTypesettingService {
                 typesettingInfo.getMarks().put("seqOneWhiteRectPng_" + idx, uploadedPngUrl);
             }
             idx++;
+        }
+    }
+
+    private String uploadWhiteRectPngBySize(FormeGenerationRequest.Size size, String businessId, String markDir) {
+        if (size == null || size.getWidth() == null || size.getHeight() == null) {
+            return null;
+        }
+        int width = Math.max(1, size.getWidth().setScale(0, RoundingMode.HALF_UP).intValue());
+        int height = Math.max(1, size.getHeight().setScale(0, RoundingMode.HALF_UP).intValue());
+        try {
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = image.createGraphics();
+            try {
+                graphics.setColor(java.awt.Color.WHITE);
+                graphics.fillRect(0, 0, width, height);
+            } finally {
+                graphics.dispose();
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", out);
+            return ossTagUploadService.uploadTagPng(businessId, out.toByteArray(), markDir);
+        } catch (Exception e) {
+            log.warn("按白矩形尺寸生成PNG上传失败: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -973,8 +1000,32 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(svg)) {
             return false;
         }
-        String normalized = svg.toLowerCase(Locale.ROOT);
-        return normalized.contains("<rect") && (normalized.contains("fill=\"white\"") || normalized.contains("fill='#fff'") || normalized.contains("fill=\"#fff\""));
+        String normalized = svg.trim().toLowerCase(Locale.ROOT);
+        if (normalized.startsWith("data:image/svg+xml")) {
+            int commaIdx = normalized.indexOf(',');
+            if (commaIdx > 0) {
+                try {
+                    String original = svg.trim();
+                    String payload = original.substring(commaIdx + 1);
+                    if (normalized.contains(";base64")) {
+                        normalized = new String(Base64.getDecoder().decode(payload), StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+                    } else {
+                        normalized = java.net.URLDecoder.decode(payload, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+                    }
+                } catch (Exception e) {
+                    return false;
+                }
+            }
+        }
+        return normalized.contains("<rect")
+                && (normalized.contains("fill=\"white\"")
+                || normalized.contains("fill='#fff'")
+                || normalized.contains("fill=\"#fff\"")
+                || normalized.contains("fill=\"#ffffff\"")
+                || normalized.contains("fill='white'")
+                || normalized.contains("fill: white")
+                || normalized.contains("fill:#fff")
+                || normalized.contains("fill:#ffffff"));
     }
 
     private boolean containsSeqOnePiece(TypesettingInfo typesettingInfo) {
@@ -982,14 +1033,11 @@ public class AppTypesettingService {
             return false;
         }
         for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-            if (cell == null || !TypesettingSourceType.PART.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceId()) || !TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                 continue;
             }
-            ProductionPiece piece = productionPieceService.findByProductionPieceId(cell.getSourceId());
-            if (piece == null) {
-                // 兼容 sourceId 存的是 productionPiece Mongo _id 的场景
-                piece = productionPieceService.findById(cell.getSourceId());
-            }
+            // 按需求仅用 productionPiece Mongo _id 查询，不做嵌套来源递归处理
+            ProductionPiece piece = productionPieceService.findById(cell.getSourceId());
             if (piece != null && piece.getSeq() != null && piece.getSeq() == 1) {
                 return true;
             }
