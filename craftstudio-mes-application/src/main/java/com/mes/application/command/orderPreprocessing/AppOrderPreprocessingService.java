@@ -532,6 +532,8 @@ public class AppOrderPreprocessingService {
                     }
                     String rawImageUrl = sideResult.getImg();
                     String maskedImageUrl = sideResult.getSvg();
+                    Integer group = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                    Integer seq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
                     ProcedureFlow newProcedureFlow = new ProcedureFlow();
@@ -572,6 +574,8 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
+                        piece.setGroup(group);
+                        piece.setSeq(seq);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
                             piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(sideResult.getThumbnail()));

@@ -38,6 +38,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private Double width;
     private Double height;
     private Blood blood;
+    private Integer group;
+    private Integer seq;
     private String processingFlow;
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
@@ -75,6 +77,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setWidth(this.width);
         piece.setHeight(this.height);
         piece.setBlood(this.blood);
+        piece.setGroup(this.group);
+        piece.setSeq(this.seq);
         piece.setProcessingFlow(this.processingFlow);
         piece.setProcedureFlow(this.procedureFlow);
         piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
@@ -114,6 +118,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.width = _do.getWidth();
         this.height = _do.getHeight();
         this.blood = _do.getBlood();
+        this.group = _do.getGroup();
+        this.seq = _do.getSeq();
         this.processingFlow = _do.getProcessingFlow();
         this.procedureFlow = _do.getProcedureFlow();
         this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
