@@ -314,8 +314,11 @@ public class SuperWidthSpliceMarkService {
     }
 
     private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
-        double cx = edge.start.x + (edge.end.x - edge.start.x) * ratio + edge.normal.x * inwardOffset;
-        double cy = edge.start.y + (edge.end.y - edge.start.y) * ratio + edge.normal.y * inwardOffset;
+        double safeRatio = Math.max(0.1D, Math.min(0.9D, ratio));
+        double radiusOnNormal = (Math.abs(edge.normal.x) * width + Math.abs(edge.normal.y) * height) / 2D;
+        double totalInward = radiusOnNormal + Math.max(2D, inwardOffset);
+        double cx = edge.start.x + (edge.end.x - edge.start.x) * safeRatio + edge.normal.x * totalInward;
+        double cy = edge.start.y + (edge.end.y - edge.start.y) * safeRatio + edge.normal.y * totalInward;
         int x = Math.max(0, (int) Math.round(cx - width / 2D));
         int y = Math.max(0, (int) Math.round(cy - height / 2D));
         return createMark(img, width, height, x, y);
@@ -327,10 +330,30 @@ public class SuperWidthSpliceMarkService {
         double maxX = bounds.maxX + marginLeft;
         double maxY = bounds.maxY + marginTop;
         PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
-        PointD p1 = hasVerticalCut ? new PointD(minX, minY) : new PointD(minX, minY);
-        PointD p2 = hasVerticalCut ? new PointD(minX, maxY) : new PointD(maxX, minY);
-        PointD r1 = rotatePoint(p1, center, rotationAngle);
-        PointD r2 = rotatePoint(p2, center, rotationAngle);
+        int quarterTurns = normalizeQuarterTurns(rotationAngle);
+        EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
+        EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
+        PointD r1;
+        PointD r2;
+        switch (actualEdge) {
+            case RIGHT:
+                r1 = new PointD(maxX, minY);
+                r2 = new PointD(maxX, maxY);
+                break;
+            case BOTTOM:
+                r1 = new PointD(minX, maxY);
+                r2 = new PointD(maxX, maxY);
+                break;
+            case LEFT:
+                r1 = new PointD(minX, minY);
+                r2 = new PointD(minX, maxY);
+                break;
+            case TOP:
+            default:
+                r1 = new PointD(minX, minY);
+                r2 = new PointD(maxX, minY);
+                break;
+        }
         PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
         double len = Math.hypot(edgeDir.x, edgeDir.y);
         if (len < 0.0001D) {
@@ -344,14 +367,25 @@ public class SuperWidthSpliceMarkService {
         return new Edge(r1, r2, normal);
     }
 
-    private PointD rotatePoint(PointD p, PointD c, double angle) {
-        if (Math.abs(angle) < 0.0001D) {
-            return p;
+    private int normalizeQuarterTurns(double rotationAngle) {
+        int turns = (int) Math.round(rotationAngle / 90D);
+        int normalized = turns % 4;
+        if (normalized < 0) {
+            normalized += 4;
         }
-        double rad = Math.toRadians(angle);
-        double dx = p.x - c.x;
-        double dy = p.y - c.y;
-        return new PointD(c.x + dx * Math.cos(rad) - dy * Math.sin(rad), c.y + dx * Math.sin(rad) + dy * Math.cos(rad));
+        return normalized;
+    }
+
+    private EdgeType rotateEdgeByQuarterTurns(EdgeType baseEdge, int quarterTurns) {
+        EdgeType[] order = new EdgeType[]{EdgeType.TOP, EdgeType.RIGHT, EdgeType.BOTTOM, EdgeType.LEFT};
+        int idx = 0;
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == baseEdge) {
+                idx = i;
+                break;
+            }
+        }
+        return order[(idx + quarterTurns) % 4];
     }
 
     private double extractDataRotationById(String svgContent, String elementId) {
@@ -567,5 +601,9 @@ public class SuperWidthSpliceMarkService {
             this.end = end;
             this.normal = normal;
         }
+    }
+
+    private enum EdgeType {
+        TOP, RIGHT, BOTTOM, LEFT
     }
 }
