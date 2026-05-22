@@ -296,16 +296,23 @@ public class SuperWidthSpliceMarkService {
     }
 
     /**
-     * 沿解析出的血边方向放置两份 group 文本（靠近边两端）。
+     * 沿解析出的血边方向放置两份 group 文本（血边两端顶齐）：
+     * 白字贴血边，20%黑字离血边 10mm。
      */
     private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         int rawWidth = Math.max(24, groupText.length() * 8);
-        int rawHeight = 24;
+        int rawHeight = 12;
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
-        MarkAsset textAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle);
-        formeRequest.getForme().getMarks().add(createEdgeMark(textAsset.img, textAsset.width, textAsset.height, edge, 0.1D, 0D));
-        formeRequest.getForme().getMarks().add(createEdgeMark(textAsset.img, textAsset.width, textAsset.height, edge, 0.9D, 0D));
+
+        MarkAsset whiteTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, Color.WHITE);
+        MarkAsset grayTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, createGrayColor(20));
+
+        formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 0D, 0D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 1D, 0D));
+
+        formeRequest.getForme().getMarks().add(createEdgeMark(grayTextAsset.img, grayTextAsset.width, grayTextAsset.height, edge, 0D, 10D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(grayTextAsset.img, grayTextAsset.width, grayTextAsset.height, edge, 1D, 10D));
     }
 
     /**
@@ -315,15 +322,15 @@ public class SuperWidthSpliceMarkService {
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
         MarkAsset stripeAsset = uploadEdgeAlignedStripeMark(businessId, darkMarkImg, edgeAngle);
-        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0.1D, 20D));
-        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0.9D, 20D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0D, 20D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 1D, 20D));
     }
 
     /**
      * 在指定边上按比例定位标识中心点，并按法线向内偏移，避免标识出界。
      */
     private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
-        double safeRatio = Math.max(0.1D, Math.min(0.9D, ratio));
+        double safeRatio = Math.max(0D, Math.min(1D, ratio));
         double radiusOnNormal = (Math.abs(edge.normal.x) * width + Math.abs(edge.normal.y) * height) / 2D;
         double totalInward = radiusOnNormal + Math.max(2D, inwardOffset);
         double cx = edge.start.x + (edge.end.x - edge.start.x) * safeRatio + edge.normal.x * totalInward;
@@ -431,9 +438,9 @@ public class SuperWidthSpliceMarkService {
         return ossTagUploadService.uploadTagPng(businessId, createTwoLineTextPng(width, height, text), subDir);
     }
 
-    private MarkAsset uploadEdgeAlignedTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height, double angle) {
+    private MarkAsset uploadEdgeAlignedTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height, double angle, Color textColor) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        BufferedImage base = createTwoLineTextImage(width, height, text);
+        BufferedImage base = createSingleLineTextImage(width, height, text, textColor);
         BufferedImage rotated = rotateImageByAngle(base, angle);
         String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), subDir);
         return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
@@ -488,31 +495,28 @@ public class SuperWidthSpliceMarkService {
 
     private byte[] createTwoLineTextPng(double width, double height, String text) {
         try {
-            BufferedImage image = createTwoLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text);
+            BufferedImage image = createSingleLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text, Color.WHITE);
             return toPng(image);
         } catch (Exception e) {
             throw new IllegalStateException("生成横向文字 PNG 失败", e);
         }
     }
 
-    private BufferedImage createTwoLineTextImage(int w, int h, String text) {
+    private BufferedImage createSingleLineTextImage(int w, int h, String text, Color textColor) {
         BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setComposite(AlphaComposite.Clear);
         g.fillRect(0, 0, w, h);
         g.setComposite(AlphaComposite.SrcOver);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
+        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 2)));
         FontMetrics fm = g.getFontMetrics();
         int textW = fm.stringWidth(text);
         int textH = fm.getAscent();
         int x = Math.max(0, (w - textW) / 2);
-        int firstLineY = Math.max(textH, h / 2 - 2);
-        int secondLineY = Math.max(textH + 2, h - 2);
-        g.setColor(Color.WHITE);
-        g.drawString(text, x, firstLineY);
-        g.setColor(createGrayColor(20));
-        g.drawString(text, x, secondLineY);
+        int y = Math.max(textH, Math.min(h - 2, (h + textH) / 2 - 1));
+        g.setColor(textColor);
+        g.drawString(text, x, y);
         g.dispose();
         return image;
     }
