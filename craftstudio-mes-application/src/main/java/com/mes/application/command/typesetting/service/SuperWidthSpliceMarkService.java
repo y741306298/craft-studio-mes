@@ -82,6 +82,7 @@ public class SuperWidthSpliceMarkService {
             if (bounds == null) {
                 continue;
             }
+            double dataRotation = extractDataRotationById(svgContent, piece.getId());
             int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
             int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
             int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6) + marginTop);
@@ -98,10 +99,14 @@ public class SuperWidthSpliceMarkService {
                 formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, topY));
                 formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, bottomY));
             }
-            if (isLastPiece || isMiddlePiece) {
+            if (isMiddlePiece) {
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, true, 0D);
+                addStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop, true, 0D);
+            }
+            if (isLastPiece) {
                 boolean hasVerticalCut = hasVerticalCut(piece);
-                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, hasVerticalCut);
-                addStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut);
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
+                addStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
             }
         }
     }
@@ -280,7 +285,7 @@ public class SuperWidthSpliceMarkService {
         return Math.max(0, formeRequest.getForme().getMargin().getTop());
     }
 
-    private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut) {
+    private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
         int secondY = Math.max(0, (int) Math.round(bounds.maxY - 28 - 20) + marginTop);
@@ -291,27 +296,66 @@ public class SuperWidthSpliceMarkService {
             int rotatedWidth = rawHeight;
             int rotatedHeight = rawWidth;
             String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-            formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, topY));
-            formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, secondY));
+            formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rotatedWidth, rotatedHeight, leftX, topY, bounds, marginLeft, marginTop, rotationAngle));
+            formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rotatedWidth, rotatedHeight, leftX, secondY, bounds, marginLeft, marginTop, rotationAngle));
             return;
         }
         String markGroup = uploadHorizontalTwoLineTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-        formeRequest.getForme().getMarks().add(createMark(markGroup, rawWidth, rawHeight, leftX, topY));
-        formeRequest.getForme().getMarks().add(createMark(markGroup, rawWidth, rawHeight, secondX, topY));
+        formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rawWidth, rawHeight, leftX, topY, bounds, marginLeft, marginTop, rotationAngle));
+        formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rawWidth, rawHeight, secondX, topY, bounds, marginLeft, marginTop, rotationAngle));
     }
 
-    private void addStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut) {
+    private void addStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         int leftStripeX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft + 20);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
         if (hasVerticalCut) {
             int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6 - 20) + marginTop);
-            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, topY));
-            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, bottomY));
+            formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 1, 6, leftStripeX, topY, bounds, marginLeft, marginTop, rotationAngle));
+            formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 1, 6, leftStripeX, bottomY, bounds, marginLeft, marginTop, rotationAngle));
             return;
         }
         int rightX = Math.max(0, (int) Math.round(bounds.maxX - 6 - 20) + marginLeft);
-        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 6, 1, leftStripeX, topY + 20));
-        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 6, 1, rightX, topY + 20));
+        formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 6, 1, leftStripeX, topY + 20, bounds, marginLeft, marginTop, rotationAngle));
+        formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 6, 1, rightX, topY + 20, bounds, marginLeft, marginTop, rotationAngle));
+    }
+
+    private FormeGenerationRequest.Mark createMarkWithRotate(String img, double width, double height, int x, int y, Bounds bounds, int marginLeft, int marginTop, double rotationAngle) {
+        if (Math.abs(rotationAngle) < 0.0001D) {
+            return createMark(img, width, height, x, y);
+        }
+        double centerX = (bounds.minX + bounds.maxX) / 2D + marginLeft;
+        double centerY = (bounds.minY + bounds.maxY) / 2D + marginTop;
+        double markCenterX = x + width / 2D;
+        double markCenterY = y + height / 2D;
+        double rad = Math.toRadians(rotationAngle);
+        double dx = markCenterX - centerX;
+        double dy = markCenterY - centerY;
+        double rotatedCenterX = centerX + dx * Math.cos(rad) - dy * Math.sin(rad);
+        double rotatedCenterY = centerY + dx * Math.sin(rad) + dy * Math.cos(rad);
+        int rotatedX = (int) Math.round(rotatedCenterX - width / 2D);
+        int rotatedY = (int) Math.round(rotatedCenterY - height / 2D);
+        return createMark(img, width, height, Math.max(0, rotatedX), Math.max(0, rotatedY));
+    }
+
+    private double extractDataRotationById(String svgContent, String elementId) {
+        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(elementId)) {
+            return 0D;
+        }
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            Document document = factory.newDocumentBuilder()
+                    .parse(new ByteArrayInputStream(svgContent.getBytes(StandardCharsets.UTF_8)));
+            Element root = document.getDocumentElement();
+            Element target = findElementById(root, elementId);
+            if (target == null) {
+                return 0D;
+            }
+            return parseDoubleSafe(target.getAttribute("data-rotation"), 0D);
+        } catch (Exception e) {
+            log.warn("解析 data-rotation 失败: elementId={}, error={}", elementId, e.getMessage());
+            return 0D;
+        }
     }
 
     private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
