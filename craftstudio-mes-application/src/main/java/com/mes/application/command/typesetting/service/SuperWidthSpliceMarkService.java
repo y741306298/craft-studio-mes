@@ -70,20 +70,22 @@ public class SuperWidthSpliceMarkService {
 
         String whiteMarkImg = uploadPureWhiteMark(businessId, typesettingInfo.getTypesettingId());
         ensureFormeMarkList(formeRequest);
+        int marginLeft = resolveMarginLeft(formeRequest);
+        int marginTop = resolveMarginTop(formeRequest);
         for (ProductionPiece piece : targetPieces) {
             Bounds bounds = extractElementBoundsById(svgContent, piece.getId());
             if (bounds == null) {
                 continue;
             }
-            int x = Math.max(0, (int) Math.round(bounds.maxX - 20));
-            int topY = Math.max(0, (int) Math.round(bounds.minY));
-            int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 5));
+            int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
+            int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
+            int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 5) + marginTop);
             formeRequest.getForme().getMarks().add(createMark(whiteMarkImg, 0.8, 5, x, topY));
             formeRequest.getForme().getMarks().add(createMark(whiteMarkImg, 0.8, 5, x, bottomY));
 
             Integer seqInGroup = extractSeqInGroup(piece.getGroup());
             if (seqInGroup != null && piece.getSeq() != null && piece.getSeq().intValue() == seqInGroup.intValue()) {
-                addGroupLetterMarks(formeRequest, businessId, typesettingInfo.getTypesettingId(), bounds);
+                addGroupLetterMarks(formeRequest, businessId, typesettingInfo.getTypesettingId(), bounds, marginLeft, marginTop);
             }
         }
     }
@@ -237,9 +239,26 @@ public class SuperWidthSpliceMarkService {
     }
 
 
-    private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String typesettingId, Bounds bounds) {
-        int leftX = Math.max(0, (int) Math.round(bounds.minX));
-        int topY = Math.max(0, (int) Math.round(bounds.minY));
+
+    private int resolveMarginLeft(FormeGenerationRequest formeRequest) {
+        if (formeRequest == null || formeRequest.getForme() == null || formeRequest.getForme().getMargin() == null
+                || formeRequest.getForme().getMargin().getLeft() == null) {
+            return 0;
+        }
+        return Math.max(0, formeRequest.getForme().getMargin().getLeft());
+    }
+
+    private int resolveMarginTop(FormeGenerationRequest formeRequest) {
+        if (formeRequest == null || formeRequest.getForme() == null || formeRequest.getForme().getMargin() == null
+                || formeRequest.getForme().getMargin().getTop() == null) {
+            return 0;
+        }
+        return Math.max(0, formeRequest.getForme().getMargin().getTop());
+    }
+
+    private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String typesettingId, Bounds bounds, int marginLeft, int marginTop) {
+        int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
+        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
         String markA = uploadLetterMark(businessId, typesettingId, "A", Color.WHITE);
         String markB = uploadLetterMark(businessId, typesettingId, "B", createGrayColor(20));
         formeRequest.getForme().getMarks().add(createMark(markA, 10, 10, leftX, topY));
