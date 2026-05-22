@@ -68,7 +68,7 @@ public class SuperWidthSpliceMarkService {
             return;
         }
 
-        String whiteMarkImg = uploadPureWhiteMark(businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId());
+        String darkMarkImg = uploadGrayRectMark(businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId());
         ensureFormeMarkList(formeRequest);
         int marginLeft = resolveMarginLeft(formeRequest);
         int marginTop = resolveMarginTop(formeRequest);
@@ -79,9 +79,9 @@ public class SuperWidthSpliceMarkService {
             }
             int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
             int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-            int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 5) + marginTop);
-            formeRequest.getForme().getMarks().add(createMark(whiteMarkImg, 0.8, 5, x, topY));
-            formeRequest.getForme().getMarks().add(createMark(whiteMarkImg, 0.8, 5, x, bottomY));
+            int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6) + marginTop);
+            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, topY));
+            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, bottomY));
 
             Integer seqInGroup = extractSeqInGroup(piece.getGroup());
             if (seqInGroup != null && piece.getSeq() != null && piece.getSeq().intValue() == seqInGroup.intValue()) {
@@ -102,9 +102,9 @@ public class SuperWidthSpliceMarkService {
         return false;
     }
 
-    private String uploadPureWhiteMark(String businessId, String manufacturerMetaId, String typesettingId) {
+    private String uploadGrayRectMark(String businessId, String manufacturerMetaId, String typesettingId) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(0.8, 5, Color.WHITE), subDir);
+        return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(1, 6, createGrayColor(20)), subDir);
     }
 
     private byte[] createPureColorPng(double width, double height, Color color) {
