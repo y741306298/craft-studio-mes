@@ -21,6 +21,7 @@ import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfi
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -147,6 +148,11 @@ public class AppTypesettingService {
 
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+    @Autowired
+    private OssTagUploadService ossTagUploadService;
+
+    @Autowired
+    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
     @Autowired
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;

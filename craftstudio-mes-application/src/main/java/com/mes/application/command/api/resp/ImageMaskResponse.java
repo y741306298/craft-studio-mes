@@ -15,7 +15,7 @@ public class ImageMaskResponse {
 
     @Data
     public static class Pair {
-        private Integer group;
+        private String group;
         private Integer seq;
         /**
          * 新版结构：正面结果
@@ -61,7 +61,7 @@ public class ImageMaskResponse {
         private String previewImg;
         private String thumbnail;
         private Blood blood;
-        private Integer group;
+        private String group;
         private Integer seq;
     }
 
