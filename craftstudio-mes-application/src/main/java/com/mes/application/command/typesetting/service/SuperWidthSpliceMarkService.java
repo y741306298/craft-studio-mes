@@ -109,9 +109,10 @@ public class SuperWidthSpliceMarkService {
 
     private byte[] createPureColorPng(double width, double height, Color color) {
         try {
-            BufferedImage image = new BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), BufferedImage.TYPE_INT_RGB);
+            BufferedImage image = new BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = image.createGraphics();
-            g.setColor(color);
+            g.setComposite(AlphaComposite.Src);
+            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 255));
             g.fillRect(0, 0, image.getWidth(), image.getHeight());
             g.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
