@@ -122,9 +122,9 @@ public class AppPrintService {
             }
             Integer currentLeaveQuantity = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
             dbInfo.setLeaveQuantity(Math.max(currentLeaveQuantity - reportQuantity, 0));
-            if (dbInfo.getLeaveQuantity() <= 0) {
-                dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
-            }
+        }
+        if (dbInfo.getLeaveQuantity() != null && dbInfo.getLeaveQuantity() == 0) {
+            dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
         typesettingService.updateTypesetting(dbInfo);
 
@@ -165,6 +165,23 @@ public class AppPrintService {
         }
 
         return new PrintReportResult(canComplete, transferCount);
+    }
+
+    public void startTypesettingPrintById(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
+        }
+
+        TypesettingInfo dbInfo = typesettingService.findById(typesettingId);
+        if (dbInfo == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不存在：" + typesettingId);
+        }
+        if (!TypesettingStatus.PRINTING.getCode().equals(dbInfo.getStatus())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有待打印状态可以开始打印");
+        }
+
+        dbInfo.setStatus(TypesettingStatus.PRINTING_IN_PROGRESS.getCode());
+        typesettingService.updateTypesetting(dbInfo);
     }
 
     public void releaseLayout(List<String> typesettingIds) {
