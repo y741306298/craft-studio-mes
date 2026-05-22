@@ -51,7 +51,7 @@ public class SuperWidthSpliceMarkService {
                 continue;
             }
             ProductionPiece piece = productionPieceService.findById(cell.getSourceId());
-            if (piece == null || piece.getSeq() == null || piece.getGroup() == null || piece.getSeq() != 1) {
+            if (piece == null || piece.getSeq() == null || piece.getGroup() == null) {
                 continue;
             }
             if (!hasProcedureNode(piece, SUPER_WIDTH_SPLICE_NODE_NAME)) {
