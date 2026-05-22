@@ -1215,7 +1215,7 @@ public class AppTypesettingService {
             element.setSafeDistance(0.00D);
             return;
         }
-        element.setAlign("left");
+        element.setAlign(null);
         element.setSafeDistance(30.00D);
     }
 
