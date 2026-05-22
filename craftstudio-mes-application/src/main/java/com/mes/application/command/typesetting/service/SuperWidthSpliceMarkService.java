@@ -51,7 +51,7 @@ public class SuperWidthSpliceMarkService {
                 continue;
             }
             ProductionPiece piece = productionPieceService.findById(cell.getSourceId());
-            if (piece == null || piece.getSeq() == null || piece.getGroup() == null || piece.getSeq() != 1) {
+            if (piece == null || piece.getSeq() == null || piece.getGroup() == null) {
                 continue;
             }
             if (!hasProcedureNode(piece, SUPER_WIDTH_SPLICE_NODE_NAME)) {
@@ -80,12 +80,21 @@ public class SuperWidthSpliceMarkService {
             int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
             int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
             int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6) + marginTop);
-            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, topY));
-            formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, bottomY));
+            Integer maxSeqInGroup = extractMaxSeqInGroup(piece.getGroup());
+            Integer currentSeq = piece.getSeq();
+            if (currentSeq == null || maxSeqInGroup == null || maxSeqInGroup <= 0) {
+                continue;
+            }
+            boolean isFirstPiece = currentSeq == 1;
+            boolean isLastPiece = currentSeq.intValue() == maxSeqInGroup.intValue();
+            boolean isMiddlePiece = currentSeq > 1 && currentSeq < maxSeqInGroup;
 
-            Integer seqInGroup = extractSeqInGroup(piece.getGroup());
-            if (seqInGroup != null && piece.getSeq() != null && piece.getSeq().intValue() == seqInGroup.intValue()) {
-                addGroupLetterMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), bounds, marginLeft, marginTop);
+            if (isFirstPiece || isMiddlePiece) {
+                formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, topY));
+                formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, bottomY));
+            }
+            if (isLastPiece || isMiddlePiece) {
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop);
             }
         }
     }
@@ -127,22 +136,6 @@ public class SuperWidthSpliceMarkService {
             return outputStream.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("生成黑白交替矩形 PNG 失败", e);
-        }
-    }
-
-    private byte[] createPureColorPng(double width, double height, Color color) {
-        try {
-            BufferedImage image = new BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = image.createGraphics();
-            g.setComposite(AlphaComposite.Src);
-            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 255));
-            g.fillRect(0, 0, image.getWidth(), image.getHeight());
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成纯色 PNG 失败", e);
         }
     }
 
@@ -280,18 +273,20 @@ public class SuperWidthSpliceMarkService {
         return Math.max(0, formeRequest.getForme().getMargin().getTop());
     }
 
-    private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, Bounds bounds, int marginLeft, int marginTop) {
+    private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        String markA = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "A", createGrayColor(10));
-        String markB = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "B", createGrayColor(20));
-        formeRequest.getForme().getMarks().add(createMark(markA, 10, 10, leftX, topY));
-        formeRequest.getForme().getMarks().add(createMark(markB, 10, 10, leftX + 10, topY));
+        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 10) + marginTop);
+        int textWidth = Math.max(20, groupText.length() * 7);
+        int textHeight = 10;
+        String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, textWidth, textHeight);
+        formeRequest.getForme().getMarks().add(createMark(markGroup, textWidth, textHeight, leftX, topY));
+        formeRequest.getForme().getMarks().add(createMark(markGroup, textWidth, textHeight, leftX, bottomY));
     }
 
-    private String uploadLetterMark(String businessId, String manufacturerMetaId, String typesettingId, String letter, Color color) {
+    private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        return ossTagUploadService.uploadTagPng(businessId, createLetterPng(10, 10, letter, color), subDir);
+        return ossTagUploadService.uploadTagPng(businessId, createTextPng(width, height, text, Color.BLACK), subDir);
     }
 
 
@@ -300,7 +295,7 @@ public class SuperWidthSpliceMarkService {
         String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
         return "mark/" + safeManufacturerMetaId + "/" + safeTypesettingId;
     }
-    private byte[] createLetterPng(double width, double height, String letter, Color textColor) {
+    private byte[] createTextPng(double width, double height, String text, Color textColor) {
         try {
             int w = (int) Math.ceil(width);
             int h = (int) Math.ceil(height);
@@ -311,29 +306,23 @@ public class SuperWidthSpliceMarkService {
             g.setComposite(AlphaComposite.SrcOver);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setColor(textColor);
-            g.setFont(new Font("SansSerif", Font.BOLD, h));
+            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 1)));
             FontMetrics fm = g.getFontMetrics();
-            int textW = fm.stringWidth(letter);
+            int textW = fm.stringWidth(text);
             int textH = fm.getAscent();
             int x = Math.max(0, (w - textW) / 2);
             int y = Math.max(textH, (h + textH) / 2 - 1);
-            g.drawString(letter, x, y);
+            g.drawString(text, x, y);
             g.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(image, "png", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
-            throw new IllegalStateException("生成字母 PNG 失败", e);
+            throw new IllegalStateException("生成文字 PNG 失败", e);
         }
     }
 
-    private Color createGrayColor(int blackPercent) {
-        int black = Math.max(0, Math.min(100, blackPercent));
-        int v = (int) Math.round(255 * (1 - black / 100.0));
-        return new Color(v, v, v);
-    }
-
-    private Integer extractSeqInGroup(String group) {
+    private Integer extractMaxSeqInGroup(String group) {
         if (StringUtils.isBlank(group)) {
             return null;
         }
