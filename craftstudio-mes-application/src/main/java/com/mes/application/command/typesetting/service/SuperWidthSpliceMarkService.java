@@ -37,6 +37,9 @@ import java.util.regex.Pattern;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+/**
+ * 超幅拼接标识服务：负责在排版结果中追加 group 文本与黑白条标识。
+ */
 public class SuperWidthSpliceMarkService {
     private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
 
@@ -45,6 +48,13 @@ public class SuperWidthSpliceMarkService {
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
 
+    /**
+     * 主流程：
+     * 1) 过滤出包含“超幅拼接”节点的零件；
+     * 2) 拉取 nestedSvg 并解析零件 bounds / data-rotation；
+     * 3) seq=1 或 1<seq<m 按历史逻辑放置；
+     * 4) 仅 seq=m 按血边方向放置文字与黑白条。
+     */
     public void apply(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest, String businessId) {
         if (typesettingInfo == null || typesettingInfo.getTypesettingCells() == null || typesettingInfo.getTypesettingCells().isEmpty()
                 || formeRequest == null || formeRequest.getForme() == null || StringUtils.isBlank(formeRequest.getForme().getSvgUrl())) {
@@ -101,12 +111,12 @@ public class SuperWidthSpliceMarkService {
             }
             if (isMiddlePiece) {
                 addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, true, 0D);
-                addStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop, true, 0D);
+                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, true, 0D);
             }
             if (isLastPiece) {
                 boolean hasVerticalCut = hasVerticalCut(piece);
                 addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
-                addStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
+                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
             }
         }
     }
@@ -285,6 +295,9 @@ public class SuperWidthSpliceMarkService {
         return Math.max(0, formeRequest.getForme().getMargin().getTop());
     }
 
+    /**
+     * 沿解析出的血边方向放置两份 group 文本（靠近边两端）。
+     */
     private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         int rawWidth = Math.max(24, groupText.length() * 8);
         int rawHeight = 24;
@@ -295,7 +308,10 @@ public class SuperWidthSpliceMarkService {
         formeRequest.getForme().getMarks().add(createEdgeMark(textAsset.img, textAsset.width, textAsset.height, edge, 0.9D, 0D));
     }
 
-    private void addStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
+    /**
+     * 沿解析出的血边方向放置两份黑白条，距离血边内缩 20mm。
+     */
+    private void addStripeMarks(FormeGenerationRequest formeRequest, String businessId, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
         MarkAsset stripeAsset = uploadEdgeAlignedStripeMark(businessId, darkMarkImg, edgeAngle);
@@ -303,6 +319,9 @@ public class SuperWidthSpliceMarkService {
         formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0.9D, 20D));
     }
 
+    /**
+     * 在指定边上按比例定位标识中心点，并按法线向内偏移，避免标识出界。
+     */
     private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
         double safeRatio = Math.max(0.1D, Math.min(0.9D, ratio));
         double radiusOnNormal = (Math.abs(edge.normal.x) * width + Math.abs(edge.normal.y) * height) / 2D;
@@ -314,6 +333,9 @@ public class SuperWidthSpliceMarkService {
         return createMark(img, width, height, x, y);
     }
 
+    /**
+     * 解析“实际血边”：先按切割类型确定恢复语义边，再按 data-rotation 映射到当前边。
+     */
     private Edge resolveBleedEdge(Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         double minX = bounds.minX + marginLeft;
         double minY = bounds.minY + marginTop;
@@ -537,6 +559,9 @@ public class SuperWidthSpliceMarkService {
         }
     }
 
+    /**
+     * 通过 orderItem 的“超幅拼接”节点 param.xs 判断是否存在竖切。
+     */
     private boolean hasVerticalCut(ProductionPiece piece) {
         if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
             return false;
