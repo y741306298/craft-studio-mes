@@ -47,6 +47,15 @@ public class PrintController {
     }
 
     /**
+     * 根据ID开始打印：将排版状态从待打印更新为打印中。
+     */
+    @PostMapping("/startById")
+    public ApiResponse<Boolean> startById(@RequestParam String id) {
+        appPrintService.startTypesettingPrintById(id);
+        return ApiResponse.success(true);
+    }
+
+    /**
      * 打印报备。
      * 1. remark 有值时更新排版备注；
      * 2. 使用入参 quantity 扣减印版 leaveQuantity，并判断是否可报备完成；
