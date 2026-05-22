@@ -154,6 +154,9 @@ public class AppTypesettingService {
     @Autowired
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
+    @Autowired
+    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
+
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
 
@@ -879,7 +882,7 @@ public class AppTypesettingService {
             markMap.putAll(typesettingInfo.getMarks());
         }
         LinkedHashSet<String> existingValues = new LinkedHashSet<>(markMap.values());
-        int index = markMap.size();
+        int index = resolveNextFormeMarkIndex(markMap);
         for (FormeGenerationRequest.Mark mark : formeRequest.getForme().getMarks()) {
             if (mark == null || StringUtils.isBlank(mark.getImg())) {
                 continue;
@@ -892,6 +895,28 @@ public class AppTypesettingService {
         if (!markMap.isEmpty()) {
             typesettingInfo.setMarks(markMap);
         }
+    }
+
+    private int resolveNextFormeMarkIndex(Map<String, String> markMap) {
+        if (markMap == null || markMap.isEmpty()) {
+            return 0;
+        }
+        int maxIndex = -1;
+        for (String key : markMap.keySet()) {
+            if (StringUtils.isBlank(key) || !key.startsWith("formeMarkImg_")) {
+                continue;
+            }
+            String suffix = key.substring("formeMarkImg_".length());
+            if (StringUtils.isBlank(suffix)) {
+                continue;
+            }
+            try {
+                maxIndex = Math.max(maxIndex, Integer.parseInt(suffix));
+            } catch (Exception ignored) {
+                // ignore malformed key and continue
+            }
+        }
+        return maxIndex + 1;
     }
 
     private TypesettingInfo resolveMirrorTypesettingInfo(TypesettingInfo origin) {

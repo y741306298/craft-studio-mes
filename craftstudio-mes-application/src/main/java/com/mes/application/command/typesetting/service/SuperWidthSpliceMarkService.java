@@ -68,7 +68,7 @@ public class SuperWidthSpliceMarkService {
             return;
         }
 
-        String whiteMarkImg = uploadPureWhiteMark(businessId, typesettingInfo.getTypesettingId());
+        String whiteMarkImg = uploadPureWhiteMark(businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId());
         ensureFormeMarkList(formeRequest);
         int marginLeft = resolveMarginLeft(formeRequest);
         int marginTop = resolveMarginTop(formeRequest);
@@ -85,7 +85,7 @@ public class SuperWidthSpliceMarkService {
 
             Integer seqInGroup = extractSeqInGroup(piece.getGroup());
             if (seqInGroup != null && piece.getSeq() != null && piece.getSeq().intValue() == seqInGroup.intValue()) {
-                addGroupLetterMarks(formeRequest, businessId, typesettingInfo.getTypesettingId(), bounds, marginLeft, marginTop);
+                addGroupLetterMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), bounds, marginLeft, marginTop);
             }
         }
     }
@@ -102,16 +102,17 @@ public class SuperWidthSpliceMarkService {
         return false;
     }
 
-    private String uploadPureWhiteMark(String businessId, String typesettingId) {
-        String subDir = "tags/" + businessId + "/" + (StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId);
+    private String uploadPureWhiteMark(String businessId, String manufacturerMetaId, String typesettingId) {
+        String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
         return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(0.8, 5, Color.WHITE), subDir);
     }
 
     private byte[] createPureColorPng(double width, double height, Color color) {
         try {
-            BufferedImage image = new BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), BufferedImage.TYPE_INT_RGB);
+            BufferedImage image = new BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = image.createGraphics();
-            g.setColor(color);
+            g.setComposite(AlphaComposite.Src);
+            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 255));
             g.fillRect(0, 0, image.getWidth(), image.getHeight());
             g.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -256,20 +257,26 @@ public class SuperWidthSpliceMarkService {
         return Math.max(0, formeRequest.getForme().getMargin().getTop());
     }
 
-    private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String typesettingId, Bounds bounds, int marginLeft, int marginTop) {
+    private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, Bounds bounds, int marginLeft, int marginTop) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        String markA = uploadLetterMark(businessId, typesettingId, "A", Color.WHITE);
-        String markB = uploadLetterMark(businessId, typesettingId, "B", createGrayColor(20));
+        String markA = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "A", Color.WHITE);
+        String markB = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "B", createGrayColor(20));
         formeRequest.getForme().getMarks().add(createMark(markA, 10, 10, leftX, topY));
         formeRequest.getForme().getMarks().add(createMark(markB, 10, 10, leftX + 10, topY));
     }
 
-    private String uploadLetterMark(String businessId, String typesettingId, String letter, Color color) {
-        String subDir = "tags/" + businessId + "/" + (StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId);
+    private String uploadLetterMark(String businessId, String manufacturerMetaId, String typesettingId, String letter, Color color) {
+        String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
         return ossTagUploadService.uploadTagPng(businessId, createLetterPng(10, 10, letter, color), subDir);
     }
 
+
+    private String buildMarkSubDir(String manufacturerMetaId, String typesettingId) {
+        String safeManufacturerMetaId = StringUtils.isBlank(manufacturerMetaId) ? "unknown" : manufacturerMetaId;
+        String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
+        return "mark/" + safeManufacturerMetaId + "/" + safeTypesettingId;
+    }
     private byte[] createLetterPng(double width, double height, String letter, Color textColor) {
         try {
             int w = (int) Math.ceil(width);
