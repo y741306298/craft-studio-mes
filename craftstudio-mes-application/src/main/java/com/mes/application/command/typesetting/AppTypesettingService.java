@@ -154,6 +154,9 @@ public class AppTypesettingService {
     @Autowired
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
+    @Autowired
+    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
+
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
 

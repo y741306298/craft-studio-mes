@@ -104,7 +104,7 @@ public class SuperWidthSpliceMarkService {
 
     private String uploadGrayRectMark(String businessId, String manufacturerMetaId, String typesettingId) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(1, 6, createGrayColor(20)), subDir);
+        return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(1, 6, createGrayColor(1)), subDir);
     }
 
     private byte[] createPureColorPng(double width, double height, Color color) {
