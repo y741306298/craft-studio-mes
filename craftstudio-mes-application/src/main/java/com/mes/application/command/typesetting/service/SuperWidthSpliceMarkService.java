@@ -274,7 +274,7 @@ public class SuperWidthSpliceMarkService {
     private String buildMarkSubDir(String manufacturerMetaId, String typesettingId) {
         String safeManufacturerMetaId = StringUtils.isBlank(manufacturerMetaId) ? "unknown" : manufacturerMetaId;
         String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
-        return "tags/" + safeManufacturerMetaId + "/" + safeTypesettingId;
+        return "mark/" + safeManufacturerMetaId + "/" + safeTypesettingId;
     }
     private byte[] createLetterPng(double width, double height, String letter, Color textColor) {
         try {
