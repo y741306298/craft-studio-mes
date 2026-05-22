@@ -286,55 +286,72 @@ public class SuperWidthSpliceMarkService {
     }
 
     private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
-        int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
-        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        int secondY = Math.max(0, (int) Math.round(bounds.maxY - 28 - 20) + marginTop);
-        int secondX = Math.max(0, (int) Math.round(bounds.maxX - 24) + marginLeft);
         int rawWidth = Math.max(24, groupText.length() * 8);
         int rawHeight = 24;
+        Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         if (hasVerticalCut) {
             int rotatedWidth = rawHeight;
             int rotatedHeight = rawWidth;
             String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-            formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rotatedWidth, rotatedHeight, leftX, topY, bounds, marginLeft, marginTop, rotationAngle));
-            formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rotatedWidth, rotatedHeight, leftX, secondY, bounds, marginLeft, marginTop, rotationAngle));
+            formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rotatedWidth, rotatedHeight, edge, 0.1D, 0D));
+            formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rotatedWidth, rotatedHeight, edge, 0.9D, 0D));
             return;
         }
         String markGroup = uploadHorizontalTwoLineTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-        formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rawWidth, rawHeight, leftX, topY, bounds, marginLeft, marginTop, rotationAngle));
-        formeRequest.getForme().getMarks().add(createMarkWithRotate(markGroup, rawWidth, rawHeight, secondX, topY, bounds, marginLeft, marginTop, rotationAngle));
+        formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rawWidth, rawHeight, edge, 0.1D, 0D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rawWidth, rawHeight, edge, 0.9D, 0D));
     }
 
     private void addStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
-        int leftStripeX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft + 20);
-        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
+        Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         if (hasVerticalCut) {
-            int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6 - 20) + marginTop);
-            formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 1, 6, leftStripeX, topY, bounds, marginLeft, marginTop, rotationAngle));
-            formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 1, 6, leftStripeX, bottomY, bounds, marginLeft, marginTop, rotationAngle));
+            formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 1, 6, edge, 0.1D, 20D));
+            formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 1, 6, edge, 0.9D, 20D));
             return;
         }
-        int rightX = Math.max(0, (int) Math.round(bounds.maxX - 6 - 20) + marginLeft);
-        formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 6, 1, leftStripeX, topY + 20, bounds, marginLeft, marginTop, rotationAngle));
-        formeRequest.getForme().getMarks().add(createMarkWithRotate(darkMarkImg, 6, 1, rightX, topY + 20, bounds, marginLeft, marginTop, rotationAngle));
+        formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 6, 1, edge, 0.1D, 20D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 6, 1, edge, 0.9D, 20D));
     }
 
-    private FormeGenerationRequest.Mark createMarkWithRotate(String img, double width, double height, int x, int y, Bounds bounds, int marginLeft, int marginTop, double rotationAngle) {
-        if (Math.abs(rotationAngle) < 0.0001D) {
-            return createMark(img, width, height, x, y);
+    private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
+        double cx = edge.start.x + (edge.end.x - edge.start.x) * ratio + edge.normal.x * inwardOffset;
+        double cy = edge.start.y + (edge.end.y - edge.start.y) * ratio + edge.normal.y * inwardOffset;
+        int x = Math.max(0, (int) Math.round(cx - width / 2D));
+        int y = Math.max(0, (int) Math.round(cy - height / 2D));
+        return createMark(img, width, height, x, y);
+    }
+
+    private Edge resolveBleedEdge(Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
+        double minX = bounds.minX + marginLeft;
+        double minY = bounds.minY + marginTop;
+        double maxX = bounds.maxX + marginLeft;
+        double maxY = bounds.maxY + marginTop;
+        PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
+        PointD p1 = hasVerticalCut ? new PointD(minX, minY) : new PointD(minX, minY);
+        PointD p2 = hasVerticalCut ? new PointD(minX, maxY) : new PointD(maxX, minY);
+        PointD r1 = rotatePoint(p1, center, rotationAngle);
+        PointD r2 = rotatePoint(p2, center, rotationAngle);
+        PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
+        double len = Math.hypot(edgeDir.x, edgeDir.y);
+        if (len < 0.0001D) {
+            return new Edge(r1, r2, new PointD(0, 0));
         }
-        double centerX = (bounds.minX + bounds.maxX) / 2D + marginLeft;
-        double centerY = (bounds.minY + bounds.maxY) / 2D + marginTop;
-        double markCenterX = x + width / 2D;
-        double markCenterY = y + height / 2D;
-        double rad = Math.toRadians(rotationAngle);
-        double dx = markCenterX - centerX;
-        double dy = markCenterY - centerY;
-        double rotatedCenterX = centerX + dx * Math.cos(rad) - dy * Math.sin(rad);
-        double rotatedCenterY = centerY + dx * Math.sin(rad) + dy * Math.cos(rad);
-        int rotatedX = (int) Math.round(rotatedCenterX - width / 2D);
-        int rotatedY = (int) Math.round(rotatedCenterY - height / 2D);
-        return createMark(img, width, height, Math.max(0, rotatedX), Math.max(0, rotatedY));
+        PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
+        PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
+        if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
+            normal = new PointD(-normal.x, -normal.y);
+        }
+        return new Edge(r1, r2, normal);
+    }
+
+    private PointD rotatePoint(PointD p, PointD c, double angle) {
+        if (Math.abs(angle) < 0.0001D) {
+            return p;
+        }
+        double rad = Math.toRadians(angle);
+        double dx = p.x - c.x;
+        double dy = p.y - c.y;
+        return new PointD(c.x + dx * Math.cos(rad) - dy * Math.sin(rad), c.y + dx * Math.sin(rad) + dy * Math.cos(rad));
     }
 
     private double extractDataRotationById(String svgContent, String elementId) {
@@ -527,6 +544,28 @@ public class SuperWidthSpliceMarkService {
         private boolean valid() {
             return Double.isFinite(minX) && Double.isFinite(minY)
                     && Double.isFinite(maxX) && Double.isFinite(maxY);
+        }
+    }
+
+    private static class PointD {
+        private final double x;
+        private final double y;
+
+        private PointD(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    private static class Edge {
+        private final PointD start;
+        private final PointD end;
+        private final PointD normal;
+
+        private Edge(PointD start, PointD end, PointD normal) {
+            this.start = start;
+            this.end = end;
+            this.normal = normal;
         }
     }
 }
