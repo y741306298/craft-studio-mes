@@ -104,7 +104,30 @@ public class SuperWidthSpliceMarkService {
 
     private String uploadGrayRectMark(String businessId, String manufacturerMetaId, String typesettingId) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        return ossTagUploadService.uploadTagPng(businessId, createPureColorPng(1, 6, createGrayColor(1)), subDir);
+        return ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), subDir);
+    }
+
+
+    private byte[] createAlternatingStripePng(double width, double height) {
+        try {
+            int w = (int) Math.ceil(width);
+            int h = (int) Math.ceil(height);
+            BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.setComposite(AlphaComposite.Src);
+            for (int y = 0; y < h; y++) {
+                boolean blackBand = y % 2 == 0;
+                Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
+                g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
+                g.fillRect(0, y, w, 1);
+            }
+            g.dispose();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("生成黑白交替矩形 PNG 失败", e);
+        }
     }
 
     private byte[] createPureColorPng(double width, double height, Color color) {
@@ -260,7 +283,7 @@ public class SuperWidthSpliceMarkService {
     private void addGroupLetterMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, Bounds bounds, int marginLeft, int marginTop) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        String markA = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "A", Color.WHITE);
+        String markA = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "A", createGrayColor(10));
         String markB = uploadLetterMark(businessId, manufacturerMetaId, typesettingId, "B", createGrayColor(20));
         formeRequest.getForme().getMarks().add(createMark(markA, 10, 10, leftX, topY));
         formeRequest.getForme().getMarks().add(createMark(markB, 10, 10, leftX + 10, topY));
