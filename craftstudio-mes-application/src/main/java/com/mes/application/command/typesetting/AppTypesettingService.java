@@ -15,6 +15,7 @@ import com.aliyun.oss.model.ObjectMetadata;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
+import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -146,6 +147,9 @@ public class AppTypesettingService {
 
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+
+    @Autowired
+    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -828,6 +832,7 @@ public class AppTypesettingService {
         request.setOutputs(modeResult.getOutputs());
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
+        superWidthSpliceMarkService.apply(typesettingInfo, request, businessId);
         mergeFormeMarkResources(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
@@ -871,7 +876,7 @@ public class AppTypesettingService {
             markMap.putAll(typesettingInfo.getMarks());
         }
         LinkedHashSet<String> existingValues = new LinkedHashSet<>(markMap.values());
-        int index = markMap.size();
+        int index = resolveNextFormeMarkIndex(markMap);
         for (FormeGenerationRequest.Mark mark : formeRequest.getForme().getMarks()) {
             if (mark == null || StringUtils.isBlank(mark.getImg())) {
                 continue;
@@ -886,7 +891,27 @@ public class AppTypesettingService {
         }
     }
 
-
+    private int resolveNextFormeMarkIndex(Map<String, String> markMap) {
+        if (markMap == null || markMap.isEmpty()) {
+            return 0;
+        }
+        int maxIndex = -1;
+        for (String key : markMap.keySet()) {
+            if (StringUtils.isBlank(key) || !key.startsWith("formeMarkImg_")) {
+                continue;
+            }
+            String suffix = key.substring("formeMarkImg_".length());
+            if (StringUtils.isBlank(suffix)) {
+                continue;
+            }
+            try {
+                maxIndex = Math.max(maxIndex, Integer.parseInt(suffix));
+            } catch (Exception ignored) {
+                // ignore malformed key and continue
+            }
+        }
+        return maxIndex + 1;
+    }
 
     private TypesettingInfo resolveMirrorTypesettingInfo(TypesettingInfo origin) {
         if (mirrorFormeStrategies == null || mirrorFormeStrategies.isEmpty()) {
