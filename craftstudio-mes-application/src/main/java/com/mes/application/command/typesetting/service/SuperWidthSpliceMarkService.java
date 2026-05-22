@@ -289,28 +289,18 @@ public class SuperWidthSpliceMarkService {
         int rawWidth = Math.max(24, groupText.length() * 8);
         int rawHeight = 24;
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
-        if (hasVerticalCut) {
-            int rotatedWidth = rawHeight;
-            int rotatedHeight = rawWidth;
-            String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-            formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rotatedWidth, rotatedHeight, edge, 0.1D, 0D));
-            formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rotatedWidth, rotatedHeight, edge, 0.9D, 0D));
-            return;
-        }
-        String markGroup = uploadHorizontalTwoLineTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-        formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rawWidth, rawHeight, edge, 0.1D, 0D));
-        formeRequest.getForme().getMarks().add(createEdgeMark(markGroup, rawWidth, rawHeight, edge, 0.9D, 0D));
+        double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
+        MarkAsset textAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle);
+        formeRequest.getForme().getMarks().add(createEdgeMark(textAsset.img, textAsset.width, textAsset.height, edge, 0.1D, 0D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(textAsset.img, textAsset.width, textAsset.height, edge, 0.9D, 0D));
     }
 
     private void addStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
-        if (hasVerticalCut) {
-            formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 1, 6, edge, 0.1D, 20D));
-            formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 1, 6, edge, 0.9D, 20D));
-            return;
-        }
-        formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 6, 1, edge, 0.1D, 20D));
-        formeRequest.getForme().getMarks().add(createEdgeMark(darkMarkImg, 6, 1, edge, 0.9D, 20D));
+        double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
+        MarkAsset stripeAsset = uploadEdgeAlignedStripeMark(businessId, darkMarkImg, edgeAngle);
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0.1D, 20D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0.9D, 20D));
     }
 
     private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
@@ -357,14 +347,14 @@ public class SuperWidthSpliceMarkService {
         PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
         double len = Math.hypot(edgeDir.x, edgeDir.y);
         if (len < 0.0001D) {
-            return new Edge(r1, r2, new PointD(0, 0));
+            return new Edge(r1, r2, new PointD(0, 0), actualEdge);
         }
         PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
         PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
         if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
             normal = new PointD(-normal.x, -normal.y);
         }
-        return new Edge(r1, r2, normal);
+        return new Edge(r1, r2, normal, actualEdge);
     }
 
     private int normalizeQuarterTurns(double rotationAngle) {
@@ -419,6 +409,25 @@ public class SuperWidthSpliceMarkService {
         return ossTagUploadService.uploadTagPng(businessId, createTwoLineTextPng(width, height, text), subDir);
     }
 
+    private MarkAsset uploadEdgeAlignedTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height, double angle) {
+        String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
+        BufferedImage base = createTwoLineTextImage(width, height, text);
+        BufferedImage rotated = rotateImageByAngle(base, angle);
+        String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), subDir);
+        return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
+    }
+
+    private MarkAsset uploadEdgeAlignedStripeMark(String businessId, String fallbackImg, double angle) {
+        try {
+            BufferedImage base = createStripeImage(6, 1);
+            BufferedImage rotated = rotateImageByAngle(base, angle);
+            String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), "mark/dynamic");
+            return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
+        } catch (Exception e) {
+            return new MarkAsset(fallbackImg, 6, 1);
+        }
+    }
+
     private String buildMarkSubDir(String manufacturerMetaId, String typesettingId) {
         String safeManufacturerMetaId = StringUtils.isBlank(manufacturerMetaId) ? "unknown" : manufacturerMetaId;
         String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
@@ -457,31 +466,74 @@ public class SuperWidthSpliceMarkService {
 
     private byte[] createTwoLineTextPng(double width, double height, String text) {
         try {
-            int w = (int) Math.ceil(width);
-            int h = (int) Math.ceil(height);
-            BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = image.createGraphics();
-            g.setComposite(AlphaComposite.Clear);
-            g.fillRect(0, 0, w, h);
-            g.setComposite(AlphaComposite.SrcOver);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
-            FontMetrics fm = g.getFontMetrics();
-            int textW = fm.stringWidth(text);
-            int textH = fm.getAscent();
-            int x = Math.max(0, (w - textW) / 2);
-            int firstLineY = Math.max(textH, h / 2 - 2);
-            int secondLineY = Math.max(textH + 2, h - 2);
-            g.setColor(Color.WHITE);
-            g.drawString(text, x, firstLineY);
-            g.setColor(createGrayColor(20));
-            g.drawString(text, x, secondLineY);
-            g.dispose();
+            BufferedImage image = createTwoLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text);
+            return toPng(image);
+        } catch (Exception e) {
+            throw new IllegalStateException("生成横向文字 PNG 失败", e);
+        }
+    }
+
+    private BufferedImage createTwoLineTextImage(int w, int h, String text) {
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(0, 0, w, h);
+        g.setComposite(AlphaComposite.SrcOver);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
+        FontMetrics fm = g.getFontMetrics();
+        int textW = fm.stringWidth(text);
+        int textH = fm.getAscent();
+        int x = Math.max(0, (w - textW) / 2);
+        int firstLineY = Math.max(textH, h / 2 - 2);
+        int secondLineY = Math.max(textH + 2, h - 2);
+        g.setColor(Color.WHITE);
+        g.drawString(text, x, firstLineY);
+        g.setColor(createGrayColor(20));
+        g.drawString(text, x, secondLineY);
+        g.dispose();
+        return image;
+    }
+
+    private BufferedImage createStripeImage(int w, int h) {
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setComposite(AlphaComposite.Src);
+        for (int y = 0; y < h; y++) {
+            boolean blackBand = y % 2 == 0;
+            Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
+            g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
+            g.fillRect(0, y, w, 1);
+        }
+        g.dispose();
+        return image;
+    }
+
+    private BufferedImage rotateImageByAngle(BufferedImage src, double angle) {
+        double rad = Math.toRadians(angle);
+        double sin = Math.abs(Math.sin(rad));
+        double cos = Math.abs(Math.cos(rad));
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int newW = (int) Math.floor(w * cos + h * sin);
+        int newH = (int) Math.floor(h * cos + w * sin);
+        BufferedImage rotated = new BufferedImage(Math.max(1, newW), Math.max(1, newH), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = rotated.createGraphics();
+        g2d.setComposite(AlphaComposite.Src);
+        g2d.translate((newW - w) / 2D, (newH - h) / 2D);
+        g2d.rotate(rad, w / 2D, h / 2D);
+        g2d.drawRenderedImage(src, null);
+        g2d.dispose();
+        return rotated;
+    }
+
+    private byte[] toPng(BufferedImage image) {
+        try {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(image, "png", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
-            throw new IllegalStateException("生成横向文字 PNG 失败", e);
+            throw new IllegalStateException("PNG 编码失败", e);
         }
     }
 
@@ -595,11 +647,25 @@ public class SuperWidthSpliceMarkService {
         private final PointD start;
         private final PointD end;
         private final PointD normal;
+        private final EdgeType type;
 
-        private Edge(PointD start, PointD end, PointD normal) {
+        private Edge(PointD start, PointD end, PointD normal, EdgeType type) {
             this.start = start;
             this.end = end;
             this.normal = normal;
+            this.type = type;
+        }
+    }
+
+    private static class MarkAsset {
+        private final String img;
+        private final double width;
+        private final double height;
+
+        private MarkAsset(String img, double width, double height) {
+            this.img = img;
+            this.width = width;
+            this.height = height;
         }
     }
 
