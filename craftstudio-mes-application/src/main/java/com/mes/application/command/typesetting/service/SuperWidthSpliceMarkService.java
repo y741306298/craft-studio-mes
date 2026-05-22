@@ -331,10 +331,23 @@ public class SuperWidthSpliceMarkService {
      */
     private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
         double safeRatio = Math.max(0D, Math.min(1D, ratio));
+        double edgeDx = edge.end.x - edge.start.x;
+        double edgeDy = edge.end.y - edge.start.y;
+        double edgeLen = Math.hypot(edgeDx, edgeDy);
+        PointD tangent = edgeLen < 0.0001D ? new PointD(1D, 0D) : new PointD(edgeDx / edgeLen, edgeDy / edgeLen);
+
+        // 标识沿血边方向的几何半径：用于把端点放置从“中心点”修正为“整图不越端点”。
+        double radiusOnTangent = (Math.abs(tangent.x) * width + Math.abs(tangent.y) * height) / 2D;
+        double minRatio = edgeLen < 0.0001D ? 0.5D : Math.min(0.5D, radiusOnTangent / edgeLen);
+        double maxRatio = 1D - minRatio;
+        double clampedRatio = Math.max(minRatio, Math.min(maxRatio, safeRatio));
+
+        // 标识沿法线方向的几何半径：保证标识整体压在血边内侧。
         double radiusOnNormal = (Math.abs(edge.normal.x) * width + Math.abs(edge.normal.y) * height) / 2D;
         double totalInward = radiusOnNormal + Math.max(2D, inwardOffset);
-        double cx = edge.start.x + (edge.end.x - edge.start.x) * safeRatio + edge.normal.x * totalInward;
-        double cy = edge.start.y + (edge.end.y - edge.start.y) * safeRatio + edge.normal.y * totalInward;
+
+        double cx = edge.start.x + edgeDx * clampedRatio + edge.normal.x * totalInward;
+        double cy = edge.start.y + edgeDy * clampedRatio + edge.normal.y * totalInward;
         int x = Math.max(0, (int) Math.round(cx - width / 2D));
         int y = Math.max(0, (int) Math.round(cy - height / 2D));
         return createMark(img, width, height, x, y);
