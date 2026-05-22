@@ -276,17 +276,19 @@ public class SuperWidthSpliceMarkService {
     private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 10) + marginTop);
-        int textWidth = Math.max(20, groupText.length() * 7);
-        int textHeight = 10;
-        String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, textWidth, textHeight);
-        formeRequest.getForme().getMarks().add(createMark(markGroup, textWidth, textHeight, leftX, topY));
-        formeRequest.getForme().getMarks().add(createMark(markGroup, textWidth, textHeight, leftX, bottomY));
+        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 28) + marginTop);
+        int rawWidth = Math.max(24, groupText.length() * 8);
+        int rawHeight = 24;
+        int rotatedWidth = rawHeight;
+        int rotatedHeight = rawWidth;
+        String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
+        formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, topY));
+        formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, bottomY));
     }
 
     private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        return ossTagUploadService.uploadTagPng(businessId, createTextPng(width, height, text, Color.BLACK), subDir);
+        return ossTagUploadService.uploadTagPng(businessId, createRotatedTwoLineTextPng(width, height, text), subDir);
     }
 
 
@@ -295,7 +297,7 @@ public class SuperWidthSpliceMarkService {
         String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
         return "mark/" + safeManufacturerMetaId + "/" + safeTypesettingId;
     }
-    private byte[] createTextPng(double width, double height, String text, Color textColor) {
+    private byte[] createRotatedTwoLineTextPng(double width, double height, String text) {
         try {
             int w = (int) Math.ceil(width);
             int h = (int) Math.ceil(height);
@@ -305,21 +307,43 @@ public class SuperWidthSpliceMarkService {
             g.fillRect(0, 0, w, h);
             g.setComposite(AlphaComposite.SrcOver);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setColor(textColor);
-            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 1)));
+            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
             FontMetrics fm = g.getFontMetrics();
             int textW = fm.stringWidth(text);
             int textH = fm.getAscent();
             int x = Math.max(0, (w - textW) / 2);
-            int y = Math.max(textH, (h + textH) / 2 - 1);
-            g.drawString(text, x, y);
+            int firstLineY = Math.max(textH, h / 2 - 2);
+            int secondLineY = Math.max(textH + 2, h - 2);
+            g.setColor(Color.WHITE);
+            g.drawString(text, x, firstLineY);
+            g.setColor(createGrayColor(20));
+            g.drawString(text, x, secondLineY);
             g.dispose();
+            BufferedImage rotated = rotateClockwise90(image);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
+            ImageIO.write(rotated, "png", outputStream);
             return outputStream.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("生成文字 PNG 失败", e);
         }
+    }
+
+    private BufferedImage rotateClockwise90(BufferedImage src) {
+        int srcW = src.getWidth();
+        int srcH = src.getHeight();
+        BufferedImage dst = new BufferedImage(srcH, srcW, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < srcH; y++) {
+            for (int x = 0; x < srcW; x++) {
+                dst.setRGB(srcH - 1 - y, x, src.getRGB(x, y));
+            }
+        }
+        return dst;
+    }
+
+    private Color createGrayColor(int blackPercent) {
+        int black = Math.max(0, Math.min(100, blackPercent));
+        int v = (int) Math.round(255 * (1 - black / 100.0));
+        return new Color(v, v, v);
     }
 
     private Integer extractMaxSeqInGroup(String group) {
