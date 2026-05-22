@@ -7,6 +7,9 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import io.micrometer.common.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,19 +30,31 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+/**
+ * 超幅拼接标识服务：负责在排版结果中追加 group 文本与黑白条标识。
+ */
 public class SuperWidthSpliceMarkService {
     private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
 
     private final ProductionPieceService productionPieceService;
+    private final OrderItemService orderItemService;
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
 
+    /**
+     * 主流程：
+     * 1) 过滤出包含“超幅拼接”节点的零件；
+     * 2) 拉取 nestedSvg 并解析零件 bounds / data-rotation；
+     * 3) seq=1 或 1<seq<m 按历史逻辑放置；
+     * 4) 仅 seq=m 按血边方向放置文字与黑白条。
+     */
     public void apply(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest, String businessId) {
         if (typesettingInfo == null || typesettingInfo.getTypesettingCells() == null || typesettingInfo.getTypesettingCells().isEmpty()
                 || formeRequest == null || formeRequest.getForme() == null || StringUtils.isBlank(formeRequest.getForme().getSvgUrl())) {
@@ -77,6 +92,7 @@ public class SuperWidthSpliceMarkService {
             if (bounds == null) {
                 continue;
             }
+            double dataRotation = extractDataRotationById(svgContent, piece.getId());
             int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
             int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
             int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6) + marginTop);
@@ -93,9 +109,14 @@ public class SuperWidthSpliceMarkService {
                 formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, topY));
                 formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, x, bottomY));
             }
-            if (isLastPiece || isMiddlePiece) {
-                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop);
-                addLeftStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop);
+            if (isMiddlePiece) {
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, true, 0D);
+                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, true, 0D);
+            }
+            if (isLastPiece) {
+                boolean hasVerticalCut = hasVerticalCut(piece);
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
+                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
             }
         }
     }
@@ -274,25 +295,137 @@ public class SuperWidthSpliceMarkService {
         return Math.max(0, formeRequest.getForme().getMargin().getTop());
     }
 
-    private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop) {
-        int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
-        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 28 - 20) + marginTop);
+    /**
+     * 沿解析出的血边方向放置两份 group 文本（血边两端顶齐）：
+     * 白字贴血边，20%黑字离血边 10mm。
+     */
+    private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         int rawWidth = Math.max(24, groupText.length() * 8);
-        int rawHeight = 24;
-        int rotatedWidth = rawHeight;
-        int rotatedHeight = rawWidth;
-        String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
-        formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, topY));
-        formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, bottomY));
+        int rawHeight = 12;
+        Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
+        double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
+
+        MarkAsset whiteTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, Color.WHITE);
+        MarkAsset grayTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, createGrayColor(20));
+
+        formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 0D, 0D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 1D, 0D));
+
+        formeRequest.getForme().getMarks().add(createEdgeMark(grayTextAsset.img, grayTextAsset.width, grayTextAsset.height, edge, 0D, 10D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(grayTextAsset.img, grayTextAsset.width, grayTextAsset.height, edge, 1D, 10D));
     }
 
-    private void addLeftStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop) {
-        int leftStripeX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft + 20);
-        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6 - 20) + marginTop);
-        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, topY));
-        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, bottomY));
+    /**
+     * 沿解析出的血边方向放置两份黑白条，距离血边内缩 20mm。
+     */
+    private void addStripeMarks(FormeGenerationRequest formeRequest, String businessId, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
+        Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
+        double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
+        MarkAsset stripeAsset = uploadEdgeAlignedStripeMark(businessId, darkMarkImg, edgeAngle);
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 0D, 20D));
+        formeRequest.getForme().getMarks().add(createEdgeMark(stripeAsset.img, stripeAsset.width, stripeAsset.height, edge, 1D, 20D));
+    }
+
+    /**
+     * 在指定边上按比例定位标识中心点，并按法线向内偏移，避免标识出界。
+     */
+    private FormeGenerationRequest.Mark createEdgeMark(String img, double width, double height, Edge edge, double ratio, double inwardOffset) {
+        double safeRatio = Math.max(0D, Math.min(1D, ratio));
+        double radiusOnNormal = (Math.abs(edge.normal.x) * width + Math.abs(edge.normal.y) * height) / 2D;
+        double totalInward = radiusOnNormal + Math.max(2D, inwardOffset);
+        double cx = edge.start.x + (edge.end.x - edge.start.x) * safeRatio + edge.normal.x * totalInward;
+        double cy = edge.start.y + (edge.end.y - edge.start.y) * safeRatio + edge.normal.y * totalInward;
+        int x = Math.max(0, (int) Math.round(cx - width / 2D));
+        int y = Math.max(0, (int) Math.round(cy - height / 2D));
+        return createMark(img, width, height, x, y);
+    }
+
+    /**
+     * 解析“实际血边”：先按切割类型确定恢复语义边，再按 data-rotation 映射到当前边。
+     */
+    private Edge resolveBleedEdge(Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
+        double minX = bounds.minX + marginLeft;
+        double minY = bounds.minY + marginTop;
+        double maxX = bounds.maxX + marginLeft;
+        double maxY = bounds.maxY + marginTop;
+        PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
+        int quarterTurns = normalizeQuarterTurns(rotationAngle);
+        EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
+        EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
+        PointD r1;
+        PointD r2;
+        switch (actualEdge) {
+            case RIGHT:
+                r1 = new PointD(maxX, minY);
+                r2 = new PointD(maxX, maxY);
+                break;
+            case BOTTOM:
+                r1 = new PointD(minX, maxY);
+                r2 = new PointD(maxX, maxY);
+                break;
+            case LEFT:
+                r1 = new PointD(minX, minY);
+                r2 = new PointD(minX, maxY);
+                break;
+            case TOP:
+            default:
+                r1 = new PointD(minX, minY);
+                r2 = new PointD(maxX, minY);
+                break;
+        }
+        PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
+        double len = Math.hypot(edgeDir.x, edgeDir.y);
+        if (len < 0.0001D) {
+            return new Edge(r1, r2, new PointD(0, 0), actualEdge);
+        }
+        PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
+        PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
+        if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
+            normal = new PointD(-normal.x, -normal.y);
+        }
+        return new Edge(r1, r2, normal, actualEdge);
+    }
+
+    private int normalizeQuarterTurns(double rotationAngle) {
+        int turns = (int) Math.round(rotationAngle / 90D);
+        int normalized = turns % 4;
+        if (normalized < 0) {
+            normalized += 4;
+        }
+        return normalized;
+    }
+
+    private EdgeType rotateEdgeByQuarterTurns(EdgeType baseEdge, int quarterTurns) {
+        EdgeType[] order = new EdgeType[]{EdgeType.TOP, EdgeType.RIGHT, EdgeType.BOTTOM, EdgeType.LEFT};
+        int idx = 0;
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == baseEdge) {
+                idx = i;
+                break;
+            }
+        }
+        return order[(idx + quarterTurns) % 4];
+    }
+
+    private double extractDataRotationById(String svgContent, String elementId) {
+        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(elementId)) {
+            return 0D;
+        }
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            Document document = factory.newDocumentBuilder()
+                    .parse(new ByteArrayInputStream(svgContent.getBytes(StandardCharsets.UTF_8)));
+            Element root = document.getDocumentElement();
+            Element target = findElementById(root, elementId);
+            if (target == null) {
+                return 0D;
+            }
+            return parseDoubleSafe(target.getAttribute("data-rotation"), 0D);
+        } catch (Exception e) {
+            log.warn("解析 data-rotation 失败: elementId={}, error={}", elementId, e.getMessage());
+            return 0D;
+        }
     }
 
     private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
@@ -300,6 +433,29 @@ public class SuperWidthSpliceMarkService {
         return ossTagUploadService.uploadTagPng(businessId, createRotatedTwoLineTextPng(width, height, text), subDir);
     }
 
+    private String uploadHorizontalTwoLineTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
+        String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
+        return ossTagUploadService.uploadTagPng(businessId, createTwoLineTextPng(width, height, text), subDir);
+    }
+
+    private MarkAsset uploadEdgeAlignedTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height, double angle, Color textColor) {
+        String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
+        BufferedImage base = createSingleLineTextImage(width, height, text, textColor);
+        BufferedImage rotated = rotateImageByAngle(base, angle);
+        String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), subDir);
+        return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
+    }
+
+    private MarkAsset uploadEdgeAlignedStripeMark(String businessId, String fallbackImg, double angle) {
+        try {
+            BufferedImage base = createStripeImage(6, 1);
+            BufferedImage rotated = rotateImageByAngle(base, angle);
+            String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), "mark/dynamic");
+            return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
+        } catch (Exception e) {
+            return new MarkAsset(fallbackImg, 6, 1);
+        }
+    }
 
     private String buildMarkSubDir(String manufacturerMetaId, String typesettingId) {
         String safeManufacturerMetaId = StringUtils.isBlank(manufacturerMetaId) ? "unknown" : manufacturerMetaId;
@@ -334,6 +490,123 @@ public class SuperWidthSpliceMarkService {
             return outputStream.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("生成文字 PNG 失败", e);
+        }
+    }
+
+    private byte[] createTwoLineTextPng(double width, double height, String text) {
+        try {
+            BufferedImage image = createSingleLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text, Color.WHITE);
+            return toPng(image);
+        } catch (Exception e) {
+            throw new IllegalStateException("生成横向文字 PNG 失败", e);
+        }
+    }
+
+    private BufferedImage createSingleLineTextImage(int w, int h, String text, Color textColor) {
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setComposite(AlphaComposite.Clear);
+        g.fillRect(0, 0, w, h);
+        g.setComposite(AlphaComposite.SrcOver);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 2)));
+        FontMetrics fm = g.getFontMetrics();
+        int textW = fm.stringWidth(text);
+        int textH = fm.getAscent();
+        int x = Math.max(0, (w - textW) / 2);
+        int y = Math.max(textH, Math.min(h - 2, (h + textH) / 2 - 1));
+        g.setColor(textColor);
+        g.drawString(text, x, y);
+        g.dispose();
+        return image;
+    }
+
+    private BufferedImage createStripeImage(int w, int h) {
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        g.setComposite(AlphaComposite.Src);
+        for (int y = 0; y < h; y++) {
+            boolean blackBand = y % 2 == 0;
+            Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
+            g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
+            g.fillRect(0, y, w, 1);
+        }
+        g.dispose();
+        return image;
+    }
+
+    private BufferedImage rotateImageByAngle(BufferedImage src, double angle) {
+        double rad = Math.toRadians(angle);
+        double sin = Math.abs(Math.sin(rad));
+        double cos = Math.abs(Math.cos(rad));
+        int w = src.getWidth();
+        int h = src.getHeight();
+        int newW = (int) Math.floor(w * cos + h * sin);
+        int newH = (int) Math.floor(h * cos + w * sin);
+        BufferedImage rotated = new BufferedImage(Math.max(1, newW), Math.max(1, newH), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = rotated.createGraphics();
+        g2d.setComposite(AlphaComposite.Src);
+        g2d.translate((newW - w) / 2D, (newH - h) / 2D);
+        g2d.rotate(rad, w / 2D, h / 2D);
+        g2d.drawRenderedImage(src, null);
+        g2d.dispose();
+        return rotated;
+    }
+
+    private byte[] toPng(BufferedImage image) {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("PNG 编码失败", e);
+        }
+    }
+
+    /**
+     * 通过 orderItem 的“超幅拼接”节点 param.xs 判断是否存在竖切。
+     */
+    private boolean hasVerticalCut(ProductionPiece piece) {
+        if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
+            return false;
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(piece.getOrderItemId());
+        if (orderItem == null || orderItem.getProcedureFlow() == null || orderItem.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        for (ProcedureFlowNode node : orderItem.getProcedureFlow().getNodes()) {
+            if (node == null || !SUPER_WIDTH_SPLICE_NODE_NAME.equals(node.getNodeName())
+                    || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
+                continue;
+            }
+            MTOProductSpecDTO.ProcessParamConfigDTO config = node.getParamConfigs().get(0);
+            if (config == null || config.getParam() == null) {
+                continue;
+            }
+            Object param = config.getParam();
+            if (param instanceof Map) {
+                Object xs = ((Map<?, ?>) param).get("xs");
+                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
+                    return true;
+                }
+            } else {
+                Object xs = invokeGetter(param, "getXs");
+                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null || StringUtils.isBlank(methodName)) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignore) {
+            return null;
         }
     }
 
@@ -387,5 +660,45 @@ public class SuperWidthSpliceMarkService {
             return Double.isFinite(minX) && Double.isFinite(minY)
                     && Double.isFinite(maxX) && Double.isFinite(maxY);
         }
+    }
+
+    private static class PointD {
+        private final double x;
+        private final double y;
+
+        private PointD(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    private static class Edge {
+        private final PointD start;
+        private final PointD end;
+        private final PointD normal;
+        private final EdgeType type;
+
+        private Edge(PointD start, PointD end, PointD normal, EdgeType type) {
+            this.start = start;
+            this.end = end;
+            this.normal = normal;
+            this.type = type;
+        }
+    }
+
+    private static class MarkAsset {
+        private final String img;
+        private final double width;
+        private final double height;
+
+        private MarkAsset(String img, double width, double height) {
+            this.img = img;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private enum EdgeType {
+        TOP, RIGHT, BOTTOM, LEFT
     }
 }
