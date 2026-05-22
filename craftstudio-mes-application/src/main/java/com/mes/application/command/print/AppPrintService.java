@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 @Service
 public class AppPrintService {
@@ -63,23 +65,44 @@ public class AppPrintService {
             }
         }
 
-        List<TypesettingInfo> items = typesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> pendingPrintItems = typesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.PRINTING.getCode(),
                 null,
                 null,
                 deviceCode,
-                current,
-                size
+                1,
+                Integer.MAX_VALUE
+        );
+        List<TypesettingInfo> printingInProgressItems = typesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
+                null,
+                null,
+                deviceCode,
+                1,
+                Integer.MAX_VALUE
         );
 
-        long total = typesettingService.countTypesettingByConditions(
-                manufacturerMetaId,
-                TypesettingStatus.PRINTING.getCode(),
-                null,
-                null,
-                deviceCode
-        );
+        List<TypesettingInfo> mergedItems = new ArrayList<>();
+        mergedItems.addAll(pendingPrintItems == null ? Collections.emptyList() : pendingPrintItems);
+        mergedItems.addAll(printingInProgressItems == null ? Collections.emptyList() : printingInProgressItems);
+        Map<String, TypesettingInfo> uniqueMap = new LinkedHashMap<>();
+        for (TypesettingInfo item : mergedItems) {
+            if (item != null && StringUtils.isNotBlank(item.getId())) {
+                uniqueMap.put(item.getId(), item);
+            }
+        }
+        List<TypesettingInfo> uniqueItems = uniqueMap.values().stream()
+                .sorted(Comparator.comparing(TypesettingInfo::getCreateTime, Comparator.nullsLast(Date::compareTo)).reversed())
+                .collect(Collectors.toList());
+
+        long total = uniqueItems.size();
+        int fromIndex = Math.max((current - 1) * size, 0);
+        int toIndex = Math.min(fromIndex + size, uniqueItems.size());
+        List<TypesettingInfo> items = fromIndex >= uniqueItems.size()
+                ? Collections.emptyList()
+                : uniqueItems.subList(fromIndex, toIndex);
 
         List<PendingPrintTypesettingVO> resultItems = new ArrayList<>();
         for (TypesettingInfo item : items) {
@@ -122,9 +145,9 @@ public class AppPrintService {
             }
             Integer currentLeaveQuantity = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
             dbInfo.setLeaveQuantity(Math.max(currentLeaveQuantity - reportQuantity, 0));
-            if (dbInfo.getLeaveQuantity() <= 0) {
-                dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
-            }
+        }
+        if (dbInfo.getLeaveQuantity() != null && dbInfo.getLeaveQuantity() == 0) {
+            dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
         typesettingService.updateTypesetting(dbInfo);
 
@@ -165,6 +188,23 @@ public class AppPrintService {
         }
 
         return new PrintReportResult(canComplete, transferCount);
+    }
+
+    public void startTypesettingPrintById(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
+        }
+
+        TypesettingInfo dbInfo = typesettingService.findById(typesettingId);
+        if (dbInfo == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不存在：" + typesettingId);
+        }
+        if (!TypesettingStatus.PRINTING.getCode().equals(dbInfo.getStatus())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有待打印状态可以开始打印");
+        }
+
+        dbInfo.setStatus(TypesettingStatus.PRINTING_IN_PROGRESS.getCode());
+        typesettingService.updateTypesetting(dbInfo);
     }
 
     public void releaseLayout(List<String> typesettingIds) {
