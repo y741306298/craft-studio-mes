@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 @Service
 public class AppPrintService {
@@ -63,23 +65,44 @@ public class AppPrintService {
             }
         }
 
-        List<TypesettingInfo> items = typesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> pendingPrintItems = typesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.PRINTING.getCode(),
                 null,
                 null,
                 deviceCode,
-                current,
-                size
+                1,
+                Integer.MAX_VALUE
+        );
+        List<TypesettingInfo> printingInProgressItems = typesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
+                null,
+                null,
+                deviceCode,
+                1,
+                Integer.MAX_VALUE
         );
 
-        long total = typesettingService.countTypesettingByConditions(
-                manufacturerMetaId,
-                TypesettingStatus.PRINTING.getCode(),
-                null,
-                null,
-                deviceCode
-        );
+        List<TypesettingInfo> mergedItems = new ArrayList<>();
+        mergedItems.addAll(pendingPrintItems == null ? Collections.emptyList() : pendingPrintItems);
+        mergedItems.addAll(printingInProgressItems == null ? Collections.emptyList() : printingInProgressItems);
+        Map<String, TypesettingInfo> uniqueMap = new LinkedHashMap<>();
+        for (TypesettingInfo item : mergedItems) {
+            if (item != null && StringUtils.isNotBlank(item.getId())) {
+                uniqueMap.put(item.getId(), item);
+            }
+        }
+        List<TypesettingInfo> uniqueItems = uniqueMap.values().stream()
+                .sorted(Comparator.comparing(TypesettingInfo::getCreateTime, Comparator.nullsLast(Date::compareTo)).reversed())
+                .collect(Collectors.toList());
+
+        long total = uniqueItems.size();
+        int fromIndex = Math.max((current - 1) * size, 0);
+        int toIndex = Math.min(fromIndex + size, uniqueItems.size());
+        List<TypesettingInfo> items = fromIndex >= uniqueItems.size()
+                ? Collections.emptyList()
+                : uniqueItems.subList(fromIndex, toIndex);
 
         List<PendingPrintTypesettingVO> resultItems = new ArrayList<>();
         for (TypesettingInfo item : items) {
