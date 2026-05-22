@@ -526,9 +526,8 @@ public class AppOrderPreprocessingService {
                 return;
             }
 
-            Map<Integer, Integer> groupToSequenceNo = new HashMap<>();
-            Map<Integer, Integer> groupToMinSeq = new HashMap<>();
-            Map<Integer, Integer> groupToMaxSeq = new HashMap<>();
+            Map<String, Integer> groupToSequenceNo = new HashMap<>();
+            Map<String, Integer> groupToCount = new HashMap<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 if (pair == null) {
                     continue;
@@ -537,13 +536,12 @@ public class AppOrderPreprocessingService {
                 if (sideResult == null) {
                     continue;
                 }
-                Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                String rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                 Integer rawSeq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                 if (rawGroup == null || rawSeq == null) {
                     continue;
                 }
-                groupToMinSeq.merge(rawGroup, rawSeq, Math::min);
-                groupToMaxSeq.merge(rawGroup, rawSeq, Math::max);
+                groupToCount.merge(rawGroup, 1, Integer::sum);
             }
 
             // 4. 根据pairs生成生产零件
@@ -556,7 +554,7 @@ public class AppOrderPreprocessingService {
                     }
                     String rawImageUrl = sideResult.getImg();
                     String maskedImageUrl = sideResult.getSvg();
-                    Integer rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
+                    String rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                     Integer seq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
@@ -598,7 +596,7 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
-                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToMinSeq, groupToMaxSeq, groupToSequenceNo));
+                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToCount, groupToSequenceNo));
                         piece.setSeq(seq);
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
@@ -674,19 +672,17 @@ public class AppOrderPreprocessingService {
     }
 
     private String buildBloodGroup(String manufacturerMetaId,
-                                   Integer rawGroup,
+                                   String rawGroup,
                                    Integer seq,
-                                   Map<Integer, Integer> groupToMinSeq,
-                                   Map<Integer, Integer> groupToMaxSeq,
-                                   Map<Integer, Integer> groupToSequenceNo) {
+                                   Map<String, Integer> groupToCount,
+                                   Map<String, Integer> groupToSequenceNo) {
         if (rawGroup == null || seq == null || StringUtils.isBlank(manufacturerMetaId)) {
             return null;
         }
         Integer sequenceNo = groupToSequenceNo.computeIfAbsent(rawGroup, key ->
                 typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.BLOOD));
-        int startSeq = groupToMinSeq.getOrDefault(rawGroup, seq);
-        int endSeq = groupToMaxSeq.getOrDefault(rawGroup, seq);
-        return sequenceNo + "#" + startSeq + "-" + endSeq;
+        int total = groupToCount.getOrDefault(rawGroup, 1);
+        return sequenceNo + "#" + seq + "-" + total;
     }
 
     private void movePretreatmentToPendingTypesetting(String productionPieceId) {
