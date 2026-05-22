@@ -95,6 +95,7 @@ public class SuperWidthSpliceMarkService {
             }
             if (isLastPiece || isMiddlePiece) {
                 addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop);
+                addLeftStripeMarks(formeRequest, darkMarkImg, bounds, marginLeft, marginTop);
             }
         }
     }
@@ -284,6 +285,14 @@ public class SuperWidthSpliceMarkService {
         String markGroup = uploadGroupTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight);
         formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, topY));
         formeRequest.getForme().getMarks().add(createMark(markGroup, rotatedWidth, rotatedHeight, leftX, bottomY));
+    }
+
+    private void addLeftStripeMarks(FormeGenerationRequest formeRequest, String darkMarkImg, Bounds bounds, int marginLeft, int marginTop) {
+        int leftStripeX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft + 20);
+        int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
+        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6 - 20) + marginTop);
+        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, topY));
+        formeRequest.getForme().getMarks().add(createMark(darkMarkImg, 1, 6, leftStripeX, bottomY));
     }
 
     private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
