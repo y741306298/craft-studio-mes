@@ -276,7 +276,7 @@ public class SuperWidthSpliceMarkService {
     private void addGroupTextMarks(FormeGenerationRequest formeRequest, String businessId, String manufacturerMetaId, String typesettingId, String groupText, Bounds bounds, int marginLeft, int marginTop) {
         int leftX = Math.max(0, (int) Math.round(bounds.minX) + marginLeft);
         int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
-        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 28) + marginTop);
+        int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 28 - 20) + marginTop);
         int rawWidth = Math.max(24, groupText.length() * 8);
         int rawHeight = 24;
         int rotatedWidth = rawHeight;
