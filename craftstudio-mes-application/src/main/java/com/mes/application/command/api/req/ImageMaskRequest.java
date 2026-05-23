@@ -10,7 +10,6 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
 
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +38,8 @@ public class ImageMaskRequest {
 
     @Data
     public static class Coordinate {
-        private Integer value;
-        private BigDecimal blood;
+        private Double value;
+        private Integer blood;
     }
 
 
@@ -143,16 +142,16 @@ public class ImageMaskRequest {
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, BigDecimal.valueOf(20D), "xs", orderItem, rawImage);
-            addCoordinatesFromList(mapValue.get("ys"), ys, BigDecimal.valueOf(20D), "ys", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("xs"), xs, 20, "xs", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("ys"), ys, 20, "ys", orderItem, rawImage);
             return;
         }
 
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), BigDecimal.valueOf(20D), "xs", orderItem, rawImage));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), BigDecimal.valueOf(20D), "ys", orderItem, rawImage));
+                    xs.add(buildCoordinate(coordinates.get(i), 20, "xs", orderItem, rawImage));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), 20, "ys", orderItem, rawImage));
                 }
             }
             return;
@@ -161,8 +160,8 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, BigDecimal.valueOf(20D), "xs", orderItem, rawImage);
-        addCoordinatesFromList(ysValue, ys, BigDecimal.valueOf(20D), "ys", orderItem, rawImage);
+        addCoordinatesFromList(xsValue, xs, 20, "xs", orderItem, rawImage);
+        addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
     }
 
     private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
@@ -182,25 +181,25 @@ public class ImageMaskRequest {
             return coordinate;
         }
         if (rawValue instanceof Number || rawValue instanceof String) {
-            Integer value = parseInteger(rawValue);
+            Double value = parseDouble(rawValue);
             coordinate.setValue(convertValueToPx(value, axis, orderItem, rawImage));
             return coordinate;
         }
         if (rawValue instanceof Map<?, ?> valueMap) {
             Object value = valueMap.get("value");
             Object blood = valueMap.get("blood");
-            BigDecimal bloodValue = parseDecimal(blood);
-            Integer coordinateValue = parseInteger(value);
-            coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
+            Integer bloodValue = parseInteger(blood);
+            Double coordinateValue = parseDouble(value);
+            coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseDouble(rawValue), axis, orderItem, rawImage));
             coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
             return coordinate;
         }
 
         Object value = invokeGetter(rawValue, "getValue");
         Object blood = invokeGetter(rawValue, "getBlood");
-        BigDecimal bloodValue = parseDecimal(blood);
-        Integer coordinateValue = value != null ? parseInteger(value) : null;
-        coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
+        Integer bloodValue = parseInteger(blood);
+        Double coordinateValue = value != null ? parseDouble(value) : null;
+        coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseDouble(rawValue), axis, orderItem, rawImage));
         coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
         return coordinate;
     }
@@ -220,7 +219,7 @@ public class ImageMaskRequest {
                 .setScale(5, java.math.RoundingMode.HALF_UP);
     }
 
-    private static Integer convertValueToPx(Integer value, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static Double convertValueToPx(Double value, String axis, OrderItem orderItem, RawImage rawImage) {
         if (value == null) {
             return null;
         }
@@ -229,7 +228,7 @@ public class ImageMaskRequest {
         if (rawSize == null || rawSize <= 0 || usageSize == null || usageSize <= 0) {
             return value;
         }
-        return (int) Math.round((value / usageSize) * rawSize);
+        return (value / usageSize) * rawSize;
     }
 
     private static double resolveAxisDpi(String axis, RawImage rawImage) {
@@ -263,13 +262,31 @@ public class ImageMaskRequest {
         }
         if (sizeValue != null) {
             try {
-                return new BigDecimal(String.valueOf(sizeValue)).doubleValue();
+                return Double.parseDouble(String.valueOf(sizeValue));
             } catch (Exception ignore) {
                 return null;
             }
         }
         return null;
     }
+    private static Double parseDouble(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            String valueStr = String.valueOf(value).trim();
+            if (valueStr.isEmpty()) {
+                return null;
+            }
+            return Double.parseDouble(valueStr);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
     private static Integer parseInteger(Object value) {
         if (value == null) {
             return null;
@@ -282,7 +299,7 @@ public class ImageMaskRequest {
             if (valueStr.isEmpty()) {
                 return null;
             }
-            return new BigDecimal(valueStr).intValue();
+            return Integer.parseInt(valueStr);
         } catch (NumberFormatException ex) {
             return null;
         }
