@@ -63,6 +63,7 @@ import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.google.zxing.BarcodeFormat;
