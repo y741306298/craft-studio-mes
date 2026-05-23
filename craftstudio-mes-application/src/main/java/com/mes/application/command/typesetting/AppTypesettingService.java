@@ -569,7 +569,7 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(filmConsistencyResult);
         }
         // 步骤备注1：聚合本次确认印版是否含血位特征（零件当前/历史 + 来源印版haveBlood）
-        boolean haveBlood = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
+        boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
 
         ProcedureFlow commonProcedureFlow;
@@ -1063,10 +1063,10 @@ public class AppTypesettingService {
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
         // 步骤备注3：计算容器是否需要+30（当前或历史血位零件都触发）
-        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece);
+        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -1101,11 +1101,12 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
+                boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
                 if (nestingRequestRuleService != null) {
-                    nestingRequestRuleService.applyElementStyle(element, isCurrentOrHistoricalBloodPiece(piece));
+                    nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, isCurrentOrHistoricalBloodPiece(piece));
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
                 elements.add(element);
             }
         }
@@ -1322,17 +1323,21 @@ public class AppTypesettingService {
     }
 
     /**
-     * 当前血位候选或历史血位候选：
-     * - 当前：blood.x == 0 && blood.y != 0
-     * - 历史：已存在 routeImg + routeSvg（表示已执行过血位旋转并持久化）
+     * 是否为血位件：只要 blood.x / blood.y 至少一个非 0 即判定为血位件。
+     * 说明：
+     * - blood.x == 0 && blood.y == 0 不是血位件；
+     * - blood.x == 0 && blood.y != 0 仅表示“需要旋转”的血位件子集。
      */
-    private boolean isCurrentOrHistoricalBloodPiece(ProductionPiece piece) {
-        if (isBloodBasedRotationCandidate(piece)) {
-            return true;
+    private boolean isBloodPieceByCoordinates(ProductionPiece piece) {
+        if (piece == null || piece.getBlood() == null) {
+            return false;
         }
-        return piece != null
-                && StringUtils.isNotBlank(piece.getRouteImg())
-                && StringUtils.isNotBlank(piece.getRouteSvg());
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        if (bloodX == null || bloodY == null) {
+            return false;
+        }
+        return bloodX != 0 || bloodY != 0;
     }
 
     private String rotate90CCWAndUploadForCaifuRaster(String rawFile, String manufacturerMetaId, String authKey) {
