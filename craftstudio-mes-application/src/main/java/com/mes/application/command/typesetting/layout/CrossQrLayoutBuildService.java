@@ -48,6 +48,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
+    private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
@@ -203,7 +204,9 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return info != null
                 && info.getProcedureFlow() != null
                 && info.getProcedureFlow().getNodes() != null
-                && info.getProcedureFlow().getNodes().stream().anyMatch(node -> node != null && DOUBLE_SIDE_NODE_NAME.equals(node.getNodeName()));
+                && info.getProcedureFlow().getNodes().stream().anyMatch(node -> node != null
+                && (DOUBLE_SIDE_NODE_NAME.equals(node.getNodeName())
+                || COVER_DOUBLE_SIDE_NODE_NAME.equals(node.getNodeName())));
     }
 
     private List<String> buildElementAExtInfos(TypesettingInfo info) {
