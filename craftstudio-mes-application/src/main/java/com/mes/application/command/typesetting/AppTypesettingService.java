@@ -570,7 +570,7 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(filmConsistencyResult);
         }
         // 步骤备注1：聚合本次确认印版是否含血位特征（零件当前/历史 + 来源印版haveBlood）
-        boolean haveBlood = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
+        boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
 
         ProcedureFlow commonProcedureFlow;
@@ -1064,10 +1064,10 @@ public class AppTypesettingService {
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(piece -> isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece))
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
         // 步骤备注3：计算容器是否需要+30（当前或历史血位零件都触发）
-        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece);
+        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -1102,7 +1102,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece);
+                boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
@@ -1373,7 +1373,7 @@ public class AppTypesettingService {
      * - blood.x == 0 && blood.y == 0 不是血位件；
      * - blood.x == 0 && blood.y != 0 仅表示“需要旋转”的血位件子集。
      */
-    private boolean isCurrentOrHistoricalBloodPiece(ProductionPiece piece) {
+    private boolean isBloodPieceByCoordinates(ProductionPiece piece) {
         if (piece == null || piece.getBlood() == null) {
             return false;
         }
