@@ -39,7 +39,7 @@ public class ImageMaskRequest {
 
     @Data
     public static class Coordinate {
-        private Integer value;
+        private Double value;
         private Integer blood;
     }
 
@@ -165,7 +165,7 @@ public class ImageMaskRequest {
         addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
     }
 
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         if (!(listObj instanceof List<?> values)) {
             return;
         }
@@ -174,7 +174,7 @@ public class ImageMaskRequest {
         }
     }
 
-    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static Coordinate buildCoordinate(Object rawValue, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         Coordinate coordinate = new Coordinate();
         coordinate.setBlood(convertBloodMmToPx(defaultBlood, axis, rawImage));
 
@@ -206,15 +206,19 @@ public class ImageMaskRequest {
     }
 
 
-    private static Integer convertBloodMmToPx(Integer bloodMm, String axis, RawImage rawImage) {
+    private static Integer convertBloodMmToPx(BigDecimal bloodMm, String axis, RawImage rawImage) {
         if (bloodMm == null) {
             return null;
         }
         double dpi = resolveAxisDpi(axis, rawImage);
         if (dpi <= 0) {
-            return bloodMm;
+            return bloodMm.setScale(0, java.math.RoundingMode.HALF_UP).intValue();
         }
-        return (int) Math.round((bloodMm / 25.4D) * dpi);
+        return bloodMm
+                .divide(BigDecimal.valueOf(25.4D), 10, java.math.RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(dpi))
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .intValue();
     }
 
     private static Integer convertValueToPx(Double value, String axis, OrderItem orderItem, RawImage rawImage) {
@@ -226,7 +230,7 @@ public class ImageMaskRequest {
         if (rawSize == null || rawSize <= 0 || usageSize == null || usageSize <= 0) {
             return (int) Math.round(value);
         }
-        return (int) Math.round((value / usageSize) * rawSize);
+        return (value / usageSize) * rawSize;
     }
 
     private static double resolveAxisDpi(String axis, RawImage rawImage) {
@@ -297,7 +301,28 @@ public class ImageMaskRequest {
             if (valueStr.isEmpty()) {
                 return null;
             }
-            return new BigDecimal(valueStr).intValue();
+            return Integer.parseInt(valueStr);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static BigDecimal parseDecimal(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        try {
+            String valueStr = String.valueOf(value).trim();
+            if (valueStr.isEmpty()) {
+                return null;
+            }
+            return new BigDecimal(valueStr);
         } catch (NumberFormatException ex) {
             return null;
         }

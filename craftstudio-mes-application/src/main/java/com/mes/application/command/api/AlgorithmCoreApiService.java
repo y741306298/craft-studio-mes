@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Service
@@ -183,10 +184,10 @@ public class AlgorithmCoreApiService {
         }
         Integer expectedSign = null;
         for (ImageMaskRequest.Coordinate coordinate : coordinates) {
-            if (coordinate == null || coordinate.getBlood() == null || coordinate.getBlood() == 0) {
+            if (coordinate == null || coordinate.getBlood() == null || coordinate.getBlood().compareTo(BigDecimal.ZERO) == 0) {
                 continue;
             }
-            int sign = coordinate.getBlood() > 0 ? 1 : -1;
+            int sign = coordinate.getBlood().compareTo(BigDecimal.ZERO) > 0 ? 1 : -1;
             if (expectedSign == null) {
                 expectedSign = sign;
                 continue;
