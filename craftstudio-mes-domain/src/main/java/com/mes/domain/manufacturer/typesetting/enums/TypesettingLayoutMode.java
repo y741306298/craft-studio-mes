@@ -141,7 +141,7 @@ public enum TypesettingLayoutMode {
             "side_aux_line",
             null,
             "none",
-            3,
+            6,
             true
     ),
     /**
@@ -157,7 +157,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             6,
-            false
+            true
     ),
     /**
      * xy切割(切割辅助线-九段）：
