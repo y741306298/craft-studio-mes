@@ -164,7 +164,7 @@ public class ImageMaskRequest {
         addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
     }
 
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         if (!(listObj instanceof List<?> values)) {
             return;
         }
@@ -173,7 +173,7 @@ public class ImageMaskRequest {
         }
     }
 
-    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static Coordinate buildCoordinate(Object rawValue, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
         Coordinate coordinate = new Coordinate();
         coordinate.setBlood(convertBloodMmToPx(defaultBlood, axis, rawImage));
 
@@ -205,15 +205,18 @@ public class ImageMaskRequest {
     }
 
 
-    private static Integer convertBloodMmToPx(Integer bloodMm, String axis, RawImage rawImage) {
+    private static BigDecimal convertBloodMmToPx(BigDecimal bloodMm, String axis, RawImage rawImage) {
         if (bloodMm == null) {
             return null;
         }
         double dpi = resolveAxisDpi(axis, rawImage);
         if (dpi <= 0) {
-            return bloodMm;
+            return bloodMm.setScale(5, java.math.RoundingMode.HALF_UP);
         }
-        return (int) Math.round((bloodMm / 25.4D) * dpi);
+        return bloodMm
+                .divide(BigDecimal.valueOf(25.4D), 10, java.math.RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(dpi))
+                .setScale(5, java.math.RoundingMode.HALF_UP);
     }
 
     private static Double convertValueToPx(Double value, String axis, OrderItem orderItem, RawImage rawImage) {
@@ -297,6 +300,27 @@ public class ImageMaskRequest {
                 return null;
             }
             return Integer.parseInt(valueStr);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static BigDecimal parseDecimal(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        try {
+            String valueStr = String.valueOf(value).trim();
+            if (valueStr.isEmpty()) {
+                return null;
+            }
+            return new BigDecimal(valueStr);
         } catch (NumberFormatException ex) {
             return null;
         }
