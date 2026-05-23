@@ -15,6 +15,7 @@ import java.util.Map;
 @Service
 public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrategy {
     private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
+    private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
     private static final String PARAM_TYPE_ACC = "ACC";
 
     @Override
@@ -42,12 +43,12 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         if (info == null || info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
             return false;
         }
-        return info.getProcedureFlow().getNodes().stream().anyMatch(n -> n != null && DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName()));
+        return info.getProcedureFlow().getNodes().stream().anyMatch(n -> n != null && (DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName()) || COVER_DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName())));
     }
 
     private boolean doubleSideNodeAcc(TypesettingInfo info) {
         return info.getProcedureFlow().getNodes().stream()
-                .filter(n -> n != null && DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName()))
+                .filter(n -> n != null && (DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName()) || COVER_DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName())))
                 .flatMap(n -> n.getParamConfigs() == null ? java.util.stream.Stream.empty() : n.getParamConfigs().stream())
                 .map(cfg -> invokeGetter(cfg, "getParam"))
                 .map(param -> param instanceof Map ? ((Map<?, ?>) param).get("type") : invokeGetter(param, "getType"))

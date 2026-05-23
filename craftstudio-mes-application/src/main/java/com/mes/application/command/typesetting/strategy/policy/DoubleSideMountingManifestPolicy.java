@@ -18,6 +18,7 @@ import java.util.List;
 public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
 
     private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
+    private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
 
     @Override
     public boolean matches(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
@@ -68,7 +69,8 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
     private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces) {
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
-                if (piece != null && procedureFlowHasNode(piece.getProcedureFlow(), DOUBLE_SIDE_NODE_NAME)) {
+                if (piece != null && (procedureFlowHasNode(piece.getProcedureFlow(), DOUBLE_SIDE_NODE_NAME)
+                        || procedureFlowHasNode(piece.getProcedureFlow(), COVER_DOUBLE_SIDE_NODE_NAME))) {
                     return true;
                 }
             }

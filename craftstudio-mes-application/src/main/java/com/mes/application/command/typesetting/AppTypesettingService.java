@@ -2390,7 +2390,9 @@ public class AppTypesettingService {
     }
 
     private boolean isSpecialProcedureNode(ProcedureFlowNode node) {
-        return node != null && ("覆板".equals(node.getNodeName()));
+        return node != null && ("覆板".equals(node.getNodeName())
+                || "双面对裱".equals(node.getNodeName())
+                || "覆双面".equals(node.getNodeName()));
     }
 
     private String buildParamConfigsSignature(ProcedureFlowNode node) {
