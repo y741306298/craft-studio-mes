@@ -143,7 +143,7 @@ public class ImageMaskRequest {
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, 10, "xs", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("xs"), xs, 20, "xs", orderItem, rawImage);
             addCoordinatesFromList(mapValue.get("ys"), ys, 20, "ys", orderItem, rawImage);
             return;
         }
@@ -151,7 +151,7 @@ public class ImageMaskRequest {
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), 10, "xs", orderItem, rawImage));
+                    xs.add(buildCoordinate(coordinates.get(i), 20, "xs", orderItem, rawImage));
                     ys.add(buildCoordinate(coordinates.get(i + 1), 20, "ys", orderItem, rawImage));
                 }
             }
@@ -161,7 +161,7 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, 10, "xs", orderItem, rawImage);
+        addCoordinatesFromList(xsValue, xs, 20, "xs", orderItem, rawImage);
         addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
     }
 
