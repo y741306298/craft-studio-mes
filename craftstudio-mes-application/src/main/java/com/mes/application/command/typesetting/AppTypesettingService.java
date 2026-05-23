@@ -1101,11 +1101,11 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
+                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
                 if (nestingRequestRuleService != null) {
-                    nestingRequestRuleService.applyElementStyle(element, isCurrentOrHistoricalBloodPiece(piece));
+                    nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
-                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece);
                 applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
                 elements.add(element);
             }
@@ -1225,9 +1225,25 @@ public class AppTypesettingService {
                 if (xs instanceof List && !((List<?>) xs).isEmpty()) {
                     return true;
                 }
+            } else {
+                Object xs = invokeGetter(param, "getXs");
+                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null || StringUtils.isBlank(methodName)) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (Exception ignore) {
+            return null;
+        }
     }
 
     private void applyElementAlignAndSafeDistance(NestingRequest.Element element, boolean hasBloodPiece, boolean currentPieceHasBlood) {
@@ -1351,17 +1367,21 @@ public class AppTypesettingService {
     }
 
     /**
-     * 当前血位候选或历史血位候选：
-     * - 当前：blood.x == 0 && blood.y != 0
-     * - 历史：已存在 routeImg + routeSvg（表示已执行过血位旋转并持久化）
+     * 是否为血位件：只要 blood.x / blood.y 至少一个非 0 即判定为血位件。
+     * 说明：
+     * - blood.x == 0 && blood.y == 0 不是血位件；
+     * - blood.x == 0 && blood.y != 0 仅表示“需要旋转”的血位件子集。
      */
     private boolean isCurrentOrHistoricalBloodPiece(ProductionPiece piece) {
-        if (isBloodBasedRotationCandidate(piece)) {
-            return true;
+        if (piece == null || piece.getBlood() == null) {
+            return false;
         }
-        return piece != null
-                && StringUtils.isNotBlank(piece.getRouteImg())
-                && StringUtils.isNotBlank(piece.getRouteSvg());
+        Integer bloodX = piece.getBlood().getX();
+        Integer bloodY = piece.getBlood().getY();
+        if (bloodX == null || bloodY == null) {
+            return false;
+        }
+        return bloodX != 0 || bloodY != 0;
     }
 
     private String rotate90CCWAndUploadForCaifuRaster(String rawFile, String manufacturerMetaId, String authKey) {
