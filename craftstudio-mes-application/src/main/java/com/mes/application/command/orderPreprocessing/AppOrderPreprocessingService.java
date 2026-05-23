@@ -596,8 +596,11 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
-                        piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToCount, groupToSequenceNo));
-                        piece.setSeq(seq);
+                        Integer groupCount = rawGroup == null ? null : groupToCount.get(rawGroup);
+                        if (rawGroup != null && seq != null && groupCount != null && groupCount > 1) {
+                            piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToCount, groupToSequenceNo));
+                            piece.setSeq(seq);
+                        }
                         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
                             piece.getProductImageFile().getFilePreview().setPreview(completeOssUrl(sideResult.getPreviewImg()));
                             piece.getProductImageFile().getFilePreview().setThumbnail(completeOssUrl(sideResult.getThumbnail()));
