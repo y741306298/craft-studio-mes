@@ -10,6 +10,7 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -142,16 +143,16 @@ public class ImageMaskRequest {
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, 20, "xs", orderItem, rawImage);
-            addCoordinatesFromList(mapValue.get("ys"), ys, 20, "ys", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("xs"), xs, BigDecimal.valueOf(20), "xs", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("ys"), ys, BigDecimal.valueOf(20), "ys", orderItem, rawImage);
             return;
         }
 
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), 20, "xs", orderItem, rawImage));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), 20, "ys", orderItem, rawImage));
+                    xs.add(buildCoordinate(coordinates.get(i), BigDecimal.valueOf(20), "xs", orderItem, rawImage));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), BigDecimal.valueOf(20), "ys", orderItem, rawImage));
                 }
             }
             return;
@@ -160,8 +161,8 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, 20, "xs", orderItem, rawImage);
-        addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
+        addCoordinatesFromList(xsValue, xs, BigDecimal.valueOf(20), "xs", orderItem, rawImage);
+        addCoordinatesFromList(ysValue, ys, BigDecimal.valueOf(20), "ys", orderItem, rawImage);
     }
 
     private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, BigDecimal defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
@@ -191,7 +192,7 @@ public class ImageMaskRequest {
             Integer bloodValue = parseInteger(blood);
             Double coordinateValue = parseDouble(value);
             coordinate.setValue(convertValueToPx(coordinateValue, axis, orderItem, rawImage));
-            coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
+            coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? new BigDecimal(bloodValue) : defaultBlood, axis, rawImage));
             return coordinate;
         }
 
@@ -200,23 +201,24 @@ public class ImageMaskRequest {
         Integer bloodValue = parseInteger(blood);
         Double coordinateValue = value != null ? parseDouble(value) : null;
         coordinate.setValue(convertValueToPx(coordinateValue, axis, orderItem, rawImage));
-        coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
+        coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? new BigDecimal(bloodValue) : defaultBlood, axis, rawImage));
         return coordinate;
     }
 
 
-    private static BigDecimal convertBloodMmToPx(BigDecimal bloodMm, String axis, RawImage rawImage) {
+    private static Integer convertBloodMmToPx(BigDecimal bloodMm, String axis, RawImage rawImage) {
         if (bloodMm == null) {
             return null;
         }
         double dpi = resolveAxisDpi(axis, rawImage);
         if (dpi <= 0) {
-            return bloodMm.setScale(5, java.math.RoundingMode.HALF_UP);
+            return bloodMm.setScale(0, java.math.RoundingMode.HALF_UP).intValue();
         }
         return bloodMm
                 .divide(BigDecimal.valueOf(25.4D), 10, java.math.RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(dpi))
-                .setScale(5, java.math.RoundingMode.HALF_UP);
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .intValue();
     }
 
     private static Double convertValueToPx(Double value, String axis, OrderItem orderItem, RawImage rawImage) {
