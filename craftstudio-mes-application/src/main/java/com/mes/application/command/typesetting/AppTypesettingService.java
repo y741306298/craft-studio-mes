@@ -1063,7 +1063,7 @@ public class AppTypesettingService {
                 .map(TypesettingInfo::getTypesettingId)
                 .anyMatch(typesettingId -> StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror"));
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
-        boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece)
+        boolean hasBloodPiece = productionPieces.stream().anyMatch(piece -> isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece))
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
         // 步骤备注3：计算容器是否需要+30（当前或历史血位零件都触发）
         boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isCurrentOrHistoricalBloodPiece);
@@ -1105,7 +1105,8 @@ public class AppTypesettingService {
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, isCurrentOrHistoricalBloodPiece(piece));
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, isCurrentOrHistoricalBloodPiece(piece));
+                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece);
+                applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
                 elements.add(element);
             }
         }
@@ -1199,6 +1200,34 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    private boolean hasVerticalCut(ProductionPiece piece) {
+        if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
+            return false;
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(piece.getOrderItemId());
+        if (orderItem == null || orderItem.getProcedureFlow() == null || orderItem.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        for (ProcedureFlowNode node : orderItem.getProcedureFlow().getNodes()) {
+            if (node == null || !"超幅拼接".equals(node.getNodeName())
+                    || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
+                continue;
+            }
+            MTOProductSpecDTO.ProcessParamConfigDTO config = node.getParamConfigs().get(0);
+            if (config == null || config.getParam() == null) {
+                continue;
+            }
+            Object param = config.getParam();
+            if (param instanceof Map) {
+                Object xs = ((Map<?, ?>) param).get("xs");
+                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void applyElementAlignAndSafeDistance(NestingRequest.Element element, boolean hasBloodPiece, boolean currentPieceHasBlood) {
