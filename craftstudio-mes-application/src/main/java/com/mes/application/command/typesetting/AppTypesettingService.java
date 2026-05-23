@@ -1389,7 +1389,8 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(svgContent)) {
                 return rawFile;
             }
-            String rotatedSvg = wrapSvgContentWithRotationGroup(adjustPieceDataRotation(rotateSvg90Ccw(svgContent), authKey, -90D));
+            String normalizedSvg = ensurePieceGroupForRotation(rotateSvg90Ccw(svgContent), authKey, rawFile);
+            String rotatedSvg = wrapSvgContentWithRotationGroup(adjustPieceDataRotation(normalizedSvg, authKey, -90D));
             ObjectStorageTempAuthConfig tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(authKey);
             String objectKey = "caifu/" + manufacturerMetaId + "/" + extractFileName(rawFile);
             OSS ossClient = null;
@@ -1459,11 +1460,36 @@ public class AppTypesettingService {
 
 
 
+    private String ensurePieceGroupForRotation(String svgContent, String pieceId, String rawFile) {
+        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
+            return svgContent;
+        }
+        Pattern targetPattern = Pattern.compile("<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>");
+        if (targetPattern.matcher(svgContent).find()) {
+            return svgContent;
+        }
+        int svgOpenStart = svgContent.indexOf("<svg");
+        int svgOpenEnd = svgContent.indexOf(">", svgOpenStart);
+        int svgCloseStart = svgContent.lastIndexOf("</svg>");
+        if (svgOpenStart < 0 || svgOpenEnd < 0 || svgCloseStart <= svgOpenEnd) {
+            return svgContent;
+        }
+        String svgOpenTag = svgContent.substring(0, svgOpenEnd + 1);
+        String svgInnerContent = svgContent.substring(svgOpenEnd + 1, svgCloseStart);
+        String svgCloseTag = svgContent.substring(svgCloseStart);
+        String sourceName = extractFileName(rawFile);
+        return svgOpenTag
+                + "<g id=\"" + pieceId + "\" data-source-name=\"" + sourceName + "\" data-forme=\"false\">"
+                + svgInnerContent
+                + "</g>"
+                + svgCloseTag;
+    }
+
     private String adjustPieceDataRotation(String svgContent, String pieceId, double delta) {
         if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
             return svgContent;
         }
-        Pattern targetPattern = Pattern.compile("(<[^>]*\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>)");
+        Pattern targetPattern = Pattern.compile("(<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>)");
         Matcher targetMatcher = targetPattern.matcher(svgContent);
         if (!targetMatcher.find()) {
             return svgContent;
