@@ -1251,11 +1251,11 @@ public class AppTypesettingService {
         }
         if (currentPieceHasBlood) {
             element.setAlign("right");
-            element.setSafeDistance(0.00D);
+            element.setSafeDistance(30.00D);
             return;
         }
         element.setAlign(null);
-        element.setSafeDistance(30.00D);
+        element.setSafeDistance(null);
     }
 
     private void validateCellSizeAgainstContainers(LayoutConfirmRequest request,
