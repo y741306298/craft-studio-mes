@@ -1505,6 +1505,79 @@ public class AppTypesettingService {
         }
     }
 
+
+
+    private String ensurePieceGroupForRotation(String svgContent, String pieceId, String rawFile) {
+        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
+            return svgContent;
+        }
+        Pattern targetPattern = Pattern.compile("<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>");
+        if (targetPattern.matcher(svgContent).find()) {
+            return svgContent;
+        }
+        int svgOpenStart = svgContent.indexOf("<svg");
+        int svgOpenEnd = svgContent.indexOf(">", svgOpenStart);
+        int svgCloseStart = svgContent.lastIndexOf("</svg>");
+        if (svgOpenStart < 0 || svgOpenEnd < 0 || svgCloseStart <= svgOpenEnd) {
+            return svgContent;
+        }
+        String svgOpenTag = svgContent.substring(0, svgOpenEnd + 1);
+        String svgInnerContent = svgContent.substring(svgOpenEnd + 1, svgCloseStart);
+        String svgCloseTag = svgContent.substring(svgCloseStart);
+        String sourceName = extractFileName(rawFile);
+        return svgOpenTag
+                + "<g id=\"" + pieceId + "\" data-source-name=\"" + sourceName + "\" data-forme=\"false\">"
+                + svgInnerContent
+                + "</g>"
+                + svgCloseTag;
+    }
+
+    private String adjustPieceDataRotation(String svgContent, String pieceId, double delta) {
+        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
+            return svgContent;
+        }
+        Pattern targetPattern = Pattern.compile("(<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>)");
+        Matcher targetMatcher = targetPattern.matcher(svgContent);
+        if (!targetMatcher.find()) {
+            return svgContent;
+        }
+        String targetTag = targetMatcher.group(1);
+        Pattern rotationPattern = Pattern.compile("data-rotation=\"([^\"]+)\"");
+        Matcher rotationMatcher = rotationPattern.matcher(targetTag);
+        String updatedTag;
+        if (rotationMatcher.find()) {
+            double currentRotation = parseDoubleSafely(rotationMatcher.group(1), 0D);
+            String updatedRotation = formatRotation(currentRotation + delta);
+            updatedTag = rotationMatcher.replaceFirst("data-rotation=\"" + updatedRotation + "\"");
+        } else {
+            String updatedRotation = formatRotation(delta);
+            int closeIndex = targetTag.lastIndexOf('>');
+            if (closeIndex <= 0) {
+                return svgContent;
+            }
+            updatedTag = targetTag.substring(0, closeIndex) + " data-rotation=\"" + updatedRotation + "\"" + targetTag.substring(closeIndex);
+        }
+        return svgContent.substring(0, targetMatcher.start(1)) + updatedTag + svgContent.substring(targetMatcher.end(1));
+    }
+
+    private String formatRotation(double rotation) {
+        if (Math.floor(rotation) == rotation) {
+            return String.valueOf((long) rotation);
+        }
+        return String.valueOf(rotation);
+    }
+
+    private double parseDoubleSafely(String value, double defaultValue) {
+        if (StringUtils.isBlank(value)) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     private String extractFileName(String rawFile) {
         if (StringUtils.isBlank(rawFile)) {
             return "";
