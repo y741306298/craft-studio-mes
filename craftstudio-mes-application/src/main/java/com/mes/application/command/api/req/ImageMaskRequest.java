@@ -190,7 +190,7 @@ public class ImageMaskRequest {
             Object blood = valueMap.get("blood");
             Integer bloodValue = parseInteger(blood);
             Double coordinateValue = parseDouble(value);
-            coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseDouble(rawValue), axis, orderItem, rawImage));
+            coordinate.setValue(convertValueToPx(coordinateValue, axis, orderItem, rawImage));
             coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
             return coordinate;
         }
@@ -199,7 +199,7 @@ public class ImageMaskRequest {
         Object blood = invokeGetter(rawValue, "getBlood");
         Integer bloodValue = parseInteger(blood);
         Double coordinateValue = value != null ? parseDouble(value) : null;
-        coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseDouble(rawValue), axis, orderItem, rawImage));
+        coordinate.setValue(convertValueToPx(coordinateValue, axis, orderItem, rawImage));
         coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
         return coordinate;
     }
