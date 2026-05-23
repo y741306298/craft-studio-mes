@@ -1101,7 +1101,7 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece) || hasVerticalCut(piece);
+                boolean currentPieceNeedRightAlign = isCurrentOrHistoricalBloodPiece(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
