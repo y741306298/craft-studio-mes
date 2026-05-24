@@ -71,6 +71,10 @@ public class NestingRequest {
          * 安全距离
          */
         private Double safeDistance;
+        /**
+         * 固定旋转角度（单位：度）
+         */
+        private Integer rotation;
     }
 
 
