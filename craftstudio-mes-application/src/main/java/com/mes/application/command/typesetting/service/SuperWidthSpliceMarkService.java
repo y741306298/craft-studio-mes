@@ -366,52 +366,36 @@ public class SuperWidthSpliceMarkService {
         EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
         PointD r1;
         PointD r2;
+        PointD inwardBase;
         switch (baseEdge) {
             case LEFT:
                 r1 = new PointD(minX, minY);
                 r2 = new PointD(minX, maxY);
+                inwardBase = new PointD(1D, 0D);
                 break;
             case TOP:
             default:
                 r1 = new PointD(minX, minY);
                 r2 = new PointD(maxX, minY);
+                inwardBase = new PointD(0D, 1D);
                 break;
         }
         PointD rotatedR1 = rotateAroundCenter(r1, center, rotationAngle);
         PointD rotatedR2 = rotateAroundCenter(r2, center, rotationAngle);
-        PointD edgeDir = new PointD(rotatedR2.x - rotatedR1.x, rotatedR2.y - rotatedR1.y);
-        double len = Math.hypot(edgeDir.x, edgeDir.y);
-        if (len < 0.0001D) {
-            return new Edge(rotatedR1, rotatedR2, new PointD(0, 0), baseEdge);
-        }
-        Edge rotatedEdge = buildEdgeWithInwardNormal(rotatedR1, rotatedR2, center, baseEdge);
-        return normalizeEdgeDirection(rotatedEdge, center);
+        PointD rotatedInward = rotateVector(inwardBase, rotationAngle);
+        double inwardLen = Math.hypot(rotatedInward.x, rotatedInward.y);
+        PointD normal = inwardLen < 0.0001D ? new PointD(0D, 0D) : new PointD(rotatedInward.x / inwardLen, rotatedInward.y / inwardLen);
+        return new Edge(rotatedR1, rotatedR2, normal, baseEdge);
     }
 
-    private Edge buildEdgeWithInwardNormal(PointD start, PointD end, PointD center, EdgeType baseEdge) {
-        PointD edgeDir = new PointD(end.x - start.x, end.y - start.y);
-        double len = Math.hypot(edgeDir.x, edgeDir.y);
-        if (len < 0.0001D) {
-            return new Edge(start, end, new PointD(0, 0), baseEdge);
-        }
-        PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
-        PointD toCenter = new PointD(center.x - (start.x + end.x) / 2D, center.y - (start.y + end.y) / 2D);
-        if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
-            normal = new PointD(-normal.x, -normal.y);
-        }
-        return new Edge(start, end, normal, baseEdge);
-    }
-
-    /**
-     * 统一血边方向，避免 data-rotation 超过 180° 时出现沿边倒置。
-     */
-    private Edge normalizeEdgeDirection(Edge edge, PointD center) {
-        PointD dir = new PointD(edge.end.x - edge.start.x, edge.end.y - edge.start.y);
-        boolean shouldReverse = dir.x < -0.0001D || (Math.abs(dir.x) <= 0.0001D && dir.y < -0.0001D);
-        if (!shouldReverse) {
-            return edge;
-        }
-        return buildEdgeWithInwardNormal(edge.end, edge.start, center, edge.type);
+    private PointD rotateVector(PointD vector, double angle) {
+        double rad = Math.toRadians(angle);
+        double cos = Math.cos(rad);
+        double sin = Math.sin(rad);
+        return new PointD(
+                vector.x * cos - vector.y * sin,
+                vector.x * sin + vector.y * cos
+        );
     }
 
     /**
