@@ -370,11 +370,13 @@ public class SuperWidthSpliceMarkService {
             case LEFT:
                 r1 = new PointD(minX, minY);
                 r2 = new PointD(minX, maxY);
+                inwardBase = new PointD(1D, 0D);
                 break;
             case TOP:
             default:
                 r1 = new PointD(minX, minY);
                 r2 = new PointD(maxX, minY);
+                inwardBase = new PointD(0D, 1D);
                 break;
         }
         PointD rotatedR1 = rotateAroundCenter(r1, center, rotationAngle);
