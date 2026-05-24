@@ -1073,13 +1073,6 @@ public class AppTypesettingService {
                 if (StringUtils.isBlank(piece.getTemplateCode())) {
                     throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
                 }
-                // 只要血位满足 x=0 且 y!=0，即执行逆时针旋转90°，并同步置换 blood 与宽高。
-                // 步骤备注4：按血位规则尝试旋转零件并更新route资源
-                boolean pieceChangedByRotation = adjustPieceImageForBloodBasedRotation(piece, request.getManufacturerMetaId());
-                if (pieceChangedByRotation) {
-                    // 步骤备注5：旋转后立刻持久化，避免route仅在内存生效
-                    productionPieceService.updateProductionPiece(piece);
-                }
                 NestingRequest.Element element = new NestingRequest.Element();
                 element.setId(piece.getId());
                 if (StringUtils.isNotBlank(piece.getRouteSvg())) {
@@ -1097,6 +1090,9 @@ public class AppTypesettingService {
                     element.setVMargin(0);
                     element.setHGravity("left");
                     element.setHMargin(0);
+                }
+                if (isBloodBasedRotationCandidate(piece)) {
+                    element.setRotation(-90);
                 }
                 boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
@@ -1312,47 +1308,6 @@ public class AppTypesettingService {
         }
     }
 
-    private boolean adjustPieceImageForBloodBasedRotation(ProductionPiece piece, String manufacturerMetaId) {
-        if (piece == null || piece.getWidth() == null || piece.getHeight() == null || piece.getBlood() == null) {
-            return false;
-        }
-        if (piece.getGroup() == null || piece.getSeq() == null) {
-            return false;
-        }
-        if (StringUtils.isNotBlank(piece.getRouteImg()) && StringUtils.isNotBlank(piece.getRouteSvg())) {
-            return false;
-        }
-        Integer bloodX = piece.getBlood().getX();
-        Integer bloodY = piece.getBlood().getY();
-        boolean shouldRotate = bloodX != null && bloodY != null && bloodX == 0 && bloodY != 0;
-        if (!shouldRotate) {
-            return false;
-        }
-
-        boolean routeUpdated = false;
-        if (piece.getProductImageFile() != null && StringUtils.isNotBlank(piece.getProductImageFile().getRawFile())) {
-            piece.setRouteImg(piece.getProductImageFile().getRawFile());
-            routeUpdated = true;
-        }
-
-        if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
-            String rotatedMaskRawFile = rotate90CCWAndUploadForCaifuSvg(piece.getMaskImageFile().getRawFile(), manufacturerMetaId, piece.getId());
-            if (StringUtils.isNotBlank(rotatedMaskRawFile)) {
-                piece.setRouteSvg(rotatedMaskRawFile);
-                routeUpdated = true;
-            }
-        }
-        if (!routeUpdated) {
-            return false;
-        }
-        piece.getBlood().setX(bloodY);
-        piece.getBlood().setY(bloodX);
-        Double originalWidth = piece.getWidth();
-        piece.setWidth(piece.getHeight());
-        piece.setHeight(originalWidth);
-        return true;
-    }
-
     private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {
         if (piece == null || piece.getBlood() == null) {
             return false;
@@ -1381,165 +1336,6 @@ public class AppTypesettingService {
             return false;
         }
         return bloodX != 0 || bloodY != 0;
-    }
-
-    private String rotate90CCWAndUploadForCaifuSvg(String rawFile, String manufacturerMetaId, String authKey) {
-        try {
-            String svgContent = restTemplate.getForObject(rawFile, String.class);
-            if (StringUtils.isBlank(svgContent)) {
-                return rawFile;
-            }
-            String normalizedSvg = ensurePieceGroupForRotation(rotateSvg90Ccw(svgContent), authKey, rawFile);
-            String rotatedSvg = wrapSvgContentWithRotationGroup(adjustPieceDataRotation(normalizedSvg, authKey, -90D));
-            ObjectStorageTempAuthConfig tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(authKey);
-            String objectKey = "caifu/" + manufacturerMetaId + "/" + extractFileName(rawFile);
-            OSS ossClient = null;
-            try {
-                ossClient = new OSSClientBuilder().build(
-                        "https://" + ossEndpoint,
-                        tempAuthConfig.getStsToken().getAccessKeyId(),
-                        tempAuthConfig.getStsToken().getAccessKeySecret(),
-                        tempAuthConfig.getStsToken().getSecurityToken()
-                );
-                ObjectMetadata metadata = new ObjectMetadata();
-                metadata.setContentType("image/svg+xml");
-                ossClient.putObject(ossBucket, objectKey, new ByteArrayInputStream(rotatedSvg.getBytes(StandardCharsets.UTF_8)), metadata);
-                return "https://" + ossBucket + "." + ossEndpoint + "/" + objectKey;
-            } finally {
-                if (ossClient != null) {
-                    ossClient.shutdown();
-                }
-            }
-        } catch (Exception ex) {
-            log.warn("A30H 覆膜SVG逆时针旋转90°上传失败，继续使用原图。rawFile={}", rawFile, ex);
-            return rawFile;
-        }
-    }
-
-    private String wrapSvgContentWithRotationGroup(String svgContent) {
-        if (StringUtils.isBlank(svgContent)) {
-            return svgContent;
-        }
-        int svgOpenStart = svgContent.indexOf("<svg");
-        if (svgOpenStart < 0) {
-            return svgContent;
-        }
-        int svgOpenEnd = svgContent.indexOf(">", svgOpenStart);
-        if (svgOpenEnd < 0) {
-            return svgContent;
-        }
-        int svgCloseStart = svgContent.lastIndexOf("</svg>");
-        if (svgCloseStart <= svgOpenEnd) {
-            return svgContent;
-        }
-        String svgOpenTag = svgContent.substring(0, svgOpenEnd + 1);
-        String svgInnerContent = svgContent.substring(svgOpenEnd + 1, svgCloseStart);
-        String svgCloseTag = svgContent.substring(svgCloseStart);
-        return svgOpenTag
-                + "<g transform=\"translate(0,100%) rotate(-90)\">"
-                + svgInnerContent
-                + "</g>"
-                + svgCloseTag;
-    }
-
-    private String rotateSvg90Ccw(String svgContent) {
-        String result = svgContent.replaceFirst("<svg([^>]*)width=\"([^\"]+)\"([^>]*)height=\"([^\"]+)\"([^>]*)>",
-                "<svg$1width=\"$4\"$3height=\"$2\"$5>");
-        Pattern pattern = Pattern.compile("<svg([^>]*)viewBox=\"([^\"]+)\"([^>]*)>");
-        Matcher matcher = pattern.matcher(result);
-        if (!matcher.find()) {
-            return result;
-        }
-        String[] parts = matcher.group(2).trim().split("\\s+");
-        if (parts.length != 4) {
-            return result;
-        }
-        String replacement = "<svg" + matcher.group(1) + "viewBox=\"" + parts[1] + " " + parts[0] + " " + parts[3] + " " + parts[2] + "\"" + matcher.group(3) + ">";
-        return matcher.replaceFirst(Matcher.quoteReplacement(replacement));
-    }
-
-
-
-    private String ensurePieceGroupForRotation(String svgContent, String pieceId, String rawFile) {
-        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
-            return svgContent;
-        }
-        Pattern targetPattern = Pattern.compile("<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>");
-        if (targetPattern.matcher(svgContent).find()) {
-            return svgContent;
-        }
-        int svgOpenStart = svgContent.indexOf("<svg");
-        int svgOpenEnd = svgContent.indexOf(">", svgOpenStart);
-        int svgCloseStart = svgContent.lastIndexOf("</svg>");
-        if (svgOpenStart < 0 || svgOpenEnd < 0 || svgCloseStart <= svgOpenEnd) {
-            return svgContent;
-        }
-        String svgOpenTag = svgContent.substring(0, svgOpenEnd + 1);
-        String svgInnerContent = svgContent.substring(svgOpenEnd + 1, svgCloseStart);
-        String svgCloseTag = svgContent.substring(svgCloseStart);
-        String sourceName = extractFileName(rawFile);
-        return svgOpenTag
-                + "<g id=\"" + pieceId + "\" data-source-name=\"" + sourceName + "\" data-forme=\"false\">"
-                + svgInnerContent
-                + "</g>"
-                + svgCloseTag;
-    }
-
-    private String adjustPieceDataRotation(String svgContent, String pieceId, double delta) {
-        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(pieceId)) {
-            return svgContent;
-        }
-        Pattern targetPattern = Pattern.compile("(<[^>]*\\bid=\"" + Pattern.quote(pieceId) + "\"[^>]*>)");
-        Matcher targetMatcher = targetPattern.matcher(svgContent);
-        if (!targetMatcher.find()) {
-            return svgContent;
-        }
-        String targetTag = targetMatcher.group(1);
-        Pattern rotationPattern = Pattern.compile("data-rotation=\"([^\"]+)\"");
-        Matcher rotationMatcher = rotationPattern.matcher(targetTag);
-        String updatedTag;
-        if (rotationMatcher.find()) {
-            double currentRotation = parseDoubleSafely(rotationMatcher.group(1), 0D);
-            String updatedRotation = formatRotation(currentRotation + delta);
-            updatedTag = rotationMatcher.replaceFirst("data-rotation=\"" + updatedRotation + "\"");
-        } else {
-            String updatedRotation = formatRotation(delta);
-            int closeIndex = targetTag.lastIndexOf('>');
-            if (closeIndex <= 0) {
-                return svgContent;
-            }
-            updatedTag = targetTag.substring(0, closeIndex) + " data-rotation=\"" + updatedRotation + "\"" + targetTag.substring(closeIndex);
-        }
-        return svgContent.substring(0, targetMatcher.start(1)) + updatedTag + svgContent.substring(targetMatcher.end(1));
-    }
-
-    private String formatRotation(double rotation) {
-        if (Math.floor(rotation) == rotation) {
-            return String.valueOf((long) rotation);
-        }
-        return String.valueOf(rotation);
-    }
-
-    private double parseDoubleSafely(String value, double defaultValue) {
-        if (StringUtils.isBlank(value)) {
-            return defaultValue;
-        }
-        try {
-            return Double.parseDouble(value.trim());
-        } catch (NumberFormatException e) {
-            return defaultValue;
-        }
-    }
-
-    private String extractFileName(String rawFile) {
-        if (StringUtils.isBlank(rawFile)) {
-            return "";
-        }
-        int idx = rawFile.lastIndexOf("/");
-        if (idx < 0 || idx == rawFile.length() - 1) {
-            return rawFile;
-        }
-        return rawFile.substring(idx + 1);
     }
 
     /**
