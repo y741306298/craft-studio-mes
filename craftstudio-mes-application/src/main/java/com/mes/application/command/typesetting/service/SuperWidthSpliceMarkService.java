@@ -304,9 +304,10 @@ public class SuperWidthSpliceMarkService {
         int rawHeight = 12;
         Edge edge = resolveBleedEdge(bounds, marginLeft, marginTop, hasVerticalCut, rotationAngle);
         double edgeAngle = Math.toDegrees(Math.atan2(edge.end.y - edge.start.y, edge.end.x - edge.start.x));
+        double normalizedTextAngle = normalizeReadableAngle(edgeAngle);
 
-        MarkAsset whiteTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, Color.WHITE);
-        MarkAsset grayTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, edgeAngle, createGrayColor(20));
+        MarkAsset whiteTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, normalizedTextAngle, Color.WHITE);
+        MarkAsset grayTextAsset = uploadEdgeAlignedTextMark(businessId, manufacturerMetaId, typesettingId, groupText, rawWidth, rawHeight, normalizedTextAngle, createGrayColor(20));
 
         formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 0D, 0D));
         formeRequest.getForme().getMarks().add(createEdgeMark(whiteTextAsset.img, whiteTextAsset.width, whiteTextAsset.height, edge, 1D, 0D));
@@ -354,7 +355,7 @@ public class SuperWidthSpliceMarkService {
     }
 
     /**
-     * 解析“实际血边”：先按切割类型确定恢复语义边，再按 data-rotation 映射到当前边。
+     * 解析“实际血边”：先按切割类型确定恢复语义边，再按 data-rotation 将边端点绕中心旋转到当前坐标系。
      */
     private Edge resolveBleedEdge(Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         double minX = bounds.minX + marginLeft;
@@ -362,20 +363,10 @@ public class SuperWidthSpliceMarkService {
         double maxX = bounds.maxX + marginLeft;
         double maxY = bounds.maxY + marginTop;
         PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
-        int quarterTurns = normalizeQuarterTurns(rotationAngle);
         EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
-        EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
         PointD r1;
         PointD r2;
-        switch (actualEdge) {
-            case RIGHT:
-                r1 = new PointD(maxX, minY);
-                r2 = new PointD(maxX, maxY);
-                break;
-            case BOTTOM:
-                r1 = new PointD(minX, maxY);
-                r2 = new PointD(maxX, maxY);
-                break;
+        switch (baseEdge) {
             case LEFT:
                 r1 = new PointD(minX, minY);
                 r2 = new PointD(minX, maxY);
@@ -386,38 +377,71 @@ public class SuperWidthSpliceMarkService {
                 r2 = new PointD(maxX, minY);
                 break;
         }
-        PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
+        PointD rotatedR1 = rotateAroundCenter(r1, center, rotationAngle);
+        PointD rotatedR2 = rotateAroundCenter(r2, center, rotationAngle);
+        PointD edgeDir = new PointD(rotatedR2.x - rotatedR1.x, rotatedR2.y - rotatedR1.y);
         double len = Math.hypot(edgeDir.x, edgeDir.y);
         if (len < 0.0001D) {
-            return new Edge(r1, r2, new PointD(0, 0), actualEdge);
+            return new Edge(rotatedR1, rotatedR2, new PointD(0, 0), baseEdge);
+        }
+        Edge rotatedEdge = buildEdgeWithInwardNormal(rotatedR1, rotatedR2, center, baseEdge);
+        return normalizeEdgeDirection(rotatedEdge, center);
+    }
+
+    private Edge buildEdgeWithInwardNormal(PointD start, PointD end, PointD center, EdgeType baseEdge) {
+        PointD edgeDir = new PointD(end.x - start.x, end.y - start.y);
+        double len = Math.hypot(edgeDir.x, edgeDir.y);
+        if (len < 0.0001D) {
+            return new Edge(start, end, new PointD(0, 0), baseEdge);
         }
         PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
-        PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
+        PointD toCenter = new PointD(center.x - (start.x + end.x) / 2D, center.y - (start.y + end.y) / 2D);
         if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
             normal = new PointD(-normal.x, -normal.y);
         }
-        return new Edge(r1, r2, normal, actualEdge);
+        return new Edge(start, end, normal, baseEdge);
     }
 
-    private int normalizeQuarterTurns(double rotationAngle) {
-        int turns = (int) Math.round(rotationAngle / 90D);
-        int normalized = turns % 4;
-        if (normalized < 0) {
-            normalized += 4;
+    /**
+     * 统一血边方向，避免 data-rotation 超过 180° 时出现沿边倒置。
+     */
+    private Edge normalizeEdgeDirection(Edge edge, PointD center) {
+        PointD dir = new PointD(edge.end.x - edge.start.x, edge.end.y - edge.start.y);
+        boolean shouldReverse = dir.x < -0.0001D || (Math.abs(dir.x) <= 0.0001D && dir.y < -0.0001D);
+        if (!shouldReverse) {
+            return edge;
+        }
+        return buildEdgeWithInwardNormal(edge.end, edge.start, center, edge.type);
+    }
+
+    /**
+     * 文本角度限制到 [-90, 90]，避免 180° 倒转导致可读性和贴边观感异常。
+     */
+    private double normalizeReadableAngle(double angle) {
+        double normalized = angle % 360D;
+        if (normalized > 180D) {
+            normalized -= 360D;
+        } else if (normalized <= -180D) {
+            normalized += 360D;
+        }
+        if (normalized > 90D) {
+            normalized -= 180D;
+        } else if (normalized < -90D) {
+            normalized += 180D;
         }
         return normalized;
     }
 
-    private EdgeType rotateEdgeByQuarterTurns(EdgeType baseEdge, int quarterTurns) {
-        EdgeType[] order = new EdgeType[]{EdgeType.TOP, EdgeType.RIGHT, EdgeType.BOTTOM, EdgeType.LEFT};
-        int idx = 0;
-        for (int i = 0; i < order.length; i++) {
-            if (order[i] == baseEdge) {
-                idx = i;
-                break;
-            }
-        }
-        return order[(idx + quarterTurns) % 4];
+    private PointD rotateAroundCenter(PointD point, PointD center, double angle) {
+        double rad = Math.toRadians(angle);
+        double cos = Math.cos(rad);
+        double sin = Math.sin(rad);
+        double dx = point.x - center.x;
+        double dy = point.y - center.y;
+        return new PointD(
+                center.x + dx * cos - dy * sin,
+                center.y + dx * sin + dy * cos
+        );
     }
 
     private double extractDataRotationById(String svgContent, String elementId) {
