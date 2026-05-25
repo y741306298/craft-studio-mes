@@ -348,19 +348,48 @@ public class SuperWidthSpliceMarkService {
 
         double cx = edge.start.x + edgeDx * clampedRatio + edge.normal.x * totalInward;
         double cy = edge.start.y + edgeDy * clampedRatio + edge.normal.y * totalInward;
-        double minCx = edge.minX + width / 2D;
-        double maxCx = edge.maxX - width / 2D;
-        double minCy = edge.minY + height / 2D;
-        double maxCy = edge.maxY - height / 2D;
-        if (minCx <= maxCx) {
-            cx = Math.max(minCx, Math.min(maxCx, cx));
-        }
-        if (minCy <= maxCy) {
-            cy = Math.max(minCy, Math.min(maxCy, cy));
-        }
+        PointD correctedCenter = clampCenterByMovingAlongNormal(cx, cy, width, height, edge);
+        cx = correctedCenter.x;
+        cy = correctedCenter.y;
         int x = Math.max(0, (int) Math.round(cx - width / 2D));
         int y = Math.max(0, (int) Math.round(cy - height / 2D));
         return createMark(img, width, height, x, y);
+    }
+
+    /**
+     * 仅沿血边内法线方向修正中心点，避免 axis 对齐 clamp 破坏“贴边距离”顺序。
+     */
+    private PointD clampCenterByMovingAlongNormal(double cx, double cy, double width, double height, Edge edge) {
+        double halfW = width / 2D;
+        double halfH = height / 2D;
+        double minCx = edge.minX + halfW;
+        double maxCx = edge.maxX - halfW;
+        double minCy = edge.minY + halfH;
+        double maxCy = edge.maxY - halfH;
+        double nx = edge.normal.x;
+        double ny = edge.normal.y;
+        double low = Double.NEGATIVE_INFINITY;
+        double high = Double.POSITIVE_INFINITY;
+        if (Math.abs(nx) > 0.0001D) {
+            low = Math.max(low, (minCx - cx) / nx);
+            high = Math.min(high, (maxCx - cx) / nx);
+        } else if (cx < minCx || cx > maxCx) {
+            return new PointD(Math.max(minCx, Math.min(maxCx, cx)), cy);
+        }
+        if (Math.abs(ny) > 0.0001D) {
+            low = Math.max(low, (minCy - cy) / ny);
+            high = Math.min(high, (maxCy - cy) / ny);
+        } else if (cy < minCy || cy > maxCy) {
+            return new PointD(cx, Math.max(minCy, Math.min(maxCy, cy)));
+        }
+        double t = 0D;
+        if (t < low) {
+            t = low;
+        }
+        if (t > high) {
+            t = high;
+        }
+        return new PointD(cx + nx * t, cy + ny * t);
     }
 
     /**
