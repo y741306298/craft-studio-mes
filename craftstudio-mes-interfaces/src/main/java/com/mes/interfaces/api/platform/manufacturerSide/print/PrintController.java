@@ -10,6 +10,7 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,10 +33,14 @@ public class PrintController {
     public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(
             @RequestParam String manufacturerMetaId,
             @RequestParam(required = false) String id,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") java.util.Date startTime,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") java.util.Date endTime,
+            @RequestParam(required = false) String status,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
-        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, current={}, size={}", manufacturerMetaId, id, current, size);
-        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, id, current, size));
+        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, startTime={}, endTime={}, status={}, current={}, size={}",
+                manufacturerMetaId, id, startTime, endTime, status, current, size);
+        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, id, startTime, endTime, status, current, size));
     }
 
     /**
@@ -81,6 +86,16 @@ public class PrintController {
     @PostMapping("/redo")
     public ApiResponse<Boolean> redo(@RequestBody TypesettingInfo request) {
         appPrintService.redo(request);
+        return ApiResponse.success(true);
+    }
+
+    /**
+     * 印版重打：增加排版 leaveQuantity。
+     * 若重打前 leaveQuantity=0 且状态为已完成，则回退状态为待打印。
+     */
+    @PostMapping("/reprint")
+    public ApiResponse<Boolean> reprint(@RequestBody TypesettingInfo request) {
+        appPrintService.reprint(request);
         return ApiResponse.success(true);
     }
 }

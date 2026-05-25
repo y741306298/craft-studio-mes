@@ -39,7 +39,7 @@ public class AppPrintService {
     @Autowired
     private ManufacturerDeviceCfgService manufacturerDeviceCfgService;
 
-    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, int current, int size) {
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, Date startTime, Date endTime, String status, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
@@ -58,28 +58,56 @@ public class AppPrintService {
             }
         }
 
-        List<TypesettingInfo> pendingPrintItems = typesettingService.findTypesettingByConditions(
-                manufacturerMetaId,
+        Set<String> allowedStatuses = new HashSet<>(Arrays.asList(
                 TypesettingStatus.PRINTING.getCode(),
-                null,
-                null,
-                deviceCode,
-                1,
-                Integer.MAX_VALUE
-        );
-        List<TypesettingInfo> printingInProgressItems = typesettingService.findTypesettingByConditions(
-                manufacturerMetaId,
                 TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
-                null,
-                null,
-                deviceCode,
-                1,
-                Integer.MAX_VALUE
-        );
+                TypesettingStatus.COMPLETED.getCode()
+        ));
+        if (StringUtils.isNotBlank(status) && !allowedStatuses.contains(status)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                    "status 仅支持 printing / printing_in_progress / completed");
+        }
 
         List<TypesettingInfo> mergedItems = new ArrayList<>();
-        mergedItems.addAll(pendingPrintItems == null ? Collections.emptyList() : pendingPrintItems);
-        mergedItems.addAll(printingInProgressItems == null ? Collections.emptyList() : printingInProgressItems);
+        if (StringUtils.isBlank(status)) {
+            List<TypesettingInfo> pendingPrintItems = typesettingService.findTypesettingByConditions(
+                    manufacturerMetaId,
+                    TypesettingStatus.PRINTING.getCode(),
+                    null,
+                    null,
+                    startTime,
+                    endTime,
+                    deviceCode,
+                    1,
+                    Integer.MAX_VALUE
+            );
+            List<TypesettingInfo> printingInProgressItems = typesettingService.findTypesettingByConditions(
+                    manufacturerMetaId,
+                    TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
+                    null,
+                    null,
+                    startTime,
+                    endTime,
+                    deviceCode,
+                    1,
+                    Integer.MAX_VALUE
+            );
+            mergedItems.addAll(pendingPrintItems == null ? Collections.emptyList() : pendingPrintItems);
+            mergedItems.addAll(printingInProgressItems == null ? Collections.emptyList() : printingInProgressItems);
+        } else {
+            List<TypesettingInfo> statusItems = typesettingService.findTypesettingByConditions(
+                    manufacturerMetaId,
+                    status,
+                    null,
+                    null,
+                    startTime,
+                    endTime,
+                    deviceCode,
+                    1,
+                    Integer.MAX_VALUE
+            );
+            mergedItems.addAll(statusItems == null ? Collections.emptyList() : statusItems);
+        }
         Map<String, TypesettingInfo> uniqueMap = new LinkedHashMap<>();
         for (TypesettingInfo item : mergedItems) {
             if (item != null && StringUtils.isNotBlank(item.getId())) {
@@ -242,12 +270,16 @@ public class AppPrintService {
     }
 
     public void redo(TypesettingInfo request) {
+        reprint(request);
+    }
+
+    public void reprint(TypesettingInfo request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息 ID 不能为空");
         }
         Integer redoQuantity = request.getQuantity();
         if (redoQuantity == null || redoQuantity <= 0) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "重做数量必须大于0");
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "重打数量必须大于0");
         }
 
         TypesettingInfo dbInfo = typesettingService.findById(request.getId());
@@ -256,6 +288,9 @@ public class AppPrintService {
         }
         int currentLeave = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
         dbInfo.setLeaveQuantity(currentLeave + redoQuantity);
+        if (currentLeave == 0 && TypesettingStatus.COMPLETED.getCode().equals(dbInfo.getStatus())) {
+            dbInfo.setStatus(TypesettingStatus.PRINTING.getCode());
+        }
         typesettingService.updateTypesetting(dbInfo);
     }
 
