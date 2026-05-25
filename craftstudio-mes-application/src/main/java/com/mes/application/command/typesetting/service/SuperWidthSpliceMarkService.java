@@ -364,7 +364,7 @@ public class SuperWidthSpliceMarkService {
         PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
         EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
         PointD baseTangent = hasVerticalCut ? new PointD(0D, 1D) : new PointD(1D, 0D);
-        PointD baseInwardNormal = resolveInwardNormalByEdge(baseEdge);
+        PointD baseInwardNormal = resolveCanonicalInwardNormal(baseEdge);
         PointD tangent = rotateVector(baseTangent, rotationAngle);
         PointD normal = rotateVector(baseInwardNormal, rotationAngle);
         double halfW = (maxX - minX) / 2D;
@@ -382,7 +382,7 @@ public class SuperWidthSpliceMarkService {
      * 按“当前实际血边”直接给出指向零件内部的单位向量。
      * 不依赖中心点推导，避免倒置/旋转场景下出现反向。
      */
-    private PointD resolveInwardNormalByEdge(EdgeType actualEdge) {
+    private PointD resolveCanonicalInwardNormal(EdgeType actualEdge) {
         switch (actualEdge) {
             case RIGHT:
                 return new PointD(-1D, 0D);
@@ -407,24 +407,6 @@ public class SuperWidthSpliceMarkService {
             return new PointD(0D, 0D);
         }
         return new PointD(x / len, y / len);
-    }
-
-    /**
-     * 按“当前实际血边”直接给出指向零件内部的单位向量。
-     * 不依赖中心点推导，避免倒置/旋转场景下出现反向。
-     */
-    private PointD resolveInwardNormalByEdge(EdgeType actualEdge) {
-        switch (actualEdge) {
-            case RIGHT:
-                return new PointD(-1D, 0D);
-            case BOTTOM:
-                return new PointD(0D, -1D);
-            case LEFT:
-                return new PointD(1D, 0D);
-            case TOP:
-            default:
-                return new PointD(0D, 1D);
-        }
     }
 
     private int normalizeQuarterTurns(double rotationAngle) {
