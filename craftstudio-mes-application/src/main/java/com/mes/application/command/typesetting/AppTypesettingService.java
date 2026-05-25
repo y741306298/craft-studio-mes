@@ -1566,6 +1566,7 @@ public class AppTypesettingService {
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
                 String printTaskTypesettingId = callbackTypesettingId;
+                String printTaskTypesettingCode = typesettingInfo.getId();
                 String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
                 Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
                 TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
@@ -1578,8 +1579,8 @@ public class AppTypesettingService {
                 typesettingInfo.setRemark(null);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
-                savePrintTaskByDeviceCode(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
-                savePltBroadcastPrintTask(printTaskTypesettingId, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
+                savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
+                savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
             }
         }catch (Exception e) {
             log.error("处理打印印版回调异常", e);
@@ -1864,6 +1865,7 @@ public class AppTypesettingService {
 
 
     private void savePrintTaskByDeviceCode(String typesettingInfoId,
+                                           String typesettingCode,
                                            String manufacturerMetaId,
                                            String deviceCode,
                                            TypesettingDownloadTaskData data) {
@@ -1878,14 +1880,15 @@ public class AppTypesettingService {
             data.setDeviceInfoIds(Collections.singletonList(deviceInfoId));
             data.setDeviceCodes(Collections.singletonList(resolvedDeviceCode));
         }
-        savePrintTask(typesettingInfoId, manufacturerMetaId, Collections.singletonList(deviceInfoId), Collections.singletonList(resolvedDeviceCode), data);
+        savePrintTask(typesettingInfoId, typesettingCode, manufacturerMetaId, Collections.singletonList(deviceInfoId), Collections.singletonList(resolvedDeviceCode), data);
     }
 
-    private void savePrintTask(String typesettingInfoId, String deviceInfoId, TypesettingDownloadTaskData data) {
-        savePrintTask(typesettingInfoId, null, Collections.singletonList(deviceInfoId), Collections.emptyList(), data);
+    private void savePrintTask(String typesettingInfoId, String typesettingCode, String deviceInfoId, TypesettingDownloadTaskData data) {
+        savePrintTask(typesettingInfoId, typesettingCode, null, Collections.singletonList(deviceInfoId), Collections.emptyList(), data);
     }
 
     private void savePrintTask(String typesettingInfoId,
+                               String typesettingCode,
                                String manufacturerMetaId,
                                List<String> deviceInfoIds,
                                List<String> deviceCodes,
@@ -1912,7 +1915,7 @@ public class AppTypesettingService {
         }
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
-        task.setTypesettingCode(typesettingInfoId);
+        task.setTypesettingCode(typesettingCode);
         task.setManufacturerMetaId(manufacturerMetaId);
         task.setDeviceInfoId(normalizedDeviceInfoIds);
         task.setDeviceCode(normalizedDeviceCodes);
@@ -1935,6 +1938,7 @@ public class AppTypesettingService {
     }
 
     private void savePltBroadcastPrintTask(String typesettingInfoId,
+                                           String typesettingCode,
                                            String manufacturerMetaId,
                                            TypesettingDownloadTaskData originalData) {
         if (originalData == null || originalData.getPlts() == null || originalData.getPlts().isEmpty()) {
@@ -1966,7 +1970,7 @@ public class AppTypesettingService {
         pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
         pltOnlyData.setJsons(Collections.emptyList());
         pltOnlyData.setMarks(Collections.emptyList());
-        savePrintTask(typesettingInfoId + "_plt", manufacturerMetaId, new ArrayList<>(cuttingDeviceInfoIds), new ArrayList<>(cuttingDeviceCodes), pltOnlyData);
+        savePrintTask(typesettingInfoId + "_plt", typesettingCode, manufacturerMetaId, new ArrayList<>(cuttingDeviceInfoIds), new ArrayList<>(cuttingDeviceCodes), pltOnlyData);
     }
 
     private List<ManufacturerDeviceCfg> findCuttingDeviceCfgs(String manufacturerMetaId) {
