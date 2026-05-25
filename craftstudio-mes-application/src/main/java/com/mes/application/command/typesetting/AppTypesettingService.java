@@ -1091,7 +1091,13 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                if (isBloodBasedRotationCandidate(piece)) {
+                boolean superWidthLastSeqPiece = isSuperWidthLastSeqPiece(piece);
+                boolean superWidthLastHasVerticalCut = superWidthLastSeqPiece && hasVerticalCut(piece);
+                if (superWidthLastSeqPiece) {
+                    if (!superWidthLastHasVerticalCut) {
+                        element.setRotation(-90);
+                    }
+                } else if (isBloodBasedRotationCandidate(piece)) {
                     element.setRotation(-90);
                 }
                 boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
@@ -1099,7 +1105,12 @@ public class AppTypesettingService {
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
-                applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
+                if (superWidthLastSeqPiece) {
+                    element.setAlign("left");
+                    element.setSafeDistance(0D);
+                } else {
+                    applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
+                }
                 elements.add(element);
             }
         }
@@ -1305,6 +1316,23 @@ public class AppTypesettingService {
                 String pieceId = StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
                 throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
             }
+        }
+    }
+
+
+    private boolean isSuperWidthLastSeqPiece(ProductionPiece piece) {
+        if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
+            return false;
+        }
+        Matcher matcher = Pattern.compile("#\\s*\\d+-(\\d+)").matcher(piece.getGroup());
+        if (!matcher.find()) {
+            return false;
+        }
+        try {
+            int maxSeq = Integer.parseInt(matcher.group(1));
+            return maxSeq > 0 && piece.getSeq() == maxSeq;
+        } catch (Exception ignore) {
+            return false;
         }
     }
 
