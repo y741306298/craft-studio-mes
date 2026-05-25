@@ -348,6 +348,16 @@ public class SuperWidthSpliceMarkService {
 
         double cx = edge.start.x + edgeDx * clampedRatio + edge.normal.x * totalInward;
         double cy = edge.start.y + edgeDy * clampedRatio + edge.normal.y * totalInward;
+        double minCx = edge.minX + width / 2D;
+        double maxCx = edge.maxX - width / 2D;
+        double minCy = edge.minY + height / 2D;
+        double maxCy = edge.maxY - height / 2D;
+        if (minCx <= maxCx) {
+            cx = Math.max(minCx, Math.min(maxCx, cx));
+        }
+        if (minCy <= maxCy) {
+            cy = Math.max(minCy, Math.min(maxCy, cy));
+        }
         int x = Math.max(0, (int) Math.round(cx - width / 2D));
         int y = Math.max(0, (int) Math.round(cy - height / 2D));
         return createMark(img, width, height, x, y);
@@ -393,7 +403,7 @@ public class SuperWidthSpliceMarkService {
         PointD lineCenter = new PointD(center.x + outwardNormal.x * maxOutward, center.y + outwardNormal.y * maxOutward);
         PointD r1 = new PointD(lineCenter.x + tangent.x * minT, lineCenter.y + tangent.y * minT);
         PointD r2 = new PointD(lineCenter.x + tangent.x * maxT, lineCenter.y + tangent.y * maxT);
-        return new Edge(r1, r2, inwardNormal);
+        return new Edge(r1, r2, inwardNormal, minX, minY, maxX, maxY);
     }
 
     private PointD rotateUnit(PointD vector, double angle) {
@@ -678,11 +688,19 @@ public class SuperWidthSpliceMarkService {
         private final PointD start;
         private final PointD end;
         private final PointD normal;
+        private final double minX;
+        private final double minY;
+        private final double maxX;
+        private final double maxY;
 
-        private Edge(PointD start, PointD end, PointD normal) {
+        private Edge(PointD start, PointD end, PointD normal, double minX, double minY, double maxX, double maxY) {
             this.start = start;
             this.end = end;
             this.normal = normal;
+            this.minX = minX;
+            this.minY = minY;
+            this.maxX = maxX;
+            this.maxY = maxY;
         }
     }
 
