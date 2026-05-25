@@ -219,23 +219,39 @@ public class ManufacturerDeviceCfgController {
 
         List<ManufacturerFactoryDownloadTaskResp> response = new ArrayList<ManufacturerFactoryDownloadTaskResp>();
         for (TypesettingDownloadTaskData task : tasks) {
-            ManufacturerFactoryDownloadTaskResp item = new ManufacturerFactoryDownloadTaskResp();
-            item.setId(task.getId());
-            List<String> images = new ArrayList<>();
-            if (task.getImamges() != null) {
-                images.addAll(task.getImamges());
-            }
-            if (task.getMarks() != null) {
-                images.addAll(task.getMarks());
-            }
-            item.setImamges(images);
-            item.setPlts(task.getPlts());
-            item.setJsons(task.getJsons());
-            response.add(item);
+            response.add(buildDownloadTaskResp(task));
         }
 
         ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
         return apiResponse;
+    }
+
+    @GetMapping("/factory/task/download")
+    public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> downloadFactoryTask(@RequestParam String id) {
+        List<TypesettingDownloadTaskData> tasks = appDeviceCfgService.listDownloadTasksByTypesettingCode(id);
+        List<ManufacturerFactoryDownloadTaskResp> response = new ArrayList<ManufacturerFactoryDownloadTaskResp>();
+        for (TypesettingDownloadTaskData task : tasks) {
+            response.add(buildDownloadTaskResp(task));
+        }
+        ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
+        apiResponse.setMessage("succes");
+        return apiResponse;
+    }
+
+    private ManufacturerFactoryDownloadTaskResp buildDownloadTaskResp(TypesettingDownloadTaskData task) {
+        ManufacturerFactoryDownloadTaskResp item = new ManufacturerFactoryDownloadTaskResp();
+        item.setId(task.getId());
+        List<String> images = new ArrayList<>();
+        if (task.getImamges() != null) {
+            images.addAll(task.getImamges());
+        }
+        if (task.getMarks() != null) {
+            images.addAll(task.getMarks());
+        }
+        item.setImamges(images);
+        item.setPlts(task.getPlts());
+        item.setJsons(task.getJsons());
+        return item;
     }
 }
