@@ -252,6 +252,26 @@ public class AppManufacturerDeviceCfgService {
         return result;
     }
 
+
+    public List<TypesettingDownloadTaskData> listDownloadTasksByTypesettingCode(String typesettingCode) {
+        if (StringUtils.isBlank(typesettingCode)) {
+            throw new IllegalArgumentException("印版id不能为空");
+        }
+        Map<String, Object> filters = new HashMap<String, Object>();
+        filters.put("typesettingCode", typesettingCode);
+        List<TypesettingPrintTask> tasks = typesettingPrintTaskRepository.filterList(1, 100, filters);
+        List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
+        if (tasks == null || tasks.isEmpty()) {
+            return result;
+        }
+        for (TypesettingPrintTask task : tasks) {
+            if (task != null && task.getData() != null) {
+                result.add(task.getData());
+            }
+        }
+        return result;
+    }
+
     public ManufacturerDeviceCfg unbindDeviceByManufacturerAndId(String manufacturerMetaId, String id) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new IllegalArgumentException("制造商 ID 不能为空");

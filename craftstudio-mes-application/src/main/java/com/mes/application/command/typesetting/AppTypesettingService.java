@@ -1912,6 +1912,7 @@ public class AppTypesettingService {
         }
         TypesettingPrintTask task = new TypesettingPrintTask();
         task.setTypesettingInfoId(typesettingInfoId);
+        task.setTypesettingCode(typesettingInfoId);
         task.setManufacturerMetaId(manufacturerMetaId);
         task.setDeviceInfoId(normalizedDeviceInfoIds);
         task.setDeviceCode(normalizedDeviceCodes);
