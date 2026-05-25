@@ -1092,7 +1092,12 @@ public class AppTypesettingService {
                     element.setHMargin(0);
                 }
                 boolean superWidthLastSeqPiece = isSuperWidthLastSeqPiece(piece);
-                if (isBloodBasedRotationCandidate(piece) || superWidthLastSeqPiece) {
+                boolean superWidthLastHasVerticalCut = superWidthLastSeqPiece && hasVerticalCut(piece);
+                if (superWidthLastSeqPiece) {
+                    if (!superWidthLastHasVerticalCut) {
+                        element.setRotation(-90);
+                    }
+                } else if (isBloodBasedRotationCandidate(piece)) {
                     element.setRotation(-90);
                 }
                 boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
