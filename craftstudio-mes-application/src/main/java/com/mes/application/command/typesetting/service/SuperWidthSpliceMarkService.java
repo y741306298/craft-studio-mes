@@ -361,42 +361,54 @@ public class SuperWidthSpliceMarkService {
         double minY = bounds.minY + marginTop;
         double maxX = bounds.maxX + marginLeft;
         double maxY = bounds.maxY + marginTop;
-        PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
-        int quarterTurns = normalizeQuarterTurns(rotationAngle);
         EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
+        int quarterTurns = normalizeQuarterTurns(rotationAngle);
         EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
-        PointD r1;
-        PointD r2;
-        switch (actualEdge) {
+        PointD baseTangent = hasVerticalCut ? new PointD(0D, 1D) : new PointD(1D, 0D);
+        PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
+        PointD tangent = rotateVector(baseTangent, rotationAngle);
+        PointD edgeCenter = resolveAxisAlignedEdgeCenter(actualEdge, minX, minY, maxX, maxY);
+        PointD normal = resolveInwardNormalByCenter(edgeCenter, center, tangent);
+        double halfLenOnTangent = hasVerticalCut ? (maxY - minY) / 2D : (maxX - minX) / 2D;
+        PointD r1 = new PointD(edgeCenter.x - tangent.x * halfLenOnTangent, edgeCenter.y - tangent.y * halfLenOnTangent);
+        PointD r2 = new PointD(edgeCenter.x + tangent.x * halfLenOnTangent, edgeCenter.y + tangent.y * halfLenOnTangent);
+        return new Edge(r1, r2, normal, actualEdge);
+    }
+
+    private PointD resolveAxisAlignedEdgeCenter(EdgeType edgeType, double minX, double minY, double maxX, double maxY) {
+        switch (edgeType) {
             case RIGHT:
-                r1 = new PointD(maxX, minY);
-                r2 = new PointD(maxX, maxY);
-                break;
+                return new PointD(maxX, (minY + maxY) / 2D);
             case BOTTOM:
-                r1 = new PointD(minX, maxY);
-                r2 = new PointD(maxX, maxY);
-                break;
+                return new PointD((minX + maxX) / 2D, maxY);
             case LEFT:
-                r1 = new PointD(minX, minY);
-                r2 = new PointD(minX, maxY);
-                break;
+                return new PointD(minX, (minY + maxY) / 2D);
             case TOP:
             default:
-                r1 = new PointD(minX, minY);
-                r2 = new PointD(maxX, minY);
-                break;
+                return new PointD((minX + maxX) / 2D, minY);
         }
-        PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
-        double len = Math.hypot(edgeDir.x, edgeDir.y);
+    }
+
+    private PointD resolveInwardNormalByCenter(PointD edgeCenter, PointD center, PointD tangent) {
+        PointD candidate = new PointD(-tangent.y, tangent.x);
+        PointD toCenter = new PointD(center.x - edgeCenter.x, center.y - edgeCenter.y);
+        if (candidate.x * toCenter.x + candidate.y * toCenter.y < 0D) {
+            candidate = new PointD(-candidate.x, -candidate.y);
+        }
+        return candidate;
+    }
+
+    private PointD rotateVector(PointD v, double angleDegree) {
+        double rad = Math.toRadians(angleDegree);
+        double cos = Math.cos(rad);
+        double sin = Math.sin(rad);
+        double x = v.x * cos - v.y * sin;
+        double y = v.x * sin + v.y * cos;
+        double len = Math.hypot(x, y);
         if (len < 0.0001D) {
-            return new Edge(r1, r2, new PointD(0, 0), actualEdge);
+            return new PointD(0D, 0D);
         }
-        PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
-        PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
-        if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
-            normal = new PointD(-normal.x, -normal.y);
-        }
-        return new Edge(r1, r2, normal, actualEdge);
+        return new PointD(x / len, y / len);
     }
 
     private int normalizeQuarterTurns(double rotationAngle) {
