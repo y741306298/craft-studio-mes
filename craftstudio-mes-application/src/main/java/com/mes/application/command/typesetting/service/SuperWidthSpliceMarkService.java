@@ -361,21 +361,32 @@ public class SuperWidthSpliceMarkService {
         double minY = bounds.minY + marginTop;
         double maxX = bounds.maxX + marginLeft;
         double maxY = bounds.maxY + marginTop;
-        PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
         EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
+        int quarterTurns = normalizeQuarterTurns(rotationAngle);
+        EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
         PointD baseTangent = hasVerticalCut ? new PointD(0D, 1D) : new PointD(1D, 0D);
         PointD baseInwardNormal = resolveCanonicalInwardNormal(baseEdge);
         PointD tangent = rotateVector(baseTangent, rotationAngle);
         PointD normal = rotateVector(baseInwardNormal, rotationAngle);
-        double halfW = (maxX - minX) / 2D;
-        double halfH = (maxY - minY) / 2D;
-        double halfLenOnTangent = Math.abs(tangent.x) * halfW + Math.abs(tangent.y) * halfH;
-        double halfLenOnNormal = Math.abs(normal.x) * halfW + Math.abs(normal.y) * halfH;
-        PointD edgeCenter = new PointD(center.x - normal.x * halfLenOnNormal, center.y - normal.y * halfLenOnNormal);
+        PointD edgeCenter = resolveAxisAlignedEdgeCenter(actualEdge, minX, minY, maxX, maxY);
+        double halfLenOnTangent = hasVerticalCut ? (maxY - minY) / 2D : (maxX - minX) / 2D;
         PointD r1 = new PointD(edgeCenter.x - tangent.x * halfLenOnTangent, edgeCenter.y - tangent.y * halfLenOnTangent);
         PointD r2 = new PointD(edgeCenter.x + tangent.x * halfLenOnTangent, edgeCenter.y + tangent.y * halfLenOnTangent);
-        EdgeType actualEdge = baseEdge;
         return new Edge(r1, r2, normal, actualEdge);
+    }
+
+    private PointD resolveAxisAlignedEdgeCenter(EdgeType edgeType, double minX, double minY, double maxX, double maxY) {
+        switch (edgeType) {
+            case RIGHT:
+                return new PointD(maxX, (minY + maxY) / 2D);
+            case BOTTOM:
+                return new PointD((minX + maxX) / 2D, maxY);
+            case LEFT:
+                return new PointD(minX, (minY + maxY) / 2D);
+            case TOP:
+            default:
+                return new PointD((minX + maxX) / 2D, minY);
+        }
     }
 
     /**
