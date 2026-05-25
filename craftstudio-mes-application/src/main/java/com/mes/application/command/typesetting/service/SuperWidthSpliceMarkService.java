@@ -92,7 +92,6 @@ public class SuperWidthSpliceMarkService {
             if (bounds == null) {
                 continue;
             }
-            double dataRotation = extractDataRotationById(svgContent, piece.getId());
             int x = Math.max(0, (int) Math.round(bounds.maxX - 20) + marginLeft);
             int topY = Math.max(0, (int) Math.round(bounds.minY) + marginTop);
             int bottomY = Math.max(0, (int) Math.round(bounds.maxY - 6) + marginTop);
@@ -114,9 +113,8 @@ public class SuperWidthSpliceMarkService {
                 addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, true, 0D);
             }
             if (isLastPiece) {
-                boolean hasVerticalCut = hasVerticalCut(piece);
-                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
-                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, hasVerticalCut, dataRotation);
+                addGroupTextMarks(formeRequest, businessId, typesettingInfo.getManufacturerMetaId(), typesettingInfo.getTypesettingId(), piece.getGroup(), bounds, marginLeft, marginTop, false, -90D);
+                addStripeMarks(formeRequest, businessId, darkMarkImg, bounds, marginLeft, marginTop, false, -90D);
             }
         }
     }
@@ -428,28 +426,6 @@ public class SuperWidthSpliceMarkService {
         }
         return order[(idx + quarterTurns) % 4];
     }
-
-    private double extractDataRotationById(String svgContent, String elementId) {
-        if (StringUtils.isBlank(svgContent) || StringUtils.isBlank(elementId)) {
-            return 0D;
-        }
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            Document document = factory.newDocumentBuilder()
-                    .parse(new ByteArrayInputStream(svgContent.getBytes(StandardCharsets.UTF_8)));
-            Element root = document.getDocumentElement();
-            Element target = findElementById(root, elementId);
-            if (target == null) {
-                return 0D;
-            }
-            return parseDoubleSafe(target.getAttribute("data-rotation"), 0D);
-        } catch (Exception e) {
-            log.warn("解析 data-rotation 失败: elementId={}, error={}", elementId, e.getMessage());
-            return 0D;
-        }
-    }
-
     private String uploadGroupTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
         return ossTagUploadService.uploadTagPng(businessId, createRotatedTwoLineTextPng(width, height, text), subDir);
@@ -588,39 +564,6 @@ public class SuperWidthSpliceMarkService {
     /**
      * 通过 orderItem 的“超幅拼接”节点 param.xs 判断是否存在竖切。
      */
-    private boolean hasVerticalCut(ProductionPiece piece) {
-        if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
-            return false;
-        }
-        OrderItem orderItem = orderItemService.findByOrderItemId(piece.getOrderItemId());
-        if (orderItem == null || orderItem.getProcedureFlow() == null || orderItem.getProcedureFlow().getNodes() == null) {
-            return false;
-        }
-        for (ProcedureFlowNode node : orderItem.getProcedureFlow().getNodes()) {
-            if (node == null || !SUPER_WIDTH_SPLICE_NODE_NAME.equals(node.getNodeName())
-                    || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
-                continue;
-            }
-            MTOProductSpecDTO.ProcessParamConfigDTO config = node.getParamConfigs().get(0);
-            if (config == null || config.getParam() == null) {
-                continue;
-            }
-            Object param = config.getParam();
-            if (param instanceof Map) {
-                Object xs = ((Map<?, ?>) param).get("xs");
-                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
-                    return true;
-                }
-            } else {
-                Object xs = invokeGetter(param, "getXs");
-                if (xs instanceof List && !((List<?>) xs).isEmpty()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     private Object invokeGetter(Object target, String methodName) {
         if (target == null || StringUtils.isBlank(methodName)) {
             return null;
