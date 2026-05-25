@@ -124,17 +124,21 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
                                                                  String pltNormalName,
                                                                  String pltReverseName) {
         String businessId = context.getBusinessId();
+        String outputObjectBaseName = context.getTypesettingInfo() != null
+                && StringUtils.isNotBlank(context.getTypesettingInfo().getId())
+                ? context.getTypesettingInfo().getId()
+                : businessId;
         FormeGenerationRequest.Outputs outputs = new FormeGenerationRequest.Outputs();
         if (mode.isRequireJsonFile()) {
             FormeGenerationRequest.OutputConfig json = new FormeGenerationRequest.OutputConfig();
-            json.setObjectName(businessId + ".json");
+            json.setObjectName(outputObjectBaseName + ".json");
             FormeGenerationRequest.EnvConfig env = new FormeGenerationRequest.EnvConfig();
             env.setBasePath("..\\images\\");
             FormeGenerationRequest.DtpConfig dtp = new FormeGenerationRequest.DtpConfig();
             dtp.setNewpage("false");
             dtp.setShowmode("4");
             dtp.setAutoSaveFile("");
-            dtp.setTpfSavePath("..\\images\\" + businessId + ".tpf");
+            dtp.setTpfSavePath("..\\images\\" + outputObjectBaseName + ".tpf");
             env.setDtp(dtp);
             json.setEnv(env);
             outputs.setJson(json);
@@ -164,7 +168,7 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         }
         if (mode.isRequireSvgFile()) {
             FormeGenerationRequest.OutputConfig svg = new FormeGenerationRequest.OutputConfig();
-            svg.setObjectName(businessId + ".svg");
+            svg.setObjectName(outputObjectBaseName + ".svg");
             outputs.setFormeSvg(svg);
         }
         return outputs;
