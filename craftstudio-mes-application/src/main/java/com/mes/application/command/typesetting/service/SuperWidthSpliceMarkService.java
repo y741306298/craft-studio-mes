@@ -348,13 +348,26 @@ public class SuperWidthSpliceMarkService {
 
         double cx = edge.start.x + edgeDx * clampedRatio + edge.normal.x * totalInward;
         double cy = edge.start.y + edgeDy * clampedRatio + edge.normal.y * totalInward;
+        double minCx = edge.minX + width / 2D;
+        double maxCx = edge.maxX - width / 2D;
+        double minCy = edge.minY + height / 2D;
+        double maxCy = edge.maxY - height / 2D;
+        if (minCx <= maxCx) {
+            cx = Math.max(minCx, Math.min(maxCx, cx));
+        }
+        if (minCy <= maxCy) {
+            cy = Math.max(minCy, Math.min(maxCy, cy));
+        }
         int x = Math.max(0, (int) Math.round(cx - width / 2D));
         int y = Math.max(0, (int) Math.round(cy - height / 2D));
         return createMark(img, width, height, x, y);
     }
 
     /**
-     * 解析“实际血边”：先按切割类型确定恢复语义边，再按 data-rotation 映射到当前边。
+     * 解析“实际血边”：
+     * 1) 先按切割类型确定基准血边切线/法线；
+     * 2) 再按 data-rotation 连续旋转（不再限制 90°倍数）；
+     * 3) 结合当前外接 bbox 求出贴边线段，并保留指向内部的法线。
      */
     private Edge resolveBleedEdge(Bounds bounds, int marginLeft, int marginTop, boolean hasVerticalCut, double rotationAngle) {
         double minX = bounds.minX + marginLeft;
@@ -362,71 +375,48 @@ public class SuperWidthSpliceMarkService {
         double maxX = bounds.maxX + marginLeft;
         double maxY = bounds.maxY + marginTop;
         PointD center = new PointD((minX + maxX) / 2D, (minY + maxY) / 2D);
-        int quarterTurns = normalizeQuarterTurns(rotationAngle);
-        EdgeType baseEdge = hasVerticalCut ? EdgeType.LEFT : EdgeType.TOP;
-        EdgeType actualEdge = rotateEdgeByQuarterTurns(baseEdge, quarterTurns);
-        PointD r1;
-        PointD r2;
-        switch (actualEdge) {
-            case RIGHT:
-                r1 = new PointD(maxX, minY);
-                r2 = new PointD(maxX, maxY);
-                break;
-            case BOTTOM:
-                r1 = new PointD(minX, maxY);
-                r2 = new PointD(maxX, maxY);
-                break;
-            case LEFT:
-                r1 = new PointD(minX, minY);
-                r2 = new PointD(minX, maxY);
-                break;
-            case TOP:
-            default:
-                r1 = new PointD(minX, minY);
-                r2 = new PointD(maxX, minY);
-                break;
+        // 基准：竖切 => 左边血线（切线向下，内法线向右）；否则 => 上边血线（切线向右，内法线向下）
+        PointD baseTangent = hasVerticalCut ? new PointD(0D, 1D) : new PointD(1D, 0D);
+        PointD baseNormal = hasVerticalCut ? new PointD(1D, 0D) : new PointD(0D, 1D);
+        PointD tangent = rotateUnit(baseTangent, rotationAngle);
+        PointD inwardNormal = rotateUnit(baseNormal, rotationAngle);
+        PointD outwardNormal = new PointD(-inwardNormal.x, -inwardNormal.y);
+
+        PointD[] corners = new PointD[]{
+                new PointD(minX, minY),
+                new PointD(maxX, minY),
+                new PointD(maxX, maxY),
+                new PointD(minX, maxY)
+        };
+        double minT = Double.POSITIVE_INFINITY;
+        double maxT = Double.NEGATIVE_INFINITY;
+        double maxOutward = Double.NEGATIVE_INFINITY;
+        for (PointD corner : corners) {
+            double relX = corner.x - center.x;
+            double relY = corner.y - center.y;
+            double t = relX * tangent.x + relY * tangent.y;
+            minT = Math.min(minT, t);
+            maxT = Math.max(maxT, t);
+            double outward = relX * outwardNormal.x + relY * outwardNormal.y;
+            maxOutward = Math.max(maxOutward, outward);
         }
-        PointD normal = resolveInwardNormalByEdge(actualEdge);
-        return new Edge(r1, r2, normal, actualEdge);
+        PointD lineCenter = new PointD(center.x + outwardNormal.x * maxOutward, center.y + outwardNormal.y * maxOutward);
+        PointD r1 = new PointD(lineCenter.x + tangent.x * minT, lineCenter.y + tangent.y * minT);
+        PointD r2 = new PointD(lineCenter.x + tangent.x * maxT, lineCenter.y + tangent.y * maxT);
+        return new Edge(r1, r2, inwardNormal, minX, minY, maxX, maxY);
     }
 
-    /**
-     * 按“当前实际血边”直接给出指向零件内部的单位向量。
-     * 不依赖中心点推导，避免倒置/旋转场景下出现反向。
-     */
-    private PointD resolveInwardNormalByEdge(EdgeType actualEdge) {
-        switch (actualEdge) {
-            case RIGHT:
-                return new PointD(-1D, 0D);
-            case BOTTOM:
-                return new PointD(0D, -1D);
-            case LEFT:
-                return new PointD(1D, 0D);
-            case TOP:
-            default:
-                return new PointD(0D, 1D);
+    private PointD rotateUnit(PointD vector, double angle) {
+        double rad = Math.toRadians(angle);
+        double cos = Math.cos(rad);
+        double sin = Math.sin(rad);
+        double x = vector.x * cos - vector.y * sin;
+        double y = vector.x * sin + vector.y * cos;
+        double len = Math.hypot(x, y);
+        if (len < 0.0001D) {
+            return new PointD(vector.x, vector.y);
         }
-    }
-
-    private int normalizeQuarterTurns(double rotationAngle) {
-        int turns = (int) Math.round(rotationAngle / 90D);
-        int normalized = turns % 4;
-        if (normalized < 0) {
-            normalized += 4;
-        }
-        return normalized;
-    }
-
-    private EdgeType rotateEdgeByQuarterTurns(EdgeType baseEdge, int quarterTurns) {
-        EdgeType[] order = new EdgeType[]{EdgeType.TOP, EdgeType.RIGHT, EdgeType.BOTTOM, EdgeType.LEFT};
-        int idx = 0;
-        for (int i = 0; i < order.length; i++) {
-            if (order[i] == baseEdge) {
-                idx = i;
-                break;
-            }
-        }
-        return order[(idx + quarterTurns) % 4];
+        return new PointD(x / len, y / len);
     }
 
     private double extractDataRotationById(String svgContent, String elementId) {
@@ -698,13 +688,19 @@ public class SuperWidthSpliceMarkService {
         private final PointD start;
         private final PointD end;
         private final PointD normal;
-        private final EdgeType type;
+        private final double minX;
+        private final double minY;
+        private final double maxX;
+        private final double maxY;
 
-        private Edge(PointD start, PointD end, PointD normal, EdgeType type) {
+        private Edge(PointD start, PointD end, PointD normal, double minX, double minY, double maxX, double maxY) {
             this.start = start;
             this.end = end;
             this.normal = normal;
-            this.type = type;
+            this.minX = minX;
+            this.minY = minY;
+            this.maxX = maxX;
+            this.maxY = maxY;
         }
     }
 
@@ -720,7 +716,4 @@ public class SuperWidthSpliceMarkService {
         }
     }
 
-    private enum EdgeType {
-        TOP, RIGHT, BOTTOM, LEFT
-    }
 }
