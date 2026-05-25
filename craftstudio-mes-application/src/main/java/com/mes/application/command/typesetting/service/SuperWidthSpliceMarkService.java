@@ -409,6 +409,24 @@ public class SuperWidthSpliceMarkService {
         return new PointD(x / len, y / len);
     }
 
+    /**
+     * 按“当前实际血边”直接给出指向零件内部的单位向量。
+     * 不依赖中心点推导，避免倒置/旋转场景下出现反向。
+     */
+    private PointD resolveInwardNormalByEdge(EdgeType actualEdge) {
+        switch (actualEdge) {
+            case RIGHT:
+                return new PointD(-1D, 0D);
+            case BOTTOM:
+                return new PointD(0D, -1D);
+            case LEFT:
+                return new PointD(1D, 0D);
+            case TOP:
+            default:
+                return new PointD(0D, 1D);
+        }
+    }
+
     private int normalizeQuarterTurns(double rotationAngle) {
         int turns = (int) Math.round(rotationAngle / 90D);
         int normalized = turns % 4;
