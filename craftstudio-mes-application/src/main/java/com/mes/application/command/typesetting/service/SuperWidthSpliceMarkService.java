@@ -386,17 +386,26 @@ public class SuperWidthSpliceMarkService {
                 r2 = new PointD(maxX, minY);
                 break;
         }
-        PointD edgeDir = new PointD(r2.x - r1.x, r2.y - r1.y);
-        double len = Math.hypot(edgeDir.x, edgeDir.y);
-        if (len < 0.0001D) {
-            return new Edge(r1, r2, new PointD(0, 0), actualEdge);
-        }
-        PointD normal = new PointD(-edgeDir.y / len, edgeDir.x / len);
-        PointD toCenter = new PointD(center.x - (r1.x + r2.x) / 2D, center.y - (r1.y + r2.y) / 2D);
-        if (normal.x * toCenter.x + normal.y * toCenter.y < 0) {
-            normal = new PointD(-normal.x, -normal.y);
-        }
+        PointD normal = resolveInwardNormalByEdge(actualEdge);
         return new Edge(r1, r2, normal, actualEdge);
+    }
+
+    /**
+     * 按“当前实际血边”直接给出指向零件内部的单位向量。
+     * 不依赖中心点推导，避免倒置/旋转场景下出现反向。
+     */
+    private PointD resolveInwardNormalByEdge(EdgeType actualEdge) {
+        switch (actualEdge) {
+            case RIGHT:
+                return new PointD(-1D, 0D);
+            case BOTTOM:
+                return new PointD(0D, -1D);
+            case LEFT:
+                return new PointD(1D, 0D);
+            case TOP:
+            default:
+                return new PointD(0D, 1D);
+        }
     }
 
     private int normalizeQuarterTurns(double rotationAngle) {
