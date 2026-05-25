@@ -49,7 +49,7 @@ public class PrintController {
     /**
      * 根据ID开始打印：将排版状态从待打印更新为打印中。
      */
-    @PostMapping("/startById")
+    @GetMapping("/startById")
     public ApiResponse<Boolean> startById(@RequestParam String id) {
         appPrintService.startTypesettingPrintById(id);
         return ApiResponse.success(true);
