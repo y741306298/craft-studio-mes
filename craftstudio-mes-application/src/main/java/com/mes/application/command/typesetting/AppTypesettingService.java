@@ -2350,7 +2350,9 @@ public class AppTypesettingService {
                 if (i == 0) {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
-                    baseTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                    baseTypesettingInfo.setTypesettingCells(usedCells);
+                    baseTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
                     baseTypesettingInfo.setTemplateCode(templateCode);
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                     continue;
@@ -2359,7 +2361,9 @@ public class AppTypesettingService {
                 newTypesettingInfo.setId(null);
                 newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                 newTypesettingInfo.setElement(element);
-                newTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                newTypesettingInfo.setTypesettingCells(usedCells);
+                newTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
                 newTypesettingInfo.setTemplateCode(templateCode);
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                 domainTypesettingService.addTypesetting(newTypesettingInfo);
@@ -2388,6 +2392,48 @@ public class AppTypesettingService {
             newElement.setHeight(oldElement.getHeight());
         }
         return newElement;
+    }
+
+    private Boolean resolveCallbackResultHaveBlood(NestingResponse.Result callbackResult, List<TypesettingSourceCell> usedCells) {
+        if (callbackResult != null && callbackResult.getHaveBlood() != null) {
+            return callbackResult.getHaveBlood();
+        }
+        return hasBloodInTypesettingCells(usedCells, new HashSet<>());
+    }
+
+    private boolean hasBloodInTypesettingCells(List<TypesettingSourceCell> usedCells, Set<String> visitedTypesettingIds) {
+        if (usedCells == null || usedCells.isEmpty()) {
+            return false;
+        }
+        for (TypesettingSourceCell cell : usedCells) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                ProductionPiece piece = productionPieceService.findById(cell.getSourceId());
+                if (isBloodPieceByCoordinates(piece)) {
+                    return true;
+                }
+                continue;
+            }
+            if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                continue;
+            }
+            if (!visitedTypesettingIds.add(cell.getSourceId())) {
+                continue;
+            }
+            TypesettingInfo sourceTypesetting = domainTypesettingService.findById(cell.getSourceId());
+            if (sourceTypesetting == null) {
+                continue;
+            }
+            if (Boolean.TRUE.equals(sourceTypesetting.getHaveBlood())) {
+                return true;
+            }
+            if (hasBloodInTypesettingCells(sourceTypesetting.getTypesettingCells(), visitedTypesettingIds)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String buildTemplateCode(int current, int total) {
