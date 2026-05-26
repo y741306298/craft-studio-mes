@@ -708,14 +708,37 @@ public class AppTypesettingService {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
         typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
+        LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
+        mergeSourceTypesettingMarks(typesettingInfos, mergedMarks);
         Map<String, String> markerMarks = extractCaifuOpenBackMarkerMarks(nestingRequest, layoutMode);
         if (!markerMarks.isEmpty()) {
-            typesettingInfo.setMarks(markerMarks);
+            mergedMarks.putAll(markerMarks);
+        }
+        if (!mergedMarks.isEmpty()) {
+            typesettingInfo.setMarks(mergedMarks);
         }
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
     }
 
+
+    private void mergeSourceTypesettingMarks(List<TypesettingInfo> typesettingInfos, LinkedHashMap<String, String> target) {
+        if (typesettingInfos == null || target == null) {
+            return;
+        }
+        for (TypesettingInfo info : typesettingInfos) {
+            if (info == null || info.getMarks() == null || info.getMarks().isEmpty()) {
+                continue;
+            }
+            for (Map.Entry<String, String> entry : info.getMarks().entrySet()) {
+                if (StringUtils.isBlank(entry.getValue())) {
+                    continue;
+                }
+                String key = StringUtils.isNotBlank(entry.getKey()) ? entry.getKey() : ("sourceMark_" + target.size());
+                target.putIfAbsent(key, entry.getValue());
+            }
+        }
+    }
 
     private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
         if (layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM
