@@ -13,8 +13,10 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ObjectMetadata;
 import com.mes.application.command.typesetting.layout.FormeBuildContext;
+import com.mes.application.command.typesetting.layout.CaifuOpenBackA30HFilmNestingRuleService;
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
+import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
 import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
@@ -157,6 +159,9 @@ public class AppTypesettingService {
     @Autowired(required = false)
     private List<NestingRequestRuleService> nestingRequestRuleServices;
 
+    @Autowired(required = false)
+    private List<NestingRequestComposeService> nestingRequestComposeServices;
+
     /**
      * layoutMode -> builder 的运行时映射表。
      * 在容器初始化完成后由 initLayoutModeBuilders 填充。
@@ -164,6 +169,7 @@ public class AppTypesettingService {
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
     private final Map<TypesettingLayoutMode, TypesettingLayoutModeConfirmService> layoutModeConfirmServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
     private final Map<TypesettingLayoutMode, NestingRequestRuleService> nestingRequestRuleServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, NestingRequestComposeService> nestingRequestComposeServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
@@ -194,6 +200,14 @@ public class AppTypesettingService {
         if (nestingRequestRuleServices != null) {
             for (NestingRequestRuleService ruleService : nestingRequestRuleServices) {
                 nestingRequestRuleServiceMap.put(ruleService.supportMode(), ruleService);
+                if (ruleService instanceof CaifuOpenBackA30HFilmNestingRuleService) {
+                    nestingRequestRuleServiceMap.put(TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM, ruleService);
+                }
+            }
+        }
+        if (nestingRequestComposeServices != null) {
+            for (NestingRequestComposeService composeService : nestingRequestComposeServices) {
+                nestingRequestComposeServiceMap.put(composeService.supportMode(), composeService);
             }
         }
         if (layoutModeConfirmServices == null) {
@@ -1174,12 +1188,15 @@ public class AppTypesettingService {
         }
 
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
-        manifest.setSpacing(layoutMode.getNestingSpacingMm());
+        NestingRequestComposeService composeService = nestingRequestComposeServiceMap.get(layoutMode);
+        manifest.setSpacing(composeService == null ? layoutMode.getNestingSpacingMm() : composeService.resolveSpacing(layoutMode));
         manifest.setRequirePlt(Boolean.TRUE);
         manifest.setMirrorAppend(Boolean.FALSE);
         manifest.setMirrorRequirePlt(Boolean.FALSE);
         manifest.setContainers(containers);
-        manifest.setElements(elements);
+        manifest.setElements(composeService == null
+                ? elements
+                : composeService.composeElements(request.getManufacturerMetaId(), cacheKey, elements, containers));
         nestingManifestStrategy.apply(manifest, productionPieces, typesettingInfos);
 
         CallbackConfig callbackConfig = new CallbackConfig();
