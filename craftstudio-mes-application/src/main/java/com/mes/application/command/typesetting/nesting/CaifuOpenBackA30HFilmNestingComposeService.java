@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -39,15 +40,16 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
         if (elements == null || elements.size() < 2) {
             return elements;
         }
-        String markerImgUrl = uploadCaifuOpenBackMarker(manufacturerMetaId, businessId, containers);
+        String markerId = java.util.UUID.randomUUID().toString();
+        MarkerAsset markerAsset = uploadCaifuOpenBackMarker(manufacturerMetaId, businessId, containers, markerId);
         List<NestingRequest.Element> result = new ArrayList<>();
         for (int i = 0; i < elements.size(); i++) {
             result.add(elements.get(i));
             if (i < elements.size() - 1) {
                 NestingRequest.Element markerElement = new NestingRequest.Element();
-                markerElement.setId("caifu-open-back-marker-" + i);
-                markerElement.setImg(markerImgUrl);
-                markerElement.setSvg(markerImgUrl);
+                markerElement.setId(markerId);
+                markerElement.setImg(markerAsset.pngUrl);
+                markerElement.setSvg(markerAsset.svgUrl);
                 markerElement.setCounts(1);
                 markerElement.setForme(Boolean.FALSE);
                 markerElement.setHGravity("left");
@@ -59,7 +61,7 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
         return result;
     }
 
-    private String uploadCaifuOpenBackMarker(String manufacturerMetaId, String businessId, List<NestingRequest.Container> containers) {
+    private MarkerAsset uploadCaifuOpenBackMarker(String manufacturerMetaId, String businessId, List<NestingRequest.Container> containers, String markerId) {
         int width = containers.stream()
                 .filter(Objects::nonNull)
                 .map(NestingRequest.Container::getWidth)
@@ -79,9 +81,30 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             javax.imageio.ImageIO.write(image, "png", outputStream);
             String subDir = "mark/" + manufacturerMetaId + "/caifu";
-            return ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), subDir);
+            String pngUrl = ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), subDir, markerId + ".png");
+            String svg = buildMarkerSvg(width);
+            String svgUrl = ossTagUploadService.uploadTagSvg(businessId, svg.getBytes(StandardCharsets.UTF_8), subDir, markerId + ".svg");
+            return new MarkerAsset(pngUrl, svgUrl);
         } catch (Exception e) {
             throw new IllegalStateException("上传裁赋开背辅助标记失败", e);
+        }
+    }
+
+    private String buildMarkerSvg(int width) {
+        int lineWidth = Math.max(width - 30, 1);
+        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "mm\" height=\"6mm\" viewBox=\"0 0 " + width + " 6\">"
+                + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"6\" fill=\"#ffffff\"/>"
+                + "<rect x=\"0\" y=\"2.5\" width=\"" + lineWidth + "\" height=\"1\" fill=\"#000000\"/>"
+                + "</svg>";
+    }
+
+    private static class MarkerAsset {
+        private final String pngUrl;
+        private final String svgUrl;
+
+        private MarkerAsset(String pngUrl, String svgUrl) {
+            this.pngUrl = pngUrl;
+            this.svgUrl = svgUrl;
         }
     }
 }
