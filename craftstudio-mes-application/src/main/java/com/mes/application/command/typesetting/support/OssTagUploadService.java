@@ -43,6 +43,14 @@ public class OssTagUploadService {
         return uploadTagFile(businessId, bytes, "png", "image/png", subDir, false);
     }
 
+
+    public String uploadTagSvg(String businessId, byte[] bytes, String subDir, String fileName) {
+        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml", subDir, false, fileName);
+    }
+
+    public String uploadTagPng(String businessId, byte[] bytes, String subDir, String fileName) {
+        return uploadTagFile(businessId, bytes, "png", "image/png", subDir, false, fileName);
+    }
     public String uploadLagPng(String businessId, byte[] bytes) {
         return uploadTagFile(businessId, bytes, "png", "image/png", "lag");
     }
@@ -60,6 +68,10 @@ public class OssTagUploadService {
     }
 
     private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType, String subDir, boolean useSavePathPrefix) {
+        return uploadTagFile(businessId, bytes, extension, contentType, subDir, useSavePathPrefix, null);
+    }
+
+    private String uploadTagFile(String businessId, byte[] bytes, String extension, String contentType, String subDir, boolean useSavePathPrefix, String fileName) {
         Object tempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
         JSONObject tempAuthJson = JSON.parseObject(JSON.toJSONString(tempAuthConfig));
         JSONObject stsToken = tempAuthJson.getJSONObject("stsToken");
@@ -70,7 +82,7 @@ public class OssTagUploadService {
         String accessKeySecret = stsToken.getString("accessKeySecret");
         String securityToken = stsToken.getString("securityToken");
         String bucket = defaultBucket;
-        String objectKey = buildTagObjectKey(extension, subDir, useSavePathPrefix);
+        String objectKey = buildTagObjectKey(extension, subDir, useSavePathPrefix, fileName);
         OSS ossClient = null;
         try {
             ossClient = new OSSClientBuilder().build("https://" + ossEndpoint, accessKeyId, accessKeySecret, securityToken);
@@ -89,12 +101,17 @@ public class OssTagUploadService {
         }
     }
 
-    private String buildTagObjectKey(String extension, String subDir, boolean useSavePathPrefix) {
+    private String buildTagObjectKey(String extension, String subDir, boolean useSavePathPrefix, String fileName) {
         StringBuilder keyBuilder = new StringBuilder();
         if (useSavePathPrefix && StringUtils.isNotBlank(ossSavePath)) {
             keyBuilder.append(trimSlashes(ossSavePath)).append("/");
         }
-        keyBuilder.append(trimSlashes(subDir)).append("/").append(UUID.randomUUID()).append(".").append(extension);
+        keyBuilder.append(trimSlashes(subDir)).append("/");
+        if (StringUtils.isNotBlank(fileName)) {
+            keyBuilder.append(fileName);
+        } else {
+            keyBuilder.append(UUID.randomUUID()).append(".").append(extension);
+        }
         return keyBuilder.toString();
     }
 
