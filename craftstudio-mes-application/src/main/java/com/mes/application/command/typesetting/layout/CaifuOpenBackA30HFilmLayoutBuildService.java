@@ -1,22 +1,34 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayInputStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildService {
     private static final int EXPAND_TOP_MM = 3;
     private static final int EXPAND_RIGHT_MM = 11;
-
     private static final int ELEMENT_A_WIDTH_MM = 3;
     private static final int ELEMENT_B_WIDTH_MM = 8;
     private static final int ELEMENT_B_HEIGHT_MM = 3;
@@ -28,8 +40,12 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     private static final int ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM = 203;
     private static final int ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM = 303;
 
-    public CaifuOpenBackA30HFilmLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    private final TypesettingService typesettingService;
+
+    public CaifuOpenBackA30HFilmLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                                   TypesettingService typesettingService) {
         super(ossTagUploadService);
+        this.typesettingService = typesettingService;
     }
 
     @Override
@@ -41,7 +57,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     public FormeLayoutBuildResult build(FormeBuildContext context) {
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
-        int expandedHeight = originalHeight + EXPAND_TOP_MM;
+        double expandedHeight = originalHeight + EXPAND_TOP_MM;
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
@@ -52,60 +68,56 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         result.setMargin(margin);
 
         String tagUploadSubDir = buildTagUploadSubDir(context);
-        String elementA = ossTagUploadService.uploadTagPng(
-                context.getBusinessId(),
-                createBlackPng(ELEMENT_A_WIDTH_MM, expandedHeight),
-                tagUploadSubDir
-        );
-        String elementB = ossTagUploadService.uploadTagPng(
-                context.getBusinessId(),
-                createBlackPng(ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM),
-                tagUploadSubDir
-        );
-        String elementD = ossTagUploadService.uploadTagPng(
-                context.getBusinessId(),
-                createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM),
-                tagUploadSubDir
-        );
-        String elementE = ossTagUploadService.uploadTagPng(
-                context.getBusinessId(),
-                createBlackWhitePng(0.8, ELEMENT_D_HEIGHT_MM),
-                tagUploadSubDir
-        );
+        String elementA = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_A_WIDTH_MM, expandedHeight), tagUploadSubDir);
+        String elementB = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM), tagUploadSubDir);
+        String elementD = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM), tagUploadSubDir);
 
+        List<MarkerBand> bands = extractMarkerBands(context, originalHeight);
         LinkedHashSet<Double> ys = new LinkedHashSet<>();
         ys.add(0D);
-        TypesettingElement.GridLines gridLines = context.getTypesettingInfo() != null
-                && context.getTypesettingInfo().getElement() != null
-                ? context.getTypesettingInfo().getElement().getGridLines()
-                : null;
-        if (gridLines != null && gridLines.getYs() != null) {
-            ys.addAll(gridLines.getYs());
+        for (MarkerBand band : bands) {
+            ys.add(band.centerY);
+        }
+        Map<Double, MarkerBand> bandByY = new HashMap<>();
+        for (MarkerBand band : bands) {
+            bandByY.putIfAbsent(band.centerY, band);
         }
 
+        Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
         for (Double y : ys) {
             if (y == null) {
                 continue;
             }
-            int elementBY = (int) Math.round(y + ELEMENT_B_OFFSET_Y_MM);
+            double elementBY = y + ELEMENT_B_OFFSET_Y_MM;
             if (elementBY <= expandedHeight) {
                 marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY));
             }
 
-            int elementDY = (int) Math.round(y + ELEMENT_D_OFFSET_Y_MM);
-            if (elementDY <= expandedHeight) {
-                marks.add(createMark(elementD,
-                        ELEMENT_D_WIDTH_TENTH_MM / 10.0,
-                        ELEMENT_D_HEIGHT_MM,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0 + EXPAND_RIGHT_MM),
-                        elementDY));
-                marks.add(createMark(elementD,
-                        ELEMENT_D_WIDTH_TENTH_MM / 10.0,
-                        ELEMENT_D_HEIGHT_MM,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM),
-                        elementDY));
+            MarkerBand band = bandByY.get(y);
+            if (band == null && Math.abs(y) < 0.0001) {
+                band = extractZeroBand(context);
             }
+            if (band == null) {
+                continue;
+            }
+            double lineY = y + ELEMENT_D_OFFSET_Y_MM;
+            if (lineY > expandedHeight) {
+                continue;
+            }
+            boolean isBlood = isBloodBand(band, context.getTypesettingInfo());
+            String lineImg = elementD;
+            double lineHeight = ELEMENT_D_HEIGHT_MM;
+            if (!isBlood) {
+                int svgHeight = (int) Math.max(1, Math.round(band.height));
+                lineImg = elementEByHeight.computeIfAbsent(svgHeight,
+                        h -> ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, h), tagUploadSubDir));
+                lineHeight = svgHeight;
+            }
+            marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0 + EXPAND_RIGHT_MM), lineY));
+            marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM), lineY));
         }
         marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth + ELEMENT_A_X_OFFSET_MM, 0));
 
@@ -114,7 +126,9 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             markFiles.put("elementA", elementA);
             markFiles.put("elementB", elementB);
             markFiles.put("elementD", elementD);
-            markFiles.put("elementE", elementE);
+            if (!elementEByHeight.isEmpty()) {
+                markFiles.put("elementE", elementEByHeight.values().iterator().next());
+            }
             context.getTypesettingInfo().setMarks(markFiles);
         }
 
@@ -125,29 +139,218 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return result;
     }
 
+    private List<MarkerBand> extractMarkerBands(FormeBuildContext context, double nestedHeight) {
+        List<MarkerBand> bands = new ArrayList<>();
+        if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
+            return bands;
+        }
+        List<String> markerIds = new ArrayList<>();
+        for (Map.Entry<String, String> entry : context.getTypesettingInfo().getMarks().entrySet()) {
+            if (entry == null || !StringUtils.startsWith(entry.getKey(), "caifuMarker_")) {
+                continue;
+            }
+            String fileName = extractFileName(entry.getValue());
+            int dotIdx = StringUtils.defaultString(fileName).lastIndexOf('.');
+            String id = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
+            if (StringUtils.isNotBlank(id)) {
+                markerIds.add(id);
+            }
+        }
+        if (markerIds.isEmpty()) {
+            return bands;
+        }
+        String nestedSvg = context.getTypesettingInfo().getElement() == null ? null : context.getTypesettingInfo().getElement().getNestedSvg();
+        if (StringUtils.isBlank(nestedSvg)) {
+            return bands;
+        }
+        try {
+            byte[] bytes = URI.create(nestedSvg).toURL().openStream().readAllBytes();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
+            NodeList nodes = document.getElementsByTagName("*");
+            for (String markerId : markerIds) {
+                for (int i = 0; i < nodes.getLength(); i++) {
+                    Element element = (Element) nodes.item(i);
+                    if (!markerId.equals(element.getAttribute("id"))) {
+                        continue;
+                    }
+                    double y = firstValid(
+                            parseDouble(element.getAttribute("data-cell-y")),
+                            parseTranslateY(element.getAttribute("transform")),
+                            parseDouble(element.getAttribute("y"))
+                    );
+                    double h = firstValid(
+                            parseDouble(element.getAttribute("data-cell-height")),
+                            parseDouble(element.getAttribute("height"))
+                    );
+                    if (Double.isNaN(y) || Double.isNaN(h)) {
+                        continue;
+                    }
+                    String relatedId = resolveRelatedTypesettingId(element, markerId);
+                    bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
+                }
+            }
+        } catch (Exception ignored) {
+            return bands;
+        }
+        return bands;
+    }
+
+
+    private String resolveRelatedTypesettingId(Element markerElement, String fallbackId) {
+        if (markerElement == null) {
+            return fallbackId;
+        }
+        Element root = markerElement.getOwnerDocument() == null ? null : markerElement.getOwnerDocument().getDocumentElement();
+        if (root == null) {
+            return fallbackId;
+        }
+        NodeList groups = root.getElementsByTagName("g");
+        if (Math.abs(markerElement.getAttribute("data-cell-y").isEmpty() ? Double.NaN : parseDouble(markerElement.getAttribute("data-cell-y"))) < 0.0001) {
+            for (int i = 0; i < groups.getLength(); i++) {
+                Element g = (Element) groups.item(i);
+                String id = g.getAttribute("id");
+                if (StringUtils.isNotBlank(id) && !StringUtils.equals(id, "forme-base")) {
+                    return id;
+                }
+            }
+        }
+        for (int i = 0; i < groups.getLength(); i++) {
+            Element g = (Element) groups.item(i);
+            if (!StringUtils.equals(g.getAttribute("id"), markerElement.getAttribute("id"))) {
+                continue;
+            }
+            for (int j = i + 1; j < groups.getLength(); j++) {
+                Element next = (Element) groups.item(j);
+                String id = next.getAttribute("id");
+                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
+                    continue;
+                }
+                return id;
+            }
+            break;
+        }
+        return fallbackId;
+    }
+
+    private double firstValid(double... values) {
+        for (double value : values) {
+            if (!Double.isNaN(value) && !Double.isInfinite(value)) {
+                return value;
+            }
+        }
+        return Double.NaN;
+    }
+
+    private double parseTranslateY(String transform) {
+        if (StringUtils.isBlank(transform)) {
+            return Double.NaN;
+        }
+        int l = transform.indexOf('(');
+        int r = transform.indexOf(')');
+        if (l < 0 || r <= l) {
+            return Double.NaN;
+        }
+        String[] parts = transform.substring(l + 1, r).trim().split("\\s+|,");
+        if (parts.length == 6) {
+            return parseDouble(parts[5]);
+        }
+        return Double.NaN;
+    }
+
+    private MarkerBand extractZeroBand(FormeBuildContext context) {
+        if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getElement() == null || StringUtils.isBlank(context.getTypesettingInfo().getElement().getNestedSvg())) {
+            return null;
+        }
+        try {
+            byte[] bytes = URI.create(context.getTypesettingInfo().getElement().getNestedSvg()).toURL().openStream().readAllBytes();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
+            NodeList groups = document.getElementsByTagName("g");
+            for (int i = 0; i < groups.getLength(); i++) {
+                Element g = (Element) groups.item(i);
+                String id = g.getAttribute("id");
+                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
+                    continue;
+                }
+                String relatedId = resolveRelatedTypesettingId(g, id);
+                double h = firstValid(parseDouble(g.getAttribute("data-cell-height")), parseDouble(g.getAttribute("height")), ELEMENT_D_HEIGHT_MM);
+                return new MarkerBand("ys0", 0D, h, relatedId);
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
+    private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
+        if (band == null || currentTypesetting == null || currentTypesetting.getTypesettingCells() == null || StringUtils.isBlank(band.relatedTypesettingId)) {
+            return false;
+        }
+        for (TypesettingSourceCell cell : currentTypesetting.getTypesettingCells()) {
+            if (cell == null || !StringUtils.equalsIgnoreCase(cell.getSourceType(), TypesettingSourceType.TYPESETTING.getCode())) {
+                continue;
+            }
+            if (!StringUtils.equals(cell.getSourceId(), band.relatedTypesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = resolveTypesettingCellInfo(cell);
+            return info != null && Boolean.TRUE.equals(info.getHaveBlood());
+        }
+        return false;
+    }
+
+    private TypesettingInfo findTypesettingInfoById(String id) {
+        if (StringUtils.isBlank(id)) {
+            return null;
+        }
+        TypesettingInfo infoById = typesettingService.findById(id);
+        if (infoById != null) {
+            return infoById;
+        }
+        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(id);
+        if (infos != null && !infos.isEmpty()) {
+            return infos.get(0);
+        }
+        return null;
+    }
+
+    private TypesettingInfo resolveTypesettingCellInfo(TypesettingSourceCell cell) {
+        if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+            return null;
+        }
+        boolean isTypesettingSource = TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
+                || "typesetting".equalsIgnoreCase(cell.getSourceType());
+        if (!isTypesettingSource) {
+            return null;
+        }
+        return findTypesettingInfoById(cell.getSourceId());
+    }
+
+    private String extractFileName(String path) {
+        if (StringUtils.isBlank(path)) {
+            return null;
+        }
+        int slash = path.lastIndexOf('/');
+        return slash >= 0 ? path.substring(slash + 1) : path;
+    }
+
+    private double parseDouble(String value) {
+        try {
+            return Double.parseDouble(value);
+        } catch (Exception e) {
+            return Double.NaN;
+        }
+    }
+
     protected FormeGenerationRequest.Mark createMark(String img, double width, double height, double x, double y) {
         FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
         mark.setImg(img);
         mark.setSize(createSize(java.math.BigDecimal.valueOf(width), java.math.BigDecimal.valueOf(height)));
         mark.setPosition(createPosition((int) Math.max(0, Math.round(x)), (int) Math.max(0, Math.round(y))));
         return mark;
-    }
-
-    private byte[] createBlackWhitePng(double width, double height) {
-        try {
-            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), java.awt.image.BufferedImage.TYPE_INT_RGB);
-            java.awt.Graphics2D g = image.createGraphics();
-            for (int x = 0; x < image.getWidth(); x++) {
-                g.setColor(x % 2 == 0 ? java.awt.Color.BLACK : java.awt.Color.WHITE);
-                g.fillRect(x, 0, 1, image.getHeight());
-            }
-            g.dispose();
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑白相间 PNG 失败", e);
-        }
     }
 
     private byte[] createBlackPng(double width, double height) {
@@ -162,6 +365,20 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             return outputStream.toByteArray();
         } catch (Exception e) {
             throw new IllegalStateException("生成黑色 PNG 失败", e);
+        }
+    }
+
+    private static class MarkerBand {
+        private final String id;
+        private final double centerY;
+        private final double height;
+        private final String relatedTypesettingId;
+
+        private MarkerBand(String id, double centerY, double height, String relatedTypesettingId) {
+            this.id = id;
+            this.centerY = centerY;
+            this.height = height;
+            this.relatedTypesettingId = relatedTypesettingId;
         }
     }
 }
