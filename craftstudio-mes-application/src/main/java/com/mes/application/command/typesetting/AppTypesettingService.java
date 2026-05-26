@@ -708,8 +708,41 @@ public class AppTypesettingService {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
         typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
+        Map<String, String> markerMarks = extractCaifuOpenBackMarkerMarks(nestingRequest, layoutMode);
+        if (!markerMarks.isEmpty()) {
+            typesettingInfo.setMarks(markerMarks);
+        }
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
+    }
+
+
+    private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
+        if (layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM
+                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM) {
+            return Collections.emptyMap();
+        }
+        if (nestingRequest == null || nestingRequest.getNestManifest() == null
+                || nestingRequest.getNestManifest().getElements() == null) {
+            return Collections.emptyMap();
+        }
+        LinkedHashMap<String, String> markMap = new LinkedHashMap<>();
+        int idx = 1;
+        for (NestingRequest.Element element : nestingRequest.getNestManifest().getElements()) {
+            if (element == null || StringUtils.isBlank(element.getId()) || StringUtils.isBlank(element.getImg())) {
+                continue;
+            }
+            String id = element.getId();
+            if (!id.matches("[0-9a-fA-F-]{36}")) {
+                continue;
+            }
+            if (!element.getImg().toLowerCase(Locale.ROOT).endsWith(id.toLowerCase(Locale.ROOT) + ".png")) {
+                continue;
+            }
+            markMap.put("caifuMarker_" + idx, element.getImg());
+            idx++;
+        }
+        return markMap;
     }
 
     /**
