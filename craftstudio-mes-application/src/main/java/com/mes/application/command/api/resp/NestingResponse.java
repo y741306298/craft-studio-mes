@@ -16,6 +16,10 @@ public class NestingResponse {
     public static class Result {
         private String nestedSvg;
         /**
+         * 可选：是否含血位（按每条排版结果单独返回）
+         */
+        private Boolean haveBlood;
+        /**
          * 当前算法回调字段：镜像排版 svg 路径
          */
         private String nestedMirrorSvg;

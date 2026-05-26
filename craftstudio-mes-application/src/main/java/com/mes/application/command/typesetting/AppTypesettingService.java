@@ -2351,6 +2351,9 @@ public class AppTypesettingService {
                     baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
                     baseTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                    if (callbackResult.getHaveBlood() != null) {
+                        baseTypesettingInfo.setHaveBlood(callbackResult.getHaveBlood());
+                    }
                     baseTypesettingInfo.setTemplateCode(templateCode);
                     domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                     continue;
@@ -2360,6 +2363,9 @@ public class AppTypesettingService {
                 newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                 newTypesettingInfo.setElement(element);
                 newTypesettingInfo.setTypesettingCells(extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg()));
+                if (callbackResult.getHaveBlood() != null) {
+                    newTypesettingInfo.setHaveBlood(callbackResult.getHaveBlood());
+                }
                 newTypesettingInfo.setTemplateCode(templateCode);
                 newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                 domainTypesettingService.addTypesetting(newTypesettingInfo);
