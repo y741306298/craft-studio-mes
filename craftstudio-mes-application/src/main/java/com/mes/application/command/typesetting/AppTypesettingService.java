@@ -741,10 +741,6 @@ public class AppTypesettingService {
     }
 
     private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
-        if (layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM
-                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM) {
-            return Collections.emptyMap();
-        }
         if (nestingRequest == null || nestingRequest.getNestManifest() == null
                 || nestingRequest.getNestManifest().getElements() == null) {
             return Collections.emptyMap();
@@ -940,9 +936,13 @@ public class AppTypesettingService {
     }
 
     private void mergeFormeMarkResources(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
-        if (typesettingInfo == null || formeRequest == null || formeRequest.getForme() == null
-                || formeRequest.getForme().getMarks() == null || formeRequest.getForme().getMarks().isEmpty()) {
+        if (typesettingInfo == null || formeRequest == null || formeRequest.getForme() == null) {
             return;
+        }
+        List<FormeGenerationRequest.Mark> formeMarks = formeRequest.getForme().getMarks();
+        if (formeMarks == null) {
+            formeMarks = new ArrayList<>();
+            formeRequest.getForme().setMarks(formeMarks);
         }
         LinkedHashMap<String, String> markMap = new LinkedHashMap<>();
         if (typesettingInfo.getMarks() != null && !typesettingInfo.getMarks().isEmpty()) {
@@ -950,7 +950,7 @@ public class AppTypesettingService {
         }
         LinkedHashSet<String> existingValues = new LinkedHashSet<>(markMap.values());
         int index = resolveNextFormeMarkIndex(markMap);
-        for (FormeGenerationRequest.Mark mark : formeRequest.getForme().getMarks()) {
+        for (FormeGenerationRequest.Mark mark : formeMarks) {
             if (mark == null || StringUtils.isBlank(mark.getImg())) {
                 continue;
             }
@@ -2045,7 +2045,8 @@ public class AppTypesettingService {
         pltOnlyData.setImamges(Collections.emptyList());
         pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
         pltOnlyData.setJsons(Collections.emptyList());
-        pltOnlyData.setMarks(Collections.emptyList());
+        // 兼容下游依赖 marks 的场景：即使是 PLT 广播任务也携带 marks
+        pltOnlyData.setMarks(originalData.getMarks() == null ? Collections.emptyList() : new ArrayList<>(originalData.getMarks()));
         savePrintTask(typesettingInfoId + "_plt", typesettingCode, manufacturerMetaId, new ArrayList<>(cuttingDeviceInfoIds), new ArrayList<>(cuttingDeviceCodes), pltOnlyData);
     }
 
