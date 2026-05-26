@@ -166,15 +166,22 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
-            NodeList nodes = document.getElementsByTagName("svg");
+            NodeList nodes = document.getElementsByTagName("*");
             for (String markerId : markerIds) {
                 for (int i = 0; i < nodes.getLength(); i++) {
                     Element element = (Element) nodes.item(i);
                     if (!markerId.equals(element.getAttribute("id"))) {
                         continue;
                     }
-                    double y = parseDouble(element.getAttribute("y"));
-                    double h = parseDouble(element.getAttribute("height"));
+                    double y = firstValid(
+                            parseDouble(element.getAttribute("data-cell-y")),
+                            parseTranslateY(element.getAttribute("transform")),
+                            parseDouble(element.getAttribute("y"))
+                    );
+                    double h = firstValid(
+                            parseDouble(element.getAttribute("data-cell-height")),
+                            parseDouble(element.getAttribute("height"))
+                    );
                     if (Double.isNaN(y) || Double.isNaN(h)) {
                         continue;
                     }
@@ -222,6 +229,31 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return null;
     }
 
+
+    private double firstValid(double... values) {
+        for (double value : values) {
+            if (!Double.isNaN(value) && !Double.isInfinite(value)) {
+                return value;
+            }
+        }
+        return Double.NaN;
+    }
+
+    private double parseTranslateY(String transform) {
+        if (StringUtils.isBlank(transform)) {
+            return Double.NaN;
+        }
+        int l = transform.indexOf('(');
+        int r = transform.indexOf(')');
+        if (l < 0 || r <= l) {
+            return Double.NaN;
+        }
+        String[] parts = transform.substring(l + 1, r).trim().split("\s+|,");
+        if (parts.length == 6) {
+            return parseDouble(parts[5]);
+        }
+        return Double.NaN;
+    }
     private String extractFileName(String path) {
         if (StringUtils.isBlank(path)) {
             return null;
