@@ -50,7 +50,7 @@ public class AppManufacturerDeviceCfgService {
     }
 
 
-    public PagedResult<ManufacturerDeviceCfg> findDeviceCfgsByConditions(String manufacturerMetaId, String deviceName, DeviceType deviceType, PagedQuery query) {
+    public PagedResult<ManufacturerDeviceCfg> findDeviceCfgsByConditions(String manufacturerMetaId, String deviceName, String deviceTypeCode, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -61,6 +61,7 @@ public class AppManufacturerDeviceCfgService {
         List<ManufacturerDeviceCfg> allItems = listDeviceCfgsByManufacturerId(manufacturerMetaId);
         List<ManufacturerDeviceCfg> filteredItems = new ArrayList<ManufacturerDeviceCfg>();
         String targetName = deviceName == null ? null : deviceName.trim().toLowerCase();
+        DeviceType deviceType = StringUtils.isNotBlank(deviceTypeCode) ? DeviceType.getByCode(deviceTypeCode) : null;
         for (ManufacturerDeviceCfg item : allItems) {
             if (item == null) {
                 continue;
@@ -253,7 +254,7 @@ public class AppManufacturerDeviceCfgService {
     }
 
 
-    public List<TypesettingDownloadTaskData> listDownloadTasksByTypesettingCode(String typesettingCode) {
+    public TypesettingDownloadTaskData listDownloadTasksByTypesettingCode(String typesettingCode) {
         if (StringUtils.isBlank(typesettingCode)) {
             throw new IllegalArgumentException("印版id不能为空");
         }
@@ -262,14 +263,14 @@ public class AppManufacturerDeviceCfgService {
         List<TypesettingPrintTask> tasks = typesettingPrintTaskRepository.filterList(1, 100, filters);
         List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
         if (tasks == null || tasks.isEmpty()) {
-            return result;
+            return null;
         }
         for (TypesettingPrintTask task : tasks) {
             if (task != null && task.getData() != null) {
                 result.add(task.getData());
             }
         }
-        return result;
+        return result.get(0);
     }
 
     public ManufacturerDeviceCfg unbindDeviceByManufacturerAndId(String manufacturerMetaId, String id) {

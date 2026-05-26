@@ -13,6 +13,7 @@ public class ApiResponse<T> {
         int customize = 999;
         int jwtTokenInvalid = 401001;
         int requestTimeout = 408;
+        int OutdatedMachineBind = 409;
     }
 
     private int code = 200;

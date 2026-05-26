@@ -32,7 +32,8 @@ public class CorsConfig implements WebMvcConfigurer {
                         "/api/manufacturerSide/order/add",
                         "/api/manufacturerSide/deliveryPkg/pkgDetail",
                         "/api/manufacturerSide/**/callback/**",
-                        "/api/manufacturerSide/deviceCfg/factory/task/claim"
+                        "/api/manufacturerSide/deviceCfg/factory/task/claim",
+                        "/api/manufacturerSide/deviceCfg/factory/task/download"
                 );
     }
 }

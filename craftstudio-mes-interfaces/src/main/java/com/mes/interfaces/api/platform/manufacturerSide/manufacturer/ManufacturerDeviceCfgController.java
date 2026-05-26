@@ -210,7 +210,7 @@ public class ManufacturerDeviceCfgController {
             tasks = appDeviceCfgService.listDownloadTasksByDeviceCfg(
                     request.getMachine().getId(), request.getMachine().getVersion());
         } catch (IllegalStateException ex) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, ex.getMessage());
+            return ApiResponse.fail(ApiResponse.RepStatusCode.OutdatedMachineBind, ex.getMessage());
         }
 
         if (tasks == null) {
@@ -228,13 +228,14 @@ public class ManufacturerDeviceCfgController {
     }
 
     @GetMapping("/factory/task/download")
-    public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> downloadFactoryTask(@RequestParam String id) {
-        List<TypesettingDownloadTaskData> tasks = appDeviceCfgService.listDownloadTasksByTypesettingCode(id);
-        List<ManufacturerFactoryDownloadTaskResp> response = new ArrayList<ManufacturerFactoryDownloadTaskResp>();
-        for (TypesettingDownloadTaskData task : tasks) {
-            response.add(buildDownloadTaskResp(task));
+    public ApiResponse<ManufacturerFactoryDownloadTaskResp> downloadFactoryTask(@RequestParam String id) {
+        TypesettingDownloadTaskData task = appDeviceCfgService.listDownloadTasksByTypesettingCode(id);
+        if (task == null) {
+            throw new IllegalArgumentException("id为" + id + "并未查询到任何有效任务，下载失败");
         }
-        ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
+        ManufacturerFactoryDownloadTaskResp response = new ManufacturerFactoryDownloadTaskResp();
+        response = this.buildDownloadTaskResp( task);
+        ApiResponse<ManufacturerFactoryDownloadTaskResp> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
         return apiResponse;
     }

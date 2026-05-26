@@ -14,5 +14,5 @@ public class ManufacturerDeviceCfgListRequest extends PagedApiRequest {
 
     private String deviceName;
 
-    private DeviceType deviceType;
+    private String deviceType;
 }
