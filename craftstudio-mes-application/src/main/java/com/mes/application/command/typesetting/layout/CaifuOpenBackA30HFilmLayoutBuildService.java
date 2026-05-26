@@ -307,18 +307,16 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     }
 
     private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
-        if (band == null || currentTypesetting == null || currentTypesetting.getTypesettingCells() == null || StringUtils.isBlank(band.relatedTypesettingId)) {
+        if (band == null || StringUtils.isBlank(band.relatedTypesettingId)) {
             return false;
         }
-        for (TypesettingSourceCell cell : currentTypesetting.getTypesettingCells()) {
-            if (cell == null || !StringUtils.equalsIgnoreCase(cell.getSourceType(), TypesettingSourceType.TYPESETTING.getCode())) {
-                continue;
-            }
-            if (!StringUtils.equals(cell.getSourceId(), band.relatedTypesettingId)) {
-                continue;
-            }
-            TypesettingInfo info = resolveTypesettingCellInfo(cell);
-            return info != null && Boolean.TRUE.equals(info.getHaveBlood());
+        TypesettingInfo info = typesettingService.findById(band.relatedTypesettingId);
+        if (info != null) {
+            return Boolean.TRUE.equals(info.getHaveBlood());
+        }
+        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(band.relatedTypesettingId);
+        if (infos != null && !infos.isEmpty() && infos.get(0) != null) {
+            return Boolean.TRUE.equals(infos.get(0).getHaveBlood());
         }
         return false;
     }
