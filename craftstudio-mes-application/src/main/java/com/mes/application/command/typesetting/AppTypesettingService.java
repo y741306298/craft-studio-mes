@@ -733,10 +733,13 @@ public class AppTypesettingService {
                 continue;
             }
             String id = element.getId();
-            if (!id.matches("[0-9a-fA-F-]{36}")) {
+            String lowerImg = element.getImg().toLowerCase(Locale.ROOT);
+            if (!lowerImg.endsWith(".png")) {
                 continue;
             }
-            if (!element.getImg().toLowerCase(Locale.ROOT).endsWith(id.toLowerCase(Locale.ROOT) + ".png")) {
+            boolean caifuMarkerByPath = lowerImg.contains("/mark/") && lowerImg.contains("/caifu/");
+            boolean caifuMarkerByName = id.matches("[0-9a-fA-F-]{36}") && lowerImg.endsWith(id.toLowerCase(Locale.ROOT) + ".png");
+            if (!caifuMarkerByPath && !caifuMarkerByName) {
                 continue;
             }
             markMap.put("caifuMarker_" + idx, element.getImg());
