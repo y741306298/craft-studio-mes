@@ -95,6 +95,9 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             }
 
             MarkerBand band = bandByY.get(y);
+            if (band == null && Math.abs(y) < 0.0001) {
+                band = extractZeroBand(context);
+            }
             if (band == null) {
                 continue;
             }
@@ -256,15 +259,34 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return Double.NaN;
     }
 
+    private MarkerBand extractZeroBand(FormeBuildContext context) {
+        if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getElement() == null || StringUtils.isBlank(context.getTypesettingInfo().getElement().getNestedSvg())) {
+            return null;
+        }
+        try {
+            byte[] bytes = URI.create(context.getTypesettingInfo().getElement().getNestedSvg()).toURL().openStream().readAllBytes();
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(false);
+            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
+            NodeList groups = document.getElementsByTagName("g");
+            for (int i = 0; i < groups.getLength(); i++) {
+                Element g = (Element) groups.item(i);
+                String id = g.getAttribute("id");
+                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
+                    continue;
+                }
+                String relatedId = resolveRelatedTypesettingId(g, id);
+                double h = firstValid(parseDouble(g.getAttribute("data-cell-height")), parseDouble(g.getAttribute("height")), ELEMENT_D_HEIGHT_MM);
+                return new MarkerBand("ys0", 0D, h, relatedId);
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
     private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
-        if (band == null) {
-            return false;
-        }
-        TypesettingInfo nested = findTypesettingInfoById(band.relatedTypesettingId);
-        if (nested != null) {
-            return Boolean.TRUE.equals(nested.getHaveBlood());
-        }
-        if (currentTypesetting == null || currentTypesetting.getTypesettingCells() == null || StringUtils.isBlank(band.relatedTypesettingId)) {
+        if (band == null || currentTypesetting == null || currentTypesetting.getTypesettingCells() == null || StringUtils.isBlank(band.relatedTypesettingId)) {
             return false;
         }
         for (TypesettingSourceCell cell : currentTypesetting.getTypesettingCells()) {
