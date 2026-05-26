@@ -206,32 +206,53 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         if (root == null) {
             return fallbackId;
         }
-        NodeList groups = root.getElementsByTagName("g");
-        if (Math.abs(markerElement.getAttribute("data-cell-y").isEmpty() ? Double.NaN : parseDouble(markerElement.getAttribute("data-cell-y"))) < 0.0001) {
-            for (int i = 0; i < groups.getLength(); i++) {
-                Element g = (Element) groups.item(i);
-                String id = g.getAttribute("id");
-                if (StringUtils.isNotBlank(id) && !StringUtils.equals(id, "forme-base")) {
-                    return id;
+        List<Element> topLevelGroups = new ArrayList<>();
+        NodeList children = root.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (!(children.item(i) instanceof Element)) {
+                continue;
+            }
+            Element child = (Element) children.item(i);
+            if ("g".equalsIgnoreCase(child.getTagName())) {
+                topLevelGroups.add(child);
+            }
+        }
+        if (topLevelGroups.isEmpty()) {
+            return fallbackId;
+        }
+        if (Math.abs(firstValid(parseDouble(markerElement.getAttribute("data-cell-y")), parseTranslateY(markerElement.getAttribute("transform")))) < 0.0001) {
+            for (Element g : topLevelGroups) {
+                if (isPlateGroup(g)) {
+                    return g.getAttribute("id");
                 }
             }
         }
-        for (int i = 0; i < groups.getLength(); i++) {
-            Element g = (Element) groups.item(i);
+        for (int i = 0; i < topLevelGroups.size(); i++) {
+            Element g = topLevelGroups.get(i);
             if (!StringUtils.equals(g.getAttribute("id"), markerElement.getAttribute("id"))) {
                 continue;
             }
-            for (int j = i + 1; j < groups.getLength(); j++) {
-                Element next = (Element) groups.item(j);
-                String id = next.getAttribute("id");
-                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
-                    continue;
+            for (int j = i + 1; j < topLevelGroups.size(); j++) {
+                Element next = topLevelGroups.get(j);
+                if (isPlateGroup(next)) {
+                    return next.getAttribute("id");
                 }
-                return id;
             }
             break;
         }
         return fallbackId;
+    }
+
+    private boolean isPlateGroup(Element g) {
+        if (g == null) {
+            return false;
+        }
+        String id = g.getAttribute("id");
+        if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
+            return false;
+        }
+        return StringUtils.equalsIgnoreCase(g.getAttribute("data-forme"), "true")
+                || StringUtils.endsWithIgnoreCase(g.getAttribute("data-source-name"), ".svg");
     }
 
     private double firstValid(double... values) {
