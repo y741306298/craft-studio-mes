@@ -836,6 +836,7 @@ public class AppTypesettingService {
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
             domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
             log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
@@ -845,6 +846,7 @@ public class AppTypesettingService {
         // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
         typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
         typesettingInfo.setRemark(formeOpRemark);
+        mergeExistingMarksBeforeUpdate(typesettingInfo);
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         LayoutConfirmResult result = new LayoutConfirmResult();
@@ -1495,6 +1497,7 @@ public class AppTypesettingService {
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+            mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
             domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
             String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
             log.info("formeRequest-print-mirror========:{}", mirrorFormeRequestJson);
@@ -1506,6 +1509,7 @@ public class AppTypesettingService {
         typesettingInfo.setRemark(formeOpRemark);
         typesettingInfo.setDeviceCode(request.getDeviceCode());
         typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
+        mergeExistingMarksBeforeUpdate(typesettingInfo);
         domainTypesettingService.updateTypesetting(typesettingInfo);
 
         String formeRequestJson = JSON.toJSONString(formeRequest);
@@ -1607,6 +1611,7 @@ public class AppTypesettingService {
         if (!"success".equalsIgnoreCase(response.getStatus())) {
             typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
             typesettingInfo.setRemark(StringUtils.isNotBlank(response.getError()) ? response.getError() : "印版异步生成失败");
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
@@ -1618,6 +1623,7 @@ public class AppTypesettingService {
         if ("FORME_OP:LAYOUT".equals(remark)) {
             typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
             typesettingInfo.setRemark(null);
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
@@ -1653,6 +1659,7 @@ public class AppTypesettingService {
                         allMarks,
                         productionPieceIds);
                 typesettingInfo.setRemark(null);
+                mergeExistingMarksBeforeUpdate(typesettingInfo);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
                 savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
@@ -2936,6 +2943,25 @@ public class AppTypesettingService {
         element.setJson(buildCompleteOssUrl(formeResult.getJson()));
         element.setFormeSvg(buildCompleteOssUrl(formeResult.getFormeSvg()));
         element.setPlt(convertPltObjectName(formeResult.getPlt()));
+    }
+
+    /**
+     * 更新排版记录前合并库内已存在的 marks，避免“先清空再写入”导致历史 marks 丢失。
+     * 说明：仅用于落库数据合并；不会改写 formeRequest 的 marks 拼接来源。
+     */
+    private void mergeExistingMarksBeforeUpdate(TypesettingInfo target) {
+        if (target == null || StringUtils.isBlank(target.getId())) {
+            return;
+        }
+        TypesettingInfo persisted = domainTypesettingService.findById(target.getId());
+        if (persisted == null || persisted.getMarks() == null || persisted.getMarks().isEmpty()) {
+            return;
+        }
+        LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>(persisted.getMarks());
+        if (target.getMarks() != null && !target.getMarks().isEmpty()) {
+            mergedMarks.putAll(target.getMarks());
+        }
+        target.setMarks(mergedMarks);
     }
 
     private TypesettingElement.PltObjectName convertPltObjectName(FormeGenerationResponse.PltObjectName plt) {
