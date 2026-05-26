@@ -83,7 +83,6 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             bandByY.putIfAbsent(band.centerY, band);
         }
 
-        Set<String> bloodIds = resolveBloodTypesettingIds(context.getTypesettingInfo());
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
         for (Double y : ys) {
@@ -103,7 +102,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (lineY > expandedHeight) {
                 continue;
             }
-            boolean isBlood = bloodIds.contains(band.id);
+            boolean isBlood = isBloodBand(band, context.getTypesettingInfo());
             String lineImg = elementD;
             double lineHeight = ELEMENT_D_HEIGHT_MM;
             if (!isBlood) {
@@ -185,7 +184,8 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
                     if (Double.isNaN(y) || Double.isNaN(h)) {
                         continue;
                     }
-                    bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h));
+                    String relatedId = resolveRelatedTypesettingId(element, markerId);
+                    bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
                 }
             }
         } catch (Exception ignored) {
@@ -194,41 +194,42 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return bands;
     }
 
-    private Set<String> resolveBloodTypesettingIds(TypesettingInfo typesettingInfo) {
-        LinkedHashSet<String> bloodIds = new LinkedHashSet<>();
-        if (typesettingInfo == null || typesettingInfo.getTypesettingCells() == null) {
-            return bloodIds;
+
+    private String resolveRelatedTypesettingId(Element markerElement, String fallbackId) {
+        if (markerElement == null) {
+            return fallbackId;
         }
-        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-            TypesettingInfo nested = resolveTypesettingCellInfo(cell);
-            if (nested == null || !Boolean.TRUE.equals(nested.getHaveBlood()) || StringUtils.isBlank(nested.getTypesettingId())) {
+        Element root = markerElement.getOwnerDocument() == null ? null : markerElement.getOwnerDocument().getDocumentElement();
+        if (root == null) {
+            return fallbackId;
+        }
+        NodeList groups = root.getElementsByTagName("g");
+        if (Math.abs(markerElement.getAttribute("data-cell-y").isEmpty() ? Double.NaN : parseDouble(markerElement.getAttribute("data-cell-y"))) < 0.0001) {
+            for (int i = 0; i < groups.getLength(); i++) {
+                Element g = (Element) groups.item(i);
+                String id = g.getAttribute("id");
+                if (StringUtils.isNotBlank(id) && !StringUtils.equals(id, "forme-base")) {
+                    return id;
+                }
+            }
+        }
+        for (int i = 0; i < groups.getLength(); i++) {
+            Element g = (Element) groups.item(i);
+            if (!StringUtils.equals(g.getAttribute("id"), markerElement.getAttribute("id"))) {
                 continue;
             }
-            bloodIds.add(nested.getTypesettingId());
+            for (int j = i + 1; j < groups.getLength(); j++) {
+                Element next = (Element) groups.item(j);
+                String id = next.getAttribute("id");
+                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
+                    continue;
+                }
+                return id;
+            }
+            break;
         }
-        return bloodIds;
+        return fallbackId;
     }
-
-    private TypesettingInfo resolveTypesettingCellInfo(TypesettingSourceCell cell) {
-        if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
-            return null;
-        }
-        boolean isTypesettingSource = TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
-                || "typesetting".equalsIgnoreCase(cell.getSourceType());
-        if (!isTypesettingSource) {
-            return null;
-        }
-        TypesettingInfo infoById = typesettingService.findById(cell.getSourceId());
-        if (infoById != null) {
-            return infoById;
-        }
-        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(cell.getSourceId());
-        if (infos != null && !infos.isEmpty()) {
-            return infos.get(0);
-        }
-        return null;
-    }
-
 
     private double firstValid(double... values) {
         for (double value : values) {
@@ -248,12 +249,64 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         if (l < 0 || r <= l) {
             return Double.NaN;
         }
-        String[] parts = transform.substring(l + 1, r).trim().split("\s+|,");
+        String[] parts = transform.substring(l + 1, r).trim().split("\\s+|,");
         if (parts.length == 6) {
             return parseDouble(parts[5]);
         }
         return Double.NaN;
     }
+
+    private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
+        if (band == null) {
+            return false;
+        }
+        TypesettingInfo nested = findTypesettingInfoById(band.relatedTypesettingId);
+        if (nested != null) {
+            return Boolean.TRUE.equals(nested.getHaveBlood());
+        }
+        if (currentTypesetting == null || currentTypesetting.getTypesettingCells() == null || StringUtils.isBlank(band.relatedTypesettingId)) {
+            return false;
+        }
+        for (TypesettingSourceCell cell : currentTypesetting.getTypesettingCells()) {
+            if (cell == null || !StringUtils.equalsIgnoreCase(cell.getSourceType(), TypesettingSourceType.TYPESETTING.getCode())) {
+                continue;
+            }
+            if (!StringUtils.equals(cell.getSourceId(), band.relatedTypesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = resolveTypesettingCellInfo(cell);
+            return info != null && Boolean.TRUE.equals(info.getHaveBlood());
+        }
+        return false;
+    }
+
+    private TypesettingInfo findTypesettingInfoById(String id) {
+        if (StringUtils.isBlank(id)) {
+            return null;
+        }
+        TypesettingInfo infoById = typesettingService.findById(id);
+        if (infoById != null) {
+            return infoById;
+        }
+        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(id);
+        if (infos != null && !infos.isEmpty()) {
+            return infos.get(0);
+        }
+        return null;
+    }
+
+    private TypesettingInfo resolveTypesettingCellInfo(TypesettingSourceCell cell) {
+        if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+            return null;
+        }
+        boolean isTypesettingSource = TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
+                || "typesetting".equalsIgnoreCase(cell.getSourceType());
+        if (!isTypesettingSource) {
+            return null;
+        }
+        return findTypesettingInfoById(cell.getSourceId());
+    }
+
     private String extractFileName(String path) {
         if (StringUtils.isBlank(path)) {
             return null;
@@ -297,11 +350,13 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         private final String id;
         private final double centerY;
         private final double height;
+        private final String relatedTypesettingId;
 
-        private MarkerBand(String id, double centerY, double height) {
+        private MarkerBand(String id, double centerY, double height, String relatedTypesettingId) {
             this.id = id;
             this.centerY = centerY;
             this.height = height;
+            this.relatedTypesettingId = relatedTypesettingId;
         }
     }
 }
