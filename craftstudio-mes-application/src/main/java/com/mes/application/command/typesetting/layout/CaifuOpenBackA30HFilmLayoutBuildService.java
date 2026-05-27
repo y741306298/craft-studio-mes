@@ -197,9 +197,19 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
-            NodeList nodes = document.getElementsByTagName("*");
-            for (int i = 0; i < nodes.getLength(); i++) {
-                Element element = (Element) nodes.item(i);
+            Element root = document.getDocumentElement();
+            if (root == null) {
+                return bands;
+            }
+            NodeList children = root.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                if (!(children.item(i) instanceof Element)) {
+                    continue;
+                }
+                Element element = (Element) children.item(i);
+                if (!"g".equalsIgnoreCase(element.getTagName())) {
+                    continue;
+                }
                 String markerId = element.getAttribute("id");
                 if (!markerIds.contains(markerId)) {
                     continue;
