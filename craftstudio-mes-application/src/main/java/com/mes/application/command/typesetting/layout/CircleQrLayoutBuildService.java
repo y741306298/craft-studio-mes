@@ -46,6 +46,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
+    private static final int ANCHOR_INNER_SHIFT_MM = 30;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
     private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
     private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
@@ -140,16 +141,17 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
         int expandedWidth = width + marginLeft + marginRight;
-        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, elementOriginX + TOP_ANCHOR_LEFT_MM);
-        int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM;
-        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM, bottomLeftX);
+        int topLeftX = elementOriginX + TOP_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
+        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM - ANCHOR_INNER_SHIFT_MM, topLeftX);
+        int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
+        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
         String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
         tl.setSvg(circleSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
-        tl.setPosition(createPosition(elementOriginX + TOP_ANCHOR_LEFT_MM, topY));
+        tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("circle.png");
