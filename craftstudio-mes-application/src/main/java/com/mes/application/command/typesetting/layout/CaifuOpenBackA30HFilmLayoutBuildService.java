@@ -238,9 +238,11 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
 
 
     /**
-     * 关键方法：从 marker 节点获取“ys 下方后继 g”的 id。
+     * 关键方法：从 marker 节点获取关联印版 g 的 id。
      *
      * <p>实现要点：只在 SVG 根节点的顶层 g 列表中按顺序找，避免命中 forme-base 内层子 g。
+     * 当前 marker 的 centerY 与 markerId 是按顶层 g 的正序提取，因此 relatedId 也必须按同方向
+     * 取“marker 之前最近的印版 g”，避免出现首个 y 绑定到最后一个印版的错位。
      */
     private String resolveRelatedTypesettingId(Element markerElement, String fallbackId) {
         if (markerElement == null) {
@@ -276,10 +278,10 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (g != markerElement) {
                 continue;
             }
-            for (int j = i + 1; j < topLevelGroups.size(); j++) {
-                Element next = topLevelGroups.get(j);
-                if (isPlateGroup(next)) {
-                    return next.getAttribute("id");
+            for (int j = i - 1; j >= 0; j--) {
+                Element prev = topLevelGroups.get(j);
+                if (isPlateGroup(prev)) {
+                    return prev.getAttribute("id");
                 }
             }
             break;
