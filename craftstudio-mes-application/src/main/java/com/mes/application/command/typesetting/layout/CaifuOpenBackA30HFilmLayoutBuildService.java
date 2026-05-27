@@ -26,6 +26,27 @@ import java.util.Map;
 import java.util.Set;
 
 @Service
+/**
+ * XY切割-裁赋开背A30H覆膜模式构建器。
+ *
+ * <p>核心规则（业务约定）
+ * <ul>
+ *   <li>原图上扩3mm、右扩11mm，以扩边后左上角为原点；</li>
+ *   <li>元素A：3mm宽、与扩边后同高；元素B：8x3mm；元素D：0.3x5mm；</li>
+ *   <li>ys 由 typesetting.marks 中 caifuMarker_* 对应 nestedSvg 节点中值推导，并补 ys=0；</li>
+ *   <li>在 y+295 放 B；在 y+8 放 D/E（由是否出血印版决定）；</li>
+ * </ul>
+ *
+ * <p><b>重点：如何拿到“ys 下方后继 &lt;g&gt; 的 id”</b>
+ * <ol>
+ *   <li>先从 marks 的 caifuMarker_* 提取文件名（去后缀）得到 markerId；</li>
+ *   <li>在 nestedSvg 中定位 id=markerId 的 marker 节点（通常是顶层 &lt;g&gt;）；</li>
+ *   <li>按 SVG 根节点顶层 g 顺序，找到该 marker 所在位置；</li>
+ *   <li>取其后一个满足印版组条件的顶层 g（data-forme=true 或 data-source-name 以 .svg 结尾）；</li>
+ *   <li>这个后继 g 的 id 即 relatedTypesettingId，用于 findById 后判断 haveBlood。</li>
+ * </ol>
+ */
+@Service
 public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildService {
     private static final int EXPAND_TOP_MM = 3;
     private static final int EXPAND_RIGHT_MM = 11;
@@ -139,6 +160,12 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return result;
     }
 
+    /**
+     * 解析 nestedSvg 中的 marker band：
+     * 1) 定位 caifuMarker_* 对应 id 节点；
+     * 2) 计算 y 中值与 band 高度；
+     * 3) 通过 resolveRelatedTypesettingId 绑定“ys 下方后继 g”的 id。
+     */
     private List<MarkerBand> extractMarkerBands(FormeBuildContext context, double nestedHeight) {
         List<MarkerBand> bands = new ArrayList<>();
         if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
@@ -198,6 +225,11 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     }
 
 
+    /**
+     * 关键方法：从 marker 节点获取“ys 下方后继 g”的 id。
+     *
+     * <p>实现要点：只在 SVG 根节点的顶层 g 列表中按顺序找，避免命中 forme-base 内层子 g。
+     */
     private String resolveRelatedTypesettingId(Element markerElement, String fallbackId) {
         if (markerElement == null) {
             return fallbackId;
@@ -306,6 +338,9 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return null;
     }
 
+    /**
+     * 按 relatedTypesettingId 直接查询 typesetting，使用 haveBlood 判断是否出血印版。
+     */
     private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
         if (band == null || StringUtils.isBlank(band.relatedTypesettingId)) {
             return false;
