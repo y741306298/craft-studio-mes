@@ -19,6 +19,7 @@ import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
 import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -471,8 +472,8 @@ public class AppDeliveryPkgService {
             }
 
             for (ProductionPiece piece : orderItemPieces) {
-                if (!"已完成".equals(piece.getStatus())) {
-                    piece.setStatus("已完成");
+                if (!TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
+                    piece.setStatus(TypesettingStatus.COMPLETED.getCode());
                     productionPieceService.updateProductionPiece(piece);
                 }
             }
@@ -505,7 +506,7 @@ public class AppDeliveryPkgService {
             return false;
         }
         int packedQty = getNodeQuantity(piece, NODE_ID_PACKED, NODE_NAME_PACKED);
-        return packedQty == piece.getQuantity();
+        return packedQty > piece.getQuantity();
     }
 
 
