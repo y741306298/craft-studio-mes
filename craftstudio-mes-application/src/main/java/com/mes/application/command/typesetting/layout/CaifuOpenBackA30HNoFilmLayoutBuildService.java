@@ -15,7 +15,7 @@ import java.util.List;
 @Service
 public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildService {
     private static final int EXPAND_TOP_MM = 3;
-    private static final int EXPAND_LEFT_MM = 11;
+    private static final int EXPAND_RIGHT_MM = 11;
 
     private static final int ELEMENT_A_WIDTH_MM = 3;
     private static final int ELEMENT_B_WIDTH_MM = 8;
@@ -42,13 +42,13 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
         int expandedHeight = originalHeight + EXPAND_TOP_MM;
-        int expandedWidth = originalWidth + EXPAND_LEFT_MM;
+        int expandedWidth = originalWidth + EXPAND_RIGHT_MM;
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
-        margin.setLeft(EXPAND_LEFT_MM);
+        margin.setLeft(0);
         margin.setTop(EXPAND_TOP_MM);
-        margin.setRight(0);
+        margin.setRight(EXPAND_RIGHT_MM);
         margin.setBottom(0);
         result.setMargin(margin);
 
@@ -69,28 +69,29 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
                 tagUploadSubDir
         );
 
-        LinkedHashSet<Double> elementCYs = new LinkedHashSet<>();
+        LinkedHashSet<Double> elementBYs = new LinkedHashSet<>();
         LinkedHashSet<Double> elementEYs = new LinkedHashSet<>();
         TypesettingElement.GridLines gridLines = context.getTypesettingInfo() != null
                 && context.getTypesettingInfo().getElement() != null
                 ? context.getTypesettingInfo().getElement().getGridLines()
                 : null;
         if (gridLines != null && gridLines.getYs() != null) {
-            elementCYs.addAll(gridLines.getYs());
+            elementBYs.addAll(gridLines.getYs());
             elementEYs.addAll(gridLines.getYs());
         }
-        elementCYs.add((double) expandedHeight);
+        elementBYs.add(0D);
+        elementBYs.add((double) expandedHeight);
         elementEYs.add(0D);
 
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
         marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, 0, 0));
-        for (Double y : elementCYs) {
+        for (Double y : elementBYs) {
             if (y == null) {
                 continue;
             }
 
-            int elementBY = (int) Math.round(y + ELEMENT_B_OFFSET_Y_MM);
-            if (elementBY <= expandedHeight) {
+            int elementBY = (int) Math.round(y - ELEMENT_B_OFFSET_Y_MM);
+            if (elementBY >= 0 && elementBY <= expandedHeight) {
                 marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, ELEMENT_B_X_MM, elementBY));
             }
 
