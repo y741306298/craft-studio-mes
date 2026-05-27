@@ -448,7 +448,9 @@ public class AppDeliveryPkgService {
         if (touchedOrderItemIds != null && StringUtils.isNotBlank(piece.getOrderItemId())) {
             touchedOrderItemIds.add(piece.getOrderItemId());
         }
-        if (isPieceFullyPacked(piece) && !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
+        boolean pieceFullyPacked = isPieceFullyPacked(piece);
+        boolean flag = !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus());
+        if (isPieceFullyPacked(piece) && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
         productionPieceService.updateProductionPiece(piece);
@@ -509,7 +511,7 @@ public class AppDeliveryPkgService {
             return false;
         }
         int packedQty = getNodeQuantity(piece, NODE_ID_PACKED, NODE_NAME_PACKED);
-        return packedQty > piece.getQuantity();
+        return packedQty >= piece.getQuantity();
     }
 
 
