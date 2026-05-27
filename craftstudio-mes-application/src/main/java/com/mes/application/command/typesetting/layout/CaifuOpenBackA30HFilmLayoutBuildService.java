@@ -133,7 +133,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             String lineImg = elementD;
             double lineHeight = ELEMENT_D_HEIGHT_MM;
             if (!isBlood) {
-                int svgHeight = (int) Math.max(1, Math.round(band.height));
+                int svgHeight = (int) Math.max(1, Math.round(band.height) - 30);
                 lineImg = elementEByHeight.computeIfAbsent(svgHeight,
                         h -> ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, h), tagUploadSubDir));
                 lineHeight = svgHeight;
