@@ -478,23 +478,14 @@ public class AppDeliveryPkgService {
                 }
             }
 
-            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
-            if (orderItem != null && orderItem.getStatus() != OrderStatus.PACKAGED) {
-                orderItem.setStatus(OrderStatus.PACKAGED);
-                orderItemService.updateOrderItem(orderItem);
-            }
-
-            String orderId = orderItem != null ? orderItem.getOrderId() : null;
-            if (StringUtils.isBlank(orderId)) {
+            boolean allPiecesCompleted = !orderItemPieces.isEmpty() && orderItemPieces.stream()
+                    .allMatch(piece -> TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus()));
+            if (!allPiecesCompleted) {
                 continue;
             }
 
-            Map<String, Object> filters = new HashMap<>();
-            filters.put("orderId", orderId);
-            List<OrderItem> orderItems = orderItemService.filterList(1, 100, filters);
-            boolean allOrderItemsPacked = orderItems != null && !orderItems.isEmpty()
-                    && orderItems.stream().allMatch(item -> item.getStatus() == OrderStatus.PACKAGED);
-            if (allOrderItemsPacked) {
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            if (orderItem != null && orderItem.getStatus() != OrderStatus.PACKAGED) {
                 orderItem.setStatus(OrderStatus.PACKAGED);
                 orderItemService.updateOrderItem(orderItem);
             }
