@@ -234,7 +234,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
                     continue;
                 }
                 String relatedId = resolveRelatedTypesettingId(element, markerId);
-                bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
+                bands.add(new MarkerBand(markerId, y + h / 2.0, h, relatedId));
             }
         } catch (Exception ignored) {
             return bands;
