@@ -62,9 +62,10 @@ public class ManufacturerDeviceCfgController {
             String deviceInfoId = item.getDeviceInfoId();
             DeviceCfgSummary summary = DeviceCfgSummary.from(item);
             Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceInfoId);
-            if (byDeviceInfoId == null) continue;
-            summary.setBrand(byDeviceInfoId.getBrand());
-            summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
+            if (byDeviceInfoId != null) {
+                summary.setBrand(byDeviceInfoId.getBrand());
+                summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());
+            }
             responses.add(summary);
         }
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
