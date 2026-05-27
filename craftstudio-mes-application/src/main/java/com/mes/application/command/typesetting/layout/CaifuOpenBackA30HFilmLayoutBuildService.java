@@ -102,6 +102,12 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         for (MarkerBand band : bands) {
             bandByY.putIfAbsent(band.centerY, band);
         }
+        if (!bandByY.containsKey(0D)) {
+            MarkerBand zeroBand = extractZeroBand(context);
+            if (zeroBand != null) {
+                bandByY.put(0D, zeroBand);
+            }
+        }
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
@@ -115,9 +121,6 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             }
 
             MarkerBand band = bandByY.get(y);
-            if (band == null && Math.abs(y) < 0.0001) {
-                band = extractZeroBand(context);
-            }
             if (band == null) {
                 continue;
             }
