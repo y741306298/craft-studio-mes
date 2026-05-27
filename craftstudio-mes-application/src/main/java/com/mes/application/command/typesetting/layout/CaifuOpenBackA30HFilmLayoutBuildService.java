@@ -276,6 +276,15 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (g != markerElement) {
                 continue;
             }
+            // marker 与对应印版通常是“印版在前、marker 在后”，这里优先向前寻找最近的印版，
+            // 避免出现 y 顺序与 relatedTypesettingId 错位（首条 y 绑定到末条 g）。
+            for (int j = i - 1; j >= 0; j--) {
+                Element previous = topLevelGroups.get(j);
+                if (isPlateGroup(previous)) {
+                    return previous.getAttribute("id");
+                }
+            }
+            // 兜底：若前面未找到，再尝试向后寻找，兼容旧结构。
             for (int j = i + 1; j < topLevelGroups.size(); j++) {
                 Element next = topLevelGroups.get(j);
                 if (isPlateGroup(next)) {
