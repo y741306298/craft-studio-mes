@@ -93,33 +93,37 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         String elementD = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM), tagUploadSubDir);
 
         List<MarkerBand> bands = extractMarkerBands(context, originalHeight);
-        LinkedHashSet<Double> ys = new LinkedHashSet<>();
-        ys.add(0D);
+        List<MarkerBand> orderedBands = new ArrayList<>();
+        MarkerBand zeroBand = null;
         for (MarkerBand band : bands) {
-            ys.add(band.centerY);
+            if (band != null && Math.abs(band.centerY) < 0.0001) {
+                zeroBand = band;
+                break;
+            }
         }
-        Map<Double, MarkerBand> bandByY = new HashMap<>();
+        if (zeroBand == null) {
+            zeroBand = extractZeroBand(context);
+        }
+        if (zeroBand != null) {
+            orderedBands.add(zeroBand);
+        }
         for (MarkerBand band : bands) {
-            bandByY.putIfAbsent(band.centerY, band);
+            if (band == null || (zeroBand != null && band == zeroBand) || Math.abs(band.centerY) < 0.0001) {
+                continue;
+            }
+            orderedBands.add(band);
         }
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
-        for (Double y : ys) {
-            if (y == null) {
+        for (MarkerBand band : orderedBands) {
+            if (band == null) {
                 continue;
             }
+            double y = band.centerY;
             double elementBY = y + ELEMENT_B_OFFSET_Y_MM;
             if (elementBY <= expandedHeight) {
                 marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY));
-            }
-
-            MarkerBand band = bandByY.get(y);
-            if (band == null && Math.abs(y) < 0.0001) {
-                band = extractZeroBand(context);
-            }
-            if (band == null) {
-                continue;
             }
             double lineY = y + ELEMENT_D_OFFSET_Y_MM;
             if (lineY > expandedHeight) {
@@ -170,7 +174,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
             return bands;
         }
-        List<String> markerIds = new ArrayList<>();
+        Set<String> markerIds = new LinkedHashSet<>();
         for (Map.Entry<String, String> entry : context.getTypesettingInfo().getMarks().entrySet()) {
             if (entry == null || !StringUtils.startsWith(entry.getKey(), "caifuMarker_")) {
                 continue;
@@ -194,28 +198,37 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
-            NodeList nodes = document.getElementsByTagName("*");
-            for (String markerId : markerIds) {
-                for (int i = 0; i < nodes.getLength(); i++) {
-                    Element element = (Element) nodes.item(i);
-                    if (!markerId.equals(element.getAttribute("id"))) {
-                        continue;
-                    }
-                    double y = firstValid(
-                            parseDouble(element.getAttribute("data-cell-y")),
-                            parseTranslateY(element.getAttribute("transform")),
-                            parseDouble(element.getAttribute("y"))
-                    );
-                    double h = firstValid(
-                            parseDouble(element.getAttribute("data-cell-height")),
-                            parseDouble(element.getAttribute("height"))
-                    );
-                    if (Double.isNaN(y) || Double.isNaN(h)) {
-                        continue;
-                    }
-                    String relatedId = resolveRelatedTypesettingId(element, markerId);
-                    bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
+            Element root = document.getDocumentElement();
+            if (root == null) {
+                return bands;
+            }
+            NodeList children = root.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                if (!(children.item(i) instanceof Element)) {
+                    continue;
                 }
+                Element element = (Element) children.item(i);
+                if (!"g".equalsIgnoreCase(element.getTagName())) {
+                    continue;
+                }
+                String markerId = element.getAttribute("id");
+                if (!markerIds.contains(markerId)) {
+                    continue;
+                }
+                double y = firstValid(
+                        parseDouble(element.getAttribute("data-cell-y")),
+                        parseTranslateY(element.getAttribute("transform")),
+                        parseDouble(element.getAttribute("y"))
+                );
+                double h = firstValid(
+                        parseDouble(element.getAttribute("data-cell-height")),
+                        parseDouble(element.getAttribute("height"))
+                );
+                if (Double.isNaN(y) || Double.isNaN(h)) {
+                    continue;
+                }
+                String relatedId = resolveRelatedTypesettingId(element, markerId);
+                bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
             }
         } catch (Exception ignored) {
             return bands;
@@ -260,7 +273,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         }
         for (int i = 0; i < topLevelGroups.size(); i++) {
             Element g = topLevelGroups.get(i);
-            if (!StringUtils.equals(g.getAttribute("id"), markerElement.getAttribute("id"))) {
+            if (g != markerElement) {
                 continue;
             }
             for (int j = i + 1; j < topLevelGroups.size(); j++) {
