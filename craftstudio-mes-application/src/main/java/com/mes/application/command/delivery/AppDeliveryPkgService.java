@@ -569,34 +569,35 @@ public class AppDeliveryPkgService {
 
     public void releasePkg(String deliveryPkgId) {
         DeliveryPkg deliveryPkg = findByDeliveryPkgId(deliveryPkgId);
-        if (deliveryPkg.getDeliveryPkgItems() == null || deliveryPkg.getDeliveryPkgItems().isEmpty()) {
-            return;
-        }
-        for (com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem pkgItem : deliveryPkg.getDeliveryPkgItems()) {
-            if (pkgItem.getProductionPieceId() == null) {
-                continue;
-            }
-            for (String pieceId : pkgItem.getProductionPieceId()) {
-                ProductionPiece piece = productionPieceService.findByProductionPieceId(pieceId);
-                if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+        if (deliveryPkg.getDeliveryPkgItems() != null && !deliveryPkg.getDeliveryPkgItems().isEmpty()) {
+            for (com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem pkgItem : deliveryPkg.getDeliveryPkgItems()) {
+                if (pkgItem.getProductionPieceId() == null) {
                     continue;
                 }
-                Optional<ProcedureFlowNode> pendingNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "待打包".equals(n.getNodeName())).findFirst();
-                Optional<ProcedureFlowNode> packedNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "已打包".equals(n.getNodeName())).findFirst();
-                if (pendingNodeOpt.isEmpty() || packedNodeOpt.isEmpty()) {
-                    continue;
+                for (String pieceId : pkgItem.getProductionPieceId()) {
+                    ProductionPiece piece = productionPieceService.findByProductionPieceId(pieceId);
+                    if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+                        continue;
+                    }
+                    Optional<ProcedureFlowNode> pendingNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "待打包".equals(n.getNodeName())).findFirst();
+                    Optional<ProcedureFlowNode> packedNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "已打包".equals(n.getNodeName())).findFirst();
+                    if (pendingNodeOpt.isEmpty() || packedNodeOpt.isEmpty()) {
+                        continue;
+                    }
+                    ProcedureFlowNode pendingNode = pendingNodeOpt.get();
+                    ProcedureFlowNode packedNode = packedNodeOpt.get();
+                    int quantity = pkgItem.getQuantity() == null ? 0 : pkgItem.getQuantity();
+                    int packedQty = packedNode.getPieceQuantity() == null ? 0 : packedNode.getPieceQuantity();
+                    int pendingQty = pendingNode.getPieceQuantity() == null ? 0 : pendingNode.getPieceQuantity();
+                    packedNode.setPieceQuantity(Math.max(0, packedQty - quantity));
+                    pendingNode.setPieceQuantity(pendingQty + quantity);
+                    pendingNode.setNodeStatus(NodeStatus.ACTIVE);
+                    productionPieceService.updateProductionPiece(piece);
                 }
-                ProcedureFlowNode pendingNode = pendingNodeOpt.get();
-                ProcedureFlowNode packedNode = packedNodeOpt.get();
-                int quantity = pkgItem.getQuantity() == null ? 0 : pkgItem.getQuantity();
-                int packedQty = packedNode.getPieceQuantity() == null ? 0 : packedNode.getPieceQuantity();
-                int pendingQty = pendingNode.getPieceQuantity() == null ? 0 : pendingNode.getPieceQuantity();
-                packedNode.setPieceQuantity(Math.max(0, packedQty - quantity));
-                pendingNode.setPieceQuantity(pendingQty + quantity);
-                pendingNode.setNodeStatus(NodeStatus.ACTIVE);
-                productionPieceService.updateProductionPiece(piece);
             }
         }
+
+        deliveryPkgService.deleteDeliveryPkg(deliveryPkg.getId());
     }
 
     private String callPost(String url,String paramStr,String method){
