@@ -172,6 +172,9 @@ public class TypesettingController {
      */
     @PostMapping("/confirmPrint")
     public ApiResponse<ConfirmPrintResult> confirmPrint(@Valid @RequestBody ConfirmPrintRequest request) {
+        logger.info("========== confirmPrint 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(request));
+        logger.info("========== confirmPrint 入参结束 ==========");
         if (request.getId() == null || request.getId().isBlank()) {
             ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
             failResponse.setCode(ApiResponse.RepStatusCode.badParams);

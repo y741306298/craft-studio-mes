@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-@Service
 /**
  * XY切割-裁赋开背A30H覆膜模式构建器。
  *
