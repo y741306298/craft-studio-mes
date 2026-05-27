@@ -32,6 +32,9 @@ public class AlgorithmCoreApiService {
     @Autowired
     private RestTemplate restTemplate;
 
+    @Value("${external.api.nestFilesUrl}")
+    private String nestFilesUrl;
+
     /**
      * 同步调用算法服务
      * 请求发起方需一直等处理结束才释放连接
@@ -45,9 +48,6 @@ public class AlgorithmCoreApiService {
     public <T> T callAlgorithmSync(String baseUrl, String apiPath, Object requestBody, Class<T> responseType) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new RuntimeException("算法服务地址未配置");
-        }
-        if (apiPath == null || apiPath.isEmpty()) {
-            throw new RuntimeException("API路径不能为空");
         }
 
         try {
@@ -84,9 +84,6 @@ public class AlgorithmCoreApiService {
     public <T> T callAlgorithmAsync(String baseUrl, String apiPath, Object requestBody, String callbackUrl, Class<T> responseType) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new RuntimeException("算法服务地址未配置");
-        }
-        if (apiPath == null || apiPath.isEmpty()) {
-            throw new RuntimeException("API路径不能为空");
         }
         if (callbackUrl == null || callbackUrl.isEmpty()) {
             throw new RuntimeException("回调地址不能为空");
@@ -223,7 +220,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://test-crsvg-nest-ovqpvihcgo.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
+        return callAlgorithmAsync(nestFilesUrl, "", request,
                 request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
     }
 
@@ -250,7 +247,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("排版元素列表不能为空");
         }
 
-        return callAlgorithmSync("http://test-crsvg-nest-ovqpvihcgo.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
+        return callAlgorithmSync(nestFilesUrl, "", request,
                 NestingResponse.class);
     }
 
