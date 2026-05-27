@@ -370,7 +370,6 @@ public class AppDeliveryPkgService {
         if (isCustomPresetType) {
             java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
             for (ProductionPiece productionPiece : selectedPieces) {
-                touchedOrderItemIds.add(productionPiece.getOrderItemId());
                 List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
                 ProcedureFlowNode pendingPackingNode = null;
                 ProcedureFlowNode packedNode = null;
@@ -406,7 +405,7 @@ public class AppDeliveryPkgService {
                     deliveryPkgInfo.setQuantity(quantity);
                     pkgInfos.add(deliveryPkgInfo);
                     productionPiece.setDeliveryPkgInfos(pkgInfos);
-                    productionPieceService.updateProductionPiece(productionPiece);
+                    updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
                 }
             }
             refreshPackagingCompletionStatus(touchedOrderItemIds);
@@ -433,13 +432,26 @@ public class AppDeliveryPkgService {
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
-            java.util.Set<String> touchedOrderItemIds = selectedPieces.stream()
-                    .map(ProductionPiece::getOrderItemId)
-                    .filter(StringUtils::isNotBlank)
-                    .collect(Collectors.toSet());
-            refreshPackagingCompletionStatus(touchedOrderItemIds);
         }
+        java.util.Set<String> touchedOrderItemIds = selectedPieces.stream()
+                .map(ProductionPiece::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece, java.util.Set<String> touchedOrderItemIds) {
+        if (piece == null) {
+            return;
+        }
+        if (touchedOrderItemIds != null && StringUtils.isNotBlank(piece.getOrderItemId())) {
+            touchedOrderItemIds.add(piece.getOrderItemId());
+        }
+        if (isPieceFullyPacked(piece) && !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
+            piece.setStatus(TypesettingStatus.COMPLETED.getCode());
+        }
+        productionPieceService.updateProductionPiece(piece);
     }
 
 
