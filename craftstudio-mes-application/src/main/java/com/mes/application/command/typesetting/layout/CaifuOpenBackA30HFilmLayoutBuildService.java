@@ -226,20 +226,46 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
                         parseTranslateY(element.getAttribute("transform")),
                         parseDouble(element.getAttribute("y"))
                 );
-                double h = firstValid(
+                double markerHeight = firstValid(
                         parseDouble(element.getAttribute("data-cell-height")),
                         parseDouble(element.getAttribute("height"))
                 );
-                if (Double.isNaN(y) || Double.isNaN(h)) {
+                if (Double.isNaN(y) || Double.isNaN(markerHeight)) {
                     continue;
                 }
                 String relatedId = resolveRelatedTypesettingId(element, markerId);
-                bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
+                double relatedHeight = resolveGroupHeightById(root, relatedId);
+                double bandHeight = Double.isNaN(relatedHeight) ? markerHeight : relatedHeight;
+                bands.add(new MarkerBand(markerId, y + markerHeight / 2.0, bandHeight, relatedId));
             }
         } catch (Exception ignored) {
             return bands;
         }
         return bands;
+    }
+
+    private double resolveGroupHeightById(Element root, String groupId) {
+        if (root == null || StringUtils.isBlank(groupId)) {
+            return Double.NaN;
+        }
+        NodeList children = root.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            if (!(children.item(i) instanceof Element)) {
+                continue;
+            }
+            Element child = (Element) children.item(i);
+            if (!"g".equalsIgnoreCase(child.getTagName())) {
+                continue;
+            }
+            if (!StringUtils.equals(groupId, child.getAttribute("id"))) {
+                continue;
+            }
+            return firstValid(
+                    parseDouble(child.getAttribute("data-cell-height")),
+                    parseDouble(child.getAttribute("height"))
+            );
+        }
+        return Double.NaN;
     }
 
 
