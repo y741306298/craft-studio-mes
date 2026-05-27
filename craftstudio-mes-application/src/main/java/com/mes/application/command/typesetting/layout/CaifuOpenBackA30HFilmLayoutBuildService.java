@@ -170,7 +170,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
             return bands;
         }
-        List<String> markerIds = new ArrayList<>();
+        Set<String> markerIds = new LinkedHashSet<>();
         for (Map.Entry<String, String> entry : context.getTypesettingInfo().getMarks().entrySet()) {
             if (entry == null || !StringUtils.startsWith(entry.getKey(), "caifuMarker_")) {
                 continue;
@@ -195,27 +195,26 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
             NodeList nodes = document.getElementsByTagName("*");
-            for (String markerId : markerIds) {
-                for (int i = 0; i < nodes.getLength(); i++) {
-                    Element element = (Element) nodes.item(i);
-                    if (!markerId.equals(element.getAttribute("id"))) {
-                        continue;
-                    }
-                    double y = firstValid(
-                            parseDouble(element.getAttribute("data-cell-y")),
-                            parseTranslateY(element.getAttribute("transform")),
-                            parseDouble(element.getAttribute("y"))
-                    );
-                    double h = firstValid(
-                            parseDouble(element.getAttribute("data-cell-height")),
-                            parseDouble(element.getAttribute("height"))
-                    );
-                    if (Double.isNaN(y) || Double.isNaN(h)) {
-                        continue;
-                    }
-                    String relatedId = resolveRelatedTypesettingId(element, markerId);
-                    bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
+            for (int i = 0; i < nodes.getLength(); i++) {
+                Element element = (Element) nodes.item(i);
+                String markerId = element.getAttribute("id");
+                if (!markerIds.contains(markerId)) {
+                    continue;
                 }
+                double y = firstValid(
+                        parseDouble(element.getAttribute("data-cell-y")),
+                        parseTranslateY(element.getAttribute("transform")),
+                        parseDouble(element.getAttribute("y"))
+                );
+                double h = firstValid(
+                        parseDouble(element.getAttribute("data-cell-height")),
+                        parseDouble(element.getAttribute("height"))
+                );
+                if (Double.isNaN(y) || Double.isNaN(h)) {
+                    continue;
+                }
+                String relatedId = resolveRelatedTypesettingId(element, markerId);
+                bands.add(new MarkerBand(markerId, nestedHeight - (y + h / 2.0), h, relatedId));
             }
         } catch (Exception ignored) {
             return bands;
@@ -260,7 +259,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         }
         for (int i = 0; i < topLevelGroups.size(); i++) {
             Element g = topLevelGroups.get(i);
-            if (!StringUtils.equals(g.getAttribute("id"), markerElement.getAttribute("id"))) {
+            if (g != markerElement) {
                 continue;
             }
             for (int j = i + 1; j < topLevelGroups.size(); j++) {
