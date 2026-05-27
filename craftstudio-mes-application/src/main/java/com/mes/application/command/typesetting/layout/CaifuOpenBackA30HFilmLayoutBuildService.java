@@ -93,14 +93,25 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         String elementD = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM), tagUploadSubDir);
 
         List<MarkerBand> bands = extractMarkerBands(context, originalHeight);
-        LinkedHashSet<Double> ys = new LinkedHashSet<>();
-        ys.add(0D);
+        List<MarkerBand> orderedBands = new ArrayList<>();
+        MarkerBand zeroBand = null;
         for (MarkerBand band : bands) {
-            ys.add(band.centerY);
+            if (band != null && Math.abs(band.centerY) < 0.0001) {
+                zeroBand = band;
+                break;
+            }
         }
-        Map<Double, MarkerBand> bandByY = new HashMap<>();
+        if (zeroBand == null) {
+            zeroBand = extractZeroBand(context);
+        }
+        if (zeroBand != null) {
+            orderedBands.add(zeroBand);
+        }
         for (MarkerBand band : bands) {
-            bandByY.putIfAbsent(band.centerY, band);
+            if (band == null || (zeroBand != null && band == zeroBand) || Math.abs(band.centerY) < 0.0001) {
+                continue;
+            }
+            orderedBands.add(band);
         }
         if (!bandByY.containsKey(0D)) {
             MarkerBand zeroBand = extractZeroBand(context);
@@ -111,18 +122,14 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
-        for (Double y : ys) {
-            if (y == null) {
+        for (MarkerBand band : orderedBands) {
+            if (band == null) {
                 continue;
             }
+            double y = band.centerY;
             double elementBY = y + ELEMENT_B_OFFSET_Y_MM;
             if (elementBY <= expandedHeight) {
                 marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY));
-            }
-
-            MarkerBand band = bandByY.get(y);
-            if (band == null) {
-                continue;
             }
             double lineY = y + ELEMENT_D_OFFSET_Y_MM;
             if (lineY > expandedHeight) {
