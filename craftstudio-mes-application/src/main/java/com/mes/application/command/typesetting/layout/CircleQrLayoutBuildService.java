@@ -32,6 +32,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int TAG_DPI = 300;
     private static final double MM_PER_INCH = 25.4D;
     private static final int QR_LEFT_MM = 10;
+    private static final int ELEMENT_F_SHIFT_MM = 30;
     private static final int QR_SIZE_MM = 15;
     private static final int QR_BOTTOM_GAP_MM = 2;
     private static final int ELEMENT_GAP_MM = 30;
@@ -299,7 +300,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int stripWidthInt = stripWidth.intValue();
         int canvasWidthPx = mmToPx(stripWidthInt);
         int canvasHeightPx = mmToPx(stripHeightInt);
-        int qrLeftPx = mmToPx(QR_LEFT_MM);
+        int elementShiftPx = mmToPx(ELEMENT_F_SHIFT_MM);
+        int qrLeftPx = mmToPx(QR_LEFT_MM) + elementShiftPx;
         int qrSizePx = mmToPx(QR_SIZE_MM);
         int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
