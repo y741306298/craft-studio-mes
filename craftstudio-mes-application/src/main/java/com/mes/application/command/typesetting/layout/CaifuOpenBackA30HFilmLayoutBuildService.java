@@ -174,7 +174,8 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
             return bands;
         }
-        Set<String> markerIds = new LinkedHashSet<>();
+        List<String> markerIds = new ArrayList<>();
+        Set<String> markerIdSet = new LinkedHashSet<>();
         for (Map.Entry<String, String> entry : context.getTypesettingInfo().getMarks().entrySet()) {
             if (entry == null || !StringUtils.startsWith(entry.getKey(), "caifuMarker_")) {
                 continue;
@@ -182,7 +183,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             String fileName = extractFileName(entry.getValue());
             int dotIdx = StringUtils.defaultString(fileName).lastIndexOf('.');
             String id = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
-            if (StringUtils.isNotBlank(id)) {
+            if (StringUtils.isNotBlank(id) && markerIdSet.add(id)) {
                 markerIds.add(id);
             }
         }
@@ -202,6 +203,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (root == null) {
                 return bands;
             }
+            Map<String, Element> markerElementMap = new HashMap<>();
             NodeList children = root.getChildNodes();
             for (int i = 0; i < children.getLength(); i++) {
                 if (!(children.item(i) instanceof Element)) {
@@ -212,7 +214,13 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
                     continue;
                 }
                 String markerId = element.getAttribute("id");
-                if (!markerIds.contains(markerId)) {
+                if (markerIdSet.contains(markerId) && !markerElementMap.containsKey(markerId)) {
+                    markerElementMap.put(markerId, element);
+                }
+            }
+            for (String markerId : markerIds) {
+                Element element = markerElementMap.get(markerId);
+                if (element == null) {
                     continue;
                 }
                 double y = firstValid(
@@ -276,10 +284,18 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (g != markerElement) {
                 continue;
             }
+            // 与 extractMarkerBands 的遍历方向保持一致：优先向后查找，避免 band 顺序与关联印版错位。
             for (int j = i + 1; j < topLevelGroups.size(); j++) {
                 Element next = topLevelGroups.get(j);
                 if (isPlateGroup(next)) {
                     return next.getAttribute("id");
+                }
+            }
+            // 兜底：若后续未找到，再向前查找，兼容特殊结构。
+            for (int j = i - 1; j >= 0; j--) {
+                Element previous = topLevelGroups.get(j);
+                if (isPlateGroup(previous)) {
+                    return previous.getAttribute("id");
                 }
             }
             break;
