@@ -238,10 +238,14 @@ public class AppDeliveryPkgService {
         String deliverySiidId = request.getDeliverySiidId();
         String manufacturerMetaId = request.getManufacturerMetaId();
         List<ProductionPiece> productionPieces = request.getProductionPieces();
+        //查询快递方式基本配置，未配置电子面单时按送货上门打包处理
+        DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, manufacturerMetaId);
+        if (deliveryToken == null) {
+            transferPiecesToPacked(productionPieces, null, carrierId, request.getCarrierName(), null, null, null);
+            return null;
+        }
         //查询寄件人信息
         DeliveryMan deliveryMan = deliveryManRepository.findByDeliveryManIdAndManufacturerMetaId(deliveryManId, manufacturerMetaId);
-        //查询快递方式基本配置
-        DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, manufacturerMetaId);
         //查询云打印设备
         DeliverySiid deliverySiid = deliverySiidRepository.findByDeliverySiidIdAndManufacturerMetaId(deliverySiidId, manufacturerMetaId);
         //查询订单信息
@@ -359,56 +363,19 @@ public class AppDeliveryPkgService {
             packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
 
-        boolean isCustomPresetType = "CUSTOM".equalsIgnoreCase(presetType);
-        if (!isCustomPresetType && (StringUtils.isBlank(request.getDeliveryManId()) || StringUtils.isBlank(request.getDeliverySiidId())
-                || StringUtils.isBlank(request.getManufacturerMetaId()))) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "发货人、打印机、商家信息不能为空");
+        boolean useCustomPackagingFlow = "CUSTOM".equalsIgnoreCase(presetType)
+                || StringUtils.isBlank(request.getDeliveryManId())
+                || StringUtils.isBlank(request.getDeliverySiidId());
+
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
+
+        if (!useCustomPackagingFlow) {
+            DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, request.getManufacturerMetaId());
+            useCustomPackagingFlow = deliveryToken == null;
         }
 
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName);
-
-        if (isCustomPresetType) {
-            java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
-            for (ProductionPiece productionPiece : selectedPieces) {
-                List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
-                ProcedureFlowNode pendingPackingNode = null;
-                ProcedureFlowNode packedNode = null;
-                for (ProcedureFlowNode node : nodes) {
-                    if ("待打包".equals(node.getNodeName())) {
-                        pendingPackingNode = node;
-                    } else if ("已打包".equals(node.getNodeName())) {
-                        packedNode = node;
-                    }
-                }
-
-                if (pendingPackingNode != null && packedNode != null) {
-                    Integer quantity = packageQuantityMap.getOrDefault(productionPiece.getId(), 0);
-                    Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
-                    pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
-                    if (pendingPackingNode.getPieceQuantity() <= 0) {
-                        pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
-                    }
-                    Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
-                    packedNode.setPieceQuantity(packedQuantity + quantity);
-                    packedNode.setNodeStatus(NodeStatus.ACTIVE);
-
-                    List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
-                    if (pkgInfos == null) {
-                        pkgInfos = new ArrayList<>();
-                    }
-                    DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
-                    deliveryPkgInfo.setCarrierId(carrierId);
-                    String routeCarrierSuffix = (StringUtils.isBlank(request.getRouteId()) || StringUtils.isBlank(request.getRouteNodeId()))
-                            ? "(未自定义路线)"
-                            : "(" + request.getRouteId() + "/" + request.getRouteNodeId() + ")";
-                    deliveryPkgInfo.setCarrierName(carrierName + routeCarrierSuffix);
-                    deliveryPkgInfo.setQuantity(quantity);
-                    pkgInfos.add(deliveryPkgInfo);
-                    productionPiece.setDeliveryPkgInfos(pkgInfos);
-                    updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
-                }
-            }
-            refreshPackagingCompletionStatus(touchedOrderItemIds);
+        if (useCustomPackagingFlow) {
+            transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
 
@@ -424,7 +391,8 @@ public class AppDeliveryPkgService {
         }
         toPkgRequest.setProductionPieces(pkgRequestPieces);
         toPkgRequest.setOrderId(orderId);
-        toPkgRequest.setCarrierId(request.getCarrierId());
+        toPkgRequest.setCarrierId(carrierId);
+        toPkgRequest.setCarrierName(carrierName);
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
@@ -439,6 +407,70 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    private void transferPiecesToPacked(List<ProductionPiece> productionPieces, Map<String, Integer> packageQuantityMap,
+                                        String carrierId, String carrierName, String routeId, String routeNodeId, String kuaidiNum) {
+        if (productionPieces == null || productionPieces.isEmpty()) {
+            return;
+        }
+        java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
+        for (ProductionPiece productionPiece : productionPieces) {
+            if (productionPiece == null || productionPiece.getProcedureFlow() == null
+                    || productionPiece.getProcedureFlow().getNodes() == null) {
+                continue;
+            }
+            List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+            ProcedureFlowNode pendingPackingNode = null;
+            ProcedureFlowNode packedNode = null;
+            for (ProcedureFlowNode node : nodes) {
+                if (NODE_NAME_PENDING_PACKING.equals(node.getNodeName())) {
+                    pendingPackingNode = node;
+                } else if (NODE_NAME_PACKED.equals(node.getNodeName())) {
+                    packedNode = node;
+                }
+            }
+
+            if (pendingPackingNode == null || packedNode == null) {
+                continue;
+            }
+
+            Integer quantity = packageQuantityMap == null
+                    ? productionPiece.getQuantity()
+                    : packageQuantityMap.getOrDefault(productionPiece.getId(), 0);
+            if (quantity == null || quantity <= 0) {
+                continue;
+            }
+
+            Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
+            pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
+            if (pendingPackingNode.getPieceQuantity() <= 0) {
+                pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
+            }
+
+            Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
+            packedNode.setPieceQuantity(packedQuantity + quantity);
+            packedNode.setNodeStatus(NodeStatus.ACTIVE);
+
+            List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
+            if (pkgInfos == null) {
+                pkgInfos = new ArrayList<>();
+            }
+            DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
+            deliveryPkgInfo.setCarrierId(carrierId);
+            deliveryPkgInfo.setKuaidiNum(kuaidiNum);
+            if (StringUtils.isNotBlank(carrierName)) {
+                String routeCarrierSuffix = (StringUtils.isBlank(routeId) || StringUtils.isBlank(routeNodeId))
+                        ? "(未自定义路线)"
+                        : "(" + routeId + "/" + routeNodeId + ")";
+                deliveryPkgInfo.setCarrierName(carrierName + routeCarrierSuffix);
+            }
+            deliveryPkgInfo.setQuantity(quantity);
+            pkgInfos.add(deliveryPkgInfo);
+            productionPiece.setDeliveryPkgInfos(pkgInfos);
+            updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
+        }
+        refreshPackagingCompletionStatus(touchedOrderItemIds);
     }
 
     private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece, java.util.Set<String> touchedOrderItemIds) {
@@ -515,7 +547,7 @@ public class AppDeliveryPkgService {
     }
 
 
-    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName) {
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String deliveryWay) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         String deliveryPkgId = IdGenerator.generateId("DP");
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
@@ -523,6 +555,7 @@ public class AppDeliveryPkgService {
         deliveryPkg.setOrderId(orderId);
         deliveryPkg.setCarrierId(carrierId);
         deliveryPkg.setCarrierName(carrierName);
+        deliveryPkg.setDeliveryWay(deliveryWay);
         deliveryPkg.setDeliveryManId(request.getDeliveryManId());
         deliveryPkg.setDeliverySiidId(request.getDeliverySiidId());
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
