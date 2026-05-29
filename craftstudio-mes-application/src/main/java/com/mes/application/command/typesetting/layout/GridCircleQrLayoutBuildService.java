@@ -7,8 +7,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class GridCircleQrLayoutBuildService extends CircleQrLayoutBuildService {
 
-    public GridCircleQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
-        super(ossTagUploadService);
+    public GridCircleQrLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                            QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
+        super(ossTagUploadService, qrLayoutOrderIdResolver);
     }
 
     @Override

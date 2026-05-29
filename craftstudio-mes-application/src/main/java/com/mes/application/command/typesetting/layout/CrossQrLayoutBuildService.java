@@ -54,9 +54,12 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
+    private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
 
-    public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                       QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
         this.ossTagUploadService = ossTagUploadService;
+        this.qrLayoutOrderIdResolver = qrLayoutOrderIdResolver;
     }
 
     /**
@@ -221,6 +224,10 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
             extInfos.add(info.getTemplateCode());
         }
         extInfos.addAll(extractAccessoryLabels(info));
+        String commonOrderId = qrLayoutOrderIdResolver.resolveCommonOrderId(info);
+        if (StringUtils.isNotBlank(commonOrderId)) {
+            extInfos.add(commonOrderId);
+        }
         return extInfos;
     }
 
