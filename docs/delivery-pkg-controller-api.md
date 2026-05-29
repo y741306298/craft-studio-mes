@@ -101,7 +101,7 @@
 ## 1) 包裹分页查询
 
 - **URL**: `POST /api/manufacturerSide/deliveryPkg/pkgList`
-- **说明**: 支持按 `orderId`、`recipientName`、`recipientPhone`、`createTime`（起止时间）和状态分页查询包裹列表。
+- **说明**: 支持按 `orderId`、`recipientName`、`recipientPhone`、`createTime`（起止时间）和状态分页查询包裹列表，并返回 `carrierId` 与 `carrierName`。
 
 ### 请求字段
 
@@ -147,6 +147,8 @@
       "deliveryPkgId": "DP20260508001",
       "deliveryPkgCode": "DP20260508001",
       "orderId": "ORD_3001",
+      "carrierId": "SF",
+      "carrierName": "顺丰",
       "recipientName": "张三",
       "recipientPhone": "13800000000",
       "recipientAddress": "浙江省杭州市西湖区xxx",
@@ -170,7 +172,7 @@
 ## 2) 新增打包
 
 - **URL**: `POST /api/manufacturerSide/deliveryPkg/add`
-- **说明**: 创建包裹并返回打印所需信息；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
+- **说明**: 创建包裹并返回打印所需信息，同步返回 `carrierId` 与 `carrierName`；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
 
 ---
 
@@ -201,6 +203,8 @@
   "message": "success",
   "data": {
     "pkgId": "DP20260508001",
+    "carrierId": "SF",
+    "carrierName": "顺丰",
     "recipientName": "张三",
     "recipientMobile": "13800000000",
     "recipientAddress": "浙江省杭州市西湖区xxx",
