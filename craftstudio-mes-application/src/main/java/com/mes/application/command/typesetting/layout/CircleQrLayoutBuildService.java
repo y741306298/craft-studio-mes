@@ -53,9 +53,12 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
+    private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
 
-    public CircleQrLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    public CircleQrLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                       QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
         this.ossTagUploadService = ossTagUploadService;
+        this.qrLayoutOrderIdResolver = qrLayoutOrderIdResolver;
     }
     /**
      * 圆形二维码排版模式构建器：
@@ -219,6 +222,10 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             extInfos.add(info.getTemplateCode());
         }
         extInfos.addAll(extractAccessoryLabels(info));
+        String commonOrderId = qrLayoutOrderIdResolver.resolveCommonOrderId(info);
+        if (StringUtils.isNotBlank(commonOrderId)) {
+            extInfos.add(commonOrderId);
+        }
         return extInfos;
     }
 
