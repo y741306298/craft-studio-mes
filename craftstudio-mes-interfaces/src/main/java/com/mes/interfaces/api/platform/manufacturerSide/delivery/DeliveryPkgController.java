@@ -132,6 +132,8 @@ public class DeliveryPkgController {
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
         DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
         BeanUtils.copyProperties(deliveryPkg, response);
+        response.setCarrierId(deliveryPkg.getCarrierId());
+        response.setCarrierName(deliveryPkg.getCarrierName());
 
         List<DeliveryPkgListItemResponse.DeliveryPkgItemDetail> details = new ArrayList<>();
         if (deliveryPkg.getDeliveryPkgItems() != null) {
@@ -222,6 +224,8 @@ public class DeliveryPkgController {
     private DeliveryPkgAddResultVO buildAddResult(DeliveryPkg deliveryPkg) {
         DeliveryPkgAddResultVO result = new DeliveryPkgAddResultVO();
         result.setPkgId(deliveryPkg.getDeliveryPkgId());
+        result.setCarrierId(deliveryPkg.getCarrierId());
+        result.setCarrierName(deliveryPkg.getCarrierName());
         result.setRecipientName(deliveryPkg.getRecipientName());
         result.setRecipientMobile(deliveryPkg.getRecipientPhone());
         result.setRecipientAddress(deliveryPkg.getRecipientAddress());
