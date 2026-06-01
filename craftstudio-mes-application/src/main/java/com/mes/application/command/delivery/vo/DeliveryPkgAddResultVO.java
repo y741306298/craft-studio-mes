@@ -8,6 +8,7 @@ public class DeliveryPkgAddResultVO {
     private String pkgId;
     private String carrierId;
     private String carrierName;
+    private String presetType;
     private String recipientName;
     private String recipientMobile;
     private String recipientAddress;

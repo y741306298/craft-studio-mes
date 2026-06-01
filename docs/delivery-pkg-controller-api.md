@@ -172,7 +172,7 @@
 ## 2) 新增打包
 
 - **URL**: `POST /api/manufacturerSide/deliveryPkg/add`
-- **说明**: 创建包裹并返回打印所需信息，同步返回 `carrierId` 与 `carrierName`；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
+- **说明**: 创建包裹并返回打印所需信息，同步返回 `carrierId`、`carrierName` 与实际保存的 `presetType`；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
 
 ---
 
@@ -205,6 +205,7 @@
     "pkgId": "DP20260508001",
     "carrierId": "SF",
     "carrierName": "顺丰",
+    "presetType": "CUSTOM",
     "recipientName": "张三",
     "recipientMobile": "13800000000",
     "recipientAddress": "浙江省杭州市西湖区xxx",
