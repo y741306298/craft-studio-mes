@@ -259,62 +259,68 @@ public class AppDeliveryPkgService {
         AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
         //添加打印记录
         DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
-        if (response.getSuccess()){
-            String kuaidinum = response.getData().getKuaidinum();
-            deliveryRecord.setKuaidiNum(kuaidinum);
+        boolean isResponseSuccess = response != null
+                && response.getCode() == ApiResponse.RepStatusCode.success
+                && Boolean.TRUE.equals(response.getSuccess());
+        if (!isResponseSuccess) {
+            String errorMsg = response == null || StringUtils.isBlank(response.getMessage())
+                    ? "快递100电子面单下单失败"
+                    : response.getMessage();
             deliveryRecord.setDeliveryTime(new Date());
-            deliveryRecord.setIsSuccess(true);
+            deliveryRecord.setIsSuccess(false);
+            deliveryRecord.setErrorMsg(errorMsg);
             deliveryRecordRepository.add(deliveryRecord);
+            // 返回错误原因；失败分支不更新生产零件，保证数量与状态保持原样
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
+        }
 
-            // 6. 获取快递单号并更新零件数量
-            if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
-                for (ProductionPiece productionPiece : productionPieces) {
-                    List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+        String kuaidinum = response.getData() == null ? null : response.getData().getKuaidinum();
+        deliveryRecord.setKuaidiNum(kuaidinum);
+        deliveryRecord.setDeliveryTime(new Date());
+        deliveryRecord.setIsSuccess(true);
+        deliveryRecordRepository.add(deliveryRecord);
 
-                    ProcedureFlowNode pendingPackingNode = null;
-                    ProcedureFlowNode packedNode = null;
-                    int pendingPackingIndex = -1;
+        // 6. 获取快递单号并更新零件数量
+        if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
+            for (ProductionPiece productionPiece : productionPieces) {
+                List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
 
-                    for (int i = 0; i < nodes.size(); i++) {
-                        ProcedureFlowNode node = nodes.get(i);
-                        if ("待打包".equals(node.getNodeName())) {
-                            pendingPackingNode = node;
-                            pendingPackingIndex = i;
-                        } else if ("已打包".equals(node.getNodeName())) {
-                            packedNode = node;
-                        }
+                ProcedureFlowNode pendingPackingNode = null;
+                ProcedureFlowNode packedNode = null;
+                int pendingPackingIndex = -1;
+
+                for (int i = 0; i < nodes.size(); i++) {
+                    ProcedureFlowNode node = nodes.get(i);
+                    if ("待打包".equals(node.getNodeName())) {
+                        pendingPackingNode = node;
+                        pendingPackingIndex = i;
+                    } else if ("已打包".equals(node.getNodeName())) {
+                        packedNode = node;
                     }
+                }
 
-                    if (pendingPackingNode != null && packedNode != null) {
-                        Integer quantity = productionPiece.getQuantity();
-                        if (quantity != null && quantity > 0) {
-                            Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
-                            pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
+                if (pendingPackingNode != null && packedNode != null) {
+                    Integer quantity = productionPiece.getQuantity();
+                    if (quantity != null && quantity > 0) {
+                        Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
+                        pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
 
-                            if (pendingPackingNode.getPieceQuantity() <= 0) {
-                                pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
-                            }
-
-                            Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
-                            packedNode.setPieceQuantity(packedQuantity + quantity);
-                            packedNode.setNodeStatus(NodeStatus.ACTIVE);
-                            DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
-                            deliveryPkgInfo.setCarrierId(carrierId);
-                            deliveryPkgInfo.setKuaidiNum(kuaidinum);
-                            deliveryPkgInfo.setQuantity(quantity);
-                            productionPiece.setDeliveryPkgInfos(productionPiece.getDeliveryPkgInfos());
-                            productionPieceService.updateProductionPiece(productionPiece);
+                        if (pendingPackingNode.getPieceQuantity() <= 0) {
+                            pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
                         }
+
+                        Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
+                        packedNode.setPieceQuantity(packedQuantity + quantity);
+                        packedNode.setNodeStatus(NodeStatus.ACTIVE);
+                        DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
+                        deliveryPkgInfo.setCarrierId(carrierId);
+                        deliveryPkgInfo.setKuaidiNum(kuaidinum);
+                        deliveryPkgInfo.setQuantity(quantity);
+                        productionPiece.setDeliveryPkgInfos(productionPiece.getDeliveryPkgInfos());
+                        productionPieceService.updateProductionPiece(productionPiece);
                     }
                 }
             }
-        }else{
-            deliveryRecord.setDeliveryTime(new Date());
-            deliveryRecord.setIsSuccess(false);
-            deliveryRecord.setErrorMsg(response.getMessage());
-            deliveryRecordRepository.add(deliveryRecord);
-            //返回错误原因
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,response.getMessage());
         }
 
         return response.getData() == null ? null : response.getData().getTaskId();
@@ -367,14 +373,13 @@ public class AppDeliveryPkgService {
                 || StringUtils.isBlank(request.getDeliveryManId())
                 || StringUtils.isBlank(request.getDeliverySiidId());
 
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
-
         if (!useCustomPackagingFlow) {
             DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, request.getManufacturerMetaId());
             useCustomPackagingFlow = deliveryToken == null;
         }
 
         if (useCustomPackagingFlow) {
+            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
@@ -396,8 +401,9 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
-        //调用配送系统打包，打印面单
+        // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
         String taskId = this.toPkg(toPkgRequest);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
