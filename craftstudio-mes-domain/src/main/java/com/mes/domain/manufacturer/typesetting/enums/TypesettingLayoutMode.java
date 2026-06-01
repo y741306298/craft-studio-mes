@@ -81,7 +81,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             0,
-            true
+            false
     ),
 
     /**

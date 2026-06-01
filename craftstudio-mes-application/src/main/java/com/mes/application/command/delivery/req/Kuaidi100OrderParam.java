@@ -129,9 +129,10 @@ public class Kuaidi100OrderParam {
         String payType = deliveryToken.getPayType();
         Kuaidi100OrderParam.setPayType(payType);
         //特殊处理名字，去掉备注
-        DeliveryManInfo recMan = DeliveryManInfo.fromDeliveryMan(sendMan);
+        DeliveryManInfo sendManInfo = DeliveryManInfo.fromDeliveryMan(sendMan);
         DeliveryManInfo recManInfo  = DeliveryManInfo.fromOrderCustomer(customer);
         Kuaidi100OrderParam.setRecMan(recManInfo);
+        Kuaidi100OrderParam.setSendMan(DeliveryManInfo.toDeliveryMan(sendManInfo));
         Kuaidi100OrderParam.setRemark(request.getRemark());
         return Kuaidi100OrderParam;
     }

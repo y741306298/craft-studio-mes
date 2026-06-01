@@ -396,6 +396,7 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
+        //调用配送系统打包，打印面单
         String taskId = this.toPkg(toPkgRequest);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);

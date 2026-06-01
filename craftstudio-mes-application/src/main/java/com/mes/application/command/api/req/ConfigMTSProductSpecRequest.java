@@ -11,4 +11,5 @@ public class ConfigMTSProductSpecRequest {
     private Integer stock;
     private UnitPrice unitPrice;
     private UnitPrice price;
+    private UnitPrice floorPrice;
 }

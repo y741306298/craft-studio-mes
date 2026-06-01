@@ -19,6 +19,8 @@ public class UpdateProcessPriceRequest extends ApiRequest {
 
     private Double basePrice;
 
+    private UnitPrice floorPrice;
+
     private List<MaterialProcessPriceRequest> materialProcessPrices;
 
     @Override
