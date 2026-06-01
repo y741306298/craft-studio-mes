@@ -259,62 +259,84 @@ public class AppDeliveryPkgService {
         AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
         //添加打印记录
         DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
-        if (response.getSuccess()){
-            String kuaidinum = response.getData().getKuaidinum();
-            deliveryRecord.setKuaidiNum(kuaidinum);
-            deliveryRecord.setDeliveryTime(new Date());
-            deliveryRecord.setIsSuccess(true);
-            deliveryRecordRepository.add(deliveryRecord);
-
-            // 6. 获取快递单号并更新零件数量
-            if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
-                for (ProductionPiece productionPiece : productionPieces) {
-                    List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
-
-                    ProcedureFlowNode pendingPackingNode = null;
-                    ProcedureFlowNode packedNode = null;
-                    int pendingPackingIndex = -1;
-
-                    for (int i = 0; i < nodes.size(); i++) {
-                        ProcedureFlowNode node = nodes.get(i);
-                        if ("待打包".equals(node.getNodeName())) {
-                            pendingPackingNode = node;
-                            pendingPackingIndex = i;
-                        } else if ("已打包".equals(node.getNodeName())) {
-                            packedNode = node;
-                        }
-                    }
-
-                    if (pendingPackingNode != null && packedNode != null) {
-                        Integer quantity = productionPiece.getQuantity();
-                        if (quantity != null && quantity > 0) {
-                            Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
-                            pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
-
-                            if (pendingPackingNode.getPieceQuantity() <= 0) {
-                                pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
-                            }
-
-                            Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
-                            packedNode.setPieceQuantity(packedQuantity + quantity);
-                            packedNode.setNodeStatus(NodeStatus.ACTIVE);
-                            DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
-                            deliveryPkgInfo.setCarrierId(carrierId);
-                            deliveryPkgInfo.setKuaidiNum(kuaidinum);
-                            deliveryPkgInfo.setQuantity(quantity);
-                            productionPiece.setDeliveryPkgInfos(productionPiece.getDeliveryPkgInfos());
-                            productionPieceService.updateProductionPiece(productionPiece);
-                        }
-                    }
-                }
-            }
-        }else{
+        boolean isResponseSuccess = response != null
+                && response.getCode() == ApiResponse.RepStatusCode.success
+                && Boolean.TRUE.equals(response.getSuccess());
+        if (!isResponseSuccess) {
+            String errorMsg = response == null || StringUtils.isBlank(response.getMessage())
+                    ? "快递100电子面单下单失败"
+                    : response.getMessage();
             deliveryRecord.setDeliveryTime(new Date());
             deliveryRecord.setIsSuccess(false);
-            deliveryRecord.setErrorMsg(response.getMessage());
+            deliveryRecord.setErrorMsg(errorMsg);
             deliveryRecordRepository.add(deliveryRecord);
-            //返回错误原因
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,response.getMessage());
+            // 返回错误原因；失败分支不更新生产零件，保证数量与状态保持原样
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
+        }
+
+        String kuaidinum = response.getData() == null ? null : response.getData().getKuaidinum();
+        deliveryRecord.setKuaidiNum(kuaidinum);
+        deliveryRecord.setDeliveryTime(new Date());
+        deliveryRecord.setIsSuccess(true);
+        deliveryRecordRepository.add(deliveryRecord);
+
+        // 6. 获取快递单号并更新零件数量
+        if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
+            for (ProductionPiece requestPiece : productionPieces) {
+                Integer packageQuantity = requestPiece == null ? null : requestPiece.getQuantity();
+                if (requestPiece == null || StringUtils.isBlank(requestPiece.getId())
+                        || packageQuantity == null || packageQuantity <= 0) {
+                    continue;
+                }
+
+                // addPkg 传入的 productionPiece 只携带打包数量等临时字段，不能直接 save，
+                // 否则会用不完整对象覆盖 MongoDB 原记录。这里重新读取完整生产件后再更新。
+                ProductionPiece productionPiece = productionPieceService.findById(requestPiece.getId());
+                if (productionPiece == null || productionPiece.getProcedureFlow() == null
+                        || productionPiece.getProcedureFlow().getNodes() == null) {
+                    continue;
+                }
+
+                List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+
+                ProcedureFlowNode pendingPackingNode = null;
+                ProcedureFlowNode packedNode = null;
+                int pendingPackingIndex = -1;
+
+                for (int i = 0; i < nodes.size(); i++) {
+                    ProcedureFlowNode node = nodes.get(i);
+                    if ("待打包".equals(node.getNodeName())) {
+                        pendingPackingNode = node;
+                        pendingPackingIndex = i;
+                    } else if ("已打包".equals(node.getNodeName())) {
+                        packedNode = node;
+                    }
+                }
+
+                if (pendingPackingNode != null && packedNode != null) {
+                    Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
+                    pendingPackingNode.setPieceQuantity(pendingQuantity - packageQuantity);
+
+                    if (pendingPackingNode.getPieceQuantity() <= 0) {
+                        pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
+                    }
+
+                    Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
+                    packedNode.setPieceQuantity(packedQuantity + packageQuantity);
+                    packedNode.setNodeStatus(NodeStatus.ACTIVE);
+                    DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
+                    deliveryPkgInfo.setCarrierId(carrierId);
+                    deliveryPkgInfo.setKuaidiNum(kuaidinum);
+                    deliveryPkgInfo.setQuantity(packageQuantity);
+                    List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
+                    if (pkgInfos == null) {
+                        pkgInfos = new ArrayList<>();
+                    }
+                    pkgInfos.add(deliveryPkgInfo);
+                    productionPiece.setDeliveryPkgInfos(pkgInfos);
+                    productionPieceService.updateProductionPiece(productionPiece);
+                }
+            }
         }
 
         return response.getData() == null ? null : response.getData().getTaskId();
@@ -367,14 +389,15 @@ public class AppDeliveryPkgService {
                 || StringUtils.isBlank(request.getDeliveryManId())
                 || StringUtils.isBlank(request.getDeliverySiidId());
 
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
-
         if (!useCustomPackagingFlow) {
             DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, request.getManufacturerMetaId());
             useCustomPackagingFlow = deliveryToken == null;
         }
 
+        String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
+
         if (useCustomPackagingFlow) {
+            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
@@ -396,8 +419,9 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
-        //调用配送系统打包，打印面单
+        // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
         String taskId = this.toPkg(toPkgRequest);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
@@ -547,8 +571,24 @@ public class AppDeliveryPkgService {
         return packedQty >= piece.getQuantity();
     }
 
+    private void revertPackagedOrderItems(java.util.Set<String> touchedOrderItemIds) {
+        if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
+            return;
+        }
+        for (String orderItemId : touchedOrderItemIds) {
+            if (StringUtils.isBlank(orderItemId)) {
+                continue;
+            }
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            if (orderItem != null && orderItem.getStatus() == OrderStatus.PACKAGED) {
+                orderItem.setStatus(OrderStatus.IN_PRODUCTION);
+                orderItemService.updateOrderItem(orderItem);
+            }
+        }
+    }
 
-    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String deliveryWay) {
+
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         String deliveryPkgId = IdGenerator.generateId("DP");
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
@@ -556,7 +596,8 @@ public class AppDeliveryPkgService {
         deliveryPkg.setOrderId(orderId);
         deliveryPkg.setCarrierId(carrierId);
         deliveryPkg.setCarrierName(carrierName);
-        deliveryPkg.setDeliveryWay(deliveryWay);
+        deliveryPkg.setDeliveryWay(presetType);
+        deliveryPkg.setPresetType(presetType);
         deliveryPkg.setDeliveryManId(request.getDeliveryManId());
         deliveryPkg.setDeliverySiidId(request.getDeliverySiidId());
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
@@ -603,6 +644,7 @@ public class AppDeliveryPkgService {
 
     public void releasePkg(String deliveryPkgId) {
         DeliveryPkg deliveryPkg = findByDeliveryPkgId(deliveryPkgId);
+        java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
         if (deliveryPkg.getDeliveryPkgItems() != null && !deliveryPkg.getDeliveryPkgItems().isEmpty()) {
             for (com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem pkgItem : deliveryPkg.getDeliveryPkgItems()) {
                 if (pkgItem.getProductionPieceId() == null) {
@@ -613,24 +655,45 @@ public class AppDeliveryPkgService {
                     if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                         continue;
                     }
-                    Optional<ProcedureFlowNode> pendingNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "待打包".equals(n.getNodeName())).findFirst();
-                    Optional<ProcedureFlowNode> packedNodeOpt = piece.getProcedureFlow().getNodes().stream().filter(n -> "已打包".equals(n.getNodeName())).findFirst();
+                    Optional<ProcedureFlowNode> pendingNodeOpt = piece.getProcedureFlow().getNodes().stream()
+                            .filter(n -> NODE_NAME_PENDING_PACKING.equals(n.getNodeName()))
+                            .findFirst();
+                    Optional<ProcedureFlowNode> packedNodeOpt = piece.getProcedureFlow().getNodes().stream()
+                            .filter(n -> NODE_NAME_PACKED.equals(n.getNodeName()))
+                            .findFirst();
                     if (pendingNodeOpt.isEmpty() || packedNodeOpt.isEmpty()) {
                         continue;
                     }
                     ProcedureFlowNode pendingNode = pendingNodeOpt.get();
                     ProcedureFlowNode packedNode = packedNodeOpt.get();
-                    int quantity = pkgItem.getQuantity() == null ? 0 : pkgItem.getQuantity();
+                    int releaseQuantity = pkgItem.getQuantity() == null ? 0 : pkgItem.getQuantity();
+                    if (releaseQuantity <= 0) {
+                        continue;
+                    }
                     int packedQty = packedNode.getPieceQuantity() == null ? 0 : packedNode.getPieceQuantity();
                     int pendingQty = pendingNode.getPieceQuantity() == null ? 0 : pendingNode.getPieceQuantity();
-                    packedNode.setPieceQuantity(Math.max(0, packedQty - quantity));
-                    pendingNode.setPieceQuantity(pendingQty + quantity);
+                    int actualReleaseQuantity = Math.min(releaseQuantity, packedQty);
+                    if (actualReleaseQuantity <= 0) {
+                        continue;
+                    }
+                    packedNode.setPieceQuantity(packedQty - actualReleaseQuantity);
+                    pendingNode.setPieceQuantity(pendingQty + actualReleaseQuantity);
                     pendingNode.setNodeStatus(NodeStatus.ACTIVE);
+                    if (packedNode.getPieceQuantity() <= 0) {
+                        packedNode.setNodeStatus(NodeStatus.PENDING);
+                    }
+                    if (TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
+                        piece.setStatus(TypesettingStatus.PRINTING.getCode());
+                    }
+                    if (StringUtils.isNotBlank(piece.getOrderItemId())) {
+                        touchedOrderItemIds.add(piece.getOrderItemId());
+                    }
                     productionPieceService.updateProductionPiece(piece);
                 }
             }
         }
 
+        revertPackagedOrderItems(touchedOrderItemIds);
         deliveryPkgService.deleteDeliveryPkg(deliveryPkg.getId());
     }
 

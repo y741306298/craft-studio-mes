@@ -36,6 +36,7 @@ public class DeliveryPkg extends BaseEntity {
     private Double volume;                        // 包裹体积（m³）
     
     private String deliveryWay;                   // 配送方式
+    private String presetType;                    // 实际配送预设类型
     private String trackingNumber;                // 运单号
     
     private Date packingStartTime;                // 打包开始时间
