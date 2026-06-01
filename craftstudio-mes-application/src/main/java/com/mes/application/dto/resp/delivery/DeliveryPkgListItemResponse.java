@@ -33,6 +33,7 @@ public class DeliveryPkgListItemResponse extends BaseEntity {
     private Double volume;
 
     private String deliveryWay;
+    private String presetType;
     private String trackingNumber;
 
     private Date packingStartTime;

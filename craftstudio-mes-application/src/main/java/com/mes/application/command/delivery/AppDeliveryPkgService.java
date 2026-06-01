@@ -394,8 +394,10 @@ public class AppDeliveryPkgService {
             useCustomPackagingFlow = deliveryToken == null;
         }
 
+        String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
+
         if (useCustomPackagingFlow) {
-            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
+            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
@@ -419,7 +421,7 @@ public class AppDeliveryPkgService {
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
         // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
         String taskId = this.toPkg(toPkgRequest);
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
@@ -586,7 +588,7 @@ public class AppDeliveryPkgService {
     }
 
 
-    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String deliveryWay) {
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         String deliveryPkgId = IdGenerator.generateId("DP");
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
@@ -594,7 +596,8 @@ public class AppDeliveryPkgService {
         deliveryPkg.setOrderId(orderId);
         deliveryPkg.setCarrierId(carrierId);
         deliveryPkg.setCarrierName(carrierName);
-        deliveryPkg.setDeliveryWay(deliveryWay);
+        deliveryPkg.setDeliveryWay(presetType);
+        deliveryPkg.setPresetType(presetType);
         deliveryPkg.setDeliveryManId(request.getDeliveryManId());
         deliveryPkg.setDeliverySiidId(request.getDeliverySiidId());
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
