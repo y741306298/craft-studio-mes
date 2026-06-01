@@ -226,6 +226,7 @@ public class DeliveryPkgController {
         result.setPkgId(deliveryPkg.getDeliveryPkgId());
         result.setCarrierId(deliveryPkg.getCarrierId());
         result.setCarrierName(deliveryPkg.getCarrierName());
+        result.setPresetType(deliveryPkg.getPresetType());
         result.setRecipientName(deliveryPkg.getRecipientName());
         result.setRecipientMobile(deliveryPkg.getRecipientPhone());
         result.setRecipientAddress(deliveryPkg.getRecipientAddress());
