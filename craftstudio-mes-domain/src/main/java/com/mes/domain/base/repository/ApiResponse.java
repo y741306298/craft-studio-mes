@@ -14,6 +14,7 @@ public class ApiResponse<T> {
         int jwtTokenInvalid = 401001;
         int requestTimeout = 408;
         int OutdatedMachineBind = 409;
+        int CANTCANCELORDER = 10002;
     }
 
     private int code = 200;

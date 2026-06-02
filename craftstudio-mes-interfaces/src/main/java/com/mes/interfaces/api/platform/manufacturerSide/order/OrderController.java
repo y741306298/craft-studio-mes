@@ -8,6 +8,7 @@ import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
 import com.mes.domain.base.repository.ApiResponse;
@@ -151,13 +152,12 @@ public class OrderController {
 
     /**
      * 取消订单
-     * @param rfId 制造商 ID（manufacturerMetaId）
-     * @param id 订单号（orderInfo.orderId）
+     * @param request 取消订单请求参数
      * @return 操作结果
      */
     @PostMapping("/cancel")
-    public ApiResponse<String> cancelOrder(@RequestParam String rfId, @RequestParam String id) {
-        return appOrderService.cancelOrder(rfId, id);
+    public ApiResponse<String> cancelOrder(@Valid @RequestBody CancelOrderRequest request) {
+        return appOrderService.cancelOrder(request.getManufacturerMetaId(), request.getOrderId());
     }
 
     /**

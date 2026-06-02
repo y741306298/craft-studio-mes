@@ -30,6 +30,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/manufacturerSide/**")
                 .excludePathPatterns(
                         "/api/manufacturerSide/order/add",
+                        "/api/manufacturerSide/order/cancel",
                         "/api/manufacturerSide/deliveryPkg/pkgDetail",
                         "/api/manufacturerSide/**/callback/**",
                         "/api/manufacturerSide/deviceCfg/factory/task/claim",

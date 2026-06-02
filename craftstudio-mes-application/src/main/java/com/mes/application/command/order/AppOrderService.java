@@ -239,7 +239,6 @@ public class AppOrderService {
      * @param orderId 订单号
      * @return 操作结果
      */
-    @Transactional
     public ApiResponse<String> cancelOrder(String manufacturerMetaId, String orderId) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
@@ -255,7 +254,7 @@ public class AppOrderService {
 
         List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, manufacturerMetaId, 1, 100);
         if (orderItems == null || orderItems.isEmpty()) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "未找到对应制造商的订单项");
+            return ApiResponse.fail(ApiResponse.RepStatusCode.CANTCANCELORDER, "未找到对应制造商的订单项");
         }
 
         Map<String, List<ProductionPiece>> piecesByOrderItemId = new HashMap<>();
