@@ -12,6 +12,8 @@ import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
+import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -100,6 +102,9 @@ public class AppOrderPreprocessingService {
     private ImageToImageSearchService imageToImageSearchService;
     @Autowired
     private TypesettingSequencePoolService typesettingSequencePoolService;
+
+    @Autowired
+    private LiubaiProcessService liubaiProcessService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -295,6 +300,7 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
+        applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);
@@ -611,6 +617,7 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
+                        applyLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
@@ -722,6 +729,20 @@ public class AppOrderPreprocessingService {
     public void indexProductionPieceImageForStrategy(ProductionPiece piece) {
         indexProductionPieceImage(piece);
     }
+
+
+    public void applyLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
+        if (liubaiProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+            return;
+        }
+        LiubaiProcessContext context = new LiubaiProcessContext();
+        context.setOrderItem(orderItem);
+        context.setProcedureFlow(procedureFlow);
+        context.setProductionPiece(piece);
+        context.setSkipBloodEdges(skipBloodEdges);
+        liubaiProcessService.process(context);
+    }
+
 
     public ProcedureService getProcedureService() {
         return procedureService;

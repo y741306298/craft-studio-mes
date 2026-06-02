@@ -39,6 +39,7 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         // 步骤4：创建并持久化生产零件。
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
+        processingService.applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
         processingService.getProductionPieceService().addProductionPiece(piece);
         // 步骤5：写入图搜索引并返回结果。
         processingService.indexProductionPieceImageForStrategy(piece);
