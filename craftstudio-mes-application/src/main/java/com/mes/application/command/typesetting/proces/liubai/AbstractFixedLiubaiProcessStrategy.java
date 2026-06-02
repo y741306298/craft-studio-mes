@@ -7,11 +7,11 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -148,15 +148,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * 确保生产工件已有 MongoDB _id。
      *
      * <p>留白 SVG 的外层/内层 g id 需要使用 productionPiece 的 _id。直接生成路线中，
-     * 留白处理发生在 addProductionPiece 之前，此时 _id 可能尚未由 MongoDB 生成；因此这里提前生成一个字符串 id，
-     * 后续持久化时 BasePO 会把该 id 作为 MongoDB _id 保存，保证 SVG 中的 id 与最终生产工件 _id 一致。</p>
+     * 留白处理发生在 addProductionPiece 之前，此时 _id 可能尚未由 MongoDB 生成；因此这里使用 MongoDB
+     * 原生 ObjectId 生成方式提前分配一个 _id，保持与原先 MongoDB 自动生成 _id 一致的 24 位十六进制格式。</p>
      *
      * @param piece 当前生产工件
      * @return productionPiece 的 MongoDB _id
      */
     private String ensureProductionPieceMongoId(ProductionPiece piece) {
         if (StringUtils.isBlank(piece.getId())) {
-            piece.setId(UUID.randomUUID().toString().replace("-", ""));
+            piece.setId(new ObjectId().toHexString());
         }
         return piece.getId();
     }
