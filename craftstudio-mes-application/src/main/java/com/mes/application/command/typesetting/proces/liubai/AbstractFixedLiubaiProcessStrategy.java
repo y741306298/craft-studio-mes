@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting.proces.liubai;
 
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
@@ -10,6 +11,13 @@ import io.micrometer.common.util.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.web.client.RestTemplate;
 
+import javax.imageio.ImageIO;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -113,8 +121,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
         ExpandMargins margins = resolveMargins(piece.getBlood(), context.isSkipBloodEdges());
         String pieceMongoId = ensureProductionPieceMongoId(piece);
-        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, originalWidth, originalHeight, margins);
+        String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
+        String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
+        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, markPngUrl, originalWidth, originalHeight, margins);
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, expandedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
@@ -145,6 +155,23 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     protected abstract String[] matchKeywords();
 
     /**
+     * 确保生产工件已有业务生产工件 ID。
+     *
+     * <p>留白外扩矩形 PNG 需要上传到 mark/{manufacturerMetaId}/{productionPieceId}/ 目录。
+     * 直接生成路线中，留白处理发生在 addProductionPiece 之前，因此 productionPieceId 可能尚未生成；
+     * 这里复用生产工件领域服务原有的 PP 编号生成方法提前赋值，避免上传路径和后续入库 ID 不一致。</p>
+     *
+     * @param piece 当前生产工件
+     * @return 生产工件业务 ID
+     */
+    private String ensureProductionPieceBusinessId(ProductionPiece piece) {
+        if (StringUtils.isBlank(piece.getProductionPieceId())) {
+            piece.setProductionPieceId(IdGenerator.generateId("PP"));
+        }
+        return piece.getProductionPieceId();
+    }
+
+    /**
      * 确保生产工件已有 MongoDB _id。
      *
      * <p>留白 SVG 的外层/内层 g id 需要使用 productionPiece 的 _id。直接生成路线中，
@@ -159,6 +186,56 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             piece.setId(new ObjectId().toHexString());
         }
         return piece.getId();
+    }
+
+    /**
+     * 生成并上传与外扩 SVG 同宽高的黑色边框矩形 PNG。
+     *
+     * <p>该 PNG 用作外层留白矩形 g 的 img 属性，上传目录固定为
+     * mark/{manufacturerMetaId}/{productionPieceId}/，便于后续排版/刀版流程按生产工件定位留白外框资源。</p>
+     *
+     * @param productionPieceId 生产工件业务 ID
+     * @param manufacturerMetaId 厂商 ID
+     * @param originalWidth 原始 SVG 宽度
+     * @param originalHeight 原始 SVG 高度
+     * @param margins 四边外扩量
+     * @return 上传后的 PNG 完整 URL
+     */
+    private String uploadOuterRectMarkPng(String productionPieceId,
+                                          String manufacturerMetaId,
+                                          double originalWidth,
+                                          double originalHeight,
+                                          ExpandMargins margins) {
+        double newWidth = originalWidth + margins.left + margins.right;
+        double newHeight = originalHeight + margins.top + margins.bottom;
+        String uploadPath = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
+        return ossTagUploadService.uploadTagPng(productionPieceId, createBorderPng(newWidth, newHeight), uploadPath);
+    }
+
+    /**
+     * 创建透明底黑色边框矩形 PNG。
+     *
+     * @param width PNG 宽度
+     * @param height PNG 高度
+     * @return PNG 文件字节数组
+     */
+    private byte[] createBorderPng(double width, double height) {
+        int imageWidth = Math.max(1, (int) Math.ceil(width));
+        int imageHeight = Math.max(1, (int) Math.ceil(height));
+        try {
+            BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = image.createGraphics();
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setColor(Color.BLACK);
+            graphics.setStroke(new BasicStroke(1F));
+            graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
+            graphics.dispose();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", outputStream);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("生成留白外框 PNG 失败", e);
+        }
     }
 
     /**
@@ -232,7 +309,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>SVG 结构说明：</p>
      * <ul>
      *     <li>根节点宽高和 viewBox 使用“原尺寸 + 四边外扩量”。</li>
-     *     <li>外层 g 只负责承载留白规格 id，格式为 liubai-{specName}-{productionPiece._id}。</li>
+     *     <li>外层 g 保持留白规格 id，格式为 liubai-{specName}-{productionPiece._id}，img 指向同宽高黑色边框 PNG。</li>
      *     <li>第一个 path 是外扩后的大矩形轮廓。</li>
      *     <li>内层 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等元数据。</li>
      *     <li>原 SVG 根节点内部内容会放入内层 g，并通过 translate(left, top) 移动到留白区域内。</li>
@@ -242,6 +319,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param originalMaskUrl 原始 mask SVG 地址，用于写入 data-source-name
      * @param piece 当前生产工件，用于读取图片地址
      * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成外层和内层 g 的 id
+     * @param markPngUrl 与外扩 SVG 同宽高的黑色边框 PNG URL，用作外层 g 的 img
      * @param originalWidth 原始 SVG 宽度
      * @param originalHeight 原始 SVG 高度
      * @param margins 四边外扩量
@@ -251,6 +329,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                     String originalMaskUrl,
                                     ProductionPiece piece,
                                     String pieceMongoId,
+                                    String markPngUrl,
                                     double originalWidth,
                                     double originalHeight,
                                     ExpandMargins margins) {
@@ -262,7 +341,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(newWidth) + "\" height=\"" + format(newHeight)
                 + "\" viewBox=\"0 0 " + format(newWidth) + " " + format(newHeight) + "\" version=\"1.1\" require-plt=\"true\">\n"
-                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\">\n"
+                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl) + "\">\n"
                 + "<path d=\"M0 0 H" + format(newWidth) + " V" + format(newHeight) + " H0 Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
                 + "<g id=\"" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(productImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(" + format(margins.left) + " " + format(margins.top) + ")\">\n"
