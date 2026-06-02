@@ -148,6 +148,18 @@ public class OrderController {
         return ApiResponse.success("success");
     }
 
+
+    /**
+     * 取消订单
+     * @param rfId 制造商 ID（manufacturerMetaId）
+     * @param id 订单号（orderInfo.orderId）
+     * @return 操作结果
+     */
+    @PostMapping("/cancel")
+    public ApiResponse<String> cancelOrder(@RequestParam String rfId, @RequestParam String id) {
+        return appOrderService.cancelOrder(rfId, id);
+    }
+
     /**
      * 切换订单项加急状态（加急/取消加急）
      * @param id 订单项 ID

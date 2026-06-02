@@ -5,10 +5,13 @@ import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.OrderAddRequest;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -16,11 +19,13 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class AppOrderService {
@@ -224,6 +229,105 @@ public class AppOrderService {
         // 入库成功后立即返回，预处理改为异步队列执行
         orderPreprocessTaskQueue.submit(orderItemsResult);
         return orderInfo;
+    }
+
+    /**
+     * 取消订单。
+     * 根据订单号和制造商 ID 查找订单及订单项，若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
+     *
+     * @param manufacturerMetaId 制造商 ID
+     * @param orderId 订单号
+     * @return 操作结果
+     */
+    @Transactional
+    public ApiResponse<String> cancelOrder(String manufacturerMetaId, String orderId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+        if (StringUtils.isBlank(orderId)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
+        }
+
+        OrderInfo orderInfo = domainOrderInfoService.findByOrderId(orderId);
+        if (orderInfo == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + orderId);
+        }
+
+        List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, manufacturerMetaId, 1, 100);
+        if (orderItems == null || orderItems.isEmpty()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "未找到对应制造商的订单项");
+        }
+
+        Map<String, List<ProductionPiece>> piecesByOrderItemId = new HashMap<>();
+        for (OrderItem orderItem : orderItems) {
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                    manufacturerMetaId,
+                    null,
+                    null,
+                    null,
+                    orderItem.getOrderItemId(),
+                    null,
+                    null,
+                    1,
+                    Integer.MAX_VALUE
+            );
+            List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
+            piecesByOrderItemId.put(orderItem.getOrderItemId(), safeProductionPieces);
+            if (safeProductionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单已经开始生产，无法取消");
+            }
+        }
+
+        orderInfo.setStatus(OrderStatus.RETURNED);
+        domainOrderInfoService.updateOrder(orderInfo);
+
+        for (OrderItem orderItem : orderItems) {
+            orderItem.setStatus(OrderStatus.RETURNED);
+            domainOrderItemService.updateOrderItem(orderItem);
+            for (ProductionPiece productionPiece : piecesByOrderItemId.getOrDefault(orderItem.getOrderItemId(), new ArrayList<>())) {
+                productionPieceService.deleteProductionPiece(productionPiece.getId());
+            }
+        }
+
+        return ApiResponse.success("success");
+    }
+
+    private boolean hasQuantityAfterPendingTypesettingNode(ProductionPiece productionPiece) {
+        if (productionPiece == null
+                || productionPiece.getProcedureFlow() == null
+                || productionPiece.getProcedureFlow().getNodes() == null
+                || productionPiece.getProcedureFlow().getNodes().isEmpty()) {
+            return false;
+        }
+
+        List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
+        int pendingTypesettingIndex = -1;
+        Integer pendingTypesettingOrder = null;
+        for (int i = 0; i < nodes.size(); i++) {
+            ProcedureFlowNode node = nodes.get(i);
+            if (node != null && Objects.equals("待排版", node.getNodeName())) {
+                pendingTypesettingIndex = i;
+                pendingTypesettingOrder = node.getNodeOrder();
+                break;
+            }
+        }
+        if (pendingTypesettingIndex < 0) {
+            return false;
+        }
+
+        for (int i = 0; i < nodes.size(); i++) {
+            ProcedureFlowNode node = nodes.get(i);
+            if (node == null || node.getPieceQuantity() == null || node.getPieceQuantity() <= 0) {
+                continue;
+            }
+            boolean isAfterPendingTypesetting = pendingTypesettingOrder != null && node.getNodeOrder() != null
+                    ? node.getNodeOrder() > pendingTypesettingOrder
+                    : i > pendingTypesettingIndex;
+            if (isAfterPendingTypesetting) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

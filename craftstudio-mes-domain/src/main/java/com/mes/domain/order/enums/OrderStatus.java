@@ -7,6 +7,7 @@ public enum OrderStatus {
     PENDING("PENDING", "待处理"),
     IN_PRODUCTION("IN_PRODUCTION", "生产中"),
     PACKAGED("PACKAGED", "已打包"),
+    RETURNED("RETURNED", "已退单"),
     FAILED("FAILED", "处理失败");
 
     private final String code;
