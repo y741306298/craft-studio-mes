@@ -233,40 +233,31 @@ public class AppOrderService {
 
     /**
      * 取消订单。
-     * 根据订单号和制造商 ID 查找订单及订单项，若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
+     * 根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
      *
-     * @param manufacturerMetaId 制造商 ID
+     * @param platformCode 平台号（可为空）
      * @param orderId 订单号
      * @return 操作结果
      */
-    public ApiResponse<String> cancelOrder(String manufacturerMetaId, String orderId) {
-        if (StringUtils.isBlank(manufacturerMetaId)) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
-        }
+    public ApiResponse<String> cancelOrder(String platformCode, String orderId) {
         if (StringUtils.isBlank(orderId)) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
         }
 
-        OrderInfo orderInfo = domainOrderInfoService.findByOrderId(orderId);
+        OrderInfo orderInfo = domainOrderInfoService.findByOrderIdAndPlatformCode(orderId, platformCode);
         if (orderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + orderId);
         }
 
-        List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, manufacturerMetaId, 1, 100);
+        List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, null, 1, 100);
         if (orderItems == null || orderItems.isEmpty()) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.CANTCANCELORDER, "未找到对应制造商的订单项");
+            return ApiResponse.fail(ApiResponse.RepStatusCode.CANTCANCELORDER, "未找到对应订单项");
         }
 
         Map<String, List<ProductionPiece>> piecesByOrderItemId = new HashMap<>();
         for (OrderItem orderItem : orderItems) {
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
-                    manufacturerMetaId,
-                    null,
-                    null,
-                    null,
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
                     orderItem.getOrderItemId(),
-                    null,
-                    null,
                     1,
                     Integer.MAX_VALUE
             );

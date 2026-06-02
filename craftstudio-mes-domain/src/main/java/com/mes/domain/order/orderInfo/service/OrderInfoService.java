@@ -52,12 +52,25 @@ public class OrderInfoService {
      * @return 订单信息实体
      */
     public OrderInfo findByOrderId(String orderId) {
+        return findByOrderIdAndPlatformCode(orderId, null);
+    }
+
+    /**
+     * 根据订单号和平台号查询订单信息。
+     * @param orderId 订单号
+     * @param platformCode 平台号（可为空）
+     * @return 订单信息实体
+     */
+    public OrderInfo findByOrderIdAndPlatformCode(String orderId, String platformCode) {
         if (StringUtils.isBlank(orderId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
         }
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("orderId", orderId);
+        if (StringUtils.isNotBlank(platformCode)) {
+            filters.put("platformCode", platformCode);
+        }
         List<OrderInfo> results = orderInfoRepository.filterList(1, 1, filters);
 
         return results.isEmpty() ? null : results.get(0);

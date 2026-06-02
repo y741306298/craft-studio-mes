@@ -22,5 +22,6 @@ public class OrderInfo extends BaseEntity {
     private OrderStatus status;
     private Date expectedDeliveryDate;
     private String remark;
+    private String platformCode;
 
 }
