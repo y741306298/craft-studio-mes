@@ -19,6 +19,8 @@ public class OrderAddRequest {
     private ConsigneeRequest consignee;
     private Long id;
     private String state;
+    private String note;
+    private String platformCode;
 
 
     public OrderInfo toOrderInfo() {
@@ -26,6 +28,8 @@ public class OrderAddRequest {
         orderInfo.setOrderId(String.valueOf(id));
         orderInfo.setCustomer(consignee.toOrderCustomer());
         orderInfo.setDeliveryAddress(consignee.getDetailAddress());
+        orderInfo.setRemark(note);
+        orderInfo.setPlatformCode(platformCode);
         orderInfo.setStatus(OrderStatus.PENDING);
         orderInfo.setExpectedDeliveryDate(new Date());
         return orderInfo;

@@ -157,7 +157,7 @@ public class OrderController {
      */
     @PostMapping("/cancel")
     public ApiResponse<String> cancelOrder(@Valid @RequestBody CancelOrderRequest request) {
-        return appOrderService.cancelOrder(request.getManufacturerMetaId(), request.getOrderId());
+        return appOrderService.cancelOrder(request.getPlatformCode(), request.getOrderId());
     }
 
     /**

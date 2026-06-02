@@ -69,7 +69,9 @@ public class OrderItemService {
 
         java.util.Map<String, Object> filters = new java.util.HashMap<>();
         filters.put("orderId", orderId);
-        filters.put("manufacturerId", manufacturerId);
+        if (StringUtils.isNotBlank(manufacturerId)) {
+            filters.put("manufacturerId", manufacturerId);
+        }
         return orderItemRepository.filterList(current, size, filters);
     }
 

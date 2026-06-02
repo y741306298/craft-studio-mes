@@ -6,8 +6,7 @@ import lombok.Data;
 @Data
 public class CancelOrderRequest {
     
-    @NotBlank(message = "制造商ID不能为空")
-    private String manufacturerMetaId;
+    private String platformCode;
     
     @NotBlank(message = "订单号不能为空")
     private String orderId;
