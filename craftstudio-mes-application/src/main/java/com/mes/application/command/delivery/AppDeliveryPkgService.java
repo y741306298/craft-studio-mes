@@ -231,6 +231,11 @@ public class AppDeliveryPkgService {
     }
 
     public String toPkg(DeliveryPkgRequest request) {
+        DeliveryPkgPrintResult result = executePkg(request);
+        return result == null ? null : result.getTaskId();
+    }
+
+    private DeliveryPkgPrintResult executePkg(DeliveryPkgRequest request) {
         String url = "https://api.kuaidi100.com/label/order";
         String deliveryManId = request.getDeliveryManId();
         String orderId = request.getOrderId();
@@ -339,7 +344,10 @@ public class AppDeliveryPkgService {
             }
         }
 
-        return response.getData() == null ? null : response.getData().getTaskId();
+        if (response.getData() == null) {
+            return null;
+        }
+        return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
     }
 
     public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
@@ -397,7 +405,7 @@ public class AppDeliveryPkgService {
         String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
 
         if (useCustomPackagingFlow) {
-            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
+            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, null);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
@@ -420,8 +428,10 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
         // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
-        String taskId = this.toPkg(toPkgRequest);
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType);
+        DeliveryPkgPrintResult printResult = this.executePkg(toPkgRequest);
+        String taskId = printResult == null ? null : printResult.getTaskId();
+        String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, kuaidiNum);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
@@ -588,7 +598,7 @@ public class AppDeliveryPkgService {
     }
 
 
-    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType) {
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType, String kuaidiNum) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         String deliveryPkgId = IdGenerator.generateId("DP");
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
@@ -603,6 +613,7 @@ public class AppDeliveryPkgService {
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
         deliveryPkg.setRouteId(request.getRouteId());
         deliveryPkg.setRouteNodeId(request.getRouteNodeId());
+        deliveryPkg.setRemarks(buildDeliveryPkgRemarks(orderId, presetType, kuaidiNum));
 
         List<com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem> pkgItems = new ArrayList<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
@@ -629,6 +640,43 @@ public class AppDeliveryPkgService {
         }
 
         return deliveryPkgService.createDeliveryPkg(deliveryPkg);
+    }
+
+
+    private String buildDeliveryPkgRemarks(String orderId, String presetType, String kuaidiNum) {
+        List<String> remarkParts = new ArrayList<>();
+        if (StringUtils.isNotBlank(orderId)) {
+            remarkParts.add("orderId:" + orderId);
+        }
+        if (!"CUSTOM".equalsIgnoreCase(presetType)) {
+            remarkParts.add("kuaidiNum:" + (StringUtils.isBlank(kuaidiNum) ? "" : kuaidiNum));
+        }
+
+        if (StringUtils.isNotBlank(orderId)) {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+                remarkParts.add(orderInfo.getRemark());
+            }
+        }
+        return String.join("\n", remarkParts);
+    }
+
+    private static class DeliveryPkgPrintResult {
+        private final String taskId;
+        private final String kuaidiNum;
+
+        private DeliveryPkgPrintResult(String taskId, String kuaidiNum) {
+            this.taskId = taskId;
+            this.kuaidiNum = kuaidiNum;
+        }
+
+        private String getTaskId() {
+            return taskId;
+        }
+
+        private String getKuaidiNum() {
+            return kuaidiNum;
+        }
     }
 
     public DeliveryPkg findByDeliveryPkgId(String deliveryPkgId) {
