@@ -2,6 +2,8 @@ package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
@@ -38,13 +40,18 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
     private static final int ELEMENT_D_OFFSET_Y_MM = 8;
     private static final int ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM = 203;
     private static final int ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM = 303;
+    private static final int ELEMENT_LINE_HEIGHT_SHIFT_THRESHOLD_MM = 2400;
+    private static final int ELEMENT_LINE_EXTRA_LEFT_SHIFT_MM = 6;
 
     private final TypesettingService typesettingService;
+    private final ProductionPieceService productionPieceService;
 
     public CaifuOpenBackA30HNoFilmLayoutBuildService(OssTagUploadService ossTagUploadService,
-                                                     TypesettingService typesettingService) {
+                                                     TypesettingService typesettingService,
+                                                     ProductionPieceService productionPieceService) {
         super(ossTagUploadService);
         this.typesettingService = typesettingService;
+        this.productionPieceService = productionPieceService;
     }
 
     @Override
@@ -115,10 +122,11 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
                         h -> ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, h), tagUploadSubDir));
                 lineHeight = svgHeight;
             }
+            double extraLeftShift = shouldShiftElementLineLeft(band) ? ELEMENT_LINE_EXTRA_LEFT_SHIFT_MM : 0;
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY));
+                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0) - extraLeftShift, lineY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY));
+                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0) - extraLeftShift, lineY));
         }
 
         if (context.getTypesettingInfo() != null) {
@@ -237,6 +245,49 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         }
         List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(band.relatedTypesettingId);
         return infos != null && !infos.isEmpty() && infos.get(0) != null && Boolean.TRUE.equals(infos.get(0).getHaveBlood());
+    }
+
+    private boolean shouldShiftElementLineLeft(MarkerBand band) {
+        if (band == null) {
+            return false;
+        }
+        double relatedHeight = resolveRelatedItemHeight(band.relatedTypesettingId);
+        double height = Double.isNaN(relatedHeight) ? band.height : relatedHeight;
+        return !Double.isNaN(height) && height > ELEMENT_LINE_HEIGHT_SHIFT_THRESHOLD_MM;
+    }
+
+    private double resolveRelatedItemHeight(String id) {
+        if (StringUtils.isBlank(id)) {
+            return Double.NaN;
+        }
+        TypesettingInfo typesettingInfo = findTypesettingInfoById(id);
+        if (typesettingInfo != null && typesettingInfo.getElement() != null && typesettingInfo.getElement().getHeight() != null) {
+            return typesettingInfo.getElement().getHeight().doubleValue();
+        }
+        try {
+            ProductionPiece productionPiece = productionPieceService.findById(id);
+            if (productionPiece != null && productionPiece.getHeight() != null) {
+                return productionPiece.getHeight();
+            }
+        } catch (Exception ignored) {
+            return Double.NaN;
+        }
+        return Double.NaN;
+    }
+
+    private TypesettingInfo findTypesettingInfoById(String id) {
+        if (StringUtils.isBlank(id)) {
+            return null;
+        }
+        TypesettingInfo infoById = typesettingService.findById(id);
+        if (infoById != null) {
+            return infoById;
+        }
+        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(id);
+        if (infos != null && !infos.isEmpty()) {
+            return infos.get(0);
+        }
+        return null;
     }
 
     private double resolveGroupHeightById(Element root, String groupId) {
