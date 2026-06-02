@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -111,9 +112,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
 
         ExpandMargins margins = resolveMargins(piece.getBlood(), context.isSkipBloodEdges());
-        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, originalWidth, originalHeight, margins);
+        String pieceMongoId = ensureProductionPieceMongoId(piece);
+        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, originalWidth, originalHeight, margins);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
-        String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : context.getOrderItem().getOrderItemId();
+        String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, expandedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
         updateMaskImageFile(piece, newMaskUrl);
@@ -122,7 +124,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     /**
-     * 当前实体策略的规格名称，用于生成 SVG 分组 id，便于排查最终 mask 来自哪套留白策略。
+     * 当前实体策略的规格名称，用于生成外层 SVG 分组 id，便于排查最终 mask 来自哪套留白策略。
      *
      * @return 规格名称，例如 3cm 或 5cm
      */
@@ -141,6 +143,23 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @return 规格匹配关键字，例如 留白5cm、5cm、50mm、50毫米
      */
     protected abstract String[] matchKeywords();
+
+    /**
+     * 确保生产工件已有 MongoDB _id。
+     *
+     * <p>留白 SVG 的外层/内层 g id 需要使用 productionPiece 的 _id。直接生成路线中，
+     * 留白处理发生在 addProductionPiece 之前，此时 _id 可能尚未由 MongoDB 生成；因此这里提前生成一个字符串 id，
+     * 后续持久化时 BasePO 会把该 id 作为 MongoDB _id 保存，保证 SVG 中的 id 与最终生产工件 _id 一致。</p>
+     *
+     * @param piece 当前生产工件
+     * @return productionPiece 的 MongoDB _id
+     */
+    private String ensureProductionPieceMongoId(ProductionPiece piece) {
+        if (StringUtils.isBlank(piece.getId())) {
+            piece.setId(UUID.randomUUID().toString().replace("-", ""));
+        }
+        return piece.getId();
+    }
 
     /**
      * 根据 blood 信息计算四边外扩量。
@@ -213,14 +232,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>SVG 结构说明：</p>
      * <ul>
      *     <li>根节点宽高和 viewBox 使用“原尺寸 + 四边外扩量”。</li>
-     *     <li>外层 g 带 img、data-source-name、data-forme、data-rotation 等算法/排版需要的元数据。</li>
+     *     <li>外层 g 只负责承载留白规格 id，格式为 liubai-{specName}-{productionPiece._id}。</li>
      *     <li>第一个 path 是外扩后的大矩形轮廓。</li>
+     *     <li>内层 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等元数据。</li>
      *     <li>原 SVG 根节点内部内容会放入内层 g，并通过 translate(left, top) 移动到留白区域内。</li>
      * </ul>
      *
      * @param originalSvg 原始 mask SVG 文本
      * @param originalMaskUrl 原始 mask SVG 地址，用于写入 data-source-name
-     * @param piece 当前生产工件，用于读取图片地址和生产工件 ID
+     * @param piece 当前生产工件，用于读取图片地址
+     * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成外层和内层 g 的 id
      * @param originalWidth 原始 SVG 宽度
      * @param originalHeight 原始 SVG 高度
      * @param margins 四边外扩量
@@ -229,6 +250,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private String buildExpandedSvg(String originalSvg,
                                     String originalMaskUrl,
                                     ProductionPiece piece,
+                                    String pieceMongoId,
                                     double originalWidth,
                                     double originalHeight,
                                     ExpandMargins margins) {
@@ -240,10 +262,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(newWidth) + "\" height=\"" + format(newHeight)
                 + "\" viewBox=\"0 0 " + format(newWidth) + " " + format(newHeight) + "\" version=\"1.1\" require-plt=\"true\">\n"
-                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(piece.getProductionPieceId()) + "\" img=\"" + escapeAttr(productImg)
-                + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
+                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\">\n"
                 + "<path d=\"M0 0 H" + format(newWidth) + " V" + format(newHeight) + " H0 Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
-                + "<g id=\"liubai-original\" transform=\"translate(" + format(margins.left) + " " + format(margins.top) + ")\">\n"
+                + "<g id=\"" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(productImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(" + format(margins.left) + " " + format(margins.top) + ")\">\n"
                 + inner + "\n"
                 + "</g>\n"
                 + "</g></svg>";
