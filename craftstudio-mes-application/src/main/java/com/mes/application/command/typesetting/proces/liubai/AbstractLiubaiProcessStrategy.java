@@ -62,7 +62,7 @@ public abstract class AbstractLiubaiProcessStrategy {
      * 执行实体留白策略。
      *
      * <p>实现类通常需要读取 {@link LiubaiProcessContext#getProductionPiece()} 的原始 mask SVG，
-     * 生成新的外扩 SVG 与 mark PNG，上传后分别回写 productionPiece.maskImageFile、productionPiece.markImageFile，并同步修正工件宽高。</p>
+     * 生成新的外扩 SVG 与 mark PNG，上传后分别回写 productionPiece.maskImageFile、productionPiece.marks，并同步修正工件宽高。</p>
      *
      * @param context 留白处理上下文
      */

@@ -11,6 +11,7 @@ import lombok.EqualsAndHashCode;
 import org.w3c.dom.Node;
 
 import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -33,12 +34,13 @@ public class ProductionPiece extends BaseEntity {
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
     /**
-     * 生产工件关联的 mark 图。
+     * 生产工件附加标记资源。
      *
-     * <p>留白工艺会生成一张与外扩矩形同宽高的黑色边框 PNG，并将该 PNG 作为 mark 保存到这里，
-     * 方便后续排版、刀版或下载流程直接从生产工件上读取留白外框资源。</p>
+     * <p>结构参考 TypesettingInfo.marks，key 表示 mark 类型，value 表示 mark 文件的 OSS 地址。
+     * 留白工艺会将与外扩矩形同宽高的黑色边框 PNG 保存到该 Map 中，便于后续排版、刀版或下载流程
+     * 直接从生产工件上读取留白外框资源。</p>
      */
-    private ImageFile markImageFile;
+    private Map<String, String> marks;
     private Double width;
     private Double height;
     private Blood blood;

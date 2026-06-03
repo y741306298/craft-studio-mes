@@ -19,7 +19,9 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -108,7 +110,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *     <li>读取当前 productionPiece.maskImageFile.rawFile 指向的原始 mask SVG。</li>
      *     <li>解析原始 SVG 宽高，解析失败时退回使用 productionPiece.width/height。</li>
      *     <li>根据是否需要跳过出血边计算四边外扩量。</li>
-     *     <li>生成与外扩矩形同宽高的 mark PNG，上传后保存到 productionPiece.markImageFile。</li>
+     *     <li>生成与外扩矩形同宽高的 mark PNG，上传后保存到 productionPiece.marks。</li>
      *     <li>生成由留白矩形 g 与原图 g 两个并列分组组成的新 SVG。</li>
      *     <li>上传新 SVG，回写 productionPiece.maskImageFile，并更新生产工件宽高。</li>
      * </ol>
@@ -137,7 +139,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
-        updateMarkImageFile(piece, markPngUrl);
+        updateMarks(piece, markPngUrl);
         String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, originalWidth, originalHeight, margins);
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
@@ -205,7 +207,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 生成并上传与外扩 SVG 同宽高的黑色边框矩形 PNG。
      *
-     * <p>该 PNG 会作为 productionPiece.markImageFile 保存，上传目录固定为
+     * <p>该 PNG 会作为 productionPiece.marks 中的留白 mark 保存，上传目录固定为
      * mark/{manufacturerMetaId}/{productionPieceId}/，便于后续排版/刀版流程按生产工件定位留白外框资源。</p>
      * <p>注意：外扩 SVG 宽高单位是 mm，PNG 实际像素宽高会按 36dpi 换算。</p>
      *
@@ -438,29 +440,33 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     /**
-     * 将新上传的留白 mark PNG 地址回写到生产工件。
+     * 将新上传的留白 mark PNG 地址回写到生产工件 marks。
      *
-     * <p>留白工艺要求外扩矩形 PNG 作为 mark 保存在 productionPiece 上，因此 rawFile、preview.raw、
-     * preview、thumbnail 都统一指向该 PNG 地址，方便后续流程直接读取 markImageFile。</p>
+     * <p>productionPiece.marks 的结构参考 TypesettingInfo.marks：key 表示 mark 类型，value 表示 OSS 地址。
+     * 留白只会为当前生产工件保存一个外扩矩形 mark，因此使用 liubai-{specName} 作为 key，
+     * 后续流程可以按该 key 读取对应的留白外框 PNG。</p>
      *
      * @param piece 当前生产工件
      * @param markUrl 新上传的留白 mark PNG URL
      */
-    private void updateMarkImageFile(ProductionPiece piece, String markUrl) {
-        ImageFile markFile = piece.getMarkImageFile();
-        if (markFile == null) {
-            markFile = new ImageFile();
-            piece.setMarkImageFile(markFile);
+    private void updateMarks(ProductionPiece piece, String markUrl) {
+        Map<String, String> marks = piece.getMarks();
+        if (marks == null) {
+            marks = new LinkedHashMap<>();
+            piece.setMarks(marks);
         }
-        markFile.setRawFile(markUrl);
-        FilePreview preview = markFile.getFilePreview();
-        if (preview == null) {
-            preview = new FilePreview();
-            markFile.setFilePreview(preview);
-        }
-        preview.setRaw(markUrl);
-        preview.setPreview(markUrl);
-        preview.setThumbnail(markUrl);
+        marks.put(liubaiMarkKey(), markUrl);
+    }
+
+    /**
+     * 生成 productionPiece.marks 中保存留白 mark 的 key。
+     *
+     * <p>key 只表达 mark 类型与留白规格，不携带 productionPieceId；productionPiece 本身已经限定了资源归属。</p>
+     *
+     * @return 留白 mark key，例如 liubai-3cm 或 liubai-5cm
+     */
+    private String liubaiMarkKey() {
+        return "liubai-" + specName();
     }
 
     /**

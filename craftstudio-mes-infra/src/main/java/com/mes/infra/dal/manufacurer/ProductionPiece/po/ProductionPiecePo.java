@@ -13,6 +13,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -33,6 +34,13 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String positionCode;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    /**
+     * 生产工件附加标记资源。
+     *
+     * <p>结构与 ProductionPiece.marks / TypesettingInfo.marks 保持一致，key 表示 mark 类型，value 表示 OSS 地址。
+     * 留白预处理生成的外框 PNG 会写入这里并持久化到 productionPiece 集合。</p>
+     */
+    private Map<String, String> marks;
     private String routeImg;
     private String routeSvg;
     private Double width;
@@ -68,6 +76,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setRouteSvg(this.routeSvg);
         piece.setProductImageFile(this.productImageFile);
         piece.setMaskImageFile(this.maskImageFile);
+        piece.setMarks(this.marks);
         if (piece.getProductImageFile() != null && this.routeImg != null) {
             piece.setRouteImg(this.routeImg);
         }
@@ -109,6 +118,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.routeSvg = _do.getRouteSvg();
         this.productImageFile = _do.getProductImageFile();
         this.maskImageFile = _do.getMaskImageFile();
+        this.marks = _do.getMarks();
         if (this.routeImg == null) {
             this.routeImg = _do.getProductImageFile() == null ? null : _do.getRouteImg();
         }
