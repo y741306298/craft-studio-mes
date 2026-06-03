@@ -32,6 +32,13 @@ public class ProductionPiece extends BaseEntity {
     private String routeSvg;
     private ImageFile productImageFile;
     private ImageFile maskImageFile;
+    /**
+     * 生产工件关联的 mark 图。
+     *
+     * <p>留白工艺会生成一张与外扩矩形同宽高的黑色边框 PNG，并将该 PNG 作为 mark 保存到这里，
+     * 方便后续排版、刀版或下载流程直接从生产工件上读取留白外框资源。</p>
+     */
+    private ImageFile markImageFile;
     private Double width;
     private Double height;
     private Blood blood;

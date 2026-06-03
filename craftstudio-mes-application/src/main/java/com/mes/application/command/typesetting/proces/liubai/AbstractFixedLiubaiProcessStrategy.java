@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  * <p>设计目的：</p>
  * <ul>
  *     <li>“留白3cm”“留白5cm”等固定尺寸留白的处理流程完全一致，仅匹配关键字和外扩毫米数不同。</li>
- *     <li>该基类集中实现 SVG 拉取、尺寸解析、非出血边外扩、SVG 生成、OSS 上传与工件字段回写。</li>
+ *     <li>该基类集中实现 SVG 拉取、尺寸解析、非出血边外扩、SVG 生成、mark PNG 生成、OSS 上传与工件字段回写。</li>
  *     <li>具体规格策略只需要提供规格名称、外扩毫米数和匹配关键字，避免多套留白策略复制同一份 SVG 处理逻辑。</li>
  * </ul>
  */
@@ -37,9 +37,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * PNG 标记图使用的输出 DPI。
      *
-     * <p>外扩 SVG 的宽高单位按业务约定为 mm，生成 PNG 时需要按照 32dpi 将 mm 换算成像素。</p>
+     * <p>外扩 SVG 的宽高单位按业务约定为 mm，生成 PNG 时需要按照 36dpi 将 mm 换算成像素。</p>
      */
-    private static final double MARK_PNG_DPI = 32D;
+    private static final double MARK_PNG_DPI = 36D;
 
     /**
      * 毫米与英寸换算常量。
@@ -57,7 +57,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
 
     /**
-     * 提取原 SVG 根节点内部内容，用于包入新生成的外扩 SVG 内层 g。
+     * 提取原 SVG 根节点内部内容，用于放入新生成的原图 g。
      */
     private static final Pattern SVG_INNER_PATTERN = Pattern.compile("<svg\\b[^>]*>([\\s\\S]*?)</svg>", Pattern.CASE_INSENSITIVE);
 
@@ -108,7 +108,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *     <li>读取当前 productionPiece.maskImageFile.rawFile 指向的原始 mask SVG。</li>
      *     <li>解析原始 SVG 宽高，解析失败时退回使用 productionPiece.width/height。</li>
      *     <li>根据是否需要跳过出血边计算四边外扩量。</li>
-     *     <li>生成外层大矩形 SVG，并把原 SVG 内容包入内层 g。</li>
+     *     <li>生成与外扩矩形同宽高的 mark PNG，上传后保存到 productionPiece.markImageFile。</li>
+     *     <li>生成由留白矩形 g 与原图 g 两个并列分组组成的新 SVG。</li>
      *     <li>上传新 SVG，回写 productionPiece.maskImageFile，并更新生产工件宽高。</li>
      * </ol>
      *
@@ -136,7 +137,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
-        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, markPngUrl, originalWidth, originalHeight, margins);
+        updateMarkImageFile(piece, markPngUrl);
+        String expandedSvg = buildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, originalWidth, originalHeight, margins);
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, expandedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
@@ -203,9 +205,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 生成并上传与外扩 SVG 同宽高的黑色边框矩形 PNG。
      *
-     * <p>该 PNG 用作外层留白矩形 g 的 img 属性，上传目录固定为
+     * <p>该 PNG 会作为 productionPiece.markImageFile 保存，上传目录固定为
      * mark/{manufacturerMetaId}/{productionPieceId}/，便于后续排版/刀版流程按生产工件定位留白外框资源。</p>
-     * <p>注意：外扩 SVG 宽高单位是 mm，PNG 实际像素宽高会按 32dpi 换算。</p>
+     * <p>注意：外扩 SVG 宽高单位是 mm，PNG 实际像素宽高会按 36dpi 换算。</p>
      *
      * @param productionPieceId 生产工件业务 ID
      * @param manufacturerMetaId 厂商 ID
@@ -252,7 +254,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     /**
-     * 将毫米尺寸按照 32dpi 换算为像素。
+     * 将毫米尺寸按照 36dpi 换算为像素。
      *
      * @param valueMm 毫米尺寸
      * @return 对应像素数，最小为 1
@@ -332,17 +334,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>SVG 结构说明：</p>
      * <ul>
      *     <li>根节点宽高和 viewBox 使用“原尺寸 + 四边外扩量”。</li>
-     *     <li>外层 g 保持留白规格 id，格式为 liubai-{specName}-{productionPiece._id}，img 指向同宽高黑色边框 PNG。</li>
-     *     <li>第一个 path 是外扩后的大矩形轮廓。</li>
-     *     <li>内层 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等元数据。</li>
-     *     <li>原 SVG 根节点内部内容会放入内层 g，并通过 translate(left, top) 移动到留白区域内。</li>
+     *     <li>第一个并列 g 是留白矩形分组，id 格式为 liubai-{specName}-{productionPiece._id}，不挂载 img。</li>
+     *     <li>第一个并列 g 内只放置外扩后的大矩形 path。</li>
+     *     <li>第二个并列 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等原图元数据。</li>
+     *     <li>原 SVG 根节点内部内容会放入第二个并列 g，并通过 translate(left, top) 移动到留白区域内。</li>
      * </ul>
      *
      * @param originalSvg 原始 mask SVG 文本
      * @param originalMaskUrl 原始 mask SVG 地址，用于写入 data-source-name
      * @param piece 当前生产工件，用于读取图片地址
      * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成外层和内层 g 的 id
-     * @param markPngUrl 与外扩 SVG 同宽高的黑色边框 PNG URL，用作外层 g 的 img
      * @param originalWidth 原始 SVG 宽度
      * @param originalHeight 原始 SVG 高度
      * @param margins 四边外扩量
@@ -352,7 +353,6 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                     String originalMaskUrl,
                                     ProductionPiece piece,
                                     String pieceMongoId,
-                                    String markPngUrl,
                                     double originalWidth,
                                     double originalHeight,
                                     ExpandMargins margins) {
@@ -364,12 +364,12 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(newWidth) + "\" height=\"" + format(newHeight)
                 + "\" viewBox=\"0 0 " + format(newWidth) + " " + format(newHeight) + "\" version=\"1.1\" require-plt=\"true\">\n"
-                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl) + "\">\n"
+                + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\">\n"
                 + "<path d=\"M0 0 H" + format(newWidth) + " V" + format(newHeight) + " H0 Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
+                + "</g>\n"
                 + "<g id=\"" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(productImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(" + format(margins.left) + " " + format(margins.top) + ")\">\n"
                 + inner + "\n"
-                + "</g>\n"
                 + "</g></svg>";
     }
 
@@ -435,6 +435,32 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return String.valueOf((long) Math.rint(value));
         }
         return String.format(Locale.ROOT, "%.4f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
+    }
+
+    /**
+     * 将新上传的留白 mark PNG 地址回写到生产工件。
+     *
+     * <p>留白工艺要求外扩矩形 PNG 作为 mark 保存在 productionPiece 上，因此 rawFile、preview.raw、
+     * preview、thumbnail 都统一指向该 PNG 地址，方便后续流程直接读取 markImageFile。</p>
+     *
+     * @param piece 当前生产工件
+     * @param markUrl 新上传的留白 mark PNG URL
+     */
+    private void updateMarkImageFile(ProductionPiece piece, String markUrl) {
+        ImageFile markFile = piece.getMarkImageFile();
+        if (markFile == null) {
+            markFile = new ImageFile();
+            piece.setMarkImageFile(markFile);
+        }
+        markFile.setRawFile(markUrl);
+        FilePreview preview = markFile.getFilePreview();
+        if (preview == null) {
+            preview = new FilePreview();
+            markFile.setFilePreview(preview);
+        }
+        preview.setRaw(markUrl);
+        preview.setPreview(markUrl);
+        preview.setThumbnail(markUrl);
     }
 
     /**

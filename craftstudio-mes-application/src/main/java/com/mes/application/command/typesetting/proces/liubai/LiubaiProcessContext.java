@@ -30,7 +30,7 @@ public class LiubaiProcessContext {
     private ProcedureFlow procedureFlow;
 
     /**
-     * 当前已经创建但可能尚未持久化的生产工件，留白策略会回写其 maskImageFile 与宽高。
+     * 当前已经创建但可能尚未持久化的生产工件，留白策略会回写其 maskImageFile、markImageFile 与宽高。
      */
     private ProductionPiece productionPiece;
 

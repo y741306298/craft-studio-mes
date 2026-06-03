@@ -758,7 +758,7 @@ public class AppOrderPreprocessingService {
      *
      * @param orderItem 当前订单项，用于策略读取上传路径、业务 ID 与工艺上下文
      * @param procedureFlow 已解析工艺流程，用于匹配是否存在留白及具体留白规格
-     * @param piece 当前生产工件，策略会回写 maskImageFile 与宽高
+     * @param piece 当前生产工件，策略会回写 maskImageFile、markImageFile 与宽高
      * @param skipBloodEdges 是否根据 piece.blood 跳过出血边外扩；直接路线传 false，callback 路线传 true
      */
     public void applyLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
