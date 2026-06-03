@@ -12,6 +12,8 @@ import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
+import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -100,6 +102,18 @@ public class AppOrderPreprocessingService {
     private ImageToImageSearchService imageToImageSearchService;
     @Autowired
     private TypesettingSequencePoolService typesettingSequencePoolService;
+
+    /**
+     * 留白工艺处理服务。
+     *
+     * <p>订单预处理会在两条路线调用该服务：</p>
+     * <ul>
+     *     <li>无超幅拼接路线：生产工件创建后、持久化前同步外扩 mask。</li>
+     *     <li>超幅拼接 callback 路线：算法回调创建生产工件并写入 blood 后，同步外扩非出血边。</li>
+     * </ul>
+     */
+    @Autowired
+    private LiubaiProcessService liubaiProcessService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -295,6 +309,8 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
+        // 无超幅拼接/异形切割路线：先生成等幅矩形 mask，再在持久化前按留白工艺同步外扩四边。
+        applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);
@@ -611,6 +627,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
+                        // 超幅拼接 callback 路线：此时 piece.blood 已经来自算法回调，可据此跳过出血边，仅外扩非出血边。
+                        applyLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
@@ -722,6 +740,39 @@ public class AppOrderPreprocessingService {
     public void indexProductionPieceImageForStrategy(ProductionPiece piece) {
         indexProductionPieceImage(piece);
     }
+
+
+    /**
+     * 执行订单预处理阶段的留白工艺处理。
+     *
+     * <p>调用时机说明：</p>
+     * <ul>
+     *     <li>直接生成路线：在 {@code ProductionPiece} 创建后、{@code addProductionPiece} 之前调用，
+     *     保证持久化时写入的就是留白外扩后的 mask SVG。</li>
+     *     <li>超幅拼接 callback 路线：在算法回调生成 {@code ProductionPiece} 并填充 {@code blood} 后调用，
+     *     由留白实体策略根据出血方向决定哪些边不外扩。</li>
+     * </ul>
+     *
+     * <p>该方法只负责组装 {@link LiubaiProcessContext} 并委托给 {@link LiubaiProcessService}，
+     * 不直接依赖“留白3cm”等具体实体策略，便于后续扩展更多留白规格。</p>
+     *
+     * @param orderItem 当前订单项，用于策略读取上传路径、业务 ID 与工艺上下文
+     * @param procedureFlow 已解析工艺流程，用于匹配是否存在留白及具体留白规格
+     * @param piece 当前生产工件，策略会回写 maskImageFile、markImageFile 与宽高
+     * @param skipBloodEdges 是否根据 piece.blood 跳过出血边外扩；直接路线传 false，callback 路线传 true
+     */
+    public void applyLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
+        if (liubaiProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+            return;
+        }
+        LiubaiProcessContext context = new LiubaiProcessContext();
+        context.setOrderItem(orderItem);
+        context.setProcedureFlow(procedureFlow);
+        context.setProductionPiece(piece);
+        context.setSkipBloodEdges(skipBloodEdges);
+        liubaiProcessService.process(context);
+    }
+
 
     public ProcedureService getProcedureService() {
         return procedureService;
