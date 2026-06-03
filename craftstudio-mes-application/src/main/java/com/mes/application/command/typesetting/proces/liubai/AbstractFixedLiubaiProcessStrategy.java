@@ -35,6 +35,18 @@ import java.util.regex.Pattern;
  */
 public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiProcessStrategy {
     /**
+     * PNG 标记图使用的输出 DPI。
+     *
+     * <p>外扩 SVG 的宽高单位按业务约定为 mm，生成 PNG 时需要按照 32dpi 将 mm 换算成像素。</p>
+     */
+    private static final double MARK_PNG_DPI = 32D;
+
+    /**
+     * 毫米与英寸换算常量。
+     */
+    private static final double MM_PER_INCH = 25.4D;
+
+    /**
      * 从 SVG width 属性中解析数值，兼容纯数字、px、mm 三种写法。
      */
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
@@ -193,11 +205,12 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *
      * <p>该 PNG 用作外层留白矩形 g 的 img 属性，上传目录固定为
      * mark/{manufacturerMetaId}/{productionPieceId}/，便于后续排版/刀版流程按生产工件定位留白外框资源。</p>
+     * <p>注意：外扩 SVG 宽高单位是 mm，PNG 实际像素宽高会按 32dpi 换算。</p>
      *
      * @param productionPieceId 生产工件业务 ID
      * @param manufacturerMetaId 厂商 ID
-     * @param originalWidth 原始 SVG 宽度
-     * @param originalHeight 原始 SVG 高度
+     * @param originalWidth 原始 SVG 宽度，单位 mm
+     * @param originalHeight 原始 SVG 高度，单位 mm
      * @param margins 四边外扩量
      * @return 上传后的 PNG 完整 URL
      */
@@ -215,13 +228,13 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 创建透明底黑色边框矩形 PNG。
      *
-     * @param width PNG 宽度
-     * @param height PNG 高度
+     * @param widthMm PNG 对应的物理宽度，单位 mm
+     * @param heightMm PNG 对应的物理高度，单位 mm
      * @return PNG 文件字节数组
      */
-    private byte[] createBorderPng(double width, double height) {
-        int imageWidth = Math.max(1, (int) Math.ceil(width));
-        int imageHeight = Math.max(1, (int) Math.ceil(height));
+    private byte[] createBorderPng(double widthMm, double heightMm) {
+        int imageWidth = convertMmToPixels(widthMm);
+        int imageHeight = convertMmToPixels(heightMm);
         try {
             BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();
@@ -236,6 +249,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         } catch (Exception e) {
             throw new IllegalStateException("生成留白外框 PNG 失败", e);
         }
+    }
+
+    /**
+     * 将毫米尺寸按照 32dpi 换算为像素。
+     *
+     * @param valueMm 毫米尺寸
+     * @return 对应像素数，最小为 1
+     */
+    private int convertMmToPixels(double valueMm) {
+        return Math.max(1, (int) Math.ceil(valueMm / MM_PER_INCH * MARK_PNG_DPI));
     }
 
     /**
