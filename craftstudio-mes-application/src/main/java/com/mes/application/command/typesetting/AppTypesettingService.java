@@ -538,8 +538,10 @@ public class AppTypesettingService {
                 if (dbPiece == null) {
                     throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
-                if (productionPiece.getQuantity() != null) {
-                    dbPiece.setQuantity(productionPiece.getQuantity());
+                Integer layoutQuantity = resolveProductionPieceLayoutQuantity(dbPiece, productionPiece.getQuantity());
+                if (layoutQuantity != null) {
+                    dbPiece.setQuantity(layoutQuantity);
+                    cell.setQuantity(layoutQuantity);
                 }
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
@@ -1113,8 +1115,10 @@ public class AppTypesettingService {
                     if (dbPiece == null) {
                         throw new IllegalArgumentException("生产工件不存在：" + piece.getId());
                     }
-                    if (piece.getQuantity() != null) {
-                        dbPiece.setQuantity(piece.getQuantity());
+                    Integer layoutQuantity = resolveProductionPieceLayoutQuantity(dbPiece, piece.getQuantity());
+                    if (layoutQuantity != null) {
+                        dbPiece.setQuantity(layoutQuantity);
+                        cell.setQuantity(layoutQuantity);
                     }
                     productionPieces.add(dbPiece);
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
@@ -1155,8 +1159,8 @@ public class AppTypesettingService {
                 } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
                     element.setSvg(piece.getMaskImageFile().getRawFile());
                 }
-                element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
                 boolean liubaiPiece = hasLiubaiProcedure(piece);
+                element.setCounts(liubaiPiece ? 1 : (piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1));
                 element.setForme(liubaiPiece);
                 if (liubaiPiece && StringUtils.isNotBlank(element.getSvg())) {
                     element.setImg(element.getSvg());
@@ -1287,6 +1291,20 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    /**
+     * 解析生产工件本次提交给排版的数量。
+     *
+     * <p>留白零件在算法请求中按一张已生成的 forme / 印版 SVG 参与排版，
+     * 因此无论前端带入多少待排版数量，本次 toLayout 都固定提交 1，
+     * 同时回写 request.typesettingCells，保证缓存与后续 typesettingCells 持久化数量一致。</p>
+     */
+    private Integer resolveProductionPieceLayoutQuantity(ProductionPiece piece, Integer requestedQuantity) {
+        if (hasLiubaiProcedure(piece)) {
+            return 1;
+        }
+        return requestedQuantity;
     }
 
     /**
