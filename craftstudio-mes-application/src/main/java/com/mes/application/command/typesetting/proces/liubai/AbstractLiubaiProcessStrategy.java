@@ -51,7 +51,7 @@ public abstract class AbstractLiubaiProcessStrategy {
     /**
      * 实体策略留白规格匹配入口。
      *
-     * <p>例如“留白3cm”策略会在这里匹配节点名或参数文本中的 3cm / 30mm 等写法。</p>
+     * <p>例如“留白5cm”策略会在这里匹配节点名或参数文本中的 5cm / 50mm 等写法。</p>
      *
      * @param procedureFlow 已解析工艺流程
      * @return {@code true} 表示当前工艺流程命中该实体留白规格
@@ -95,7 +95,7 @@ public abstract class AbstractLiubaiProcessStrategy {
      * 在留白节点名称或其参数配置文本中查找关键字。
      *
      * <p>这里会忽略大小写与空白字符，原因是工艺参数可能来自产品中心 DTO、Map 或反序列化对象，
-     * 当前预处理阶段只需要识别“留白3cm”等规格文本，因此使用字符串兼容匹配。</p>
+     * 当前预处理阶段只需要识别“留白5cm”等规格文本，因此使用字符串兼容匹配。</p>
      *
      * @param procedureFlow 已解析工艺流程
      * @param keyword 需要查找的关键字

@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  *
  * <p>设计目的：</p>
  * <ul>
- *     <li>“留白3cm”“留白5cm”等固定尺寸留白的处理流程完全一致，仅匹配关键字和外扩毫米数不同。</li>
+ *     <li>“留白2cm”“留白5cm”“留白10cm”“留白15cm”等固定尺寸留白的处理流程完全一致，仅匹配关键字和外扩毫米数不同。</li>
  *     <li>该基类集中实现 SVG 拉取、尺寸解析、非出血边外扩、SVG 生成、mark PNG 生成、OSS 上传与工件字段回写。</li>
  *     <li>具体规格策略只需要提供规格名称、外扩毫米数和匹配关键字，避免多套留白策略复制同一份 SVG 处理逻辑。</li>
  * </ul>
@@ -107,7 +107,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 判断工艺流程是否命中当前固定尺寸留白规格。
      *
-     * <p>具体策略通过 {@link #matchKeywords()} 提供规格关键字，例如 3cm / 30mm 或 5cm / 50mm。</p>
+     * <p>具体策略通过 {@link #matchKeywords()} 提供规格关键字，例如 2cm / 20mm 或 5cm / 50mm。</p>
      *
      * @param procedureFlow 已解析工艺流程
      * @return {@code true} 表示命中当前固定尺寸留白实体策略
@@ -173,7 +173,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 当前实体策略的规格名称，用于生成外层 SVG 分组 id，便于排查最终 mask 来自哪套留白策略。
      *
-     * @return 规格名称，例如 3cm 或 5cm
+     * @return 规格名称，例如 2cm 或 5cm
      */
     protected abstract String specName();
 
@@ -661,7 +661,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *
      * <p>key 只表达 mark 类型与留白规格，不携带 productionPieceId；productionPiece 本身已经限定了资源归属。</p>
      *
-     * @return 留白 mark key，例如 liubai-3cm 或 liubai-5cm
+     * @return 留白 mark key，例如 liubai-2cm 或 liubai-5cm
      */
     private String liubaiMarkKey() {
         return "liubai-" + specName();

@@ -22,7 +22,7 @@ class MarkedNestingElementServiceTest {
         ProductionPiece piece = new ProductionPiece();
         piece.setId("piece-1");
         piece.setProductionPieceId("PP-1");
-        piece.setProcessingFlow("留白3cm");
+        piece.setProcessingFlow("留白5cm");
         piece.setRouteSvg("https://example.com/liubai.svg");
 
         assertFalse(service.hasMarks(piece));

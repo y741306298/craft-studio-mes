@@ -802,7 +802,7 @@ public class AppOrderPreprocessingService {
      * </ul>
      *
      * <p>该方法只负责组装 {@link LiubaiProcessContext} 并委托给 {@link LiubaiProcessService}，
-     * 不直接依赖“留白3cm”等具体实体策略，便于后续扩展更多留白规格。</p>
+     * 不直接依赖“留白5cm”等具体实体策略，便于后续扩展更多留白规格。</p>
      *
      * @param orderItem 当前订单项，用于策略读取上传路径、业务 ID 与工艺上下文
      * @param procedureFlow 已解析工艺流程，用于匹配是否存在留白及具体留白规格
