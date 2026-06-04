@@ -53,6 +53,9 @@ public abstract class AbstractBuckleProcessStrategy {
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_PATH_PATTERN = Pattern.compile("<path\\b([^>]*)>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_PATH_TOKEN_PATTERN = Pattern.compile("[MmLlHhVvZz]|[-+]?[0-9]+(?:\\.[0-9]+)?");
+    private static final Pattern SVG_UNSUPPORTED_PATH_COMMAND_PATTERN = Pattern.compile("[AaCcQqSsTt]");
     private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_NUMBER_PATTERN = Pattern.compile("[-+]?[0-9]+(?:\\.[0-9]+)?");
 
@@ -92,13 +95,12 @@ public abstract class AbstractBuckleProcessStrategy {
         if (StringUtils.isBlank(originalSvg)) {
             return;
         }
-        double width = resolveDimension(originalSvg, SVG_WIDTH_PATTERN, piece.getWidth());
-        double height = resolveDimension(originalSvg, SVG_HEIGHT_PATTERN, piece.getHeight());
-        if (width < EDGE_OFFSET_MM * 2 || height < EDGE_OFFSET_MM * 2) {
-            log.info("{}预处理跳过尺寸不足工件: productionPieceId={}, width={}, height={}", nodeName(), piece.getProductionPieceId(), width, height);
+        SvgBounds buckleBounds = resolveBuckleBounds(originalSvg, piece);
+        if (buckleBounds.width < EDGE_OFFSET_MM * 2 || buckleBounds.height < EDGE_OFFSET_MM * 2) {
+            log.info("{}预处理跳过尺寸不足工件: productionPieceId={}, width={}, height={}", nodeName(), piece.getProductionPieceId(), buckleBounds.width, buckleBounds.height);
             return;
         }
-        List<BuckleMarkPoint> markPoints = buildMarkPoints(context, width, height);
+        List<BuckleMarkPoint> markPoints = translateMarkPoints(buildMarkPoints(context, buckleBounds.width, buckleBounds.height), buckleBounds.x, buckleBounds.y);
         if (markPoints.isEmpty()) {
             return;
         }
@@ -130,8 +132,8 @@ public abstract class AbstractBuckleProcessStrategy {
      * 构建当前策略的所有扣点中心坐标。
      *
      * @param context 打扣处理上下文，实体策略需要读取工件出血/分段信息时可使用
-     * @param width mask SVG 宽度，单位 mm
-     * @param height mask SVG 高度，单位 mm
+     * @param width 最外侧矩形宽度，单位 mm
+     * @param height 最外侧矩形高度，单位 mm
      * @return 扣点列表
      */
     protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height) {
@@ -141,8 +143,8 @@ public abstract class AbstractBuckleProcessStrategy {
     /**
      * 构建当前策略的所有扣点中心坐标。
      *
-     * @param width mask SVG 宽度，单位 mm
-     * @param height mask SVG 高度，单位 mm
+     * @param width 最外侧矩形宽度，单位 mm
+     * @param height 最外侧矩形高度，单位 mm
      * @return 扣点列表
      */
     protected abstract List<BuckleMarkPoint> buildMarkPoints(double width, double height);
@@ -247,6 +249,136 @@ public abstract class AbstractBuckleProcessStrategy {
             }
         }
         return fallback == null ? 0D : fallback;
+    }
+
+    /**
+     * 解析打扣定位基准矩形。
+     *
+     * <p>留白等前置工艺会把生产工件 mask 扩展为大于原始图片 SVG 的外框，打扣必须沿这个
+     * 最外侧矩形结算点位；若 SVG 中暂未包含可识别的矩形，则退回使用根 SVG 宽高。</p>
+     */
+    private SvgBounds resolveBuckleBounds(String svg, ProductionPiece piece) {
+        double rootWidth = resolveDimension(svg, SVG_WIDTH_PATTERN, piece == null ? null : piece.getWidth());
+        double rootHeight = resolveDimension(svg, SVG_HEIGHT_PATTERN, piece == null ? null : piece.getHeight());
+        SvgBounds fallback = new SvgBounds(0D, 0D, rootWidth, rootHeight);
+        SvgBounds outermost = null;
+
+        Matcher rectMatcher = SVG_RECT_PATTERN.matcher(svg);
+        while (rectMatcher.find()) {
+            String rectAttributes = rectMatcher.group(1) == null ? rectMatcher.group(2) : rectMatcher.group(1);
+            outermost = largerBounds(outermost, parseRectBounds(rectAttributes));
+        }
+
+        Matcher pathMatcher = SVG_PATH_PATTERN.matcher(svg);
+        while (pathMatcher.find()) {
+            outermost = largerBounds(outermost, parsePathBounds(attributeValue(pathMatcher.group(1), "d")));
+        }
+
+        return outermost == null ? fallback : outermost;
+    }
+
+    private SvgBounds parseRectBounds(String rectAttributes) {
+        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
+        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
+        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
+        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
+        if (x == null || y == null || width == null || height == null || width <= 0D || height <= 0D) {
+            return null;
+        }
+        return new SvgBounds(x, y, width, height);
+    }
+
+    private SvgBounds parsePathBounds(String pathData) {
+        if (StringUtils.isBlank(pathData) || SVG_UNSUPPORTED_PATH_COMMAND_PATTERN.matcher(pathData).find()) {
+            return null;
+        }
+        Matcher matcher = SVG_PATH_TOKEN_PATTERN.matcher(pathData);
+        List<String> tokens = new ArrayList<>();
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+        if (tokens.isEmpty()) {
+            return null;
+        }
+
+        PathCursor cursor = new PathCursor();
+        char command = 0;
+        int index = 0;
+        while (index < tokens.size()) {
+            String token = tokens.get(index);
+            if (isPathCommand(token)) {
+                command = token.charAt(0);
+                index++;
+                if (command == 'Z' || command == 'z') {
+                    cursor.closePath();
+                }
+                continue;
+            }
+            if (command == 0) {
+                return null;
+            }
+            switch (command) {
+                case 'M':
+                case 'm':
+                    if (index + 1 >= tokens.size() || isPathCommand(tokens.get(index + 1))) {
+                        return null;
+                    }
+                    cursor.moveTo(parseToken(tokens.get(index)), parseToken(tokens.get(index + 1)), command == 'm');
+                    index += 2;
+                    command = command == 'M' ? 'L' : 'l';
+                    break;
+                case 'L':
+                case 'l':
+                    if (index + 1 >= tokens.size() || isPathCommand(tokens.get(index + 1))) {
+                        return null;
+                    }
+                    cursor.lineTo(parseToken(tokens.get(index)), parseToken(tokens.get(index + 1)), command == 'l');
+                    index += 2;
+                    break;
+                case 'H':
+                case 'h':
+                    cursor.horizontalTo(parseToken(tokens.get(index)), command == 'h');
+                    index++;
+                    break;
+                case 'V':
+                case 'v':
+                    cursor.verticalTo(parseToken(tokens.get(index)), command == 'v');
+                    index++;
+                    break;
+                default:
+                    return null;
+            }
+        }
+        return cursor.toBounds();
+    }
+
+    private boolean isPathCommand(String token) {
+        return token.length() == 1 && Character.isLetter(token.charAt(0));
+    }
+
+    private double parseToken(String token) {
+        return Double.parseDouble(token);
+    }
+
+    private SvgBounds largerBounds(SvgBounds current, SvgBounds candidate) {
+        if (candidate == null || candidate.width <= 0D || candidate.height <= 0D) {
+            return current;
+        }
+        if (current == null || candidate.area() > current.area()) {
+            return candidate;
+        }
+        return current;
+    }
+
+    private List<BuckleMarkPoint> translateMarkPoints(List<BuckleMarkPoint> markPoints, double offsetX, double offsetY) {
+        if (markPoints == null || markPoints.isEmpty() || (Math.abs(offsetX) < 0.000001D && Math.abs(offsetY) < 0.000001D)) {
+            return markPoints;
+        }
+        List<BuckleMarkPoint> translatedPoints = new ArrayList<>();
+        for (BuckleMarkPoint point : markPoints) {
+            translatedPoints.add(new BuckleMarkPoint(point.getSuffix(), point.getCenterX() + offsetX, point.getCenterY() + offsetY));
+        }
+        return translatedPoints;
     }
 
     private String ensureProductionPieceMongoId(ProductionPiece piece) {
@@ -512,6 +644,96 @@ public abstract class AbstractBuckleProcessStrategy {
         double dx = x2 - x1;
         double dy = y2 - y1;
         return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    private static class SvgBounds {
+        private final double x;
+        private final double y;
+        private final double width;
+        private final double height;
+
+        private SvgBounds(double x, double y, double width, double height) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+
+        private double area() {
+            return width * height;
+        }
+    }
+
+    private static class PathCursor {
+        private boolean hasPoint;
+        private double startX;
+        private double startY;
+        private double currentX;
+        private double currentY;
+        private double minX;
+        private double minY;
+        private double maxX;
+        private double maxY;
+
+        private void moveTo(double x, double y, boolean relative) {
+            double nextX = relative ? currentX + x : x;
+            double nextY = relative ? currentY + y : y;
+            startX = nextX;
+            startY = nextY;
+            currentX = nextX;
+            currentY = nextY;
+            include(nextX, nextY);
+        }
+
+        private void lineTo(double x, double y, boolean relative) {
+            double nextX = relative ? currentX + x : x;
+            double nextY = relative ? currentY + y : y;
+            currentX = nextX;
+            currentY = nextY;
+            include(nextX, nextY);
+        }
+
+        private void horizontalTo(double x, boolean relative) {
+            double nextX = relative ? currentX + x : x;
+            currentX = nextX;
+            include(nextX, currentY);
+        }
+
+        private void verticalTo(double y, boolean relative) {
+            double nextY = relative ? currentY + y : y;
+            currentY = nextY;
+            include(currentX, nextY);
+        }
+
+        private void closePath() {
+            if (hasPoint) {
+                currentX = startX;
+                currentY = startY;
+                include(currentX, currentY);
+            }
+        }
+
+        private void include(double x, double y) {
+            if (!hasPoint) {
+                minX = x;
+                minY = y;
+                maxX = x;
+                maxY = y;
+                hasPoint = true;
+                return;
+            }
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+
+        private SvgBounds toBounds() {
+            if (!hasPoint || maxX <= minX || maxY <= minY) {
+                return null;
+            }
+            return new SvgBounds(minX, minY, maxX - minX, maxY - minY);
+        }
     }
 
     private String format(double value) {
