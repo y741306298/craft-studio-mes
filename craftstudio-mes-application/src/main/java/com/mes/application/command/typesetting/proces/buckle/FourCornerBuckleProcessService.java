@@ -23,9 +23,9 @@ import java.util.regex.Pattern;
 /**
  * 订单预处理阶段的“四角打扣”扣点处理服务。
  *
- * <p>该服务与留白预处理保持同一处理时机：在生产工件创建后、持久化前同步改写
- * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG，把四个扣点直接写入生产工件 SVG，
- * 后续排版/刀版流程直接消费已经带扣点的 productionPiece。</p>
+ * <p>该服务与留白预处理保持同一处理时机：在生产工件创建后、持久化前同步处理
+ * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG，只在根 {@code <svg>} 关闭标签前追加四个扣点分组，
+ * 不重写原有分组，避免覆盖留白等已提前写入的 {@code <g>}；后续排版/刀版流程直接消费已经带扣点的 productionPiece。</p>
  */
 @Slf4j
 @Service
@@ -137,6 +137,12 @@ public class FourCornerBuckleProcessService {
         return piece.getProductionPieceId();
     }
 
+    /**
+     * 在根 {@code <svg>} 关闭标签前追加四个扣点 {@code <g>}。
+     *
+     * <p>注意：这里必须只追加新的扣点分组，不能重建或包裹原有 SVG 内容。
+     * 同一个工件可能先执行留白再执行四角打扣，重写原有 {@code <g>} 会导致留白分组丢失。</p>
+     */
     private String appendBuckleMarks(String originalSvg, ProductionPiece piece, double width, double height) {
         int closeIndex = originalSvg.lastIndexOf("</svg>");
         if (closeIndex < 0) {
@@ -151,13 +157,11 @@ public class FourCornerBuckleProcessService {
     }
 
     private String buildMarksSvg(String pieceId, double width, double height) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("\n<g id=\"four-corner-buckle-").append(escapeAttr(pieceId)).append("\" data-forme=\"false\" data-rotation=\"0\">\n");
+        StringBuilder builder = new StringBuilder("\n");
         appendPointGroup(builder, pieceId, "lt", EDGE_OFFSET_MM, EDGE_OFFSET_MM);
         appendPointGroup(builder, pieceId, "rt", width - EDGE_OFFSET_MM, EDGE_OFFSET_MM);
         appendPointGroup(builder, pieceId, "rb", width - EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
         appendPointGroup(builder, pieceId, "lb", EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
-        builder.append("</g>\n");
         return builder.toString();
     }
 
