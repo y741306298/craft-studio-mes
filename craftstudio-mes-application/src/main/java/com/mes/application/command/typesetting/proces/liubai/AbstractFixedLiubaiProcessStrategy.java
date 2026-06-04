@@ -64,9 +64,14 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
 
     /**
-     * 匹配原 SVG 根节点关闭标签，用于在关闭标签前追加新的留白分组。
+     * 匹配原 SVG 根节点关闭标签，用于定位根节点内容范围。
      */
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 判断原始 SVG 中是否已经存在分组节点。
+     */
+    private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
 
     /**
      * 用于当 maskImageFile.rawFile 是远程 URL 时拉取原 SVG 内容。
@@ -116,7 +121,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *     <li>解析原始 SVG 宽高，解析失败时退回使用 productionPiece.width/height。</li>
      *     <li>根据是否需要跳过出血边计算四边外扩量。</li>
      *     <li>生成与外扩矩形同宽高的 mark PNG，上传后保存到 productionPiece.marks。</li>
-     *     <li>更新 SVG 根节点尺寸/viewBox，并只追加留白矩形 g，保留原有 g 结构。</li>
+     *     <li>更新 SVG 根节点尺寸/viewBox；原 SVG 已有 g 时将留白 g 插入为根节点首个子 g，无 g 时重构为分组结构。</li>
      *     <li>上传新 SVG，回写 productionPiece.maskImageFile，并更新生产工件宽高。</li>
      * </ol>
      *
@@ -342,7 +347,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <ul>
      *     <li>根节点宽高使用“原尺寸 + 四边外扩量”。</li>
      *     <li>viewBox 使用负 left/top 起点，让原 SVG 既有内容在视觉上落到留白区域内。</li>
-     *     <li>只在根 {@code </svg>} 前追加留白矩形 g，不重建、不包裹、不移动原有 g，避免覆盖四角打扣等已写入分组。</li>
+     *     <li>原 SVG 已有 {@code <g>} 时不重建、不包裹、不移动原有 g，只把留白矩形 g 插入为根节点首个子 g。</li>
+     *     <li>原 SVG 没有 {@code <g>} 时重构为根节点下的分组结构：留白 g 在第一位，原内容包装为印版 g。</li>
      *     <li>留白矩形 g 的 id 格式为 liubai-{specName}-{productionPiece._id}，挂载对应 mark PNG 的 img、data-source-name、data-forme、data-rotation。</li>
      *     <li>留白矩形 g 内只放置外扩后的大矩形 path。</li>
      * </ul>
@@ -366,11 +372,44 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
         String markSourceName = sourceName(markPngUrl);
         String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
-        int closeIndex = lastSvgCloseIndex(updatedSvg);
-        if (closeIndex < 0) {
+        if (!containsGroup(originalSvg)) {
+            return rebuildSvgWithLiubaiFirst(updatedSvg, pieceMongoId, liubaiGroup);
+        }
+        return insertAfterRootOpenTag(updatedSvg, liubaiGroup);
+    }
+
+    private boolean containsGroup(String svg) {
+        return StringUtils.isNotBlank(svg) && SVG_GROUP_PATTERN.matcher(svg).find();
+    }
+
+    private String insertAfterRootOpenTag(String svg, String groupSvg) {
+        Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
+        if (!matcher.find()) {
+            return svg;
+        }
+        return svg.substring(0, matcher.end()) + groupSvg + svg.substring(matcher.end());
+    }
+
+    private String rebuildSvgWithLiubaiFirst(String updatedSvg, String pieceMongoId, String liubaiGroup) {
+        Matcher openMatcher = SVG_OPEN_PATTERN.matcher(updatedSvg);
+        if (!openMatcher.find()) {
             return updatedSvg;
         }
-        return updatedSvg.substring(0, closeIndex) + liubaiGroup + updatedSvg.substring(closeIndex);
+        int closeIndex = lastSvgCloseIndex(updatedSvg);
+        if (closeIndex < 0 || closeIndex < openMatcher.end()) {
+            return updatedSvg;
+        }
+        String prefix = updatedSvg.substring(0, openMatcher.end());
+        String innerSvg = updatedSvg.substring(openMatcher.end(), closeIndex).trim();
+        String suffix = updatedSvg.substring(closeIndex);
+        return prefix + liubaiGroup + buildOriginalContentGroup(pieceMongoId, innerSvg) + suffix;
+    }
+
+    private String buildOriginalContentGroup(String pieceMongoId, String innerSvg) {
+        String groupId = StringUtils.isBlank(pieceMongoId) ? "original-mask" : pieceMongoId;
+        return "<g id=\"" + escapeAttr(groupId) + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+                + innerSvg + "\n"
+                + "</g>\n";
     }
 
     private int lastSvgCloseIndex(String svg) {
