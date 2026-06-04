@@ -17,7 +17,7 @@ import com.mes.application.command.typesetting.layout.CaifuOpenBackA30HFilmNesti
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
-import com.mes.application.command.typesetting.service.LiubaiNestingElementService;
+import com.mes.application.command.typesetting.service.MarkedNestingElementService;
 import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
@@ -155,7 +155,7 @@ public class AppTypesettingService {
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
     @Autowired
-    private LiubaiNestingElementService liubaiNestingElementService;
+    private MarkedNestingElementService markedNestingElementService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -712,6 +712,7 @@ public class AppTypesettingService {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
         typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
+        // 生产工件只要携带 marks，就会按特殊 element 参与排版；这里同步把来源 marks 汇总到新建的 typesettingInfo。
         LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
         mergeSourceProductionPieceMarks(productionPieces, mergedMarks);
         mergeSourceTypesettingMarks(typesettingInfos, mergedMarks);
@@ -1209,7 +1210,7 @@ public class AppTypesettingService {
                 if (piece == null || StringUtils.isBlank(piece.getProductionPieceId())) {
                     continue;
                 }
-                NestingRequest.Element element = liubaiNestingElementService.buildLiubaiElement(piece);
+                NestingRequest.Element element = markedNestingElementService.buildMarkedElement(piece);
                 if (element == null) {
                     if (StringUtils.isBlank(piece.getTemplateCode())) {
                         throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
