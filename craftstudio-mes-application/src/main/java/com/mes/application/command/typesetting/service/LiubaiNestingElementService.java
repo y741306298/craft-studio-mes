@@ -17,23 +17,10 @@ import java.util.Objects;
  *
  * <p>留白零件虽然来源仍是生产工件，但预处理阶段已经把 mask SVG 外扩成可直接排版的印版轮廓。
  * 因此提交给算法时不能复用普通零件的 img/svg 组装，也不能走已有印版来源的拼接逻辑；这里单独把它重写成
- * {@code forme=true, counts=1, img=svg=留白maskSvg} 的元素。</p>
+ * {@code forme=true, counts=前端选择数量, img=svg=留白maskSvg} 的元素。</p>
  */
 @Service
 public class LiubaiNestingElementService {
-
-    /**
-     * 解析生产工件本次提交给排版的数量。
-     *
-     * <p>留白零件在算法请求中按一张已生成的 forme / 印版 SVG 参与排版，
-     * 因此无论前端带入多少待排版数量，本次 toLayout 都固定提交 1。</p>
-     */
-    public Integer resolveLayoutQuantity(ProductionPiece piece, Integer requestedQuantity) {
-        if (isLiubaiPiece(piece)) {
-            return 1;
-        }
-        return requestedQuantity;
-    }
 
     /**
      * 如果当前生产工件是留白零件，则重写为算法侧印版元素；否则返回 {@code null}，由普通零件逻辑继续组装。
@@ -48,8 +35,8 @@ public class LiubaiNestingElementService {
             throw new IllegalArgumentException("留白生产工件缺少留白SVG地址：" + pieceId);
         }
         NestingRequest.Element element = new NestingRequest.Element();
-        element.setId(piece.getId());
-        element.setCounts(1);
+        element.setId(liubaiElementId(piece));
+        element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
         element.setForme(Boolean.TRUE);
         element.setSvg(liubaiSvg);
         element.setImg(liubaiSvg);
@@ -104,6 +91,21 @@ public class LiubaiNestingElementService {
             return piece.getRouteSvg();
         }
         return null;
+    }
+
+    /**
+     * 生成仅用于算法排版的留白元素 ID。
+     *
+     * <p>留白 mask SVG 内部已经保留生产工件原始 _id；如果外层算法元素也继续使用同一个 _id，
+     * callback 后按 nestedSvg id 反查来源 cell 时会把同一次排版误计两次。
+     * 因此这里给算法外层元素使用独立 ID，让后续来源识别仍只按 SVG 内部原生产工件 ID 走原有逻辑。</p>
+     */
+    private String liubaiElementId(ProductionPiece piece) {
+        String pieceId = piece == null ? null : piece.getId();
+        if (StringUtils.isBlank(pieceId)) {
+            pieceId = piece == null ? null : piece.getProductionPieceId();
+        }
+        return "liubai-nesting-" + (StringUtils.isBlank(pieceId) ? java.util.UUID.randomUUID() : pieceId);
     }
 
     private String rawFile(ImageFile imageFile) {
