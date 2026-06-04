@@ -24,8 +24,9 @@ import java.util.regex.Pattern;
  * 订单预处理阶段的“四角打扣”扣点处理服务。
  *
  * <p>该服务与留白预处理保持同一处理时机：在生产工件创建后、持久化前同步处理
- * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG，只在根 {@code <svg>} 关闭标签前追加四个扣点分组，
- * 不重写原有分组，避免覆盖留白等已提前写入的 {@code <g>}；后续排版/刀版流程直接消费已经带扣点的 productionPiece。</p>
+ * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG；原 SVG 已有 {@code <g>} 时只在根 {@code <svg>}
+ * 关闭标签前追加四个扣点分组，不重写原有分组，避免覆盖留白等已提前写入的 {@code <g>}；原 SVG
+ * 没有 {@code <g>} 时先重构为分组结构，再把扣点追加在后面。后续排版/刀版流程直接消费已经带扣点的 productionPiece。</p>
  */
 @Slf4j
 @Service
@@ -36,8 +37,13 @@ public class FourCornerBuckleProcessService {
     private static final String MARK_SOURCE_NAME = "point.png";
     private static final double MARK_SIZE_MM = 8D;
     private static final double EDGE_OFFSET_MM = 25D;
-    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -73,7 +79,8 @@ public class FourCornerBuckleProcessService {
         }
         ensureProductionPieceMongoId(piece);
         String businessId = ensureProductionPieceBusinessId(piece);
-        String expandedSvg = appendBuckleMarks(originalSvg, piece, width, height);
+        String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
+        String expandedSvg = appendBuckleMarks(originalSvg, piece, originalContentImg, width, height);
         String manufacturerMetaId = resolveManufacturerMetaId(orderItem, piece);
         String orderItemId = orderItem == null || StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/buckle/";
@@ -138,13 +145,14 @@ public class FourCornerBuckleProcessService {
     }
 
     /**
-     * 在根 {@code <svg>} 关闭标签前追加四个扣点 {@code <g>}。
+     * 拼接四个扣点 {@code <g>}。
      *
-     * <p>注意：这里必须只追加新的扣点分组，不能重建或包裹原有 SVG 内容。
-     * 同一个工件可能先执行留白再执行四角打扣，重写原有 {@code <g>} 会导致留白分组丢失。</p>
+     * <p>注意：原 SVG 已存在 {@code <g>} 时必须只追加新的扣点分组，不能重建或包裹原有 SVG 内容。
+     * 同一个工件可能先执行留白再执行四角打扣，重写原有 {@code <g>} 会导致留白分组丢失。
+     * 原 SVG 不存在 {@code <g>} 时先重构为分组结构，再把扣点追加在后面。</p>
      */
-    private String appendBuckleMarks(String originalSvg, ProductionPiece piece, double width, double height) {
-        int closeIndex = originalSvg.lastIndexOf("</svg>");
+    private String appendBuckleMarks(String originalSvg, ProductionPiece piece, String originalContentImg, double width, double height) {
+        int closeIndex = lastSvgCloseIndex(originalSvg);
         if (closeIndex < 0) {
             return originalSvg;
         }
@@ -152,8 +160,171 @@ public class FourCornerBuckleProcessService {
         if (StringUtils.isBlank(pieceId)) {
             pieceId = "unknown";
         }
+        String baseSvg = containsGroup(originalSvg) ? originalSvg : rebuildSvgWithOriginalGroup(originalSvg, pieceId, originalContentImg);
+        closeIndex = lastSvgCloseIndex(baseSvg);
+        if (closeIndex < 0) {
+            return baseSvg;
+        }
         String marksSvg = buildMarksSvg(pieceId, width, height);
-        return originalSvg.substring(0, closeIndex) + marksSvg + originalSvg.substring(closeIndex);
+        return baseSvg.substring(0, closeIndex) + marksSvg + baseSvg.substring(closeIndex);
+    }
+
+    private boolean containsGroup(String svg) {
+        return StringUtils.isNotBlank(svg) && SVG_GROUP_PATTERN.matcher(svg).find();
+    }
+
+    private int lastSvgCloseIndex(String svg) {
+        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
+        int closeIndex = -1;
+        while (matcher.find()) {
+            closeIndex = matcher.start();
+        }
+        return closeIndex;
+    }
+
+    private String rebuildSvgWithOriginalGroup(String originalSvg, String pieceId, String originalContentImg) {
+        Matcher openMatcher = SVG_OPEN_PATTERN.matcher(originalSvg);
+        if (!openMatcher.find()) {
+            return originalSvg;
+        }
+        int closeIndex = lastSvgCloseIndex(originalSvg);
+        if (closeIndex < 0 || closeIndex < openMatcher.end()) {
+            return originalSvg;
+        }
+        String prefix = originalSvg.substring(0, openMatcher.end());
+        String innerSvg = originalSvg.substring(openMatcher.end(), closeIndex).trim();
+        String suffix = originalSvg.substring(closeIndex);
+        return prefix + "\n" + buildOriginalContentGroup(pieceId, originalContentImg, innerSvg) + suffix;
+    }
+
+    private String buildOriginalContentGroup(String pieceId, String originalContentImg, String innerSvg) {
+        String groupId = StringUtils.isBlank(pieceId) ? "original-mask" : pieceId;
+        return "<g id=\"" + escapeAttr(groupId)
+                + "\" img=\"" + escapeAttr(originalContentImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
+                + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+                + normalizeRectsToPaths(innerSvg) + "\n"
+                + "</g>\n";
+    }
+
+    private String normalizeRectsToPaths(String svgContent) {
+        if (StringUtils.isBlank(svgContent)) {
+            return svgContent;
+        }
+        Matcher matcher = SVG_RECT_PATTERN.matcher(svgContent);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String rectAttributes = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
+            String path = convertRectToPath(matcher.group(), rectAttributes);
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(path));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private String convertRectToPath(String originalRect, String rectAttributes) {
+        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
+        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
+        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
+        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
+        if (x == null || y == null || width == null || height == null) {
+            return originalRect;
+        }
+        StringBuilder path = new StringBuilder("<path d=\"M")
+                .append(format(x)).append(" ").append(format(y))
+                .append(" H").append(format(x + width))
+                .append(" V").append(format(y + height))
+                .append(" H").append(format(x))
+                .append(" Z\"");
+        appendRectAttributesAsPathAttributes(path, rectAttributes);
+        path.append("/>");
+        return path.toString();
+    }
+
+    private void appendRectAttributesAsPathAttributes(StringBuilder path, String rectAttributes) {
+        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(rectAttributes);
+        while (matcher.find()) {
+            String attributeName = matcher.group(1);
+            if ("x".equalsIgnoreCase(attributeName) || "y".equalsIgnoreCase(attributeName)
+                    || "width".equalsIgnoreCase(attributeName) || "height".equalsIgnoreCase(attributeName)) {
+                continue;
+            }
+            path.append(matcher.group());
+        }
+    }
+
+    private String attributeValue(String attributes, String name) {
+        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(attributes);
+        while (matcher.find()) {
+            if (name.equalsIgnoreCase(matcher.group(1))) {
+                String attribute = matcher.group();
+                int equalsIndex = attribute.indexOf('=');
+                if (equalsIndex < 0) {
+                    return null;
+                }
+                String value = attribute.substring(equalsIndex + 1).trim();
+                if (value.length() >= 2 && (value.startsWith("\"") || value.startsWith("'"))) {
+                    return value.substring(1, value.length() - 1);
+                }
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Double parseSvgNumber(String value, Double fallback) {
+        if (StringUtils.isBlank(value)) {
+            return fallback;
+        }
+        Matcher matcher = Pattern.compile("[-+]?[0-9]+(?:\\.[0-9]+)?").matcher(value.trim());
+        if (!matcher.find()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(matcher.group());
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
+        String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
+        if (StringUtils.isNotBlank(productImg)) {
+            return productImg;
+        }
+        return isInlineSvg(originalMaskUrl) ? "" : originalMaskUrl;
+    }
+
+    private String resolveImageFileRaw(ImageFile imageFile) {
+        if (imageFile == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(imageFile.getRawFile())) {
+            return imageFile.getRawFile();
+        }
+        FilePreview preview = imageFile.getFilePreview();
+        if (preview != null && StringUtils.isNotBlank(preview.getRaw())) {
+            return preview.getRaw();
+        }
+        return null;
+    }
+
+    private boolean isInlineSvg(String svgRef) {
+        if (StringUtils.isBlank(svgRef)) {
+            return false;
+        }
+        String trimmed = svgRef.trim();
+        return trimmed.startsWith("<svg") || trimmed.startsWith("<?xml");
+    }
+
+    private String sourceName(String url) {
+        if (StringUtils.isBlank(url)) {
+            return "";
+        }
+        int queryIndex = url.indexOf('?');
+        String clean = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
+        int slashIndex = clean.lastIndexOf('/');
+        return slashIndex >= 0 ? clean.substring(slashIndex + 1) : clean;
     }
 
     private String buildMarksSvg(String pieceId, double width, double height) {
