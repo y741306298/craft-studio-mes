@@ -259,7 +259,7 @@ public class AppOrderService {
             List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
                     orderItem.getOrderItemId(),
                     1,
-                    Integer.MAX_VALUE
+                    99
             );
             List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
             piecesByOrderItemId.put(orderItem.getOrderItemId(), safeProductionPieces);

@@ -539,14 +539,12 @@ public class AppTypesettingService {
             if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                 ProductionPiece productionPiece = cell.toProductionPiece();
                 ProductionPiece dbPiece = productionPieceService.findById(productionPiece.getId());
+                Integer quantity = productionPiece.getQuantity();
                 if (dbPiece == null) {
                     throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
-                Integer layoutQuantity = liubaiNestingElementService.resolveLayoutQuantity(dbPiece, productionPiece.getQuantity());
-                if (layoutQuantity != null) {
-                    dbPiece.setQuantity(layoutQuantity);
-                    cell.setQuantity(layoutQuantity);
-                }
+                dbPiece.setQuantity(quantity);
+                cell.setQuantity(quantity);
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
@@ -1119,11 +1117,9 @@ public class AppTypesettingService {
                     if (dbPiece == null) {
                         throw new IllegalArgumentException("生产工件不存在：" + piece.getId());
                     }
-                    Integer layoutQuantity = liubaiNestingElementService.resolveLayoutQuantity(dbPiece, piece.getQuantity());
-                    if (layoutQuantity != null) {
-                        dbPiece.setQuantity(layoutQuantity);
-                        cell.setQuantity(layoutQuantity);
-                    }
+                    Integer quantity = piece.getQuantity();
+                    dbPiece.setQuantity(quantity);
+                    cell.setQuantity(quantity);
                     productionPieces.add(dbPiece);
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                     TypesettingInfo info = cell.toTypesettingInfo();
