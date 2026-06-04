@@ -150,7 +150,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
         updateMarks(piece, markPngUrl);
-        String expandedSvg = buildExpandedSvg(originalSvg, pieceMongoId, markPngUrl, originalWidth, originalHeight, margins);
+        String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
+        String expandedSvg = buildExpandedSvg(originalSvg, pieceMongoId, markPngUrl, originalContentImg, originalWidth, originalHeight, margins);
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, expandedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
@@ -356,6 +357,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param originalSvg 原始 mask SVG 文本
      * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成留白 g 的 id
      * @param markPngUrl 与外扩 SVG 同宽高的留白 mark PNG URL，用于写入留白矩形 g 的 img
+     * @param originalContentImg 原始印版分组对应的 img 属性值
      * @param originalWidth 原始 SVG 宽度
      * @param originalHeight 原始 SVG 高度
      * @param margins 四边外扩量
@@ -364,6 +366,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private String buildExpandedSvg(String originalSvg,
                                     String pieceMongoId,
                                     String markPngUrl,
+                                    String originalContentImg,
                                     double originalWidth,
                                     double originalHeight,
                                     ExpandMargins margins) {
@@ -373,7 +376,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String markSourceName = sourceName(markPngUrl);
         String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
         if (!containsGroup(originalSvg)) {
-            return rebuildSvgWithLiubaiFirst(updatedSvg, pieceMongoId, liubaiGroup);
+            return rebuildSvgWithLiubaiFirst(updatedSvg, pieceMongoId, originalContentImg, liubaiGroup);
         }
         return insertAfterRootOpenTag(updatedSvg, liubaiGroup);
     }
@@ -390,7 +393,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return svg.substring(0, matcher.end()) + groupSvg + svg.substring(matcher.end());
     }
 
-    private String rebuildSvgWithLiubaiFirst(String updatedSvg, String pieceMongoId, String liubaiGroup) {
+    private String rebuildSvgWithLiubaiFirst(String updatedSvg, String pieceMongoId, String originalContentImg, String liubaiGroup) {
         Matcher openMatcher = SVG_OPEN_PATTERN.matcher(updatedSvg);
         if (!openMatcher.find()) {
             return updatedSvg;
@@ -402,14 +405,47 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String prefix = updatedSvg.substring(0, openMatcher.end());
         String innerSvg = updatedSvg.substring(openMatcher.end(), closeIndex).trim();
         String suffix = updatedSvg.substring(closeIndex);
-        return prefix + liubaiGroup + buildOriginalContentGroup(pieceMongoId, innerSvg) + suffix;
+        return prefix + liubaiGroup + buildOriginalContentGroup(pieceMongoId, originalContentImg, innerSvg) + suffix;
     }
 
-    private String buildOriginalContentGroup(String pieceMongoId, String innerSvg) {
+    private String buildOriginalContentGroup(String pieceMongoId, String originalContentImg, String innerSvg) {
         String groupId = StringUtils.isBlank(pieceMongoId) ? "original-mask" : pieceMongoId;
-        return "<g id=\"" + escapeAttr(groupId) + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+        return "<g id=\"" + escapeAttr(groupId)
+                + "\" img=\"" + escapeAttr(originalContentImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
+                + "\" data-forme=\"true\" data-rotation=\"0\">\n"
                 + innerSvg + "\n"
                 + "</g>\n";
+    }
+
+    private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
+        String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
+        if (StringUtils.isNotBlank(productImg)) {
+            return productImg;
+        }
+        return isInlineSvg(originalMaskUrl) ? "" : originalMaskUrl;
+    }
+
+    private String resolveImageFileRaw(ImageFile imageFile) {
+        if (imageFile == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(imageFile.getRawFile())) {
+            return imageFile.getRawFile();
+        }
+        FilePreview preview = imageFile.getFilePreview();
+        if (preview != null && StringUtils.isNotBlank(preview.getRaw())) {
+            return preview.getRaw();
+        }
+        return null;
+    }
+
+    private boolean isInlineSvg(String svgRef) {
+        if (StringUtils.isBlank(svgRef)) {
+            return false;
+        }
+        String trimmed = svgRef.trim();
+        return trimmed.startsWith("<svg") || trimmed.startsWith("<?xml");
     }
 
     private int lastSvgCloseIndex(String svg) {

@@ -77,7 +77,8 @@ public class FourCornerBuckleProcessService {
         }
         ensureProductionPieceMongoId(piece);
         String businessId = ensureProductionPieceBusinessId(piece);
-        String expandedSvg = appendBuckleMarks(originalSvg, piece, width, height);
+        String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
+        String expandedSvg = appendBuckleMarks(originalSvg, piece, originalContentImg, width, height);
         String manufacturerMetaId = resolveManufacturerMetaId(orderItem, piece);
         String orderItemId = orderItem == null || StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/buckle/";
@@ -148,7 +149,7 @@ public class FourCornerBuckleProcessService {
      * 同一个工件可能先执行留白再执行四角打扣，重写原有 {@code <g>} 会导致留白分组丢失。
      * 原 SVG 不存在 {@code <g>} 时先重构为分组结构，再把扣点追加在后面。</p>
      */
-    private String appendBuckleMarks(String originalSvg, ProductionPiece piece, double width, double height) {
+    private String appendBuckleMarks(String originalSvg, ProductionPiece piece, String originalContentImg, double width, double height) {
         int closeIndex = lastSvgCloseIndex(originalSvg);
         if (closeIndex < 0) {
             return originalSvg;
@@ -157,7 +158,7 @@ public class FourCornerBuckleProcessService {
         if (StringUtils.isBlank(pieceId)) {
             pieceId = "unknown";
         }
-        String baseSvg = containsGroup(originalSvg) ? originalSvg : rebuildSvgWithOriginalGroup(originalSvg, pieceId);
+        String baseSvg = containsGroup(originalSvg) ? originalSvg : rebuildSvgWithOriginalGroup(originalSvg, pieceId, originalContentImg);
         closeIndex = lastSvgCloseIndex(baseSvg);
         if (closeIndex < 0) {
             return baseSvg;
@@ -179,7 +180,7 @@ public class FourCornerBuckleProcessService {
         return closeIndex;
     }
 
-    private String rebuildSvgWithOriginalGroup(String originalSvg, String pieceId) {
+    private String rebuildSvgWithOriginalGroup(String originalSvg, String pieceId, String originalContentImg) {
         Matcher openMatcher = SVG_OPEN_PATTERN.matcher(originalSvg);
         if (!openMatcher.find()) {
             return originalSvg;
@@ -191,14 +192,57 @@ public class FourCornerBuckleProcessService {
         String prefix = originalSvg.substring(0, openMatcher.end());
         String innerSvg = originalSvg.substring(openMatcher.end(), closeIndex).trim();
         String suffix = originalSvg.substring(closeIndex);
-        return prefix + "\n" + buildOriginalContentGroup(pieceId, innerSvg) + suffix;
+        return prefix + "\n" + buildOriginalContentGroup(pieceId, originalContentImg, innerSvg) + suffix;
     }
 
-    private String buildOriginalContentGroup(String pieceId, String innerSvg) {
+    private String buildOriginalContentGroup(String pieceId, String originalContentImg, String innerSvg) {
         String groupId = StringUtils.isBlank(pieceId) ? "original-mask" : pieceId;
-        return "<g id=\"" + escapeAttr(groupId) + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+        return "<g id=\"" + escapeAttr(groupId)
+                + "\" img=\"" + escapeAttr(originalContentImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
+                + "\" data-forme=\"true\" data-rotation=\"0\">\n"
                 + innerSvg + "\n"
                 + "</g>\n";
+    }
+
+    private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
+        String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
+        if (StringUtils.isNotBlank(productImg)) {
+            return productImg;
+        }
+        return isInlineSvg(originalMaskUrl) ? "" : originalMaskUrl;
+    }
+
+    private String resolveImageFileRaw(ImageFile imageFile) {
+        if (imageFile == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(imageFile.getRawFile())) {
+            return imageFile.getRawFile();
+        }
+        FilePreview preview = imageFile.getFilePreview();
+        if (preview != null && StringUtils.isNotBlank(preview.getRaw())) {
+            return preview.getRaw();
+        }
+        return null;
+    }
+
+    private boolean isInlineSvg(String svgRef) {
+        if (StringUtils.isBlank(svgRef)) {
+            return false;
+        }
+        String trimmed = svgRef.trim();
+        return trimmed.startsWith("<svg") || trimmed.startsWith("<?xml");
+    }
+
+    private String sourceName(String url) {
+        if (StringUtils.isBlank(url)) {
+            return "";
+        }
+        int queryIndex = url.indexOf('?');
+        String clean = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
+        int slashIndex = clean.lastIndexOf('/');
+        return slashIndex >= 0 ? clean.substring(slashIndex + 1) : clean;
     }
 
     private String buildMarksSvg(String pieceId, double width, double height) {
