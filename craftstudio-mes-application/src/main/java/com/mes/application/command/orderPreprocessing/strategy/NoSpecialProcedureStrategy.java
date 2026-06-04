@@ -39,7 +39,7 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         // 步骤4：创建并持久化生产零件。
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-        // 步骤4.1：无超幅拼接路线在持久化前先写入四角打扣扣点，再执行留白策略；false 表示没有出血边需要跳过，四边都允许外扩。
+        // 步骤4.1：无超幅拼接路线在持久化前先写入打扣扣点，再执行留白策略；false 表示没有出血边需要跳过，四边都允许外扩。
         processingService.applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
         processingService.applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
         processingService.getProductionPieceService().addProductionPiece(piece);

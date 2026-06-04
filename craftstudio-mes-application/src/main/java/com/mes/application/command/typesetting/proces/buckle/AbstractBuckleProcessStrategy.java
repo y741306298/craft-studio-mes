@@ -98,7 +98,7 @@ public abstract class AbstractBuckleProcessStrategy {
             log.info("{}预处理跳过尺寸不足工件: productionPieceId={}, width={}, height={}", nodeName(), piece.getProductionPieceId(), width, height);
             return;
         }
-        List<BuckleMarkPoint> markPoints = buildMarkPoints(width, height);
+        List<BuckleMarkPoint> markPoints = buildMarkPoints(context, width, height);
         if (markPoints.isEmpty()) {
             return;
         }
@@ -125,6 +125,18 @@ public abstract class AbstractBuckleProcessStrategy {
 
     /** @return 当前策略写入 SVG 与 marks map 使用的 key 前缀。 */
     protected abstract String markKeyPrefix();
+
+    /**
+     * 构建当前策略的所有扣点中心坐标。
+     *
+     * @param context 打扣处理上下文，实体策略需要读取工件出血/分段信息时可使用
+     * @param width mask SVG 宽度，单位 mm
+     * @param height mask SVG 高度，单位 mm
+     * @return 扣点列表
+     */
+    protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height) {
+        return buildMarkPoints(width, height);
+    }
 
     /**
      * 构建当前策略的所有扣点中心坐标。
