@@ -35,6 +35,7 @@ public class FourCornerBuckleProcessService {
     private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/point.png";
     private static final String MARK_KEY_PREFIX = "four-corner-buckle-point";
     private static final String MARK_SOURCE_NAME = "point.png";
+    private static final String MARK_PATH_FILL = "#000000";
     private static final double MARK_SIZE_MM = 8D;
     private static final double EDGE_OFFSET_MM = 25D;
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
@@ -343,11 +344,19 @@ public class FourCornerBuckleProcessService {
                 .append("\" img=\"").append(escapeAttr(MARK_IMG))
                 .append("\" data-source-name=\"").append(MARK_SOURCE_NAME)
                 .append("\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
-                .append("<image href=\"").append(escapeAttr(MARK_IMG))
-                .append("\" x=\"0\" y=\"0\" width=\"").append(format(MARK_SIZE_MM))
-                .append("\" height=\"").append(format(MARK_SIZE_MM))
-                .append("\" preserveAspectRatio=\"none\"/>\n")
+                .append("<path d=\"").append(buildPointPath())
+                .append("\" fill=\"").append(MARK_PATH_FILL).append("\"/>\n")
                 .append("</g>\n");
+    }
+
+    private String buildPointPath() {
+        double radius = MARK_SIZE_MM / 2D;
+        double c = radius * 0.5522847498307936D;
+        return "M" + format(radius) + " 0"
+                + " C" + format(radius + c) + " 0 " + format(MARK_SIZE_MM) + " " + format(radius - c) + " " + format(MARK_SIZE_MM) + " " + format(radius)
+                + " C" + format(MARK_SIZE_MM) + " " + format(radius + c) + " " + format(radius + c) + " " + format(MARK_SIZE_MM) + " " + format(radius) + " " + format(MARK_SIZE_MM)
+                + " C" + format(radius - c) + " " + format(MARK_SIZE_MM) + " 0 " + format(radius + c) + " 0 " + format(radius)
+                + " C0 " + format(radius - c) + " " + format(radius - c) + " 0 " + format(radius) + " 0 Z";
     }
 
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
