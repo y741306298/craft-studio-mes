@@ -32,7 +32,8 @@ import java.util.regex.Pattern;
 public class FourCornerBuckleProcessService {
     private static final String NODE_NAME = "四角打扣";
     private static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/point.png";
-    private static final String MARK_KEY = "four-corner-buckle-point";
+    private static final String MARK_KEY_PREFIX = "four-corner-buckle-point";
+    private static final String MARK_SOURCE_NAME = "point.png";
     private static final double MARK_SIZE_MM = 8D;
     private static final double EDGE_OFFSET_MM = 25D;
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
@@ -152,24 +153,26 @@ public class FourCornerBuckleProcessService {
     private String buildMarksSvg(String pieceId, double width, double height) {
         StringBuilder builder = new StringBuilder();
         builder.append("\n<g id=\"four-corner-buckle-").append(escapeAttr(pieceId)).append("\" data-forme=\"false\" data-rotation=\"0\">\n");
-        appendImage(builder, "lt", EDGE_OFFSET_MM, EDGE_OFFSET_MM);
-        appendImage(builder, "rt", width - EDGE_OFFSET_MM, EDGE_OFFSET_MM);
-        appendImage(builder, "rb", width - EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
-        appendImage(builder, "lb", EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
+        appendPointGroup(builder, pieceId, "lt", EDGE_OFFSET_MM, EDGE_OFFSET_MM);
+        appendPointGroup(builder, pieceId, "rt", width - EDGE_OFFSET_MM, EDGE_OFFSET_MM);
+        appendPointGroup(builder, pieceId, "rb", width - EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
+        appendPointGroup(builder, pieceId, "lb", EDGE_OFFSET_MM, height - EDGE_OFFSET_MM);
         builder.append("</g>\n");
         return builder.toString();
     }
 
-    private void appendImage(StringBuilder builder, String suffix, double centerX, double centerY) {
+    private void appendPointGroup(StringBuilder builder, String pieceId, String suffix, double centerX, double centerY) {
         double x = centerX - MARK_SIZE_MM / 2D;
         double y = centerY - MARK_SIZE_MM / 2D;
-        builder.append("<image id=\"four-corner-buckle-point-").append(suffix)
-                .append("\" href=\"").append(escapeAttr(MARK_IMG))
-                .append("\" x=\"").append(format(x))
-                .append("\" y=\"").append(format(y))
-                .append("\" width=\"").append(format(MARK_SIZE_MM))
+        builder.append("<g id=\"").append(MARK_KEY_PREFIX).append("-").append(suffix).append("-").append(escapeAttr(pieceId))
+                .append("\" img=\"").append(escapeAttr(MARK_IMG))
+                .append("\" data-source-name=\"").append(MARK_SOURCE_NAME)
+                .append("\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
+                .append("<image href=\"").append(escapeAttr(MARK_IMG))
+                .append("\" x=\"0\" y=\"0\" width=\"").append(format(MARK_SIZE_MM))
                 .append("\" height=\"").append(format(MARK_SIZE_MM))
-                .append("\" preserveAspectRatio=\"none\"/>\n");
+                .append("\" preserveAspectRatio=\"none\"/>\n")
+                .append("</g>\n");
     }
 
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
@@ -195,7 +198,10 @@ public class FourCornerBuckleProcessService {
             marks = new LinkedHashMap<>();
             piece.setMarks(marks);
         }
-        marks.put(MARK_KEY, MARK_IMG);
+        marks.put(MARK_KEY_PREFIX + "-lt", MARK_IMG);
+        marks.put(MARK_KEY_PREFIX + "-rt", MARK_IMG);
+        marks.put(MARK_KEY_PREFIX + "-rb", MARK_IMG);
+        marks.put(MARK_KEY_PREFIX + "-lb", MARK_IMG);
     }
 
     private String resolveManufacturerMetaId(OrderItem orderItem, ProductionPiece piece) {
