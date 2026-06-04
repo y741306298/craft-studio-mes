@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
  * 订单预处理阶段的“四角打扣”扣点处理服务。
  *
  * <p>该服务与留白预处理保持同一处理时机：在生产工件创建后、持久化前同步处理
- * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG，只在根 {@code <svg>} 关闭标签前追加四个扣点分组，
- * 不重写原有分组，避免覆盖留白等已提前写入的 {@code <g>}；后续排版/刀版流程直接消费已经带扣点的 productionPiece。</p>
+ * {@link ProductionPiece#getMaskImageFile()} 指向的 mask SVG。已有 {@code <g>} 时只在根 {@code <svg>} 关闭标签前追加四个扣点分组；
+ * 没有 {@code <g>} 时先重写 SVG，把原始图形放入基础分组，再把扣点分组放在后面，避免覆盖留白等已提前写入的 {@code <g>}。</p>
  */
 @Slf4j
 @Service
@@ -38,6 +38,9 @@ public class FourCornerBuckleProcessService {
     private static final double EDGE_OFFSET_MM = 25D;
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_INNER_PATTERN = Pattern.compile("<svg\\b[^>]*>([\\s\\S]*?)</svg>", Pattern.CASE_INSENSITIVE);
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -73,7 +76,7 @@ public class FourCornerBuckleProcessService {
         }
         ensureProductionPieceMongoId(piece);
         String businessId = ensureProductionPieceBusinessId(piece);
-        String expandedSvg = appendBuckleMarks(originalSvg, piece, width, height);
+        String expandedSvg = appendBuckleMarks(originalSvg, originalMaskUrl, piece, width, height);
         String manufacturerMetaId = resolveManufacturerMetaId(orderItem, piece);
         String orderItemId = orderItem == null || StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/buckle/";
@@ -138,22 +141,67 @@ public class FourCornerBuckleProcessService {
     }
 
     /**
-     * 在根 {@code <svg>} 关闭标签前追加四个扣点 {@code <g>}。
+     * 写入四个扣点 {@code <g>}。
      *
-     * <p>注意：这里必须只追加新的扣点分组，不能重建或包裹原有 SVG 内容。
-     * 同一个工件可能先执行留白再执行四角打扣，重写原有 {@code <g>} 会导致留白分组丢失。</p>
+     * <p>已有 {@code <g>} 时只追加新的扣点分组到根节点末尾；没有 {@code <g>} 时重写 SVG，
+     * 先把原始图形放入基础分组，再追加扣点分组，确保扣点在后面且后续流程能按 {@code <g>} 增量处理。</p>
      */
-    private String appendBuckleMarks(String originalSvg, ProductionPiece piece, double width, double height) {
-        int closeIndex = originalSvg.lastIndexOf("</svg>");
-        if (closeIndex < 0) {
-            return originalSvg;
-        }
+    private String appendBuckleMarks(String originalSvg, String originalMaskUrl, ProductionPiece piece, double width, double height) {
         String pieceId = StringUtils.isNotBlank(piece.getId()) ? piece.getId() : piece.getProductionPieceId();
         if (StringUtils.isBlank(pieceId)) {
             pieceId = "unknown";
         }
         String marksSvg = buildMarksSvg(pieceId, width, height);
+        if (!hasGroup(originalSvg)) {
+            return rebuildBuckleSvg(originalSvg, originalMaskUrl, piece, pieceId, width, height, marksSvg);
+        }
+        int closeIndex = lastSvgCloseIndex(originalSvg);
+        if (closeIndex < 0) {
+            return originalSvg;
+        }
         return originalSvg.substring(0, closeIndex) + marksSvg + originalSvg.substring(closeIndex);
+    }
+
+    private boolean hasGroup(String svg) {
+        return SVG_GROUP_PATTERN.matcher(svg).find();
+    }
+
+    private int lastSvgCloseIndex(String svg) {
+        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
+        int closeIndex = -1;
+        while (matcher.find()) {
+            closeIndex = matcher.start();
+        }
+        return closeIndex;
+    }
+
+    private String rebuildBuckleSvg(String originalSvg,
+                                    String originalMaskUrl,
+                                    ProductionPiece piece,
+                                    String pieceId,
+                                    double width,
+                                    double height,
+                                    String marksSvg) {
+        String inner = extractInnerSvg(originalSvg);
+        String productImg = piece.getProductImageFile() == null ? "" : piece.getProductImageFile().getRawFile();
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(width) + "\" height=\"" + format(height)
+                + "\" viewBox=\"0 0 " + format(width) + " " + format(height) + "\" version=\"1.1\" require-plt=\"true\">\n"
+                + "<g id=\"" + escapeAttr(pieceId) + "\" img=\"" + escapeAttr(productImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName(originalMaskUrl)) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
+                + inner + "\n"
+                + "</g>"
+                + marksSvg
+                + "</svg>";
+    }
+
+    private String extractInnerSvg(String svg) {
+        String withoutXml = svg.replaceFirst("(?is)^\\s*<\\?xml[^>]*>\\s*", "");
+        Matcher matcher = SVG_INNER_PATTERN.matcher(withoutXml);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return withoutXml.trim();
     }
 
     private String buildMarksSvg(String pieceId, double width, double height) {
@@ -206,6 +254,16 @@ public class FourCornerBuckleProcessService {
         marks.put(MARK_KEY_PREFIX + "-rt", MARK_IMG);
         marks.put(MARK_KEY_PREFIX + "-rb", MARK_IMG);
         marks.put(MARK_KEY_PREFIX + "-lb", MARK_IMG);
+    }
+
+    private String sourceName(String url) {
+        if (StringUtils.isBlank(url)) {
+            return "";
+        }
+        int queryIndex = url.indexOf('?');
+        String clean = queryIndex >= 0 ? url.substring(0, queryIndex) : url;
+        int slashIndex = clean.lastIndexOf('/');
+        return slashIndex >= 0 ? clean.substring(slashIndex + 1) : clean;
     }
 
     private String resolveManufacturerMetaId(OrderItem orderItem, ProductionPiece piece) {

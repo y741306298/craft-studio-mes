@@ -64,6 +64,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
 
     /**
+     * 判断原 SVG 是否已经包含分组。没有分组时需要重写 SVG，把原始图形放入新 g。
+     */
+    private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 提取原 SVG 根节点内部内容，用于无分组 SVG 重写时保留原始图形。
+     */
+    private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
+
+    /**
      * 匹配原 SVG 根节点关闭标签，用于在关闭标签前追加新的留白分组。
      */
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
@@ -116,7 +126,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *     <li>解析原始 SVG 宽高，解析失败时退回使用 productionPiece.width/height。</li>
      *     <li>根据是否需要跳过出血边计算四边外扩量。</li>
      *     <li>生成与外扩矩形同宽高的 mark PNG，上传后保存到 productionPiece.marks。</li>
-     *     <li>更新 SVG 根节点尺寸/viewBox，并只追加留白矩形 g，保留原有 g 结构。</li>
+     *     <li>如果原 SVG 已有 g，则只更新根节点尺寸/viewBox，并把留白矩形 g 插入为第一个 g。</li>
+     *     <li>如果原 SVG 没有 g，则重写 SVG，将原始图形放入原图 g，并生成留白矩形 g。</li>
      *     <li>上传新 SVG，回写 productionPiece.maskImageFile，并更新生产工件宽高。</li>
      * </ol>
      *
@@ -341,13 +352,14 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>SVG 结构说明：</p>
      * <ul>
      *     <li>根节点宽高使用“原尺寸 + 四边外扩量”。</li>
-     *     <li>viewBox 使用负 left/top 起点，让原 SVG 既有内容在视觉上落到留白区域内。</li>
-     *     <li>只在根 {@code </svg>} 前追加留白矩形 g，不重建、不包裹、不移动原有 g，避免覆盖四角打扣等已写入分组。</li>
+     *     <li>原 SVG 已有 g 时，只更新根节点 viewBox，并把留白矩形 g 插入到根节点下第一位，避免覆盖四角打扣等已写入分组。</li>
+     *     <li>原 SVG 没有 g 时，重写 SVG：根节点下生成留白矩形 g 和包裹原始图形的原图 g。</li>
      *     <li>留白矩形 g 的 id 格式为 liubai-{specName}-{productionPiece._id}，挂载对应 mark PNG 的 img、data-source-name、data-forme、data-rotation。</li>
-     *     <li>留白矩形 g 内只放置外扩后的大矩形 path。</li>
      * </ul>
      *
      * @param originalSvg 原始 mask SVG 文本
+     * @param originalMaskUrl 原始 mask SVG 地址，用于无 g 重写时写入 data-source-name
+     * @param piece 当前生产工件，用于无 g 重写时读取图片地址
      * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成留白 g 的 id
      * @param markPngUrl 与外扩 SVG 同宽高的留白 mark PNG URL，用于写入留白矩形 g 的 img
      * @param originalWidth 原始 SVG 宽度
@@ -363,23 +375,22 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                     ExpandMargins margins) {
         double newWidth = originalWidth + margins.left + margins.right;
         double newHeight = originalHeight + margins.top + margins.bottom;
-        String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
         String markSourceName = sourceName(markPngUrl);
+        if (!hasGroup(originalSvg)) {
+            return rebuildExpandedSvg(originalSvg, originalMaskUrl, piece, pieceMongoId, markPngUrl, markSourceName,
+                    originalWidth, originalHeight, margins, newWidth, newHeight);
+        }
+        String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
         String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
-        int closeIndex = lastSvgCloseIndex(updatedSvg);
-        if (closeIndex < 0) {
+        Matcher matcher = SVG_OPEN_PATTERN.matcher(updatedSvg);
+        if (!matcher.find()) {
             return updatedSvg;
         }
-        return updatedSvg.substring(0, closeIndex) + liubaiGroup + updatedSvg.substring(closeIndex);
+        return updatedSvg.substring(0, matcher.end()) + liubaiGroup + updatedSvg.substring(matcher.end());
     }
 
-    private int lastSvgCloseIndex(String svg) {
-        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
-        int closeIndex = -1;
-        while (matcher.find()) {
-            closeIndex = matcher.start();
-        }
-        return closeIndex;
+    private boolean hasGroup(String svg) {
+        return SVG_GROUP_PATTERN.matcher(svg).find();
     }
 
     private String updateRootSvgAttributes(String svg, double newWidth, double newHeight, ExpandMargins margins) {
@@ -408,6 +419,42 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
     }
 
+    private String rebuildExpandedSvg(String originalSvg,
+                                      String originalMaskUrl,
+                                      ProductionPiece piece,
+                                      String pieceMongoId,
+                                      String markPngUrl,
+                                      String markSourceName,
+                                      double originalWidth,
+                                      double originalHeight,
+                                      ExpandMargins margins,
+                                      double newWidth,
+                                      double newHeight) {
+        String inner = extractInnerSvg(originalSvg);
+        String productImg = piece.getProductImageFile() == null ? "" : piece.getProductImageFile().getRawFile();
+        String sourceName = sourceName(originalMaskUrl);
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(newWidth) + "\" height=\"" + format(newHeight)
+                + "\" viewBox=\"0 0 " + format(newWidth) + " " + format(newHeight) + "\" version=\"1.1\" require-plt=\"true\">"
+                + buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins, false)
+                + "<g id=\"" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(productImg)
+                + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate("
+                + format(margins.left) + " " + format(margins.top) + ")\">\n"
+                + inner + "\n"
+                + "</g>\n"
+                + "</svg>";
+    }
+
+    private String extractInnerSvg(String svg) {
+        String withoutXml = svg.replaceFirst("(?is)^\\s*<\\?xml[^>]*>\\s*", "");
+        Matcher matcher = SVG_INNER_PATTERN.matcher(withoutXml);
+        if (matcher.find()) {
+            return matcher.replaceFirst(Matcher.quoteReplacement(attribute));
+        }
+        int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
+        return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
     private String buildLiubaiGroup(String pieceMongoId,
                                     String markPngUrl,
                                     String markSourceName,
@@ -418,6 +465,33 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double top = -margins.top;
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
+        return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
+                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
+                + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
+                + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
+                + "</g>\n";
+    }
+
+    private String buildLiubaiGroup(String pieceMongoId,
+                                    String markPngUrl,
+                                    String markSourceName,
+                                    double originalWidth,
+                                    double originalHeight,
+                                    ExpandMargins margins) {
+        return buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins, true);
+    }
+
+    private String buildLiubaiGroup(String pieceMongoId,
+                                    String markPngUrl,
+                                    String markSourceName,
+                                    double originalWidth,
+                                    double originalHeight,
+                                    ExpandMargins margins,
+                                    boolean useViewBoxOffset) {
+        double left = useViewBoxOffset ? -margins.left : 0D;
+        double top = useViewBoxOffset ? -margins.top : 0D;
+        double right = useViewBoxOffset ? originalWidth + margins.right : originalWidth + margins.left + margins.right;
+        double bottom = useViewBoxOffset ? originalHeight + margins.bottom : originalHeight + margins.top + margins.bottom;
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
