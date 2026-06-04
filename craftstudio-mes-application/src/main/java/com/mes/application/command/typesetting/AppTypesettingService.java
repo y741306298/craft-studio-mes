@@ -17,6 +17,7 @@ import com.mes.application.command.typesetting.layout.CaifuOpenBackA30HFilmNesti
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
+import com.mes.application.command.typesetting.service.LiubaiNestingElementService;
 import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
@@ -152,6 +153,9 @@ public class AppTypesettingService {
 
     @Autowired
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;
+
+    @Autowired
+    private LiubaiNestingElementService liubaiNestingElementService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -1145,21 +1149,24 @@ public class AppTypesettingService {
                 if (piece == null || StringUtils.isBlank(piece.getProductionPieceId())) {
                     continue;
                 }
-                if (StringUtils.isBlank(piece.getTemplateCode())) {
-                    throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
-                }
-                NestingRequest.Element element = new NestingRequest.Element();
-                element.setId(piece.getId());
-                if (StringUtils.isNotBlank(piece.getRouteSvg())) {
-                    element.setSvg(piece.getRouteSvg());
-                } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
-                    element.setSvg(piece.getMaskImageFile().getRawFile());
-                }
-                element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
-                element.setForme(Boolean.FALSE);
-                String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
-                if (StringUtils.isNotBlank(pieceImg)) {
-                    element.setImg(pieceImg);
+                NestingRequest.Element element = liubaiNestingElementService.buildLiubaiElement(piece);
+                if (element == null) {
+                    if (StringUtils.isBlank(piece.getTemplateCode())) {
+                        throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
+                    }
+                    element = new NestingRequest.Element();
+                    element.setId(piece.getId());
+                    if (StringUtils.isNotBlank(piece.getRouteSvg())) {
+                        element.setSvg(piece.getRouteSvg());
+                    } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
+                        element.setSvg(piece.getMaskImageFile().getRawFile());
+                    }
+                    element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
+                    element.setForme(Boolean.FALSE);
+                    String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
+                    if (StringUtils.isNotBlank(pieceImg)) {
+                        element.setImg(pieceImg);
+                    }
                 }
                 if (isVerticalTypesetting) {
                     element.setVMargin(0);
