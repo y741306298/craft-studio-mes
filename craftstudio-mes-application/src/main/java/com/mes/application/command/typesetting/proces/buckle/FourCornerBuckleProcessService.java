@@ -42,6 +42,8 @@ public class FourCornerBuckleProcessService {
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -201,8 +203,88 @@ public class FourCornerBuckleProcessService {
                 + "\" img=\"" + escapeAttr(originalContentImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
                 + "\" data-forme=\"true\" data-rotation=\"0\">\n"
-                + innerSvg + "\n"
+                + normalizeRectsToPaths(innerSvg) + "\n"
                 + "</g>\n";
+    }
+
+    private String normalizeRectsToPaths(String svgContent) {
+        if (StringUtils.isBlank(svgContent)) {
+            return svgContent;
+        }
+        Matcher matcher = SVG_RECT_PATTERN.matcher(svgContent);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            String rectAttributes = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
+            String path = convertRectToPath(matcher.group(), rectAttributes);
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(path));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    private String convertRectToPath(String originalRect, String rectAttributes) {
+        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
+        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
+        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
+        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
+        if (x == null || y == null || width == null || height == null) {
+            return originalRect;
+        }
+        StringBuilder path = new StringBuilder("<path d=\"M")
+                .append(format(x)).append(" ").append(format(y))
+                .append(" H").append(format(x + width))
+                .append(" V").append(format(y + height))
+                .append(" H").append(format(x))
+                .append(" Z\"");
+        appendRectAttributesAsPathAttributes(path, rectAttributes);
+        path.append("/>");
+        return path.toString();
+    }
+
+    private void appendRectAttributesAsPathAttributes(StringBuilder path, String rectAttributes) {
+        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(rectAttributes);
+        while (matcher.find()) {
+            String attributeName = matcher.group(1);
+            if ("x".equalsIgnoreCase(attributeName) || "y".equalsIgnoreCase(attributeName)
+                    || "width".equalsIgnoreCase(attributeName) || "height".equalsIgnoreCase(attributeName)) {
+                continue;
+            }
+            path.append(matcher.group());
+        }
+    }
+
+    private String attributeValue(String attributes, String name) {
+        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(attributes);
+        while (matcher.find()) {
+            if (name.equalsIgnoreCase(matcher.group(1))) {
+                String attribute = matcher.group();
+                int equalsIndex = attribute.indexOf('=');
+                if (equalsIndex < 0) {
+                    return null;
+                }
+                String value = attribute.substring(equalsIndex + 1).trim();
+                if (value.length() >= 2 && (value.startsWith("\"") || value.startsWith("'"))) {
+                    return value.substring(1, value.length() - 1);
+                }
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Double parseSvgNumber(String value, Double fallback) {
+        if (StringUtils.isBlank(value)) {
+            return fallback;
+        }
+        Matcher matcher = Pattern.compile("[-+]?[0-9]+(?:\\.[0-9]+)?").matcher(value.trim());
+        if (!matcher.find()) {
+            return fallback;
+        }
+        try {
+            return Double.parseDouble(matcher.group());
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
