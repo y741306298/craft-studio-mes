@@ -38,7 +38,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
      * 生产工件附加标记资源。
      *
      * <p>结构与 ProductionPiece.marks / TypesettingInfo.marks 保持一致，key 表示 mark 类型，value 表示 OSS 地址。
-     * 留白预处理生成的外框 PNG 会写入这里并持久化到 productionPiece 集合。</p>
+     * 留白预处理生成的外框 PNG、四角打扣预处理使用的扣点图片资源会写入这里并持久化到 productionPiece 集合。</p>
      */
     private Map<String, String> marks;
     private String routeImg;
