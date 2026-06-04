@@ -336,18 +336,17 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>SVG 结构说明：</p>
      * <ul>
      *     <li>根节点宽高和 viewBox 使用“原尺寸 + 四边外扩量”。</li>
-     *     <li>根节点下先生成总留白分组，id 格式为 liubai-{productionPieceId}，data-forme 固定为 true。</li>
-     *     <li>总留白分组内包含两个并列 g：留白矩形分组与原图分组。</li>
-     *     <li>第一个并列 g 是留白矩形分组，id 格式为 liubai-{specName}-{productionPiece._id}，挂载对应 mark PNG 的 img、data-source-name、data-forme、data-rotation。</li>
-     *     <li>第一个并列 g 内只放置外扩后的大矩形 path。</li>
-     *     <li>第二个并列 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等原图元数据。</li>
-     *     <li>原 SVG 根节点内部内容会放入第二个并列 g，并通过 translate(left, top) 移动到留白区域内。</li>
+     *     <li>根节点下直接包含两个同级 g：留白矩形分组与原图分组，不再额外包裹总留白分组。</li>
+     *     <li>第一个同级 g 是留白矩形分组，id 格式为 liubai-{specName}-{productionPiece._id}，挂载对应 mark PNG 的 img、data-source-name、data-forme、data-rotation。</li>
+     *     <li>第一个同级 g 内只放置外扩后的大矩形 path。</li>
+     *     <li>第二个同级 g 的 id 直接使用 productionPiece._id，并挂载 img、data-source-name、data-forme、data-rotation 等原图元数据。</li>
+     *     <li>原 SVG 根节点内部内容会放入第二个同级 g，并通过 translate(left, top) 移动到留白区域内。</li>
      * </ul>
      *
      * @param originalSvg 原始 mask SVG 文本
      * @param originalMaskUrl 原始 mask SVG 地址，用于写入 data-source-name
      * @param piece 当前生产工件，用于读取图片地址
-     * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成外层和内层 g 的 id
+     * @param pieceMongoId 当前生产工件 MongoDB _id，用于生成两个同级 g 的 id
      * @param markPngUrl 与外扩 SVG 同宽高的留白 mark PNG URL，用于写入留白矩形 g 的 img
      * @param originalWidth 原始 SVG 宽度
      * @param originalHeight 原始 SVG 高度
@@ -368,11 +367,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String productImg = piece.getProductImageFile() == null ? "" : piece.getProductImageFile().getRawFile();
         String sourceName = sourceName(originalMaskUrl);
         String markSourceName = sourceName(markPngUrl);
-        String productionPieceId = StringUtils.isBlank(piece.getProductionPieceId()) ? pieceMongoId : piece.getProductionPieceId();
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(newWidth) + "\" height=\"" + format(newHeight)
                 + "\" viewBox=\"0 0 " + format(newWidth) + " " + format(newHeight) + "\" version=\"1.1\" require-plt=\"true\">\n"
-                + "<g id=\"liubai-" + escapeAttr(productionPieceId) + "\" data-forme=\"true\" data-rotation=\"0\">\n"
                 + "<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M0 0 H" + format(newWidth) + " V" + format(newHeight) + " H0 Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
@@ -381,7 +378,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(sourceName) + "\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(" + format(margins.left) + " " + format(margins.top) + ")\">\n"
                 + inner + "\n"
                 + "</g>\n"
-                + "</g></svg>";
+                + "</svg>";
     }
     /**
      * 提取原 SVG 根节点内部内容。
