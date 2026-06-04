@@ -538,8 +538,10 @@ public class AppTypesettingService {
                 if (dbPiece == null) {
                     throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
-                if (productionPiece.getQuantity() != null) {
-                    dbPiece.setQuantity(productionPiece.getQuantity());
+                Integer layoutQuantity = resolveProductionPieceLayoutQuantity(dbPiece, productionPiece.getQuantity());
+                if (layoutQuantity != null) {
+                    dbPiece.setQuantity(layoutQuantity);
+                    cell.setQuantity(layoutQuantity);
                 }
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
@@ -1113,8 +1115,10 @@ public class AppTypesettingService {
                     if (dbPiece == null) {
                         throw new IllegalArgumentException("生产工件不存在：" + piece.getId());
                     }
-                    if (piece.getQuantity() != null) {
-                        dbPiece.setQuantity(piece.getQuantity());
+                    Integer layoutQuantity = resolveProductionPieceLayoutQuantity(dbPiece, piece.getQuantity());
+                    if (layoutQuantity != null) {
+                        dbPiece.setQuantity(layoutQuantity);
+                        cell.setQuantity(layoutQuantity);
                     }
                     productionPieces.add(dbPiece);
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
@@ -1155,11 +1159,16 @@ public class AppTypesettingService {
                 } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
                     element.setSvg(piece.getMaskImageFile().getRawFile());
                 }
-                element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
-                element.setForme(Boolean.FALSE);
-                String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
-                if (StringUtils.isNotBlank(pieceImg)) {
-                    element.setImg(pieceImg);
+                boolean liubaiPiece = hasLiubaiProcedure(piece);
+                element.setCounts(liubaiPiece ? 1 : (piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1));
+                element.setForme(liubaiPiece);
+                if (liubaiPiece && StringUtils.isNotBlank(element.getSvg())) {
+                    element.setImg(element.getSvg());
+                } else {
+                    String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
+                    if (StringUtils.isNotBlank(pieceImg)) {
+                        element.setImg(pieceImg);
+                    }
                 }
                 if (isVerticalTypesetting) {
                     element.setVMargin(0);
@@ -1282,6 +1291,56 @@ public class AppTypesettingService {
         nestingRequest.setUploadConfig(uploadConfig);
         nestingRequest.setCallbackConfig(callbackConfig);
         return nestingRequest;
+    }
+
+    /**
+     * 解析生产工件本次提交给排版的数量。
+     *
+     * <p>留白零件在算法请求中按一张已生成的 forme / 印版 SVG 参与排版，
+     * 因此无论前端带入多少待排版数量，本次 toLayout 都固定提交 1，
+     * 同时回写 request.typesettingCells，保证缓存与后续 typesettingCells 持久化数量一致。</p>
+     */
+    private Integer resolveProductionPieceLayoutQuantity(ProductionPiece piece, Integer requestedQuantity) {
+        if (hasLiubaiProcedure(piece)) {
+            return 1;
+        }
+        return requestedQuantity;
+    }
+
+    /**
+     * 判断生产工件是否带有“留白xxx”工艺。
+     *
+     * <p>留白预处理会把矩形 mask 外扩并生成新的 mask SVG；toLayout 组装算法元素时，
+     * 这类零件需要按 forme 元素参与排版，确保算法侧按已处理后的外框 SVG 处理。</p>
+     */
+    private boolean hasLiubaiProcedure(ProductionPiece piece) {
+        if (piece == null) {
+            return false;
+        }
+        if (piece.getMarks() != null && piece.getMarks().keySet().stream()
+                .filter(Objects::nonNull)
+                .anyMatch(key -> key.startsWith("liubai-") || key.contains("留白"))) {
+            return true;
+        }
+        if (StringUtils.isNotBlank(piece.getProcessingFlow()) && piece.getProcessingFlow().contains("留白")) {
+            return true;
+        }
+        ProcedureFlow procedureFlow = piece.getProcedureFlow();
+        if (procedureFlow == null || procedureFlow.getNodes() == null) {
+            return false;
+        }
+        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+            if (node == null) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(node.getNodeName()) && node.getNodeName().contains("留白")) {
+                return true;
+            }
+            if (node.getParamConfigs() != null && JSON.toJSONString(node.getParamConfigs()).contains("留白")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasVerticalCut(ProductionPiece piece) {
