@@ -318,9 +318,8 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
-        // 无超幅拼接/异形切割路线：先在持久化前写入打扣扣点，再按留白工艺同步外扩四边。
-        applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
-        applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
+        // 无超幅拼接/异形切割路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+        applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);
@@ -637,9 +636,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 超幅拼接 callback 路线：先为当前生产工件写入打扣扣点，再由留白按 blood 跳过出血边。
-                        applyFourCornerBuckleProcessForStrategy(orderItem, newProcedureFlow, piece);
-                        applyLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
+                        // 超幅拼接 callback 路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
@@ -752,6 +750,27 @@ public class AppOrderPreprocessingService {
         indexProductionPieceImage(piece);
     }
 
+
+    /**
+     * 按工艺约定执行打扣与留白预处理。
+     *
+     * <p>默认情况下，先执行留白外扩，再执行打扣，使扣点以留白后 mask SVG 的最外侧矩形为基准向内 25mm 结算。
+     * 当流程包含“画内打扣”工艺时，保持原处理方式：先在原始图片 mask 内打扣，再执行留白外扩。</p>
+     *
+     * @param orderItem 当前订单项
+     * @param procedureFlow 已解析工艺流程
+     * @param piece 当前生产工件
+     * @param skipBloodEdges 是否根据出血边跳过留白外扩
+     */
+    public void applyBuckleAndLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
+        if (hasNodeWithName(procedureFlow, "画内打扣")) {
+            applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
+            applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
+            return;
+        }
+        applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
+        applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
+    }
 
     /**
      * 执行订单预处理阶段的打扣扣点处理。
