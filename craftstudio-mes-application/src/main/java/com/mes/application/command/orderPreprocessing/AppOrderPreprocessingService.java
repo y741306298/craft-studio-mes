@@ -12,6 +12,7 @@ import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.command.typesetting.proces.buckle.FourCornerBuckleProcessService;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
@@ -114,6 +115,14 @@ public class AppOrderPreprocessingService {
      */
     @Autowired
     private LiubaiProcessService liubaiProcessService;
+
+    /**
+     * 四角打扣预处理服务。
+     *
+     * <p>与留白一样在生产工件持久化前改写 mask SVG，让后续排版/刀版直接消费已带扣点的生产工件。</p>
+     */
+    @Autowired
+    private FourCornerBuckleProcessService fourCornerBuckleProcessService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -309,7 +318,8 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
-        // 无超幅拼接/异形切割路线：先生成等幅矩形 mask，再在持久化前按留白工艺同步外扩四边。
+        // 无超幅拼接/异形切割路线：先在持久化前写入四角打扣扣点，再按留白工艺同步外扩四边。
+        applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
         applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
@@ -627,7 +637,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 超幅拼接 callback 路线：此时 piece.blood 已经来自算法回调，可据此跳过出血边，仅外扩非出血边。
+                        // 超幅拼接 callback 路线：先为当前生产工件写入四角打扣扣点，再由留白按 blood 跳过出血边。
+                        applyFourCornerBuckleProcessForStrategy(orderItem, newProcedureFlow, piece);
                         applyLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
@@ -741,6 +752,24 @@ public class AppOrderPreprocessingService {
         indexProductionPieceImage(piece);
     }
 
+
+    /**
+     * 执行订单预处理阶段的四角打扣扣点处理。
+     *
+     * <p>该方法对齐留白预处理的调用时机：直接路线与 callback 路线都在
+     * {@code ProductionPiece} 持久化前执行，命中“四角打扣”工艺时会把扣点写入
+     * 当前生产工件的 mask SVG，并回写 {@code productionPiece.marks}。</p>
+     *
+     * @param orderItem 当前订单项，用于上传路径和厂商 ID
+     * @param procedureFlow 已解析工艺流程，用于判断是否存在“四角打扣”
+     * @param piece 当前生产工件，策略会回写 maskImageFile 与 marks
+     */
+    public void applyFourCornerBuckleProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece) {
+        if (fourCornerBuckleProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+            return;
+        }
+        fourCornerBuckleProcessService.process(orderItem, procedureFlow, piece);
+    }
 
     /**
      * 执行订单预处理阶段的留白工艺处理。

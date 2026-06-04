@@ -37,8 +37,8 @@ public class ProductionPiece extends BaseEntity {
      * 生产工件附加标记资源。
      *
      * <p>结构参考 TypesettingInfo.marks，key 表示 mark 类型，value 表示 mark 文件的 OSS 地址。
-     * 留白工艺会将与外扩矩形同宽高的黑色边框 PNG 保存到该 Map 中，便于后续排版、刀版或下载流程
-     * 直接从生产工件上读取留白外框资源。</p>
+     * 留白工艺会将与外扩矩形同宽高的黑色边框 PNG 保存到该 Map 中；四角打扣预处理也会
+     * 保存扣点图片资源，便于后续排版、刀版或下载流程直接从生产工件上读取附加标记资源。</p>
      */
     private Map<String, String> marks;
     private Double width;
