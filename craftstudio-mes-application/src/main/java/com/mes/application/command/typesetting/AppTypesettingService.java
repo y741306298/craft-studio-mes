@@ -17,6 +17,7 @@ import com.mes.application.command.typesetting.layout.CaifuOpenBackA30HFilmNesti
 import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
+import com.mes.application.command.typesetting.service.LiubaiNestingElementService;
 import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
@@ -152,6 +153,9 @@ public class AppTypesettingService {
 
     @Autowired
     private SuperWidthSpliceMarkService superWidthSpliceMarkService;
+
+    @Autowired
+    private LiubaiNestingElementService liubaiNestingElementService;
 
     @Autowired(required = false)
     private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
@@ -709,10 +713,11 @@ public class AppTypesettingService {
         }
         typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
         LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
+        mergeSourceProductionPieceMarks(productionPieces, mergedMarks);
         mergeSourceTypesettingMarks(typesettingInfos, mergedMarks);
         Map<String, String> markerMarks = extractCaifuOpenBackMarkerMarks(nestingRequest, layoutMode);
         if (!markerMarks.isEmpty()) {
-            mergedMarks.putAll(markerMarks);
+            mergeMarkMapIncrementally(markerMarks, mergedMarks, "marker");
         }
         if (!mergedMarks.isEmpty()) {
             typesettingInfo.setMarks(mergedMarks);
@@ -722,6 +727,18 @@ public class AppTypesettingService {
     }
 
 
+    private void mergeSourceProductionPieceMarks(List<ProductionPiece> productionPieces, LinkedHashMap<String, String> target) {
+        if (productionPieces == null || target == null) {
+            return;
+        }
+        for (ProductionPiece piece : productionPieces) {
+            if (piece == null || piece.getMarks() == null || piece.getMarks().isEmpty()) {
+                continue;
+            }
+            mergeMarkMapIncrementally(piece.getMarks(), target, resolveProductionPieceMarkSourceKey(piece));
+        }
+    }
+
     private void mergeSourceTypesettingMarks(List<TypesettingInfo> typesettingInfos, LinkedHashMap<String, String> target) {
         if (typesettingInfos == null || target == null) {
             return;
@@ -730,14 +747,61 @@ public class AppTypesettingService {
             if (info == null || info.getMarks() == null || info.getMarks().isEmpty()) {
                 continue;
             }
-            for (Map.Entry<String, String> entry : info.getMarks().entrySet()) {
-                if (StringUtils.isBlank(entry.getValue())) {
-                    continue;
-                }
-                String key = StringUtils.isNotBlank(entry.getKey()) ? entry.getKey() : ("sourceMark_" + target.size());
-                target.putIfAbsent(key, entry.getValue());
-            }
+            mergeMarkMapIncrementally(info.getMarks(), target, resolveTypesettingMarkSourceKey(info));
         }
+    }
+
+    private void mergeMarkMapIncrementally(Map<String, String> sourceMarks, LinkedHashMap<String, String> target, String sourceKey) {
+        if (sourceMarks == null || sourceMarks.isEmpty() || target == null) {
+            return;
+        }
+        for (Map.Entry<String, String> entry : sourceMarks.entrySet()) {
+            if (entry == null || StringUtils.isBlank(entry.getValue())) {
+                continue;
+            }
+            String baseKey = StringUtils.isNotBlank(entry.getKey()) ? entry.getKey() : ("sourceMark_" + target.size());
+            target.put(resolveIncrementalMarkKey(target, baseKey, sourceKey), entry.getValue());
+        }
+    }
+
+    private String resolveIncrementalMarkKey(LinkedHashMap<String, String> target, String baseKey, String sourceKey) {
+        if (!target.containsKey(baseKey)) {
+            return baseKey;
+        }
+        String sourcePrefix = StringUtils.isNotBlank(sourceKey) ? sourceKey : "source";
+        String candidate = sourcePrefix + ":" + baseKey;
+        int index = 1;
+        while (target.containsKey(candidate)) {
+            candidate = sourcePrefix + ":" + baseKey + "_" + index;
+            index++;
+        }
+        return candidate;
+    }
+
+    private String resolveProductionPieceMarkSourceKey(ProductionPiece piece) {
+        if (piece == null) {
+            return "productionPiece";
+        }
+        if (StringUtils.isNotBlank(piece.getProductionPieceId())) {
+            return piece.getProductionPieceId();
+        }
+        if (StringUtils.isNotBlank(piece.getId())) {
+            return piece.getId();
+        }
+        return "productionPiece";
+    }
+
+    private String resolveTypesettingMarkSourceKey(TypesettingInfo info) {
+        if (info == null) {
+            return "typesetting";
+        }
+        if (StringUtils.isNotBlank(info.getTypesettingId())) {
+            return info.getTypesettingId();
+        }
+        if (StringUtils.isNotBlank(info.getId())) {
+            return info.getId();
+        }
+        return "typesetting";
     }
 
     private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
@@ -1145,21 +1209,24 @@ public class AppTypesettingService {
                 if (piece == null || StringUtils.isBlank(piece.getProductionPieceId())) {
                     continue;
                 }
-                if (StringUtils.isBlank(piece.getTemplateCode())) {
-                    throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
-                }
-                NestingRequest.Element element = new NestingRequest.Element();
-                element.setId(piece.getId());
-                if (StringUtils.isNotBlank(piece.getRouteSvg())) {
-                    element.setSvg(piece.getRouteSvg());
-                } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
-                    element.setSvg(piece.getMaskImageFile().getRawFile());
-                }
-                element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
-                element.setForme(Boolean.FALSE);
-                String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
-                if (StringUtils.isNotBlank(pieceImg)) {
-                    element.setImg(pieceImg);
+                NestingRequest.Element element = liubaiNestingElementService.buildLiubaiElement(piece);
+                if (element == null) {
+                    if (StringUtils.isBlank(piece.getTemplateCode())) {
+                        throw new IllegalArgumentException("生产工件缺少排版SVG地址：" + piece.getProductionPieceId());
+                    }
+                    element = new NestingRequest.Element();
+                    element.setId(piece.getId());
+                    if (StringUtils.isNotBlank(piece.getRouteSvg())) {
+                        element.setSvg(piece.getRouteSvg());
+                    } else if (piece.getMaskImageFile() != null && StringUtils.isNotBlank(piece.getMaskImageFile().getRawFile())) {
+                        element.setSvg(piece.getMaskImageFile().getRawFile());
+                    }
+                    element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
+                    element.setForme(Boolean.FALSE);
+                    String pieceImg = resolvePieceNestingImg(piece, mirrorTypesettingTask);
+                    if (StringUtils.isNotBlank(pieceImg)) {
+                        element.setImg(pieceImg);
+                    }
                 }
                 if (isVerticalTypesetting) {
                     element.setVMargin(0);
