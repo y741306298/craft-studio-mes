@@ -9,5 +9,6 @@ public class ConfigProcessMetaRequest {
     private String rmfId;
     private String processMetaId;
     private UnitPrice unitPrice;
+    private UnitPrice floorPrice;
 
 }

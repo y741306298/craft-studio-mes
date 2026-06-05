@@ -90,16 +90,10 @@ public class ManufacturerProcessCfgController {
         
         String targetUrl = String.format("%s/api/internal/mes/rmfcfg/configProcessMeta", productCoreUrl);
         
-        // 构建请求对象
-        ConfigProcessMetaRequest request = new ConfigProcessMetaRequest();
-        request.setRmfId(configRequest.getRmfId());
-        request.setProcessMetaId(configRequest.getProcessMetaId());
-        request.setUnitPrice(configRequest.getUnitPrice());
-        
         // 将请求对象转换为 JSON 字节数组
         byte[] requestBody = null;
         try {
-            requestBody = com.alibaba.fastjson.JSON.toJSONString(request).getBytes(StandardCharsets.UTF_8);
+            requestBody = com.alibaba.fastjson.JSON.toJSONString(configRequest).getBytes(StandardCharsets.UTF_8);
         } catch (Exception e) {
             System.err.println("Failed to serialize request: " + e.getMessage());
         }
