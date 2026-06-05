@@ -68,6 +68,11 @@ public abstract class AbstractCentimeterLiubaiProcessStrategy extends AbstractFi
         return new String[0];
     }
 
+    @Override
+    protected boolean shouldDrawInnerOriginalBorder() {
+        return expandCm == 5;
+    }
+
     private List<String> candidateTexts(ProcedureFlowNode node) {
         List<String> candidates = new ArrayList<>();
         candidates.add(node.getNodeName());

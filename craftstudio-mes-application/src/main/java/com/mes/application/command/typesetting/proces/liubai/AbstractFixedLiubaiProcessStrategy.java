@@ -199,6 +199,17 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     protected abstract String[] matchKeywords();
 
     /**
+     * 是否需要在留白 mark 的 SVG/PNG 中叠加原始尺寸灰色边框。
+     *
+     * <p>默认规格仍只输出外扩边框；有特殊出图要求的规格由具体策略覆盖。</p>
+     *
+     * @return 需要叠加原始尺寸边框时返回 {@code true}
+     */
+    protected boolean shouldDrawInnerOriginalBorder() {
+        return false;
+    }
+
+    /**
      * 确保生产工件已有业务生产工件 ID。
      *
      * <p>留白外扩矩形 PNG 需要上传到 mark/{manufacturerMetaId}/{productionPieceId}/ 目录。
@@ -251,29 +262,34 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                           double originalWidth,
                                           double originalHeight,
                                           ExpandMargins margins) {
-        double newWidth = originalWidth + margins.left + margins.right;
-        double newHeight = originalHeight + margins.top + margins.bottom;
         String uploadPath = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        return ossTagUploadService.uploadTagPng(productionPieceId, createBorderPng(newWidth, newHeight), uploadPath);
+        return ossTagUploadService.uploadTagPng(productionPieceId, createBorderPng(originalWidth, originalHeight, margins), uploadPath);
     }
 
     /**
-     * 创建透明底黑色边框矩形 PNG。
+     * 创建透明底留白边框 PNG。
      *
-     * @param widthMm PNG 对应的物理宽度，单位 mm
-     * @param heightMm PNG 对应的物理高度，单位 mm
+     * <p>默认只生成外扩后画布的黑色边框；需要展示原始尺寸参考线的规格会在相同 PNG 内叠加
+     * 一圈灰色原尺寸边框，位置与 SVG 中原始工件矩形保持一致。</p>
+     *
+     * @param originalWidth 原始 SVG 宽度，单位 mm
+     * @param originalHeight 原始 SVG 高度，单位 mm
+     * @param margins 四边外扩量
      * @return PNG 文件字节数组
      */
-    private byte[] createBorderPng(double widthMm, double heightMm) {
+    private byte[] createBorderPng(double originalWidth, double originalHeight, ExpandMargins margins) {
+        double widthMm = originalWidth + margins.left + margins.right;
+        double heightMm = originalHeight + margins.top + margins.bottom;
         int imageWidth = convertMmToPixels(widthMm);
         int imageHeight = convertMmToPixels(heightMm);
         try {
             BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            graphics.setColor(Color.BLACK);
             graphics.setStroke(new BasicStroke(1F));
+            graphics.setColor(Color.BLACK);
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
+            drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
             graphics.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(image, "png", outputStream);
@@ -281,6 +297,26 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         } catch (Exception e) {
             throw new IllegalStateException("生成留白外框 PNG 失败", e);
         }
+    }
+
+    private void drawInnerOriginalBorderIfNecessary(Graphics2D graphics,
+                                                    int imageWidth,
+                                                    int imageHeight,
+                                                    double originalWidth,
+                                                    double originalHeight,
+                                                    ExpandMargins margins) {
+        if (!shouldDrawInnerOriginalBorder()) {
+            return;
+        }
+        int left = Math.min(imageWidth - 1, convertMmToPixels(margins.left));
+        int top = Math.min(imageHeight - 1, convertMmToPixels(margins.top));
+        int right = Math.min(imageWidth - 1, convertMmToPixels(margins.left + originalWidth) - 1);
+        int bottom = Math.min(imageHeight - 1, convertMmToPixels(margins.top + originalHeight) - 1);
+        if (right < left || bottom < top) {
+            return;
+        }
+        graphics.setColor(Color.GRAY);
+        graphics.drawRect(left, top, right - left, bottom - top);
     }
 
     /**
@@ -689,7 +725,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
+                + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
+    }
+
+    private String buildInnerOriginalBorderPath(double originalWidth, double originalHeight) {
+        if (!shouldDrawInnerOriginalBorder()) {
+            return "";
+        }
+        return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
+                + " H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n";
     }
 
     /**
