@@ -688,6 +688,30 @@ public class ProductCoreApiService {
         }
     }
 
+    private Map<String, MaterialDevelopedSizeResponse> convertDevelopedSizeCmToMm(
+            Map<String, MaterialDevelopedSizeResponse> developedSizeMap) {
+        if (CollectionUtils.isEmpty(developedSizeMap)) {
+            return Collections.emptyMap();
+        }
+        developedSizeMap.values().forEach(this::convertDevelopedSizeCmToMm);
+        return developedSizeMap;
+    }
+
+    private void convertDevelopedSizeCmToMm(MaterialDevelopedSizeResponse developedSize) {
+        if (developedSize == null) {
+            return;
+        }
+        if (developedSize.getWidth() != null) {
+            developedSize.setWidth(developedSize.getWidth() * 10);
+        }
+        if (developedSize.getHeight() != null) {
+            developedSize.setHeight(developedSize.getHeight() * 10);
+        }
+        if (developedSize.getDepth() != null) {
+            developedSize.setDepth(developedSize.getDepth() * 10);
+        }
+    }
+
     /**
      * 修改工厂接单状态
      * @param rmfId 工厂ID，不能为空
@@ -787,7 +811,7 @@ public class ProductCoreApiService {
             if (responseBody.getCode() != null && responseBody.getCode() != 200) {
                 throw new RuntimeException("获取材料展开尺寸失败：" + responseBody.getMessage());
             }
-            return Optional.ofNullable(responseBody.getData()).orElse(Collections.emptyMap());
+            return convertDevelopedSizeCmToMm(responseBody.getData());
         } catch (Exception e) {
             throw new RuntimeException("调用外部系统失败：" + e.getMessage());
         }
