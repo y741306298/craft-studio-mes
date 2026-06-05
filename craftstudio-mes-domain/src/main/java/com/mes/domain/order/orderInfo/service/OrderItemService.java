@@ -90,6 +90,21 @@ public class OrderItemService {
     }
 
     /**
+     * 根据条件过滤订单项列表（支持分页），优先返回加急订单项，并保留原有更新时间倒序逻辑。
+     *
+     * @param current 当前页码
+     * @param size 每页大小
+     * @param filters 过滤条件
+     * @return 订单项列表
+     */
+    public java.util.List<OrderItem> filterListUrgentFirst(int current, int size, Map<String, Object> filters) {
+        if (size <= 0 || size > 100) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
+        }
+        return orderItemRepository.filterListUrgentFirst(current, size, filters);
+    }
+
+    /**
      * 根据条件统计订单项数量
      * @param filters 过滤条件
      * @return 订单项数量
