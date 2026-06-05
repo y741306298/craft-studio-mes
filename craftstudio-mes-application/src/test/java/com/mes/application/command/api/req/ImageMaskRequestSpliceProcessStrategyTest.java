@@ -56,7 +56,10 @@ class ImageMaskRequestSpliceProcessStrategyTest {
         ProcedureFlowNode node = new ProcedureFlowNode();
         node.setNodeName(nodeName);
         MTOProductSpecDTO.ProcessParamConfigDTO config = new MTOProductSpecDTO.ProcessParamConfigDTO();
-        config.setParam(Map.of("xs", xs, "ys", ys));
+        MTOProductSpecDTO.ProcessParamDTO param = new MTOProductSpecDTO.ProcessParamDTO();
+        param.setXs(xs);
+        param.setYs(ys);
+        config.setParam(param);
         node.setParamConfigs(List.of(config));
 
         return ImageMaskRequest.processWithSplicing(
