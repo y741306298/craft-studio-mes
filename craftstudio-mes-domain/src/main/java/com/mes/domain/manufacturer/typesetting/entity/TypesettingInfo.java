@@ -30,6 +30,10 @@ public class TypesettingInfo extends BaseEntity {
     private List<String> materialConfigs;
     private String processingFlow;
     private String status;
+    /**
+     * 是否加急。来源零件或来源印版存在加急时，本次新生成排版记录会标记为加急。
+     */
+    private Boolean isUrgent;
     private Integer quantity;
     private Integer leaveQuantity;
     private List<TypesettingSourceCell> typesettingCells;

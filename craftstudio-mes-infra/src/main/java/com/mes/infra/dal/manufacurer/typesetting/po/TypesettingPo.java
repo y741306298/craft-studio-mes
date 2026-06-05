@@ -24,6 +24,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private List<String> materialConfigs;
     private String processingFlow;
     private String status;
+    private Boolean isUrgent;
     private Integer quantity;
     private Integer leaveQuantity;
     private List<TypesettingSourceCell> typesettingCells;
@@ -56,6 +57,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setMaterialConfigs(this.materialConfigs);
         typesettingInfo.setProcessingFlow(this.processingFlow);
         typesettingInfo.setStatus(this.status);
+        typesettingInfo.setIsUrgent(this.isUrgent);
         typesettingInfo.setQuantity(this.quantity);
         typesettingInfo.setLeaveQuantity(this.leaveQuantity);
         typesettingInfo.setTypesettingCells(this.typesettingCells);
@@ -86,6 +88,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.materialConfigs = _do.getMaterialConfigs();
         this.processingFlow = _do.getProcessingFlow();
         this.status = _do.getStatus();
+        this.isUrgent = _do.getIsUrgent();
         this.quantity = _do.getQuantity();
         this.leaveQuantity = _do.getLeaveQuantity();
         this.manufacturerMetaId = _do.getManufacturerMetaId();

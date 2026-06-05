@@ -425,6 +425,12 @@ public class AppTypesettingService {
                     .collect(Collectors.toList());
         }
 
+        allTypesettingInfos.sort(Comparator
+                .comparing((TypesettingInfo info) -> Boolean.TRUE.equals(info.getIsUrgent()))
+                .reversed()
+                .thenComparing(TypesettingInfo::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+
         int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
         int toIndex = Math.min(fromIndex + size, allTypesettingInfos.size());
         List<TypesettingInfo> pagedTypesettingInfos = allTypesettingInfos.subList(fromIndex, toIndex);
@@ -627,6 +633,8 @@ public class AppTypesettingService {
         // 步骤备注1：聚合本次确认印版是否含血位特征（零件当前/历史 + 来源印版haveBlood）
         boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
+        boolean isUrgent = productionPieces.stream().anyMatch(piece -> piece != null && Boolean.TRUE.equals(piece.getIsUrgent()))
+                || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getIsUrgent()));
 
         ProcedureFlow commonProcedureFlow;
         try {
@@ -746,6 +754,7 @@ public class AppTypesettingService {
         typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
         typesettingInfo.setLeaveQuantity(1);
+        typesettingInfo.setIsUrgent(isUrgent);
         typesettingInfo.setHaveBlood(haveBlood);
         if (StringUtils.isNotBlank(request.getLayoutMode())) {
             typesettingInfo.setLayoutMode(request.getLayoutMode());

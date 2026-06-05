@@ -22,6 +22,7 @@ public class DeliveryPkgPieceVO {
     private Integer packedQuantity;
     private String address;
     private String status;
+    private Boolean isUrgent;
     private String previewUrl;
     private java.util.Date createTime;
     private Double width;
@@ -37,6 +38,7 @@ public class DeliveryPkgPieceVO {
         vo.setProductionPieceId(piece.getProductionPieceId());
         vo.setOrderItemId(piece.getOrderItemId());
         vo.setQuantity(piece.getQuantity());
+        vo.setIsUrgent(piece.getIsUrgent());
         vo.setMaterialConfig(piece.getMaterialConfig());
         vo.setProcedureFlow(piece.getProcedureFlow());
         vo.setCreateTime(piece.getCreateTime());
