@@ -199,6 +199,28 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     protected abstract String[] matchKeywords();
 
     /**
+     * 是否需要在留白 mark 的 SVG/PNG 中叠加原始尺寸灰色边框。
+     *
+     * <p>所有固定尺寸留白都需要保留原始尺寸参考线，因此默认启用。</p>
+     *
+     * @return 需要叠加原始尺寸边框时返回 {@code true}
+     */
+    protected boolean shouldDrawInnerOriginalBorder() {
+        return true;
+    }
+
+    /**
+     * 从最外侧留白矩形向内偏移多少毫米绘制虚线框。
+     *
+     * <p>默认不绘制；具体规格可按工艺要求返回正数。</p>
+     *
+     * @return 需要绘制虚线框时返回向内偏移毫米数，否则返回 0
+     */
+    protected double dashedInsetFromOuterBorderMm() {
+        return 0D;
+    }
+
+    /**
      * 确保生产工件已有业务生产工件 ID。
      *
      * <p>留白外扩矩形 PNG 需要上传到 mark/{manufacturerMetaId}/{productionPieceId}/ 目录。
@@ -251,29 +273,35 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                           double originalWidth,
                                           double originalHeight,
                                           ExpandMargins margins) {
-        double newWidth = originalWidth + margins.left + margins.right;
-        double newHeight = originalHeight + margins.top + margins.bottom;
         String uploadPath = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        return ossTagUploadService.uploadTagPng(productionPieceId, createBorderPng(newWidth, newHeight), uploadPath);
+        return ossTagUploadService.uploadTagPng(productionPieceId, createBorderPng(originalWidth, originalHeight, margins), uploadPath);
     }
 
     /**
-     * 创建透明底黑色边框矩形 PNG。
+     * 创建透明底留白边框 PNG。
      *
-     * @param widthMm PNG 对应的物理宽度，单位 mm
-     * @param heightMm PNG 对应的物理高度，单位 mm
+     * <p>所有固定留白都会生成外扩后画布的黑色边框和原始尺寸灰色边框；
+     * 大于 5cm 的规格还会按工艺要求从最外框向内 5cm 绘制一圈灰色虚线框。</p>
+     *
+     * @param originalWidth 原始 SVG 宽度，单位 mm
+     * @param originalHeight 原始 SVG 高度，单位 mm
+     * @param margins 四边外扩量
      * @return PNG 文件字节数组
      */
-    private byte[] createBorderPng(double widthMm, double heightMm) {
+    private byte[] createBorderPng(double originalWidth, double originalHeight, ExpandMargins margins) {
+        double widthMm = originalWidth + margins.left + margins.right;
+        double heightMm = originalHeight + margins.top + margins.bottom;
         int imageWidth = convertMmToPixels(widthMm);
         int imageHeight = convertMmToPixels(heightMm);
         try {
             BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            graphics.setColor(Color.BLACK);
             graphics.setStroke(new BasicStroke(1F));
+            graphics.setColor(Color.BLACK);
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
+            drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm);
+            drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
             graphics.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             ImageIO.write(image, "png", outputStream);
@@ -281,6 +309,52 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         } catch (Exception e) {
             throw new IllegalStateException("生成留白外框 PNG 失败", e);
         }
+    }
+
+    private void drawInnerOriginalBorderIfNecessary(Graphics2D graphics,
+                                                    int imageWidth,
+                                                    int imageHeight,
+                                                    double originalWidth,
+                                                    double originalHeight,
+                                                    ExpandMargins margins) {
+        if (!shouldDrawInnerOriginalBorder()) {
+            return;
+        }
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.GRAY, false);
+    }
+
+    private void drawDashedInsetBorderIfNecessary(Graphics2D graphics, int imageWidth, int imageHeight, double widthMm, double heightMm) {
+        double insetMm = dashedInsetFromOuterBorderMm();
+        if (insetMm <= 0D) {
+            return;
+        }
+        double innerWidthMm = widthMm - insetMm * 2D;
+        double innerHeightMm = heightMm - insetMm * 2D;
+        if (innerWidthMm <= 0D || innerHeightMm <= 0D) {
+            return;
+        }
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, insetMm, insetMm, innerWidthMm, innerHeightMm, Color.GRAY, true);
+    }
+
+    private void drawPhysicalBorder(Graphics2D graphics,
+                                    int imageWidth,
+                                    int imageHeight,
+                                    double leftMm,
+                                    double topMm,
+                                    double widthMm,
+                                    double heightMm,
+                                    Color color,
+                                    boolean dashed) {
+        int left = Math.min(imageWidth - 1, convertMmToPixels(leftMm));
+        int top = Math.min(imageHeight - 1, convertMmToPixels(topMm));
+        int right = Math.min(imageWidth - 1, convertMmToPixels(leftMm + widthMm) - 1);
+        int bottom = Math.min(imageHeight - 1, convertMmToPixels(topMm + heightMm) - 1);
+        if (right < left || bottom < top) {
+            return;
+        }
+        graphics.setColor(color);
+        graphics.setStroke(dashed ? new BasicStroke(1F, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10F, new float[]{6F, 4F}, 0F) : new BasicStroke(1F));
+        graphics.drawRect(left, top, right - left, bottom - top);
     }
 
     /**
@@ -689,7 +763,33 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
+                + buildDashedInsetBorderPath(left, top, right, bottom)
+                + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
+    }
+
+    private String buildDashedInsetBorderPath(double outerLeft, double outerTop, double outerRight, double outerBottom) {
+        double insetMm = dashedInsetFromOuterBorderMm();
+        if (insetMm <= 0D) {
+            return "";
+        }
+        double left = outerLeft + insetMm;
+        double top = outerTop + insetMm;
+        double right = outerRight - insetMm;
+        double bottom = outerBottom - insetMm;
+        if (right <= left || bottom <= top) {
+            return "";
+        }
+        return "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
+                + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
+    }
+
+    private String buildInnerOriginalBorderPath(double originalWidth, double originalHeight) {
+        if (!shouldDrawInnerOriginalBorder()) {
+            return "";
+        }
+        return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
+                + " H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n";
     }
 
     /**

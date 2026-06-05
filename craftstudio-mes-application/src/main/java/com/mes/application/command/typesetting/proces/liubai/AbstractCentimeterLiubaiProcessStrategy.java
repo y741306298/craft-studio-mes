@@ -68,6 +68,11 @@ public abstract class AbstractCentimeterLiubaiProcessStrategy extends AbstractFi
         return new String[0];
     }
 
+    @Override
+    protected double dashedInsetFromOuterBorderMm() {
+        return expandCm > 5 ? 50D : 0D;
+    }
+
     private List<String> candidateTexts(ProcedureFlowNode node) {
         List<String> candidates = new ArrayList<>();
         candidates.add(node.getNodeName());
