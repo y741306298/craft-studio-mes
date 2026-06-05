@@ -83,6 +83,11 @@ public class TypesettingProductionPieceVO {
     private String status;
 
     /**
+     * 是否加急
+     */
+    private Boolean isUrgent;
+
+    /**
      * 排版轮廓 SVG（排版来源）
      */
     private String maskSvg;
@@ -145,6 +150,7 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setWidth(ceilValue(piece.getWidth()));
         typesettingProductionPieceVO.setHeight(ceilValue(piece.getHeight()));
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
+        typesettingProductionPieceVO.setIsUrgent(piece.getIsUrgent());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         return typesettingProductionPieceVO;
     }
@@ -196,6 +202,7 @@ public class TypesettingProductionPieceVO {
         piece.setQuantity(this.quantity);
         piece.setTemplateCode(this.templateCode);
         piece.setStatus(this.status);
+        piece.setIsUrgent(this.isUrgent);
         piece.setCreateTime(this.createTime);
         return piece;
     }

@@ -12,6 +12,10 @@ public class TypesettingAndProductionPiecesResponse {
 
     private List<TypesettingProductionPieceVO> list;
 
+    private Long total;
+
+    private Integer current;
+
     private List<String> processingFlowList;
 
     private List<String> materialList;

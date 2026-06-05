@@ -303,6 +303,9 @@ public class ProductionPieceService {
         if (productionPiece.getStatus() != null) {
             existingPiece.setStatus(productionPiece.getStatus());
         }
+        if (productionPiece.getIsUrgent() != null) {
+            existingPiece.setIsUrgent(productionPiece.getIsUrgent());
+        }
         if (productionPiece.getQuantity() != null) {
             existingPiece.setQuantity(productionPiece.getQuantity());
         }

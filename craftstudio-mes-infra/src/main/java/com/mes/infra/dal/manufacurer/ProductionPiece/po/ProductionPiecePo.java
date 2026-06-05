@@ -26,6 +26,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String carrierId;
     private String manufacturerId;
     private String status;
+    private Boolean isUrgent;
     private String productionPieceType;
     private MaterialConfig materialConfig;
     private Integer quantity;
@@ -66,6 +67,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setProcedureFlowId(this.procedureFlowId);
         piece.setManufacturerId(this.manufacturerId);
         piece.setStatus(this.status);
+        piece.setIsUrgent(this.isUrgent);
         piece.setProductionPieceType(this.productionPieceType);
         piece.setMaterialConfig(this.materialConfig);
         piece.setQuantity(this.quantity);
@@ -108,6 +110,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.procedureFlowId = _do.getProcedureFlowId();
         this.manufacturerId = _do.getManufacturerId();
         this.status = _do.getStatus();
+        this.isUrgent = _do.getIsUrgent();
         this.productionPieceType = _do.getProductionPieceType();
         this.materialConfig = _do.getMaterialConfig();
         this.quantity = _do.getQuantity();

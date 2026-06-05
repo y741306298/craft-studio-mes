@@ -299,8 +299,11 @@ public class AppTypesettingService {
             }
         }
 
-        allItems.sort(Comparator.comparing(TypesettingProductionPieceVO::getCreateTime,
-                Comparator.nullsLast(Date::compareTo)).reversed());
+        allItems.sort(Comparator
+                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(TypesettingProductionPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
 
         long total = allItems.size();
         int fromIndex = Math.min((current - 1) * size, allItems.size());
