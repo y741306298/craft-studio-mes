@@ -328,8 +328,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
     private Set<LiubaiEdge> resolveBloodEdges(ProductionPiece piece) {
         Set<LiubaiEdge> bloodEdges = EnumSet.noneOf(LiubaiEdge.class);
-        addBloodEdgesFromBlood(bloodEdges, piece.getBlood());
-        bloodEdges.addAll(resolveBloodEdgesFromSequence(piece));
+        Blood blood = piece.getBlood();
+        addBloodEdgesFromBlood(bloodEdges, blood);
+        bloodEdges.addAll(resolveBloodEdgesFromSequence(piece, blood));
         return bloodEdges;
     }
 
@@ -351,20 +352,57 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
     }
 
-    private Set<LiubaiEdge> resolveBloodEdgesFromSequence(ProductionPiece piece) {
+    /**
+     * 按分片顺序推断被出血边。
+     *
+     * <p>blood.y 为 0 时代表竖切，分片沿左右方向相邻，按左右边补充；blood.x 为 0 时代表横切，
+     * 分片沿上下方向相邻，需要按上下边补充，避免横切场景继续套用竖切的左右边逻辑。</p>
+     */
+    private Set<LiubaiEdge> resolveBloodEdgesFromSequence(ProductionPiece piece, Blood blood) {
         Set<LiubaiEdge> bloodEdges = EnumSet.noneOf(LiubaiEdge.class);
         Integer currentSeq = piece.getSeq();
         Integer maxSeq = extractMaxSeqInGroup(piece.getGroup());
         if (currentSeq == null || maxSeq == null || maxSeq <= 0) {
             return bloodEdges;
         }
+        LiubaiEdge firstCoveredEdge = resolveFirstCoveredEdge(blood);
+        LiubaiEdge lastCoveredEdge = oppositeEdge(firstCoveredEdge);
         if (currentSeq == 1 || (currentSeq > 1 && currentSeq < maxSeq)) {
-            bloodEdges.add(LiubaiEdge.RIGHT);
+            bloodEdges.add(firstCoveredEdge);
         }
         if (currentSeq.intValue() == maxSeq.intValue() || (currentSeq > 1 && currentSeq < maxSeq)) {
-            bloodEdges.add(LiubaiEdge.LEFT);
+            bloodEdges.add(lastCoveredEdge);
         }
         return bloodEdges;
+    }
+
+    private LiubaiEdge resolveFirstCoveredEdge(Blood blood) {
+        if (blood != null && isZero(blood.getX()) && isNonZero(blood.getY())) {
+            return LiubaiEdge.BOTTOM;
+        }
+        return LiubaiEdge.RIGHT;
+    }
+
+    private LiubaiEdge oppositeEdge(LiubaiEdge edge) {
+        switch (edge) {
+            case BOTTOM:
+                return LiubaiEdge.TOP;
+            case TOP:
+                return LiubaiEdge.BOTTOM;
+            case LEFT:
+                return LiubaiEdge.RIGHT;
+            case RIGHT:
+            default:
+                return LiubaiEdge.LEFT;
+        }
+    }
+
+    private boolean isZero(Integer value) {
+        return value != null && value == 0;
+    }
+
+    private boolean isNonZero(Integer value) {
+        return value != null && value != 0;
     }
 
     private Integer extractMaxSeqInGroup(String group) {
