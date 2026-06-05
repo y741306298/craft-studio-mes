@@ -755,17 +755,26 @@ public class ProductCoreApiService {
             return Collections.emptyMap();
         }
 
+        Map<String, MaterialDevelopedSizeResponse> result = new LinkedHashMap<>();
+        for (String materialId : effectiveMaterialIds) {
+            result.putAll(findDevelopedSizeMapByMaterialId(materialId));
+        }
+        return result;
+    }
+
+    private Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId) {
         try {
-            UriComponentsBuilder urlBuilder = UriComponentsBuilder
+            String url = UriComponentsBuilder
                     .fromUriString(productCoreUrl)
-                    .path("/api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap");
-            effectiveMaterialIds.forEach(materialId -> urlBuilder.queryParam("materialId", materialId));
+                    .path("/api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap")
+                    .queryParam("materialId", materialId)
+                    .toUriString();
 
             ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>> typeRef =
                     new ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>>() {};
 
             ResponseEntity<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>> response = restTemplate.exchange(
-                    urlBuilder.toUriString(),
+                    url,
                     HttpMethod.GET,
                     null,
                     typeRef
