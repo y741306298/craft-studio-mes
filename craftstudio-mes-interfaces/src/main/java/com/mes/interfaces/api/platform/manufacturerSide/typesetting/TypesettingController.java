@@ -265,11 +265,12 @@ public class TypesettingController {
     }
 
     /**
-     * 查询默认排版规格
+     * 查询排版规格
      */
     @GetMapping("/layoutSpecs")
-    public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs() {
-        return ApiResponse.success(appTypesettingService.listDefaultLayoutSpecs());
+    public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs(
+            @RequestParam(name = "materialId", required = false) List<String> materialIds) {
+        return ApiResponse.success(appTypesettingService.listLayoutSpecs(materialIds));
     }
 
     /**
