@@ -176,6 +176,7 @@ public class TypesettingProductionPieceVO {
         vo.setProcedureFlow(info.getProcedureFlow());
         vo.setPreviewUrl(info.getElement().getFormeSvg());
         vo.setStatus(info.getStatus());
+        vo.setIsUrgent(info.getIsUrgent());
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
@@ -217,6 +218,7 @@ public class TypesettingProductionPieceVO {
         info.setMaterialConfigs(this.materialConfigs == null ? new ArrayList<>() : this.materialConfigs);
         info.setProcessingFlow(this.processingFlow);
         info.setStatus(this.status);
+        info.setIsUrgent(this.isUrgent);
         info.setRemark(this.remark);
         info.setMaskSvg(this.maskSvg);
         info.setLayoutMode(this.layoutMode);

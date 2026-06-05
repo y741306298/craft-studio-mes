@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
@@ -126,7 +127,12 @@ public class AppDeliveryPkgService {
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
             return matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
-        }).collect(Collectors.toList());
+        }).sorted(Comparator
+                .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(DeliveryPkgPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
     }
 
 
