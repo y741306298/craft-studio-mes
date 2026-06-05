@@ -19,9 +19,11 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -82,6 +84,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * 匹配 SVG/XML 节点属性。
      */
     private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 从超幅拼接分组号中解析当前组的最大分片序号，例如 12#1-3 中的 3。
+     */
+    private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
 
     /**
      * 用于当 maskImageFile.rawFile 是远程 URL 时拉取原 SVG 内容。
@@ -154,7 +161,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return;
         }
 
-        ExpandMargins margins = resolveMargins(piece.getBlood(), context.isSkipBloodEdges());
+        ExpandMargins margins = resolveMargins(piece, context.isSkipBloodEdges());
         String pieceMongoId = ensureProductionPieceMongoId(piece);
         String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
@@ -287,35 +294,92 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     /**
-     * 根据 blood 信息计算四边外扩量。
+     * 根据当前生产工件的超幅拼接血边计算四边外扩量。
      *
-     * <p>出血边约定：blood.x 或 blood.y 非 0 表示对应轴存在出血方向。
-     * 在 callback 路线中，正值/负值分别映射到该轴两侧边，用于跳过出血边外扩；
+     * <p>出血边约定：blood.x 或 blood.y 非 0 表示对应轴存在主动出血方向，正值/负值分别映射到该轴两侧边；
+     * 同一拼接组内相邻零件被其他零件出血覆盖的“被出血边”也属于血边，需要按分片顺序一并跳过外扩。
      * 直接路线不跳过任何边，四边使用当前策略的固定留白尺寸。</p>
      *
-     * @param blood 回调生产工件上的出血信息
+     * @param piece 回调生产工件，包含 blood、group 和 seq 信息
      * @param skipBloodEdges 是否跳过出血边外扩
      * @return 四边最终外扩量
      */
-    private ExpandMargins resolveMargins(Blood blood, boolean skipBloodEdges) {
+    private ExpandMargins resolveMargins(ProductionPiece piece, boolean skipBloodEdges) {
         double expandMm = expandMm();
         ExpandMargins margins = new ExpandMargins(expandMm, expandMm, expandMm, expandMm);
-        if (!skipBloodEdges || blood == null) {
+        if (!skipBloodEdges || piece == null) {
             return margins;
+        }
+        Set<LiubaiEdge> bloodEdges = resolveBloodEdges(piece);
+        if (bloodEdges.contains(LiubaiEdge.RIGHT)) {
+            margins.right = 0D;
+        }
+        if (bloodEdges.contains(LiubaiEdge.LEFT)) {
+            margins.left = 0D;
+        }
+        if (bloodEdges.contains(LiubaiEdge.TOP)) {
+            margins.top = 0D;
+        }
+        if (bloodEdges.contains(LiubaiEdge.BOTTOM)) {
+            margins.bottom = 0D;
+        }
+        return margins;
+    }
+
+    private Set<LiubaiEdge> resolveBloodEdges(ProductionPiece piece) {
+        Set<LiubaiEdge> bloodEdges = EnumSet.noneOf(LiubaiEdge.class);
+        addBloodEdgesFromBlood(bloodEdges, piece.getBlood());
+        bloodEdges.addAll(resolveBloodEdgesFromSequence(piece));
+        return bloodEdges;
+    }
+
+    private void addBloodEdgesFromBlood(Set<LiubaiEdge> bloodEdges, Blood blood) {
+        if (blood == null) {
+            return;
         }
         Integer x = blood.getX();
         Integer y = blood.getY();
         if (x != null && x > 0) {
-            margins.right = 0D;
+            bloodEdges.add(LiubaiEdge.RIGHT);
         } else if (x != null && x < 0) {
-            margins.left = 0D;
+            bloodEdges.add(LiubaiEdge.LEFT);
         }
         if (y != null && y > 0) {
-            margins.top = 0D;
+            bloodEdges.add(LiubaiEdge.TOP);
         } else if (y != null && y < 0) {
-            margins.bottom = 0D;
+            bloodEdges.add(LiubaiEdge.BOTTOM);
         }
-        return margins;
+    }
+
+    private Set<LiubaiEdge> resolveBloodEdgesFromSequence(ProductionPiece piece) {
+        Set<LiubaiEdge> bloodEdges = EnumSet.noneOf(LiubaiEdge.class);
+        Integer currentSeq = piece.getSeq();
+        Integer maxSeq = extractMaxSeqInGroup(piece.getGroup());
+        if (currentSeq == null || maxSeq == null || maxSeq <= 0) {
+            return bloodEdges;
+        }
+        if (currentSeq == 1 || (currentSeq > 1 && currentSeq < maxSeq)) {
+            bloodEdges.add(LiubaiEdge.RIGHT);
+        }
+        if (currentSeq.intValue() == maxSeq.intValue() || (currentSeq > 1 && currentSeq < maxSeq)) {
+            bloodEdges.add(LiubaiEdge.LEFT);
+        }
+        return bloodEdges;
+    }
+
+    private Integer extractMaxSeqInGroup(String group) {
+        if (StringUtils.isBlank(group)) {
+            return null;
+        }
+        Matcher matcher = MAX_SEQ_PATTERN.matcher(group);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -687,6 +751,13 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         preview.setRaw(maskUrl);
         preview.setPreview(maskUrl);
         preview.setThumbnail(maskUrl);
+    }
+
+    private enum LiubaiEdge {
+        TOP,
+        RIGHT,
+        BOTTOM,
+        LEFT
     }
 
     /**
