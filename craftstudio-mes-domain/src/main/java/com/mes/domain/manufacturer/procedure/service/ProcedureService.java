@@ -193,6 +193,7 @@ public class ProcedureService {
 
         piece.setProductionPieceType(pieceType);
         piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
+        piece.setIsUrgent(Boolean.TRUE.equals(orderItem.getIsUrgent()));
         piece.setQuantity(orderItem.getQuantity());
         piece.setTemplateCode(imageUrl);
         piece.setCarrierId(orderItem.getLogisticsCarrierInfo().getCarrierId());

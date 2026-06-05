@@ -58,7 +58,7 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems));
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult()));
     }
 
     @GetMapping("/list/condition")
@@ -85,7 +85,7 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems));
+        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult()));
     }
 
 
@@ -305,11 +305,12 @@ public class TypesettingController {
 
 
     private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
-                                                                                               List<TypesettingProductionPieceVO> allItems) {
+                                                                                               List<TypesettingProductionPieceVO> allItems,
+                                                                                               PagedResult<TypesettingProductionPieceVO> pagedResult) {
         List<String> processingFlowList = buildProcessingFlowList(allItems);
         List<String> materialList = buildMaterialList(allItems);
         List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
-        return new TypesettingAndProductionPiecesResponse(items, processingFlowList, materialList, sourceType);
+        return new TypesettingAndProductionPiecesResponse(items, pagedResult.total(), pagedResult.current(), processingFlowList, materialList, sourceType);
     }
 
     private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
