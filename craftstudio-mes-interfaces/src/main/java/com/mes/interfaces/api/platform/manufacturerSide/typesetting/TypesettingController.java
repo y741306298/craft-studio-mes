@@ -119,6 +119,7 @@ public class TypesettingController {
      */
     @PostMapping("/toLayout")
     public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+        appTypesettingService.applyToLayoutContainerWidthInset(request);
         LayoutConfirmResult result = appTypesettingService.toLayout(request);
         if (!result.isSuccess()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());

@@ -53,6 +53,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingContainerWidthInset;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
@@ -60,6 +61,7 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingPrintTaskStatus;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingSequenceUsageType;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingContainerWidthInsetService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingSequencePoolService;
@@ -113,6 +115,9 @@ public class AppTypesettingService {
 
     @Autowired
     private TypesettingService domainTypesettingService;
+
+    @Autowired
+    private TypesettingContainerWidthInsetService containerWidthInsetService;
 
     @Autowired
     private ProductionPieceService productionPieceService;
@@ -188,6 +193,8 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM = 50;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM = 20;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
             new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
@@ -1210,6 +1217,80 @@ public class AppTypesettingService {
     private String generateTypesettingId(String manufacturerMetaId) {
         int nextSeq = typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.LAYOUT_ID);
         return "LAYOUT" + LocalDateTime.now().format(TYPESETTING_ID_TIME_FORMATTER) + nextSeq;
+    }
+
+    /**
+     * 按 typesettingCells 中的 materialId + layoutMode 查询 width 内缩配置，并在提交算法前扣减 containers.width。
+     * <p>未配置内缩数据时走默认规则：本次排版不包含印版数据则扣减 50mm，包含印版数据则扣减 20mm。</p>
+     */
+    public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request) {
+        if (request == null) {
+            return;
+        }
+        if (CollectionUtils.isEmpty(request.getContainers())) {
+            request.setContainers(new ArrayList<>(List.of(new LayoutConfirmRequest.ContainerInfo(1500, 1000))));
+        }
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        Integer widthInset = resolveContainerWidthInset(request.getTypesettingCells(), layoutMode);
+        if (widthInset == null || widthInset <= 0) {
+            return;
+        }
+        for (LayoutConfirmRequest.ContainerInfo container : request.getContainers()) {
+            if (container == null || container.getWidth() == null) {
+                continue;
+            }
+            int adjustedWidth = container.getWidth() - widthInset;
+            if (adjustedWidth <= 0) {
+                throw new IllegalArgumentException("containers.width 扣减内缩值后必须大于0");
+            }
+            container.setWidth(adjustedWidth);
+        }
+    }
+
+    private Integer resolveContainerWidthInset(List<TypesettingProductionPieceVO> typesettingCells, TypesettingLayoutMode layoutMode) {
+        String materialId = resolveSingleMaterialId(typesettingCells);
+        if (StringUtils.isNotBlank(materialId) && layoutMode != null) {
+            TypesettingContainerWidthInset inset = containerWidthInsetService
+                    .findByMaterialIdAndLayoutMode(materialId, layoutMode.getCode());
+            if (inset != null && inset.getWidthInset() != null) {
+                return inset.getWidthInset();
+            }
+        }
+        return resolveDefaultContainerWidthInset(typesettingCells);
+    }
+
+    private Integer resolveDefaultContainerWidthInset(List<TypesettingProductionPieceVO> typesettingCells) {
+        return hasTypesettingSourceCell(typesettingCells)
+                ? DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM
+                : DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM;
+    }
+
+    private boolean hasTypesettingSourceCell(List<TypesettingProductionPieceVO> typesettingCells) {
+        if (typesettingCells == null) {
+            return false;
+        }
+        return typesettingCells.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()));
+    }
+
+    private String resolveSingleMaterialId(List<TypesettingProductionPieceVO> typesettingCells) {
+        if (typesettingCells == null) {
+            return null;
+        }
+        return typesettingCells.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingProductionPieceVO::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(MaterialConfig::getMaterialId)
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .distinct()
+                .limit(2)
+                .reduce((first, second) -> {
+                    throw new IllegalArgumentException("同一次排版只能根据一组 materialId + layoutMode 匹配 containers.width 内缩值");
+                })
+                .orElse(null);
     }
 
     private NestingRequest buildNestingRequest(LayoutConfirmRequest request, String cacheKey) {

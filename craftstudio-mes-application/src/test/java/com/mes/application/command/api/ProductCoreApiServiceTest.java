@@ -40,8 +40,9 @@ class ProductCoreApiServiceTest {
                 List.of(" mat-1 ", "mat-2", "mat-1"));
 
         assertEquals(2, result.size());
-        assertEquals(100.0, result.get("mat-1").getWidth());
-        assertEquals(400.0, result.get("mat-2").getHeight());
+        assertEquals(1000.0, result.get("mat-1").getWidth());
+        assertEquals(50.0, result.get("mat-1").getDepth());
+        assertEquals(4000.0, result.get("mat-2").getHeight());
         server.verify();
     }
 }
