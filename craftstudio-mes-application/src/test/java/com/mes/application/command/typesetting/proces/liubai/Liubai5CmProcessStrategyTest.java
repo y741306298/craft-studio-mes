@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,6 +55,64 @@ class Liubai5CmProcessStrategyTest {
         assertTrue(uploadedSvg.indexOf("liubai-5cm-") < uploadedSvg.indexOf("<g id=\"existing\""));
         assertEquals(100D, piece.getWidth());
         assertEquals(180D, piece.getHeight());
+    }
+
+    @Test
+    void allCentimeterLiubaiSpecsAddInnerOriginalGrayBorder() {
+        CapturingOssTagUploadService twoCmOss = new CapturingOssTagUploadService();
+        Liubai2CmProcessStrategy twoCmStrategy = new Liubai2CmProcessStrategy(null, twoCmOss);
+        ProductionPiece piece = pieceWithInlineMask("<svg width=\"100\" height=\"80\" viewBox=\"0 0 100 80\"><rect width=\"100\" height=\"80\"/></svg>");
+
+        twoCmStrategy.process(context(piece, false));
+
+        String uploadedSvg = twoCmOss.uploadedSvgText();
+        assertTrue(uploadedSvg.contains("<path d=\"M-20 -20 H120 V100 H-20 Z\""));
+        assertTrue(uploadedSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
+        assertFalse(uploadedSvg.contains("stroke-dasharray"));
+        assertEquals(140D, piece.getWidth());
+        assertEquals(120D, piece.getHeight());
+    }
+
+    @Test
+    void tenAndFifteenCentimeterLiubaiSpecsAddDashedFiveCentimeterInsetBorder() {
+        CapturingOssTagUploadService tenCmOss = new CapturingOssTagUploadService();
+        Liubai10CmProcessStrategy tenCmStrategy = new Liubai10CmProcessStrategy(null, tenCmOss);
+        ProductionPiece tenCmPiece = pieceWithInlineMask("<svg width=\"100\" height=\"80\" viewBox=\"0 0 100 80\"><rect width=\"100\" height=\"80\"/></svg>");
+
+        tenCmStrategy.process(context(tenCmPiece, false));
+
+        String tenCmSvg = tenCmOss.uploadedSvgText();
+        assertTrue(tenCmSvg.contains("<path d=\"M-100 -100 H200 V180 H-100 Z\""));
+        assertTrue(tenCmSvg.contains("<path d=\"M-50 -50 H150 V130 H-50 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
+        assertTrue(tenCmSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
+
+        CapturingOssTagUploadService fifteenCmOss = new CapturingOssTagUploadService();
+        Liubai15CmProcessStrategy fifteenCmStrategy = new Liubai15CmProcessStrategy(null, fifteenCmOss);
+        ProductionPiece fifteenCmPiece = pieceWithInlineMask("<svg width=\"100\" height=\"80\" viewBox=\"0 0 100 80\"><rect width=\"100\" height=\"80\"/></svg>");
+
+        fifteenCmStrategy.process(context(fifteenCmPiece, false));
+
+        String fifteenCmSvg = fifteenCmOss.uploadedSvgText();
+        assertTrue(fifteenCmSvg.contains("<path d=\"M-150 -150 H250 V230 H-150 Z\""));
+        assertTrue(fifteenCmSvg.contains("<path d=\"M-100 -100 H200 V180 H-100 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
+        assertTrue(fifteenCmSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
+    }
+
+    @Test
+    void generatedPngForLargeLiubaiContainsDashedInsetAndOriginalBorders() throws Exception {
+        CapturingOssTagUploadService tenCmOss = new CapturingOssTagUploadService();
+        Liubai10CmProcessStrategy tenCmStrategy = new Liubai10CmProcessStrategy(null, tenCmOss);
+        ProductionPiece piece = pieceWithInlineMask("<svg width=\"100\" height=\"80\" viewBox=\"0 0 100 80\"><rect width=\"100\" height=\"80\"/></svg>");
+
+        tenCmStrategy.process(context(piece, false));
+
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(tenCmOss.uploadedPngBytes));
+        assertNotNull(image);
+        assertRgbClose(Color.BLACK, image.getRGB(0, 0));
+        int dashedInset = convertMmToPixels(50D);
+        assertRgbClose(Color.GRAY, image.getRGB(dashedInset, dashedInset));
+        int originalInset = convertMmToPixels(100D);
+        assertRgbClose(Color.GRAY, image.getRGB(originalInset, originalInset));
     }
 
     @Test

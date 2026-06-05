@@ -69,8 +69,8 @@ public abstract class AbstractCentimeterLiubaiProcessStrategy extends AbstractFi
     }
 
     @Override
-    protected boolean shouldDrawInnerOriginalBorder() {
-        return expandCm == 5;
+    protected double dashedInsetFromOuterBorderMm() {
+        return expandCm > 5 ? 50D : 0D;
     }
 
     private List<String> candidateTexts(ProcedureFlowNode node) {

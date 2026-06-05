@@ -201,12 +201,23 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 是否需要在留白 mark 的 SVG/PNG 中叠加原始尺寸灰色边框。
      *
-     * <p>默认规格仍只输出外扩边框；有特殊出图要求的规格由具体策略覆盖。</p>
+     * <p>所有固定尺寸留白都需要保留原始尺寸参考线，因此默认启用。</p>
      *
      * @return 需要叠加原始尺寸边框时返回 {@code true}
      */
     protected boolean shouldDrawInnerOriginalBorder() {
-        return false;
+        return true;
+    }
+
+    /**
+     * 从最外侧留白矩形向内偏移多少毫米绘制虚线框。
+     *
+     * <p>默认不绘制；具体规格可按工艺要求返回正数。</p>
+     *
+     * @return 需要绘制虚线框时返回向内偏移毫米数，否则返回 0
+     */
+    protected double dashedInsetFromOuterBorderMm() {
+        return 0D;
     }
 
     /**
@@ -269,8 +280,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 创建透明底留白边框 PNG。
      *
-     * <p>默认只生成外扩后画布的黑色边框；需要展示原始尺寸参考线的规格会在相同 PNG 内叠加
-     * 一圈灰色原尺寸边框，位置与 SVG 中原始工件矩形保持一致。</p>
+     * <p>所有固定留白都会生成外扩后画布的黑色边框和原始尺寸灰色边框；
+     * 大于 5cm 的规格还会按工艺要求从最外框向内 5cm 绘制一圈灰色虚线框。</p>
      *
      * @param originalWidth 原始 SVG 宽度，单位 mm
      * @param originalHeight 原始 SVG 高度，单位 mm
@@ -289,6 +300,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             graphics.setStroke(new BasicStroke(1F));
             graphics.setColor(Color.BLACK);
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
+            drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm);
             drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
             graphics.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -308,14 +320,40 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         if (!shouldDrawInnerOriginalBorder()) {
             return;
         }
-        int left = Math.min(imageWidth - 1, convertMmToPixels(margins.left));
-        int top = Math.min(imageHeight - 1, convertMmToPixels(margins.top));
-        int right = Math.min(imageWidth - 1, convertMmToPixels(margins.left + originalWidth) - 1);
-        int bottom = Math.min(imageHeight - 1, convertMmToPixels(margins.top + originalHeight) - 1);
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.GRAY, false);
+    }
+
+    private void drawDashedInsetBorderIfNecessary(Graphics2D graphics, int imageWidth, int imageHeight, double widthMm, double heightMm) {
+        double insetMm = dashedInsetFromOuterBorderMm();
+        if (insetMm <= 0D) {
+            return;
+        }
+        double innerWidthMm = widthMm - insetMm * 2D;
+        double innerHeightMm = heightMm - insetMm * 2D;
+        if (innerWidthMm <= 0D || innerHeightMm <= 0D) {
+            return;
+        }
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, insetMm, insetMm, innerWidthMm, innerHeightMm, Color.GRAY, true);
+    }
+
+    private void drawPhysicalBorder(Graphics2D graphics,
+                                    int imageWidth,
+                                    int imageHeight,
+                                    double leftMm,
+                                    double topMm,
+                                    double widthMm,
+                                    double heightMm,
+                                    Color color,
+                                    boolean dashed) {
+        int left = Math.min(imageWidth - 1, convertMmToPixels(leftMm));
+        int top = Math.min(imageHeight - 1, convertMmToPixels(topMm));
+        int right = Math.min(imageWidth - 1, convertMmToPixels(leftMm + widthMm) - 1);
+        int bottom = Math.min(imageHeight - 1, convertMmToPixels(topMm + heightMm) - 1);
         if (right < left || bottom < top) {
             return;
         }
-        graphics.setColor(Color.GRAY);
+        graphics.setColor(color);
+        graphics.setStroke(dashed ? new BasicStroke(1F, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10F, new float[]{6F, 4F}, 0F) : new BasicStroke(1F));
         graphics.drawRect(left, top, right - left, bottom - top);
     }
 
@@ -725,8 +763,25 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
+                + buildDashedInsetBorderPath(left, top, right, bottom)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
+    }
+
+    private String buildDashedInsetBorderPath(double outerLeft, double outerTop, double outerRight, double outerBottom) {
+        double insetMm = dashedInsetFromOuterBorderMm();
+        if (insetMm <= 0D) {
+            return "";
+        }
+        double left = outerLeft + insetMm;
+        double top = outerTop + insetMm;
+        double right = outerRight - insetMm;
+        double bottom = outerBottom - insetMm;
+        if (right <= left || bottom <= top) {
+            return "";
+        }
+        return "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
+                + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
     }
 
     private String buildInnerOriginalBorderPath(double originalWidth, double originalHeight) {
