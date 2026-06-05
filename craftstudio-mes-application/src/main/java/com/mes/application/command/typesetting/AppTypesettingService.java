@@ -299,11 +299,7 @@ public class AppTypesettingService {
             }
         }
 
-        allItems.sort(Comparator
-                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
-                .reversed()
-                .thenComparing(TypesettingProductionPieceVO::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())));
+        sortTypesettingProductionPiecesByUrgencyAndCreateTime(allItems);
 
         long total = allItems.size();
         int fromIndex = Math.min((current - 1) * size, allItems.size());
@@ -311,6 +307,14 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
 
         return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+    }
+
+    private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
+        items.sort(Comparator
+                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(TypesettingProductionPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
     }
 
     /**
