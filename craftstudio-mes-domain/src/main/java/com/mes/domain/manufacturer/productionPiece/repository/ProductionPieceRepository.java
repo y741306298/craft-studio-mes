@@ -11,5 +11,13 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      */
     void updateByProductionPieceId(ProductionPiece productionPiece);
 
+    /**
+     * 根据订单项目 ID 批量更新生产工件加急状态。
+     *
+     * @param orderItemId 订单项目 ID
+     * @param isUrgent 加急状态
+     */
+    void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent);
+
     java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
 }

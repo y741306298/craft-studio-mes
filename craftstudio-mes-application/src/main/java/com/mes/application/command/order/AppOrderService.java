@@ -325,6 +325,7 @@ public class AppOrderService {
      *
      * @param orderItemId 订单项 ID
      */
+    @Transactional
     public void toggleOrderItemUrgent(String orderItemId) {
         if (StringUtils.isBlank(orderItemId)) {
             throw new IllegalArgumentException("订单项 ID 不能为空");
@@ -337,7 +338,9 @@ public class AppOrderService {
 
         // 切换当前状态（true -> false, false -> true）
         Boolean currentStatus = orderItem.getIsUrgent() != null ? orderItem.getIsUrgent() : false;
-        orderItem.setIsUrgent(!currentStatus);
+        Boolean nextStatus = !currentStatus;
+        orderItem.setIsUrgent(nextStatus);
         domainOrderItemService.updateOrderItem(orderItem);
+        productionPieceService.updateUrgentByOrderItemId(orderItemId, nextStatus);
     }
 }
