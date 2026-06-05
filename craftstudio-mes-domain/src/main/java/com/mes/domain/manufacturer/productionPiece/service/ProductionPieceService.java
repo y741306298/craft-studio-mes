@@ -170,6 +170,20 @@ public class ProductionPieceService {
     }
 
     /**
+     * 根据订单项目 ID 批量更新生产工件加急状态。
+     */
+    public void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent) {
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项目 ID 不能为空");
+        }
+        if (isUrgent == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "加急状态不能为空");
+        }
+
+        productionPieceRepository.updateUrgentByOrderItemId(orderItemId, isUrgent);
+    }
+
+    /**
      * 根据工艺路线 ID 查询生产工件（支持分页）
      */
     public List<ProductionPiece> findProductionPiecesByProcedureFlowId(String procedureFlowId, int current, int size) {

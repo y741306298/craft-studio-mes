@@ -3,12 +3,15 @@ package com.mes.infra.dal.manufacurer.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.infra.base.BaseRepositoryImp;
+import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -40,6 +43,22 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         // 设置 id 后调用父类的 update 方法
         productionPiece.setId(existing.getId());
         update(productionPiece);
+    }
+
+    @Override
+    public void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent) {
+        if (orderItemId == null || orderItemId.isBlank()) {
+            throw new IllegalArgumentException("订单项目 ID 不能为空");
+        }
+        if (isUrgent == null) {
+            throw new IllegalArgumentException("加急状态不能为空");
+        }
+
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").is(orderItemId));
+        Update update = new Update()
+                .set("isUrgent", isUrgent)
+                .set("updateTime", new Date());
+        mongoTemplate.updateMulti(query, update, poClass());
     }
 
     @Override
