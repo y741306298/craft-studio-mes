@@ -5,13 +5,7 @@ import com.mes.application.command.typesetting.AppTypesettingService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.TypesettingQuery;
-import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
-import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
-import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
-import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
-import com.mes.application.dto.req.typesetting.GenerateTempCodeRequest;
-import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
-import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
+import com.mes.application.dto.req.typesetting.*;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
@@ -267,10 +261,10 @@ public class TypesettingController {
     /**
      * 查询排版规格
      */
-    @GetMapping("/layoutSpecs")
+    @PostMapping("/layoutSpecs")
     public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs(
-            @RequestParam(name = "materialId", required = false) List<String> materialIds) {
-        return ApiResponse.success(appTypesettingService.listLayoutSpecs(materialIds));
+            @Valid @RequestBody LayoutSpecsRequest request) {
+        return ApiResponse.success(appTypesettingService.listLayoutSpecs(request.getMaterialIds()));
     }
 
     /**
