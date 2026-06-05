@@ -2,6 +2,8 @@ package com.mes.application.command.api.req;
 
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.UploadConfig;
+import com.mes.application.command.orderPreprocessing.splice.AlgorithmSpliceProcessStrategy;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
@@ -59,7 +61,15 @@ public class ImageMaskRequest {
         private String securityToken;
     }
 
-    public static ImageMaskRequest processWithCutting(OrderItem orderItem, List<ProcedureFlowNode> processingNodes, boolean hasSpecialShape,boolean hasCutting) {
+    public static ImageMaskRequest processWithCutting(OrderItem orderItem, List<ProcedureFlowNode> processingNodes, boolean hasSpecialShape, boolean hasCutting) {
+        return processWithSplicing(orderItem, processingNodes, hasSpecialShape, hasCutting, SpliceProcessStrategies.defaults());
+    }
+
+    public static ImageMaskRequest processWithSplicing(OrderItem orderItem,
+                                                       List<ProcedureFlowNode> processingNodes,
+                                                       boolean hasSpecialShape,
+                                                       boolean hasSplicing,
+                                                       List<AlgorithmSpliceProcessStrategy> spliceStrategies) {
         ImageMaskRequest imageMaskRequest = new ImageMaskRequest();
 
         if (orderItem == null) {
@@ -90,15 +100,15 @@ public class ImageMaskRequest {
 
         imageMaskRequest.setRawImage(rawImage);
 
-        if (hasSpecialShape || hasCutting) {
+        if (hasSpecialShape || hasSplicing) {
             ImageFile maskImgFile = orderItem.getMaskImgFile();
             if (maskImgFile == null || maskImgFile.getFilePreview() == null || maskImgFile.getFilePreview().getRaw() == null) {
-                throw new RuntimeException("存在异形工艺但蒙版图片不存在：" + orderItem.getOrderItemId());
+                throw new RuntimeException("存在异形/拼接工艺但蒙版图片不存在：" + orderItem.getOrderItemId());
             }
             imageMaskRequest.setMaskSvgUrl(maskImgFile.getRawFile());
         }
-        if (hasCutting){
-            Slice slice = buildSliceFromProcessingNodes(processingNodes, orderItem, rawImage);
+        if (hasSplicing) {
+            Slice slice = buildSliceFromProcessingNodes(processingNodes, orderItem, rawImage, spliceStrategies);
             if (slice != null) {
                 imageMaskRequest.setSlice(slice);
             }
@@ -106,23 +116,40 @@ public class ImageMaskRequest {
         return imageMaskRequest;
     }
 
-    private static Slice buildSliceFromProcessingNodes(List<ProcedureFlowNode> processingNodes, OrderItem orderItem, RawImage rawImage) {
+    private static Slice buildSliceFromProcessingNodes(List<ProcedureFlowNode> processingNodes,
+                                                       OrderItem orderItem,
+                                                       RawImage rawImage,
+                                                       List<AlgorithmSpliceProcessStrategy> spliceStrategies) {
         if (processingNodes == null || processingNodes.isEmpty()) {
             return null;
         }
+        List<AlgorithmSpliceProcessStrategy> effectiveStrategies = spliceStrategies == null || spliceStrategies.isEmpty()
+                ? SpliceProcessStrategies.defaults()
+                : spliceStrategies;
 
         Slice slice = new Slice();
         List<Coordinate> xs = new ArrayList<>();
         List<Coordinate> ys = new ArrayList<>();
 
         for (ProcedureFlowNode node : processingNodes) {
-            if ("超幅拼接".equals(node.getNodeName())) {
-                List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs = node.getParamConfigs();
-                if (paramConfigs != null) {
-                    for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
-                        Object paramValue = config.getParam();
-                        resolveCoordinates(paramValue, xs, ys, orderItem, rawImage);
+            if (node == null) {
+                continue;
+            }
+            AlgorithmSpliceProcessStrategy matchedStrategy = effectiveStrategies.stream()
+                    .filter(strategy -> strategy.matches(node))
+                    .findFirst()
+                    .orElse(null);
+            if (matchedStrategy == null) {
+                continue;
+            }
+            List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs = node.getParamConfigs();
+            if (paramConfigs != null) {
+                for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
+                    if (config == null) {
+                        continue;
                     }
+                    Object paramValue = config.getParam();
+                    resolveCoordinates(paramValue, xs, ys, orderItem, rawImage, matchedStrategy);
                 }
             }
         }
@@ -137,22 +164,27 @@ public class ImageMaskRequest {
         return (!xs.isEmpty() || !ys.isEmpty()) ? slice : null;
     }
 
-    private static void resolveCoordinates(Object paramValue, List<Coordinate> xs, List<Coordinate> ys, OrderItem orderItem, RawImage rawImage) {
+    private static void resolveCoordinates(Object paramValue,
+                                           List<Coordinate> xs,
+                                           List<Coordinate> ys,
+                                           OrderItem orderItem,
+                                           RawImage rawImage,
+                                           AlgorithmSpliceProcessStrategy spliceStrategy) {
         if (paramValue == null) {
             return;
         }
 
         if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, 20, "xs", orderItem, rawImage);
-            addCoordinatesFromList(mapValue.get("ys"), ys, 20, "ys", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("xs"), xs, spliceStrategy, "xs", orderItem, rawImage);
+            addCoordinatesFromList(mapValue.get("ys"), ys, spliceStrategy, "ys", orderItem, rawImage);
             return;
         }
 
         if (paramValue instanceof List<?> coordinates) {
             for (int i = 0; i < coordinates.size(); i += 2) {
                 if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), 20, "xs", orderItem, rawImage));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), 20, "ys", orderItem, rawImage));
+                    xs.add(buildCoordinate(coordinates.get(i), spliceStrategy, "xs", orderItem, rawImage));
+                    ys.add(buildCoordinate(coordinates.get(i + 1), spliceStrategy, "ys", orderItem, rawImage));
                 }
             }
             return;
@@ -161,22 +193,22 @@ public class ImageMaskRequest {
         // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
         Object xsValue = invokeGetter(paramValue, "getXs");
         Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, 20, "xs", orderItem, rawImage);
-        addCoordinatesFromList(ysValue, ys, 20, "ys", orderItem, rawImage);
+        addCoordinatesFromList(xsValue, xs, spliceStrategy, "xs", orderItem, rawImage);
+        addCoordinatesFromList(ysValue, ys, spliceStrategy, "ys", orderItem, rawImage);
     }
 
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, AlgorithmSpliceProcessStrategy spliceStrategy, String axis, OrderItem orderItem, RawImage rawImage) {
         if (!(listObj instanceof List<?> values)) {
             return;
         }
         for (Object value : values) {
-            target.add(buildCoordinate(value, defaultBlood, axis, orderItem, rawImage));
+            target.add(buildCoordinate(value, spliceStrategy, axis, orderItem, rawImage));
         }
     }
 
-    private static Coordinate buildCoordinate(Object rawValue, Integer defaultBlood, String axis, OrderItem orderItem, RawImage rawImage) {
+    private static Coordinate buildCoordinate(Object rawValue, AlgorithmSpliceProcessStrategy spliceStrategy, String axis, OrderItem orderItem, RawImage rawImage) {
         Coordinate coordinate = new Coordinate();
-        coordinate.setBlood(convertBloodMmToPx(defaultBlood, axis, rawImage));
+        coordinate.setBlood(convertBloodMmToPx(spliceStrategy.resolveBloodMm(null), axis, rawImage));
 
         if (rawValue == null) {
             return coordinate;
@@ -192,7 +224,7 @@ public class ImageMaskRequest {
             Integer bloodValue = parseInteger(blood);
             Integer coordinateValue = parseInteger(value);
             coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
-            coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
+            coordinate.setBlood(convertBloodMmToPx(spliceStrategy.resolveBloodMm(bloodValue), axis, rawImage));
             return coordinate;
         }
 
@@ -201,7 +233,7 @@ public class ImageMaskRequest {
         Integer bloodValue = parseInteger(blood);
         Integer coordinateValue = value != null ? parseInteger(value) : null;
         coordinate.setValue(convertValueToPx(coordinateValue != null ? coordinateValue : parseInteger(rawValue), axis, orderItem, rawImage));
-        coordinate.setBlood(convertBloodMmToPx(bloodValue != null ? bloodValue : defaultBlood, axis, rawImage));
+        coordinate.setBlood(convertBloodMmToPx(spliceStrategy.resolveBloodMm(bloodValue), axis, rawImage));
         return coordinate;
     }
 
