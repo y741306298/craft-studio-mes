@@ -29,6 +29,22 @@ class Liubai15CmProcessStrategyTest {
     }
 
     @Test
+    void horizontalSuperWidthSpliceSkipTopAndBottomBloodEdges() {
+        ProductionPiece piece = pieceWithInlineMask();
+        piece.setSeq(1);
+        piece.setGroup("12#1-3");
+        Blood blood = new Blood();
+        blood.setX(0);
+        blood.setY(1);
+        piece.setBlood(blood);
+
+        strategy.process(context(piece, true));
+
+        assertEquals(1300D, piece.getWidth());
+        assertEquals(500D, piece.getHeight());
+    }
+
+    @Test
     void directRouteStillExpandsAllEdges() {
         ProductionPiece piece = pieceWithInlineMask();
         piece.setSeq(1);
