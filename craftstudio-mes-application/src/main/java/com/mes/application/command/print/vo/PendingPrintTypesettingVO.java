@@ -23,6 +23,7 @@ public class PendingPrintTypesettingVO extends TypesettingInfo {
         vo.setTypesettingId(info.getTypesettingId());
         vo.setManufacturerMetaId(info.getManufacturerMetaId());
         vo.setStatus(info.getStatus());
+        vo.setIsUrgent(Boolean.TRUE.equals(info.getIsUrgent()));
         vo.setMaterialConfig(info.getMaterialConfig());
         vo.setMaterialConfigs(info.getMaterialConfigs());
         vo.setQuantity(info.getQuantity());
