@@ -44,7 +44,11 @@ public abstract class AbstractBuckleProcessStrategy {
     protected static final String MARK_SOURCE_NAME = "point.png";
     protected static final double MARK_SIZE_MM = 8D;
     protected static final double EDGE_OFFSET_MM = 25D;
+    protected static final double OUTSIDE_BUCKLE_EDGE_OFFSET_MM = 75D;
     protected static final double MAX_BUCKLE_SPACING_MM = 300D;
+
+    private static final String INSIDE_BUCKLE_NODE_NAME = "画内打扣";
+    private static final String OUTSIDE_BUCKLE_NODE_NAME = "画外打扣";
 
     private static final String MARK_PATH_FILL = "#000000";
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
@@ -81,6 +85,19 @@ public abstract class AbstractBuckleProcessStrategy {
     }
 
     /**
+     * 解析扣点相对最外侧矩形的内缩距离。
+     *
+     * <p>默认沿用 25mm；当订单/工件存在“画外打扣”节点时，改为 75mm。若同时存在
+     * “画内打扣”，按画内打扣优先保持 25mm，避免改变画内打扣既有点位。</p>
+     */
+    protected double resolveEdgeOffset(BuckleProcessContext context) {
+        if (hasProcedureNode(context, INSIDE_BUCKLE_NODE_NAME)) {
+            return EDGE_OFFSET_MM;
+        }
+        return hasProcedureNode(context, OUTSIDE_BUCKLE_NODE_NAME) ? OUTSIDE_BUCKLE_EDGE_OFFSET_MM : EDGE_OFFSET_MM;
+    }
+
+    /**
      * 执行打扣策略。
      *
      * @param context 打扣处理上下文
@@ -96,11 +113,12 @@ public abstract class AbstractBuckleProcessStrategy {
             return;
         }
         SvgBounds buckleBounds = resolveBuckleBounds(originalSvg, piece);
-        if (buckleBounds.width < EDGE_OFFSET_MM * 2 || buckleBounds.height < EDGE_OFFSET_MM * 2) {
-            log.info("{}预处理跳过尺寸不足工件: productionPieceId={}, width={}, height={}", nodeName(), piece.getProductionPieceId(), buckleBounds.width, buckleBounds.height);
+        double edgeOffset = resolveEdgeOffset(context);
+        if (buckleBounds.width < edgeOffset * 2 || buckleBounds.height < edgeOffset * 2) {
+            log.info("{}预处理跳过尺寸不足工件: productionPieceId={}, width={}, height={}, edgeOffset={}", nodeName(), piece.getProductionPieceId(), buckleBounds.width, buckleBounds.height, edgeOffset);
             return;
         }
-        List<BuckleMarkPoint> markPoints = translateMarkPoints(buildMarkPoints(context, buckleBounds.width, buckleBounds.height), buckleBounds.x, buckleBounds.y);
+        List<BuckleMarkPoint> markPoints = translateMarkPoints(buildMarkPoints(context, buckleBounds.width, buckleBounds.height, edgeOffset), buckleBounds.x, buckleBounds.y);
         if (markPoints.isEmpty()) {
             return;
         }
@@ -137,7 +155,20 @@ public abstract class AbstractBuckleProcessStrategy {
      * @return 扣点列表
      */
     protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height) {
-        return buildMarkPoints(width, height);
+        return buildMarkPoints(context, width, height, resolveEdgeOffset(context));
+    }
+
+    /**
+     * 构建当前策略的所有扣点中心坐标。
+     *
+     * @param context 打扣处理上下文，实体策略需要读取工件出血/分段信息时可使用
+     * @param width 最外侧矩形宽度，单位 mm
+     * @param height 最外侧矩形高度，单位 mm
+     * @param edgeOffset 扣点相对最外侧矩形的内缩距离，单位 mm
+     * @return 扣点列表
+     */
+    protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height, double edgeOffset) {
+        return buildMarkPoints(width, height, edgeOffset);
     }
 
     /**
@@ -147,54 +178,66 @@ public abstract class AbstractBuckleProcessStrategy {
      * @param height 最外侧矩形高度，单位 mm
      * @return 扣点列表
      */
-    protected abstract List<BuckleMarkPoint> buildMarkPoints(double width, double height);
+    protected List<BuckleMarkPoint> buildMarkPoints(double width, double height) {
+        return buildMarkPoints(width, height, EDGE_OFFSET_MM);
+    }
+
+    protected abstract List<BuckleMarkPoint> buildMarkPoints(double width, double height, double edgeOffset);
 
     protected List<BuckleMarkPoint> buildCornerMarkPoints(double width, double height) {
+        return buildCornerMarkPoints(width, height, EDGE_OFFSET_MM);
+    }
+
+    protected List<BuckleMarkPoint> buildCornerMarkPoints(double width, double height, double edgeOffset) {
         List<BuckleMarkPoint> points = new ArrayList<>();
-        points.add(new BuckleMarkPoint("lt", EDGE_OFFSET_MM, EDGE_OFFSET_MM));
-        points.add(new BuckleMarkPoint("rt", width - EDGE_OFFSET_MM, EDGE_OFFSET_MM));
-        points.add(new BuckleMarkPoint("rb", width - EDGE_OFFSET_MM, height - EDGE_OFFSET_MM));
-        points.add(new BuckleMarkPoint("lb", EDGE_OFFSET_MM, height - EDGE_OFFSET_MM));
+        points.add(new BuckleMarkPoint("lt", edgeOffset, edgeOffset));
+        points.add(new BuckleMarkPoint("rt", width - edgeOffset, edgeOffset));
+        points.add(new BuckleMarkPoint("rb", width - edgeOffset, height - edgeOffset));
+        points.add(new BuckleMarkPoint("lb", edgeOffset, height - edgeOffset));
         return points;
     }
 
     protected List<BuckleMarkPoint> buildEdgeMarkPoints(double width, double height, List<BuckleEdge> edges) {
+        return buildEdgeMarkPoints(width, height, edges, EDGE_OFFSET_MM);
+    }
+
+    protected List<BuckleMarkPoint> buildEdgeMarkPoints(double width, double height, List<BuckleEdge> edges, double edgeOffset) {
         Map<String, BuckleMarkPoint> points = new LinkedHashMap<>();
         for (BuckleEdge edge : edges) {
-            addEdgeMarkPoints(points, edge, width, height);
+            addEdgeMarkPoints(points, edge, width, height, edgeOffset);
         }
         return new ArrayList<>(points.values());
     }
 
-    private void addEdgeMarkPoints(Map<String, BuckleMarkPoint> points, BuckleEdge edge, double width, double height) {
+    private void addEdgeMarkPoints(Map<String, BuckleMarkPoint> points, BuckleEdge edge, double width, double height, double edgeOffset) {
         double startX;
         double startY;
         double endX;
         double endY;
         switch (edge) {
             case TOP:
-                startX = EDGE_OFFSET_MM;
-                startY = EDGE_OFFSET_MM;
-                endX = width - EDGE_OFFSET_MM;
-                endY = EDGE_OFFSET_MM;
+                startX = edgeOffset;
+                startY = edgeOffset;
+                endX = width - edgeOffset;
+                endY = edgeOffset;
                 break;
             case RIGHT:
-                startX = width - EDGE_OFFSET_MM;
-                startY = EDGE_OFFSET_MM;
-                endX = width - EDGE_OFFSET_MM;
-                endY = height - EDGE_OFFSET_MM;
+                startX = width - edgeOffset;
+                startY = edgeOffset;
+                endX = width - edgeOffset;
+                endY = height - edgeOffset;
                 break;
             case BOTTOM:
-                startX = width - EDGE_OFFSET_MM;
-                startY = height - EDGE_OFFSET_MM;
-                endX = EDGE_OFFSET_MM;
-                endY = height - EDGE_OFFSET_MM;
+                startX = width - edgeOffset;
+                startY = height - edgeOffset;
+                endX = edgeOffset;
+                endY = height - edgeOffset;
                 break;
             case LEFT:
-                startX = EDGE_OFFSET_MM;
-                startY = height - EDGE_OFFSET_MM;
-                endX = EDGE_OFFSET_MM;
-                endY = EDGE_OFFSET_MM;
+                startX = edgeOffset;
+                startY = height - edgeOffset;
+                endX = edgeOffset;
+                endY = edgeOffset;
                 break;
             default:
                 return;
@@ -220,6 +263,22 @@ public abstract class AbstractBuckleProcessStrategy {
 
     private boolean hasNode(ProcedureFlow procedureFlow, String nodeName) {
         return procedureFlow.getNodes() != null && procedureFlow.getNodes().stream()
+                .anyMatch(node -> node != null && nodeName.equals(node.getNodeName()));
+    }
+
+    private boolean hasProcedureNode(BuckleProcessContext context, String nodeName) {
+        if (context == null) {
+            return false;
+        }
+        if (hasProcedureNode(context.getProcedureFlow(), nodeName)) {
+            return true;
+        }
+        ProductionPiece piece = context.getProductionPiece();
+        return piece != null && hasProcedureNode(piece.getProcedureFlow(), nodeName);
+    }
+
+    private boolean hasProcedureNode(ProcedureFlow procedureFlow, String nodeName) {
+        return procedureFlow != null && procedureFlow.getNodes() != null && procedureFlow.getNodes().stream()
                 .anyMatch(node -> node != null && nodeName.equals(node.getNodeName()));
     }
 

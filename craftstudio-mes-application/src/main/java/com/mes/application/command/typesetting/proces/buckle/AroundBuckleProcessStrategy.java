@@ -45,19 +45,24 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
     }
 
     @Override
-    protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height) {
+    protected List<BuckleMarkPoint> buildMarkPoints(BuckleProcessContext context, double width, double height, double edgeOffset) {
         ProductionPiece piece = context == null ? null : context.getProductionPiece();
         ProcedureFlow procedureFlow = context == null ? null : context.getProcedureFlow();
-        return buildAroundMarkPoints(width, height, resolveBleedSides(piece, procedureFlow));
+        return buildAroundMarkPoints(width, height, resolveBleedSides(piece, procedureFlow), edgeOffset);
     }
 
     @Override
     protected List<BuckleMarkPoint> buildMarkPoints(double width, double height) {
-        return buildAroundMarkPoints(width, height, EnumSet.noneOf(BuckleEdge.class));
+        return buildAroundMarkPoints(width, height, EnumSet.noneOf(BuckleEdge.class), EDGE_OFFSET_MM);
     }
 
-    private List<BuckleMarkPoint> buildAroundMarkPoints(double width, double height, Set<BuckleEdge> bleedSides) {
-        OffsetBox offsets = resolveOffsets(bleedSides);
+    @Override
+    protected List<BuckleMarkPoint> buildMarkPoints(double width, double height, double edgeOffset) {
+        return buildAroundMarkPoints(width, height, EnumSet.noneOf(BuckleEdge.class), edgeOffset);
+    }
+
+    private List<BuckleMarkPoint> buildAroundMarkPoints(double width, double height, Set<BuckleEdge> bleedSides, double edgeOffset) {
+        OffsetBox offsets = resolveOffsets(bleedSides, edgeOffset);
         Map<String, BuckleMarkPoint> points = new LinkedHashMap<>();
         CornerPoint lt = new CornerPoint("lt", offsets.left, offsets.top);
         CornerPoint rt = new CornerPoint("rt", width - offsets.right, offsets.top);
@@ -71,17 +76,17 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
         return new ArrayList<>(points.values());
     }
 
-    private OffsetBox resolveOffsets(Set<BuckleEdge> bleedSides) {
+    private OffsetBox resolveOffsets(Set<BuckleEdge> bleedSides, double edgeOffset) {
         OffsetBox offsets = new OffsetBox();
-        offsets.top = resolveOffset(bleedSides, BuckleEdge.TOP);
-        offsets.right = resolveOffset(bleedSides, BuckleEdge.RIGHT);
-        offsets.bottom = resolveOffset(bleedSides, BuckleEdge.BOTTOM);
-        offsets.left = resolveOffset(bleedSides, BuckleEdge.LEFT);
+        offsets.top = resolveOffset(bleedSides, BuckleEdge.TOP, edgeOffset);
+        offsets.right = resolveOffset(bleedSides, BuckleEdge.RIGHT, edgeOffset);
+        offsets.bottom = resolveOffset(bleedSides, BuckleEdge.BOTTOM, edgeOffset);
+        offsets.left = resolveOffset(bleedSides, BuckleEdge.LEFT, edgeOffset);
         return offsets;
     }
 
-    private double resolveOffset(Set<BuckleEdge> bleedSides, BuckleEdge edge) {
-        return bleedSides != null && bleedSides.contains(edge) ? BLEED_EDGE_OFFSET_MM : EDGE_OFFSET_MM;
+    private double resolveOffset(Set<BuckleEdge> bleedSides, BuckleEdge edge, double edgeOffset) {
+        return bleedSides != null && bleedSides.contains(edge) ? BLEED_EDGE_OFFSET_MM : edgeOffset;
     }
 
     private void addNonBleedEdgeMarks(Map<String, BuckleMarkPoint> result, Set<BuckleEdge> bleedSides, BuckleEdge edge, String edgeName, CornerPoint start, CornerPoint end) {

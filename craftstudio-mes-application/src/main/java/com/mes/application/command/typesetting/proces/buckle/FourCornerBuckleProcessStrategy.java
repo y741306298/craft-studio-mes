@@ -29,4 +29,9 @@ public class FourCornerBuckleProcessStrategy extends AbstractBuckleProcessStrate
     protected List<BuckleMarkPoint> buildMarkPoints(double width, double height) {
         return buildCornerMarkPoints(width, height);
     }
+
+    @Override
+    protected List<BuckleMarkPoint> buildMarkPoints(double width, double height, double edgeOffset) {
+        return buildCornerMarkPoints(width, height, edgeOffset);
+    }
 }

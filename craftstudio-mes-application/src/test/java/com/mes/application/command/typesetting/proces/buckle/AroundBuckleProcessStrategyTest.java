@@ -142,11 +142,43 @@ class AroundBuckleProcessStrategyTest {
         assertEquals(475D, rb.getCenterY());
     }
 
-    private BuckleProcessContext context(ProductionPiece piece, String nodeName) {
-        ProcedureFlowNode node = new ProcedureFlowNode();
-        node.setNodeName(nodeName);
+    @Test
+    void outsideBuckleUses75MillimeterOffsetFromOutermostBounds() {
+        ProductionPiece piece = new ProductionPiece();
+
+        List<BuckleMarkPoint> points = strategy.buildMarkPoints(context(piece, "四周打扣", "画外打扣"), 1000D, 500D);
+
+        BuckleMarkPoint lt = find(points, "lt");
+        BuckleMarkPoint rb = find(points, "rb");
+        assertEquals(75D, lt.getCenterX());
+        assertEquals(75D, lt.getCenterY());
+        assertEquals(925D, rb.getCenterX());
+        assertEquals(425D, rb.getCenterY());
+    }
+
+    @Test
+    void insideBuckleKeepsDefaultOffsetEvenWhenOutsideNodeExists() {
+        ProductionPiece piece = new ProductionPiece();
+
+        List<BuckleMarkPoint> points = strategy.buildMarkPoints(context(piece, "四周打扣", "画外打扣", "画内打扣"), 1000D, 500D);
+
+        BuckleMarkPoint lt = find(points, "lt");
+        BuckleMarkPoint rb = find(points, "rb");
+        assertEquals(25D, lt.getCenterX());
+        assertEquals(25D, lt.getCenterY());
+        assertEquals(975D, rb.getCenterX());
+        assertEquals(475D, rb.getCenterY());
+    }
+
+    private BuckleProcessContext context(ProductionPiece piece, String... nodeNames) {
         ProcedureFlow procedureFlow = new ProcedureFlow();
-        procedureFlow.setNodes(List.of(node));
+        procedureFlow.setNodes(List.of(nodeNames).stream()
+                .map(nodeName -> {
+                    ProcedureFlowNode node = new ProcedureFlowNode();
+                    node.setNodeName(nodeName);
+                    return node;
+                })
+                .toList());
         BuckleProcessContext context = new BuckleProcessContext();
         context.setProductionPiece(piece);
         context.setProcedureFlow(procedureFlow);
