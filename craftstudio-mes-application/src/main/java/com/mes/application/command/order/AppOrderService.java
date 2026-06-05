@@ -321,18 +321,21 @@ public class AppOrderService {
     }
 
     /**
-     * 切换订单项加急状态
+     * 切换订单项加急状态。
      *
-     * @param orderItemId 订单项 ID
+     * @param id 订单项 MongoDB ID
      */
-    public void toggleOrderItemUrgent(String orderItemId) {
-        if (StringUtils.isBlank(orderItemId)) {
+    public void toggleOrderItemUrgent(String id) {
+        if (StringUtils.isBlank(id)) {
             throw new IllegalArgumentException("订单项 ID 不能为空");
         }
 
-        OrderItem orderItem = domainOrderItemService.findById(orderItemId);
+        OrderItem orderItem = domainOrderItemService.findById(id);
         if (orderItem == null) {
-            throw new IllegalArgumentException("订单项不存在：" + orderItemId);
+            throw new IllegalArgumentException("订单项不存在：" + id);
+        }
+        if (StringUtils.isBlank(orderItem.getOrderItemId())) {
+            throw new IllegalArgumentException("订单项业务 ID 不能为空：" + id);
         }
 
         // 切换当前状态（true -> false, false -> true）
@@ -340,6 +343,8 @@ public class AppOrderService {
         Boolean nextStatus = !currentStatus;
         orderItem.setIsUrgent(nextStatus);
         domainOrderItemService.updateOrderItem(orderItem);
-        productionPieceService.updateUrgentByOrderItemId(orderItemId, nextStatus);
+
+        // productionPiece.orderItemId 保存的是订单项业务 ID，不是 MongoDB _id。
+        productionPieceService.updateUrgentByOrderItemId(orderItem.getOrderItemId(), nextStatus);
     }
 }
