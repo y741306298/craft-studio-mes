@@ -3,6 +3,7 @@ package com.mes.application.command.typesetting.proces.buckle;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
@@ -104,6 +105,40 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
         if (!hasProcedureNode(piece, SUPER_WIDTH_SPLICE_NODE_NAME) && !hasProcedureNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)) {
             return bleedSides;
         }
+        addBleedSidesFromBlood(bleedSides, piece == null ? null : piece.getBlood());
+        bleedSides.addAll(resolveBleedSidesFromSequence(piece));
+        return bleedSides;
+    }
+
+    /**
+     * 根据算法回写的 blood 方向确认超幅拼接主动出血边。
+     *
+     * <p>该映射与留白策略保持一致：x 正/负分别表示右/左出血，y 正/负分别表示上/下出血；
+     * 被出血边由分片顺序补充。</p>
+     */
+    private void addBleedSidesFromBlood(Set<BuckleEdge> bleedSides, Blood blood) {
+        if (blood == null) {
+            return;
+        }
+        Integer x = blood.getX();
+        Integer y = blood.getY();
+        if (x != null && x > 0) {
+            bleedSides.add(BuckleEdge.RIGHT);
+        } else if (x != null && x < 0) {
+            bleedSides.add(BuckleEdge.LEFT);
+        }
+        if (y != null && y > 0) {
+            bleedSides.add(BuckleEdge.TOP);
+        } else if (y != null && y < 0) {
+            bleedSides.add(BuckleEdge.BOTTOM);
+        }
+    }
+
+    /**
+     * 按分片顺序推断横向拼接边：这些边包含主动出血边及被出血边。
+     */
+    private Set<BuckleEdge> resolveBleedSidesFromSequence(ProductionPiece piece) {
+        Set<BuckleEdge> bleedSides = EnumSet.noneOf(BuckleEdge.class);
         Integer currentSeq = piece == null ? null : piece.getSeq();
         Integer maxSeq = piece == null ? null : extractMaxSeqInGroup(piece.getGroup());
         if (currentSeq == null || maxSeq == null || maxSeq <= 0) {
