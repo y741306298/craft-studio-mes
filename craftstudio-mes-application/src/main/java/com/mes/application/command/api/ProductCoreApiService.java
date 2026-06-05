@@ -18,6 +18,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -723,6 +725,60 @@ public class ProductCoreApiService {
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw new RuntimeException("修改工厂接单状态失败：" + response.getStatusCode());
             }
+        } catch (Exception e) {
+            throw new RuntimeException("调用外部系统失败：" + e.getMessage());
+        }
+    }
+
+
+    /**
+     * 查询材料展开尺寸映射。
+     *
+     * @param materialIds 材料 ID 列表
+     * @return 展开尺寸映射，key 由产品中心返回
+     */
+    public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMap(List<String> materialIds) {
+        if (CollectionUtils.isEmpty(materialIds)) {
+            return Collections.emptyMap();
+        }
+        if (productCoreUrl == null || productCoreUrl.isBlank()) {
+            throw new RuntimeException("产品中心地址不能为空");
+        }
+
+        List<String> effectiveMaterialIds = materialIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(materialId -> !materialId.isEmpty())
+                .distinct()
+                .toList();
+        if (effectiveMaterialIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        try {
+            UriComponentsBuilder urlBuilder = UriComponentsBuilder
+                    .fromUriString(productCoreUrl)
+                    .path("/api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap");
+            effectiveMaterialIds.forEach(materialId -> urlBuilder.queryParam("materialId", materialId));
+
+            ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>> typeRef =
+                    new ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>>() {};
+
+            ResponseEntity<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>> response = restTemplate.exchange(
+                    urlBuilder.toUriString(),
+                    HttpMethod.GET,
+                    null,
+                    typeRef
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new RuntimeException("获取材料展开尺寸失败：" + response.getStatusCode());
+            }
+            ApiResponse<Map<String, MaterialDevelopedSizeResponse>> responseBody = response.getBody();
+            if (responseBody.getCode() != null && responseBody.getCode() != 200) {
+                throw new RuntimeException("获取材料展开尺寸失败：" + responseBody.getMessage());
+            }
+            return Optional.ofNullable(responseBody.getData()).orElse(Collections.emptyMap());
         } catch (Exception e) {
             throw new RuntimeException("调用外部系统失败：" + e.getMessage());
         }

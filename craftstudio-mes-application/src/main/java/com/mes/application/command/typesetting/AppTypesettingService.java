@@ -2,6 +2,8 @@ package com.mes.application.command.typesetting;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.ProductCoreApiService;
+import com.mes.application.command.api.resp.MaterialDevelopedSizeResponse;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.vo.CallbackConfig;
@@ -145,6 +147,9 @@ public class AppTypesettingService {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Autowired
+    private ProductCoreApiService productCoreApiService;
 
     @Autowired
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
@@ -306,10 +311,43 @@ public class AppTypesettingService {
     }
 
     /**
+     * 查询排版规格。
+     * <p>
+     * 传入材料 ID 时，按材料展开尺寸查询规格；未传入时保留默认规格。
+     */
+    public List<TypesettingLayoutSpecVO> listLayoutSpecs(List<String> materialIds) {
+        if (CollectionUtils.isEmpty(materialIds)) {
+            return DEFAULT_LAYOUT_SPECS;
+        }
+
+        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMap(materialIds);
+        if (CollectionUtils.isEmpty(developedSizeMap)) {
+            return Collections.emptyList();
+        }
+
+        Map<String, TypesettingLayoutSpecVO> layoutSpecMap = new LinkedHashMap<>();
+        for (MaterialDevelopedSizeResponse developedSize : developedSizeMap.values()) {
+            if (developedSize == null || developedSize.getWidth() == null || developedSize.getHeight() == null) {
+                continue;
+            }
+            Integer width = toLayoutSpecSize(developedSize.getWidth());
+            Integer height = toLayoutSpecSize(developedSize.getHeight());
+            String name = width + "*" + height;
+            layoutSpecMap.putIfAbsent(name, new TypesettingLayoutSpecVO(name, width, height));
+        }
+
+        return new ArrayList<>(layoutSpecMap.values());
+    }
+
+    /**
      * 查询默认排版规格
      */
     public List<TypesettingLayoutSpecVO> listDefaultLayoutSpecs() {
         return DEFAULT_LAYOUT_SPECS;
+    }
+
+    private Integer toLayoutSpecSize(Double size) {
+        return Math.toIntExact(Math.round(size));
     }
 
     /**
