@@ -82,7 +82,7 @@ public class AppOrderService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-        List<OrderItem> orderItems = domainOrderItemService.filterList(
+        List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(),
                 (int) pagedQuery.getSize(),
                 filters

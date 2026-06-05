@@ -175,62 +175,14 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public List<DO> filterList(long current, int size, Map<String, Object> filters) {
-        Criteria criteria = null;
-        Map<String, RangeCondition> rangeConditions = new HashMap<>();
-        
-        for(String key : filters.keySet()){
-            Object value = filters.get(key);
-            
-            if (key.endsWith("_gte")) {
-                String fieldName = key.substring(0, key.length() - 4);
-                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
-                              .setGte(value);
-            } else if (key.endsWith("_lte")) {
-                String fieldName = key.substring(0, key.length() - 4);
-                rangeConditions.computeIfAbsent(fieldName, k -> new RangeCondition())
-                              .setLte(value);
-            } else if (key.endsWith("_like")) {
-                String fieldName = key.substring(0, key.length() - 5);
-                if (criteria == null) {
-                    criteria = Criteria.where(fieldName).regex(String.valueOf(value), "i");
-                } else {
-                    criteria.and(fieldName).regex(String.valueOf(value), "i");
-                }
-            } else {
-                if (criteria == null) {
-                    criteria = Criteria.where(key).is(value);
-                } else {
-                    criteria.and(key).is(value);
-                }
-            }
-        }
-        
-        for (Map.Entry<String, RangeCondition> entry : rangeConditions.entrySet()) {
-            String fieldName = entry.getKey();
-            RangeCondition rangeCondition = entry.getValue();
-            Criteria rangeCriteria = Criteria.where(fieldName);
-            
-            if (rangeCondition.getGte() != null && rangeCondition.getLte() != null) {
-                rangeCriteria.gte(rangeCondition.getGte()).lte(rangeCondition.getLte());
-            } else if (rangeCondition.getGte() != null) {
-                rangeCriteria.gte(rangeCondition.getGte());
-            } else if (rangeCondition.getLte() != null) {
-                rangeCriteria.lte(rangeCondition.getLte());
-            }
-            
-            if (criteria == null) {
-                criteria = rangeCriteria;
-            } else {
-                criteria.andOperator(rangeCriteria);
-            }
-        }
-        
-        if(criteria == null){
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
-        }
+        return filterList(current, size, filters, Sort.by(Sort.Direction.DESC, "updateTime"));
+    }
+
+    protected List<DO> filterList(long current, int size, Map<String, Object> filters, Sort sort) {
+        Criteria criteria = buildFilterCriteria(filters);
         var pos = mongoTemplate.find(
                 new SoftDeleteQuery(criteria)
-                        .with(Sort.by(Sort.Direction.DESC, "updateTime"))
+                        .with(sort)
                         .limit(size).skip((current-1)*size),
                 poClass()
         );
@@ -239,6 +191,14 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public long filterTotal(Map<String, Object> filters) {
+        Criteria criteria = buildFilterCriteria(filters);
+        return mongoTemplate.count(
+            new SoftDeleteQuery(criteria),
+            poClass()
+        );
+    }
+
+    protected Criteria buildFilterCriteria(Map<String, Object> filters) {
         Criteria criteria = null;
         Map<String, RangeCondition> rangeConditions = new HashMap<>();
         
@@ -292,10 +252,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
         if(criteria == null){
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
-        return mongoTemplate.count(
-            new SoftDeleteQuery(criteria),
-            poClass()
-        );
+        return criteria;
     }
 
     private static class RangeCondition {
