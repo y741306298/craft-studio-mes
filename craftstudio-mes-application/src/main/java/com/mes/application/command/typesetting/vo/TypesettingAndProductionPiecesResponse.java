@@ -14,7 +14,7 @@ public class TypesettingAndProductionPiecesResponse {
 
     private Long total;
 
-    private Integer current;
+    private Long current;
 
     private List<String> processingFlowList;
 

@@ -325,7 +325,6 @@ public class AppOrderService {
      *
      * @param orderItemId 订单项 ID
      */
-    @Transactional
     public void toggleOrderItemUrgent(String orderItemId) {
         if (StringUtils.isBlank(orderItemId)) {
             throw new IllegalArgumentException("订单项 ID 不能为空");
