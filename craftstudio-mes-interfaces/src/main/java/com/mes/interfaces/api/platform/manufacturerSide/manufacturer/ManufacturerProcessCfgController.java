@@ -116,4 +116,31 @@ public class ManufacturerProcessCfgController {
         return responseEntity;
     }
 
+    /**
+     * 修改上下架状态-工艺定义
+     *
+     * Path: /api/internal/mes/rmfcfg/changeProcessMetaConfigState
+     * Method: POST
+     *
+     * @return 操作结果
+     */
+    @PostMapping("/changeProcessMetaConfigState")
+    public ResponseEntity<byte[]> changeProcessMetaConfigState(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/rmfcfg/changeProcessMetaConfigState", productCoreUrl));
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
+
+        // 调试：打印响应内容
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
 }
