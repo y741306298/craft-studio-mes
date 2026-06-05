@@ -1,6 +1,7 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -22,11 +23,11 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
 
     @Override
     public List<ProductionPiece> process(OrderItem orderItem, ProcedureFlow procedureFlow, AppOrderPreprocessingService processingService) {
-        // 步骤1：识别是否同时存在超幅拼接/异形切割，决定是否预先生成等幅蒙版。
-        boolean hasCutting = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接");
+        // 步骤1：识别是否同时存在拼接/异形切割，决定是否预先生成等幅蒙版。
+        boolean hasSplicing = SpliceProcessStrategies.hasSpliceNode(procedureFlow);
         boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
         MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow);
-        if (!hasSpecialShape && !hasCutting) {
+        if (!hasSpecialShape && !hasSplicing) {
             // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
             String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
             processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
@@ -53,7 +54,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             pieces.add(piece);
             return pieces;
         }
-        // 步骤3：存在超幅拼接/异形切割时才调用异步蒙版算法。
+        // 步骤3：存在拼接/异形切割时才调用异步蒙版算法。
         processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(),
                 mirrorImageData == null ? null : mirrorImageData.raw);
         return null;

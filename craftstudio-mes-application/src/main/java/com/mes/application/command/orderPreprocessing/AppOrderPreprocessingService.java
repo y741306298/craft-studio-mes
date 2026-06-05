@@ -7,6 +7,7 @@ import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
@@ -109,8 +110,8 @@ public class AppOrderPreprocessingService {
      *
      * <p>订单预处理会在两条路线调用该服务：</p>
      * <ul>
-     *     <li>无超幅拼接路线：生产工件创建后、持久化前同步外扩 mask。</li>
-     *     <li>超幅拼接 callback 路线：算法回调创建生产工件并写入 blood 后，同步外扩非出血边。</li>
+     *     <li>无拼接路线：生产工件创建后、持久化前同步外扩 mask。</li>
+     *     <li>拼接 callback 路线：算法回调创建生产工件并写入 blood 后，同步外扩非出血边。</li>
      * </ul>
      */
     @Autowired
@@ -220,10 +221,10 @@ public class AppOrderPreprocessingService {
         orderItemService.updateOrderItem(orderItem);
     }
 
-    public void callMaskAsyncForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, boolean hasSpecialShape, boolean hasCutting, String mirrorUrl) {
+    public void callMaskAsyncForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, boolean hasSpecialShape, boolean hasSplicing, String mirrorUrl) {
         // 步骤1：按工艺节点与订单项组装 ImageMaskRequest。
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
-        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, hasSpecialShape, hasCutting);
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithSplicing(orderItem, processingNodes, hasSpecialShape, hasSplicing, SpliceProcessStrategies.defaults());
         // 步骤2：注入上传配置与 STS 临时凭证。
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
         UploadConfig uploadConfig = new UploadConfig();
@@ -250,14 +251,14 @@ public class AppOrderPreprocessingService {
 
     /**
      * 双面对裱专用异步调用：
-     * 1) 强制携带 maskSvgUrl（即使无超幅拼接/异形切割）；
-     * 2) 若存在超幅拼接则仍保留 slice；
+     * 1) 强制携带 maskSvgUrl（即使无拼接/异形切割）；
+     * 2) 若存在拼接则仍保留 slice；
      * 3) 补充 mirrorUrl 并发起异步调用。
      */
     public void callMaskAsyncForDoubleSide(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, String mirrorUrl) {
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
-        boolean hasCutting = hasNodeWithName(procedureFlow, "超幅拼接");
-        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithCutting(orderItem, processingNodes, true, hasCutting);
+        boolean hasSplicing = SpliceProcessStrategies.hasSpliceNode(procedureFlow);
+        ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithSplicing(orderItem, processingNodes, true, hasSplicing, SpliceProcessStrategies.defaults());
 
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
         UploadConfig uploadConfig = new UploadConfig();
@@ -318,7 +319,7 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
-        // 无超幅拼接/异形切割路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+        // 无拼接/异形切割路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
         applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
@@ -636,7 +637,7 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 超幅拼接 callback 路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        // 拼接 callback 路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
                         applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
@@ -797,7 +798,7 @@ public class AppOrderPreprocessingService {
      * <ul>
      *     <li>直接生成路线：在 {@code ProductionPiece} 创建后、{@code addProductionPiece} 之前调用，
      *     保证持久化时写入的就是留白外扩后的 mask SVG。</li>
-     *     <li>超幅拼接 callback 路线：在算法回调生成 {@code ProductionPiece} 并填充 {@code blood} 后调用，
+     *     <li>拼接 callback 路线：在算法回调生成 {@code ProductionPiece} 并填充 {@code blood} 后调用，
      *     由留白实体策略根据出血方向决定哪些边不外扩。</li>
      * </ul>
      *

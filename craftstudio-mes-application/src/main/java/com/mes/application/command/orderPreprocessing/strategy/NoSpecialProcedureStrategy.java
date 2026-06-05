@@ -1,6 +1,7 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -16,11 +17,11 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
-        boolean hasCuttingOrSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "超幅拼接")
+        boolean hasSplicingOrSpecialShape = SpliceProcessStrategies.hasSpliceNode(procedureFlow)
                 || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
         boolean hasDoubleSide = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "双面对裱")
                 || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "覆双面");
-        return !hasCuttingOrSpecialShape && !hasDoubleSide;
+        return !hasSplicingOrSpecialShape && !hasDoubleSide;
     }
 
     @Override
