@@ -115,7 +115,11 @@ public class AppPrintService {
             }
         }
         List<TypesettingInfo> uniqueItems = uniqueMap.values().stream()
-                .sorted(Comparator.comparing(TypesettingInfo::getCreateTime, Comparator.nullsLast(Date::compareTo)).reversed())
+                .sorted(Comparator
+                        .comparing((TypesettingInfo item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                        .reversed()
+                        .thenComparing(TypesettingInfo::getCreateTime,
+                                Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
 
         long total = uniqueItems.size();
