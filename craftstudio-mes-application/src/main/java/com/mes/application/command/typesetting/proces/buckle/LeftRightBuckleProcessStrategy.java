@@ -29,4 +29,9 @@ public class LeftRightBuckleProcessStrategy extends AbstractBuckleProcessStrateg
     protected List<BuckleMarkPoint> buildMarkPoints(double width, double height) {
         return buildEdgeMarkPoints(width, height, List.of(BuckleEdge.RIGHT, BuckleEdge.LEFT));
     }
+
+    @Override
+    protected List<BuckleMarkPoint> buildMarkPoints(double width, double height, double edgeOffset) {
+        return buildEdgeMarkPoints(width, height, List.of(BuckleEdge.RIGHT, BuckleEdge.LEFT), edgeOffset);
+    }
 }

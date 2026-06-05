@@ -29,4 +29,9 @@ public class TopBottomBuckleProcessStrategy extends AbstractBuckleProcessStrateg
     protected List<BuckleMarkPoint> buildMarkPoints(double width, double height) {
         return buildEdgeMarkPoints(width, height, List.of(BuckleEdge.TOP, BuckleEdge.BOTTOM));
     }
+
+    @Override
+    protected List<BuckleMarkPoint> buildMarkPoints(double width, double height, double edgeOffset) {
+        return buildEdgeMarkPoints(width, height, List.of(BuckleEdge.TOP, BuckleEdge.BOTTOM), edgeOffset);
+    }
 }
