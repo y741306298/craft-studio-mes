@@ -651,8 +651,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 拼接 callback 路线：先按超幅拼接出血/被出血边写入标识，再按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
-                        applySuperWidthSpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
+                        // 拼接 callback 路线：先按拼接工艺出血/被出血边写入标识，再按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
                         applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
@@ -789,17 +789,25 @@ public class AppOrderPreprocessingService {
     }
 
     /**
-     * 执行订单预处理阶段的超幅拼接标识处理。
+     * 执行订单预处理阶段的拼接标识处理。
      *
      * <p>仅拼接 callback 生成的工件已经具备 blood / seq / group 信息，
      * 因此可在落库前直接把出血边黑白条、被出血边 group 文本与条纹写入 mask SVG。</p>
      */
-    public void applySuperWidthSpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
+    public void applySpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
         if (superWidthSpliceProcessService == null || orderItem == null || procedureFlow == null || piece == null
                 || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
             return;
         }
         superWidthSpliceProcessService.process(orderItem, procedureFlow, piece, firstSeqBlood);
+    }
+
+    /**
+     * @deprecated 使用 {@link #applySpliceProcessForStrategy(OrderItem, ProcedureFlow, ProductionPiece, Blood)}。
+     */
+    @Deprecated
+    public void applySuperWidthSpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
+        applySpliceProcessForStrategy(orderItem, procedureFlow, piece, firstSeqBlood);
     }
 
     /**
