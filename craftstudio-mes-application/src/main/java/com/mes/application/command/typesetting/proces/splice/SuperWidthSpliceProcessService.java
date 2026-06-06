@@ -55,7 +55,6 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
-    private static final double BLEED_EDGE_INSET_MM = 1D;
     private static final double BLEED_START_OFFSET_MM = 20D;
     private static final double BLEED_END_OFFSET_MM = 30D;
 
@@ -147,6 +146,10 @@ public class SuperWidthSpliceProcessService {
             String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-20mm-" + index + "-" + pieceMongoId,
                     assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, BLEED_START_OFFSET_MM)));
+            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-30mm-" + index + "-" + pieceMongoId,
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, BLEED_END_OFFSET_MM)));
+            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-20mm-" + index + "-" + pieceMongoId,
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, BLEED_START_OFFSET_MM)));
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-30mm-" + index + "-" + pieceMongoId,
                     assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, BLEED_END_OFFSET_MM)));
             index++;
@@ -195,28 +198,28 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 出血边在沿出血边方向、距离相邻角 20mm / 30mm 的位置放 1x6 黑白条。
+     * 出血边在自身的两个相邻角各放一组 20mm / 30mm 的 1x6 黑白条。
      *
-     * <p>{@code edgeOffset} 表示沿出血边方向从相邻角量起的距离，不是从出血边向画面内缩的距离：
-     * RIGHT/LEFT 边调整 Y 坐标，TOP/BOTTOM 边调整 X 坐标。垂直于出血边的方向只内缩 1mm，
-     * 用来避免贴边路径被裁切到画面外。</p>
+     * <p>{@code edgeOffset} 表示从出血边向画面内侧量起的距离，{@code fromStartCorner}
+     * 用来选择贴住出血边的起点相邻边还是终点相邻边。因此每条出血边会生成 4 个 mark：
+     * 起点角 20mm、起点角 30mm、终点角 20mm、终点角 30mm。</p>
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
                                  double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
         switch (edgeType) {
             case RIGHT:
-                return new Rect(pieceWidth - markWidth - BLEED_EDGE_INSET_MM,
-                        fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+                return new Rect(pieceWidth - edgeOffset - markWidth,
+                        fromStartCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
             case BOTTOM:
-                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth,
-                        pieceHeight - markHeight - BLEED_EDGE_INSET_MM, markWidth, markHeight);
+                return new Rect(fromStartCorner ? 0D : pieceWidth - markWidth,
+                        pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case LEFT:
-                return new Rect(BLEED_EDGE_INSET_MM,
-                        fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+                return new Rect(edgeOffset,
+                        fromStartCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
             case TOP:
             default:
-                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth,
-                        BLEED_EDGE_INSET_MM, markWidth, markHeight);
+                return new Rect(fromStartCorner ? 0D : pieceWidth - markWidth,
+                        edgeOffset, markWidth, markHeight);
         }
     }
 
