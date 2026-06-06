@@ -7,10 +7,14 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class Liubai15CmProcessStrategyTest {
-    private final Liubai15CmProcessStrategy strategy = new Liubai15CmProcessStrategy(null, new FakeOssTagUploadService());
+    private final FakeOssTagUploadService ossTagUploadService = new FakeOssTagUploadService();
+    private final Liubai15CmProcessStrategy strategy = new Liubai15CmProcessStrategy(null, ossTagUploadService);
 
     @Test
     void superWidthSpliceSkipBloodEdgesIncludesCoveredEdge() {
@@ -42,6 +46,41 @@ class Liubai15CmProcessStrategyTest {
 
         assertEquals(1300D, piece.getWidth());
         assertEquals(500D, piece.getHeight());
+    }
+
+
+    @Test
+    void superWidthSpliceDashedBorderSticksToVerticalBloodEdges() {
+        ProductionPiece piece = pieceWithInlineMask();
+        piece.setSeq(1);
+        piece.setGroup("12#1-3");
+        Blood blood = new Blood();
+        blood.setX(-1);
+        blood.setY(0);
+        piece.setBlood(blood);
+
+        strategy.process(context(piece, true));
+
+        String uploadedSvg = ossTagUploadService.uploadedSvgText();
+        assertTrue(uploadedSvg.contains("<path d=\"M0 -150 H1000 V650 H0 Z\""));
+        assertTrue(uploadedSvg.contains("<path d=\"M0 -100 H1000 V600 H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
+    }
+
+    @Test
+    void superWidthSpliceDashedBorderSticksToHorizontalBloodEdges() {
+        ProductionPiece piece = pieceWithInlineMask();
+        piece.setSeq(1);
+        piece.setGroup("12#1-3");
+        Blood blood = new Blood();
+        blood.setX(0);
+        blood.setY(1);
+        piece.setBlood(blood);
+
+        strategy.process(context(piece, true));
+
+        String uploadedSvg = ossTagUploadService.uploadedSvgText();
+        assertTrue(uploadedSvg.contains("<path d=\"M-150 0 H1150 V500 H-150 Z\""));
+        assertTrue(uploadedSvg.contains("<path d=\"M-100 0 H1100 V500 H-100 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
     }
 
     @Test
@@ -83,6 +122,8 @@ class Liubai15CmProcessStrategyTest {
     }
 
     private static class FakeOssTagUploadService extends OssTagUploadService {
+        private byte[] uploadedSvgBytes;
+
         private FakeOssTagUploadService() {
             super(null);
         }
@@ -94,7 +135,12 @@ class Liubai15CmProcessStrategyTest {
 
         @Override
         public String uploadTagSvg(String businessId, byte[] bytes, String subDir) {
+            this.uploadedSvgBytes = bytes;
             return "https://example.test/mask.svg";
+        }
+
+        private String uploadedSvgText() {
+            return new String(uploadedSvgBytes, StandardCharsets.UTF_8);
         }
     }
 }
