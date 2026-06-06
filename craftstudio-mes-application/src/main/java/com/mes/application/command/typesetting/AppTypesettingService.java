@@ -323,14 +323,135 @@ public class AppTypesettingService {
     /**
      * 查询排版规格。
      * <p>
-     * 传入材料 ID 时，按材料展开尺寸查询规格；未传入时保留默认规格。
+     * 入参仅依赖待排版 cell：同批 cell 必须使用同一种材料；存在覆板工艺时，同批 cell 必须都包含覆板工艺。
+     * 覆板且全部为零件时使用默认规格，其余场景按材料展开尺寸查询规格。
      */
-    public List<TypesettingLayoutSpecVO> listLayoutSpecs(List<String> materialIds) {
-        if (CollectionUtils.isEmpty(materialIds)) {
-            return DEFAULT_LAYOUT_SPECS;
+    public List<TypesettingLayoutSpecVO> listLayoutSpecs(LayoutConfirmRequest request) {
+        List<TypesettingProductionPieceVO> typesettingCells = request == null ? null : request.getTypesettingCells();
+        if (CollectionUtils.isEmpty(typesettingCells)) {
+            throw new IllegalArgumentException("排版对象不能为空");
         }
 
-        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMap(materialIds);
+        String materialId = resolveSameMaterialId(typesettingCells);
+        String rmfId = resolveRequestManufacturerMetaId(request);
+        boolean hasCoverBoard = typesettingCells.stream().anyMatch(this::hasCoverBoardNode);
+        List<TypesettingLayoutSpecVO> layoutSpecs;
+        if (hasCoverBoard) {
+            for (TypesettingProductionPieceVO cell : typesettingCells) {
+                if (!hasCoverBoardNode(cell)) {
+                    throw new IllegalArgumentException(buildCoverBoardMissingMessage(cell));
+                }
+            }
+            boolean allParts = typesettingCells.stream()
+                    .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
+            layoutSpecs = allParts
+                    ? DEFAULT_LAYOUT_SPECS
+                    : listLayoutSpecsByMaterialId(materialId, rmfId);
+        } else {
+            layoutSpecs = listLayoutSpecsByMaterialId(materialId, rmfId);
+        }
+
+        // 任意一个 cell 包含“双面对裱”或“覆双面”工艺时，都需要限制规格高度并去重。
+        if (hasAnyDoubleSideMountNode(typesettingCells)) {
+            return limitLayoutSpecHeightAndDistinct(layoutSpecs, 2400);
+        }
+        return layoutSpecs;
+    }
+
+    private String resolveSameMaterialId(List<TypesettingProductionPieceVO> typesettingCells) {
+        String materialId = null;
+        for (TypesettingProductionPieceVO cell : typesettingCells) {
+            String currentMaterialId = getMaterialId(cell);
+            if (StringUtils.isBlank(currentMaterialId)) {
+                throw new IllegalArgumentException("材料ID不能为空");
+            }
+            if (materialId == null) {
+                materialId = currentMaterialId;
+                continue;
+            }
+            if (!Objects.equals(materialId, currentMaterialId)) {
+                throw new IllegalArgumentException("材料不同，不能排版");
+            }
+        }
+        return materialId;
+    }
+
+    private String getMaterialId(TypesettingProductionPieceVO cell) {
+        if (cell == null || cell.getMaterialConfig() == null) {
+            return null;
+        }
+        String materialId = cell.getMaterialConfig().getMaterialId();
+        return materialId == null ? null : materialId.trim();
+    }
+
+    private String resolveRequestManufacturerMetaId(LayoutConfirmRequest request) {
+        if (request == null || StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("工厂ID不能为空");
+        }
+        return request.getManufacturerMetaId().trim();
+    }
+
+    private boolean hasCoverBoardNode(TypesettingProductionPieceVO cell) {
+        return hasProcedureNode(cell, "覆板");
+    }
+
+    private boolean hasAnyDoubleSideMountNode(List<TypesettingProductionPieceVO> typesettingCells) {
+        return typesettingCells.stream()
+                .anyMatch(cell -> hasProcedureNode(cell, "双面对裱", "覆双面"));
+    }
+
+    private boolean hasProcedureNode(TypesettingProductionPieceVO cell, String... nodeNames) {
+        if (cell == null || cell.getProcedureFlow() == null || CollectionUtils.isEmpty(cell.getProcedureFlow().getNodes())) {
+            return false;
+        }
+        Set<String> targetNodeNames = Arrays.stream(nodeNames).collect(Collectors.toSet());
+        return cell.getProcedureFlow().getNodes().stream()
+                .anyMatch(node -> node != null && targetNodeNames.contains(node.getNodeName()));
+    }
+
+    private List<TypesettingLayoutSpecVO> limitLayoutSpecHeightAndDistinct(List<TypesettingLayoutSpecVO> layoutSpecs, int maxHeight) {
+        if (CollectionUtils.isEmpty(layoutSpecs)) {
+            return Collections.emptyList();
+        }
+        Map<String, TypesettingLayoutSpecVO> layoutSpecMap = new LinkedHashMap<>();
+        for (TypesettingLayoutSpecVO layoutSpec : layoutSpecs) {
+            if (layoutSpec == null || layoutSpec.getWidth() == null || layoutSpec.getHeight() == null) {
+                continue;
+            }
+            Integer width = layoutSpec.getWidth();
+            Integer height = layoutSpec.getHeight() > maxHeight ? maxHeight : layoutSpec.getHeight();
+            String name = width + "*" + height;
+            layoutSpecMap.putIfAbsent(name, new TypesettingLayoutSpecVO(name, width, height));
+        }
+        return new ArrayList<>(layoutSpecMap.values());
+    }
+
+    private String buildCoverBoardMissingMessage(TypesettingProductionPieceVO cell) {
+        String sourceName = resolveCellDisplayName(cell);
+        String sourceTypeName = TypesettingSourceType.TYPESETTING.getCode().equals(cell == null ? null : cell.getSourceType())
+                ? "印版"
+                : "零件";
+        return sourceName + sourceTypeName + "不包含覆板工艺，不能排版";
+    }
+
+    private String resolveCellDisplayName(TypesettingProductionPieceVO cell) {
+        if (cell == null) {
+            return "";
+        }
+        if (StringUtils.isNotBlank(cell.getSourceId())) {
+            return cell.getSourceId();
+        }
+        if (StringUtils.isNotBlank(cell.getId())) {
+            return cell.getId();
+        }
+        if (StringUtils.isNotBlank(cell.getGroupId())) {
+            return cell.getGroupId();
+        }
+        return "";
+    }
+
+    private List<TypesettingLayoutSpecVO> listLayoutSpecsByMaterialId(String materialId, String rmfId) {
+        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMapByMaterialId(materialId, rmfId);
         if (CollectionUtils.isEmpty(developedSizeMap)) {
             return Collections.emptyList();
         }
