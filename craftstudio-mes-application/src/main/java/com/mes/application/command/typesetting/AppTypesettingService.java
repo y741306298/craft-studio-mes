@@ -333,6 +333,7 @@ public class AppTypesettingService {
         }
 
         String materialId = resolveSameMaterialId(typesettingCells);
+        String rmfId = resolveRequestManufacturerMetaId(request);
         boolean hasCoverBoard = typesettingCells.stream().anyMatch(this::hasCoverBoardNode);
         List<TypesettingLayoutSpecVO> layoutSpecs;
         if (hasCoverBoard) {
@@ -343,9 +344,11 @@ public class AppTypesettingService {
             }
             boolean allParts = typesettingCells.stream()
                     .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
-            layoutSpecs = allParts ? DEFAULT_LAYOUT_SPECS : listLayoutSpecsByMaterialId(materialId);
+            layoutSpecs = allParts
+                    ? DEFAULT_LAYOUT_SPECS
+                    : listLayoutSpecsByMaterialId(materialId, rmfId);
         } else {
-            layoutSpecs = listLayoutSpecsByMaterialId(materialId);
+            layoutSpecs = listLayoutSpecsByMaterialId(materialId, rmfId);
         }
 
         // 任意一个 cell 包含“双面对裱”或“覆双面”工艺时，都需要限制规格高度并去重。
@@ -379,6 +382,13 @@ public class AppTypesettingService {
         }
         String materialId = cell.getMaterialConfig().getMaterialId();
         return materialId == null ? null : materialId.trim();
+    }
+
+    private String resolveRequestManufacturerMetaId(LayoutConfirmRequest request) {
+        if (request == null || StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("工厂ID不能为空");
+        }
+        return request.getManufacturerMetaId().trim();
     }
 
     private boolean hasCoverBoardNode(TypesettingProductionPieceVO cell) {
@@ -440,8 +450,8 @@ public class AppTypesettingService {
         return "";
     }
 
-    private List<TypesettingLayoutSpecVO> listLayoutSpecsByMaterialId(String materialId) {
-        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMapByMaterialId(materialId);
+    private List<TypesettingLayoutSpecVO> listLayoutSpecsByMaterialId(String materialId, String rmfId) {
+        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMapByMaterialId(materialId, rmfId);
         if (CollectionUtils.isEmpty(developedSizeMap)) {
             return Collections.emptyList();
         }
