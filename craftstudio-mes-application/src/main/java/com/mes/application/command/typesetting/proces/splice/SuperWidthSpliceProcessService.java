@@ -91,7 +91,8 @@ public class SuperWidthSpliceProcessService {
         }
 
         String marksSvg = buildMarksSvg(pieceMongoId, width, height, piece.getGroup(), bleedEdges, coveredEdges, assets);
-        String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalMaskUrl, marksSvg);
+        String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
+        String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalContentImg, marksSvg);
         String orderItemId = StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/super-width-splice/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, markedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
@@ -110,18 +111,18 @@ public class SuperWidthSpliceProcessService {
     private MarkAssets uploadMarkAssets(String businessId, String markSubDir, String groupText) {
         String darkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
         int textWidth = Math.max(24, groupText.length() * 8);
-        int textHeight = 12;
+        int textHeight = 10;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
         for (SpliceEdge edge : SpliceEdge.values()) {
             double angle = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT ? 90D : 0D;
-            BufferedImage whiteTextImage = rotateImageByAngle(createTextImage(textWidth, textHeight, groupText, Color.WHITE), angle);
+            BufferedImage yellowTextImage = rotateImageByAngle(createTextImage(textWidth, textHeight, groupText, createYellowColor(20)), angle);
             BufferedImage grayTextImage = rotateImageByAngle(createTextImage(textWidth, textHeight, groupText, createGrayColor(20)), angle);
             BufferedImage stripeImage = rotateImageByAngle(createStripeImage(6, 1), angle);
-            String whiteText = ossTagUploadService.uploadTagPng(businessId, toPng(whiteTextImage), markSubDir);
+            String yellowText = ossTagUploadService.uploadTagPng(businessId, toPng(yellowTextImage), markSubDir);
             String grayText = ossTagUploadService.uploadTagPng(businessId, toPng(grayTextImage), markSubDir);
             String stripe = ossTagUploadService.uploadTagPng(businessId, toPng(stripeImage), markSubDir);
-            edgeAssets.put(edge, new EdgeAssets(stripe, whiteText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
-                    whiteTextImage.getWidth(), whiteTextImage.getHeight()));
+            edgeAssets.put(edge, new EdgeAssets(stripe, yellowText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
+                    yellowTextImage.getWidth(), yellowTextImage.getHeight()));
         }
         return new MarkAssets(darkMark, edgeAssets, 1D, 6D);
     }
@@ -136,44 +137,71 @@ public class SuperWidthSpliceProcessService {
         StringBuilder builder = new StringBuilder("\n");
         int index = 0;
         for (SpliceEdge edgeType : bleedEdges) {
-            Edge edge = edge(edgeType, width, height);
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    assets.darkMark, rectOnEdge(edge, assets.darkWidth, assets.darkHeight, 0D, 20D)));
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, 20D)));
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    assets.darkMark, rectOnEdge(edge, assets.darkWidth, assets.darkHeight, 1D, 20D)));
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, 30D)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
-            Edge edge = edge(edgeType, width, height);
             EdgeAssets edgeAssets = assets.edgeAssets.get(edgeType);
             if (edgeAssets == null) {
                 continue;
             }
-            builder.append(buildRectMarkGroup("super-width-splice-text-white-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.whiteText, rectOnEdge(edge, edgeAssets.textWidth, edgeAssets.textHeight, 0D, 0D)));
-            builder.append(buildRectMarkGroup("super-width-splice-text-white-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.whiteText, rectOnEdge(edge, edgeAssets.textWidth, edgeAssets.textHeight, 1D, 0D)));
+            builder.append(buildRectMarkGroup("super-width-splice-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D)));
+            builder.append(buildRectMarkGroup("super-width-splice-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D)));
             builder.append(buildRectMarkGroup("super-width-splice-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, rectOnEdge(edge, edgeAssets.textWidth, edgeAssets.textHeight, 0D, 10D)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D)));
             builder.append(buildRectMarkGroup("super-width-splice-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, rectOnEdge(edge, edgeAssets.textWidth, edgeAssets.textHeight, 1D, 10D)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D)));
             builder.append(buildRectMarkGroup("super-width-splice-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, rectOnEdge(edge, edgeAssets.stripeWidth, edgeAssets.stripeHeight, 0D, 20D)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 20D)));
             builder.append(buildRectMarkGroup("super-width-splice-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, rectOnEdge(edge, edgeAssets.stripeWidth, edgeAssets.stripeHeight, 1D, 20D)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 20D)));
             index++;
         }
         return builder.toString();
     }
 
-    private Rect rectOnEdge(Edge edge, double markWidth, double markHeight, double ratio, double inwardOffset) {
-        double clampedRatio = Math.max(0D, Math.min(1D, ratio));
-        double edgeDx = edge.end.x - edge.start.x;
-        double edgeDy = edge.end.y - edge.start.y;
-        double totalInward = inwardOffset + Math.max(markWidth, markHeight) / 2D;
-        double cx = edge.start.x + edgeDx * clampedRatio + edge.normal.x * totalInward;
-        double cy = edge.start.y + edgeDy * clampedRatio + edge.normal.y * totalInward;
-        return new Rect(Math.max(0D, cx - markWidth / 2D), Math.max(0D, cy - markHeight / 2D), markWidth, markHeight);
+    /**
+     * 被出血边标识贴在被出血边与相邻边组成的两个内角处。
+     *
+     * <p>startCorner=true 表示贴当前边起点角，false 表示贴终点角；坐标沿边方向整体落在工件内部，
+     * 不再把图片中心直接压在角点，避免一半图片跑到零件外侧。</p>
+     */
+    private Rect coveredRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
+                                   double markWidth, double markHeight, boolean startCorner, double inwardOffset) {
+        switch (edgeType) {
+            case RIGHT:
+                return new Rect(pieceWidth - inwardOffset - markWidth, startCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+            case BOTTOM:
+                return new Rect(startCorner ? 0D : pieceWidth - markWidth, pieceHeight - inwardOffset - markHeight, markWidth, markHeight);
+            case LEFT:
+                return new Rect(inwardOffset, startCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+            case TOP:
+            default:
+                return new Rect(startCorner ? 0D : pieceWidth - markWidth, inwardOffset, markWidth, markHeight);
+        }
+    }
+
+    /**
+     * 出血边只在距离相邻两角 20mm / 30mm 的位置放 1x6 黑白条，并贴边放在工件内部。
+     */
+    private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
+                                 double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
+        switch (edgeType) {
+            case RIGHT:
+                return new Rect(pieceWidth - markWidth, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+            case BOTTOM:
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, pieceHeight - markHeight, markWidth, markHeight);
+            case LEFT:
+                return new Rect(0D, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+            case TOP:
+            default:
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, 0D, markWidth, markHeight);
+        }
     }
 
     private String buildRectMarkGroup(String id, String img, Rect rect) {
@@ -286,18 +314,34 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
-    private Edge edge(SpliceEdge edgeType, double width, double height) {
-        switch (edgeType) {
-            case RIGHT:
-                return new Edge(new PointD(width, 0D), new PointD(width, height), new PointD(-1D, 0D));
-            case BOTTOM:
-                return new Edge(new PointD(0D, height), new PointD(width, height), new PointD(0D, -1D));
-            case LEFT:
-                return new Edge(new PointD(0D, 0D), new PointD(0D, height), new PointD(1D, 0D));
-            case TOP:
-            default:
-                return new Edge(new PointD(0D, 0D), new PointD(width, 0D), new PointD(0D, 1D));
+    private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
+        String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
+        if (StringUtils.isNotBlank(productImg)) {
+            return productImg;
         }
+        return isInlineSvg(originalMaskUrl) ? "" : originalMaskUrl;
+    }
+
+    private String resolveImageFileRaw(ImageFile imageFile) {
+        if (imageFile == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(imageFile.getRawFile())) {
+            return imageFile.getRawFile();
+        }
+        FilePreview preview = imageFile.getFilePreview();
+        if (preview != null && StringUtils.isNotBlank(preview.getRaw())) {
+            return preview.getRaw();
+        }
+        return null;
+    }
+
+    private boolean isInlineSvg(String svgRef) {
+        if (StringUtils.isBlank(svgRef)) {
+            return false;
+        }
+        String trimmed = svgRef.trim();
+        return trimmed.startsWith("<svg") || trimmed.startsWith("<?xml");
     }
 
     private String resolveSvg(String url) {
@@ -394,7 +438,7 @@ public class SuperWidthSpliceProcessService {
             EdgeAssets edgeAssets = entry.getValue();
             String suffix = entry.getKey().name().toLowerCase(Locale.ROOT);
             marks.put("superWidthSpliceStripe-" + suffix, edgeAssets.stripe);
-            marks.put("superWidthSpliceWhiteText-" + suffix, edgeAssets.whiteText);
+            marks.put("superWidthSpliceYellowText-" + suffix, edgeAssets.yellowText);
             marks.put("superWidthSpliceGrayText-" + suffix, edgeAssets.grayText);
         }
     }
@@ -569,6 +613,12 @@ public class SuperWidthSpliceProcessService {
         return value != null && value != 0;
     }
 
+    private Color createYellowColor(int yellowPercent) {
+        int yellow = Math.max(0, Math.min(100, yellowPercent));
+        int blue = (int) Math.round(255 * (1 - yellow / 100.0));
+        return new Color(255, 255, blue);
+    }
+
     private Color createGrayColor(int blackPercent) {
         int black = Math.max(0, Math.min(100, blackPercent));
         int v = (int) Math.round(255 * (1 - black / 100.0));
@@ -595,44 +645,22 @@ public class SuperWidthSpliceProcessService {
 
     private static class EdgeAssets {
         private final String stripe;
-        private final String whiteText;
+        private final String yellowText;
         private final String grayText;
         private final double stripeWidth;
         private final double stripeHeight;
         private final double textWidth;
         private final double textHeight;
 
-        private EdgeAssets(String stripe, String whiteText, String grayText,
+        private EdgeAssets(String stripe, String yellowText, String grayText,
                            double stripeWidth, double stripeHeight, double textWidth, double textHeight) {
             this.stripe = stripe;
-            this.whiteText = whiteText;
+            this.yellowText = yellowText;
             this.grayText = grayText;
             this.stripeWidth = stripeWidth;
             this.stripeHeight = stripeHeight;
             this.textWidth = textWidth;
             this.textHeight = textHeight;
-        }
-    }
-
-    private static class PointD {
-        private final double x;
-        private final double y;
-
-        private PointD(double x, double y) {
-            this.x = x;
-            this.y = y;
-        }
-    }
-
-    private static class Edge {
-        private final PointD start;
-        private final PointD end;
-        private final PointD normal;
-
-        private Edge(PointD start, PointD end, PointD normal) {
-            this.start = start;
-            this.end = end;
-            this.normal = normal;
         }
     }
 
