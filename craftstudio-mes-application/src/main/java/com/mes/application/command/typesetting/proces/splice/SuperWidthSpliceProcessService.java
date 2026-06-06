@@ -62,11 +62,10 @@ public class SuperWidthSpliceProcessService {
     private final OssTagUploadService ossTagUploadService;
 
     public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
-        if (orderItem == null || procedureFlow == null || piece == null || !hasNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)) {
+        if (orderItem == null || !matchesSuperWidthSplicePiece(procedureFlow, piece)) {
             return;
         }
-        if (piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())
-                || piece.getMaskImageFile() == null || StringUtils.isBlank(piece.getMaskImageFile().getRawFile())) {
+        if (piece.getMaskImageFile() == null || StringUtils.isBlank(piece.getMaskImageFile().getRawFile())) {
             return;
         }
         double width = piece.getWidth() == null ? 0D : piece.getWidth();
@@ -102,6 +101,17 @@ public class SuperWidthSpliceProcessService {
         updateMaskImageFile(piece, newMaskUrl);
         updateMarks(piece, assets);
         log.info("超幅拼接预处理完成: productionPieceId={}, mask={}", piece.getProductionPieceId(), newMaskUrl);
+    }
+
+
+    /**
+     * 超幅拼接标识命中条件：必须同时存在“超幅拼接”工艺，并且当前零件带有 callback 回写的 seq / group。
+     */
+    private boolean matchesSuperWidthSplicePiece(ProcedureFlow procedureFlow, ProductionPiece piece) {
+        return procedureFlow != null && piece != null
+                && hasNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)
+                && piece.getSeq() != null
+                && StringUtils.isNotBlank(piece.getGroup());
     }
 
     private void updateMarksForExistingSvg(OrderItem orderItem, ProductionPiece piece) {

@@ -795,7 +795,8 @@ public class AppOrderPreprocessingService {
      * 因此可在落库前直接把出血边黑白条、被出血边 group 文本与条纹写入 mask SVG。</p>
      */
     public void applySuperWidthSpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
-        if (superWidthSpliceProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+        if (superWidthSpliceProcessService == null || orderItem == null || procedureFlow == null || piece == null
+                || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
             return;
         }
         superWidthSpliceProcessService.process(orderItem, procedureFlow, piece, firstSeqBlood);
