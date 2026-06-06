@@ -757,11 +757,26 @@ public class ProductCoreApiService {
 
     /**
      * 查询材料展开尺寸映射。
+     * <p>
+     * 对每个 materialId 调用产品中心接口：
+     * {@code GET /api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap?materialId=xxx&rmfId=xxx}
+     * 返回的尺寸单位为 cm，这里统一转换为 mm。
      *
      * @param materialIds 材料 ID 列表
      * @return 展开尺寸映射，key 由产品中心返回
      */
     public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMap(List<String> materialIds) {
+        return findDevelopedSizeMap(materialIds, null);
+    }
+
+    /**
+     * 查询指定工厂下的材料展开尺寸映射。
+     *
+     * @param materialIds 材料 ID 列表
+     * @param rmfId 工厂 ID
+     * @return 展开尺寸映射，key 由产品中心返回
+     */
+    public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMap(List<String> materialIds, String rmfId) {
         if (CollectionUtils.isEmpty(materialIds)) {
             return Collections.emptyMap();
         }
@@ -781,18 +796,28 @@ public class ProductCoreApiService {
 
         Map<String, MaterialDevelopedSizeResponse> result = new LinkedHashMap<>();
         for (String materialId : effectiveMaterialIds) {
-            result.putAll(findDevelopedSizeMapByMaterialId(materialId));
+            result.putAll(findDevelopedSizeMapByMaterialId(materialId, rmfId));
         }
         return result;
     }
 
-    private Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId) {
+    public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId) {
+        return findDevelopedSizeMapByMaterialId(materialId, null);
+    }
+
+    public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId, String rmfId) {
+        if (productCoreUrl == null || productCoreUrl.isBlank()) {
+            throw new RuntimeException("产品中心地址不能为空");
+        }
         try {
-            String url = UriComponentsBuilder
+            UriComponentsBuilder uriBuilder = UriComponentsBuilder
                     .fromUriString(productCoreUrl)
                     .path("/api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap")
-                    .queryParam("materialId", materialId)
-                    .toUriString();
+                    .queryParam("materialId", materialId);
+            if (rmfId != null && !rmfId.isBlank()) {
+                uriBuilder.queryParam("rmfId", rmfId.trim());
+            }
+            String url = uriBuilder.toUriString();
 
             ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>> typeRef =
                     new ParameterizedTypeReference<ApiResponse<Map<String, MaterialDevelopedSizeResponse>>>() {};
