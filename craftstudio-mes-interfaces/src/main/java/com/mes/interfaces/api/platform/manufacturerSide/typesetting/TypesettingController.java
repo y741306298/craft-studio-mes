@@ -264,8 +264,8 @@ public class TypesettingController {
      */
     @PostMapping("/layoutSpecs")
     public ApiResponse<List<TypesettingLayoutSpecVO>> listLayoutSpecs(
-            @Valid @RequestBody LayoutSpecsRequest request) {
-        return ApiResponse.success(appTypesettingService.listLayoutSpecs(request.getMaterialIds()));
+            @Valid @RequestBody LayoutConfirmRequest request) {
+        return ApiResponse.success(appTypesettingService.listLayoutSpecs(request));
     }
 
     /**
