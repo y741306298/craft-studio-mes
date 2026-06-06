@@ -55,6 +55,7 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
+    private static final double BLEED_EDGE_INSET_MM = 1D;
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -191,20 +192,20 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 出血边只在距离相邻两角 20mm / 30mm 的位置放 1x6 黑白条，并贴边放在工件内部。
+     * 出血边只在距离相邻两角 20mm / 30mm 的位置放 1x6 黑白条，并向画面内缩 1mm，避免边界裁切到画面外。
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
                                  double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
         switch (edgeType) {
             case RIGHT:
-                return new Rect(pieceWidth - markWidth, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+                return new Rect(pieceWidth - markWidth - BLEED_EDGE_INSET_MM, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case BOTTOM:
-                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, pieceHeight - markHeight, markWidth, markHeight);
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, pieceHeight - markHeight - BLEED_EDGE_INSET_MM, markWidth, markHeight);
             case LEFT:
-                return new Rect(0D, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
+                return new Rect(BLEED_EDGE_INSET_MM, fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case TOP:
             default:
-                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, 0D, markWidth, markHeight);
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth, BLEED_EDGE_INSET_MM, markWidth, markHeight);
         }
     }
 
