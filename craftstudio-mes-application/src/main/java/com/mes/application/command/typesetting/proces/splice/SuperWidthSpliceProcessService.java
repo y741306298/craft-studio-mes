@@ -55,6 +55,7 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
+    private static final double BLEED_EDGE_INSET_MM = 1D;
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -191,35 +192,29 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 出血边在距离出血边向内 20mm / 30mm 的位置放 1x6 黑白条。
+     * 出血边在沿出血边方向、距离相邻角 20mm / 30mm 的位置放 1x6 黑白条。
      *
-     * <p>mark 仍顺着出血边方向放置，但坐标不再压在出血边线上：RIGHT/LEFT 边沿 X 方向向画面内偏移，
-     * TOP/BOTTOM 边沿 Y 方向向画面内偏移；同时贴住与出血边相邻的两个边，避免生成“边线外”的孤立 mark。</p>
+     * <p>{@code edgeOffset} 表示沿出血边方向从相邻角量起的距离，不是从出血边向画面内缩的距离：
+     * RIGHT/LEFT 边调整 Y 坐标，TOP/BOTTOM 边调整 X 坐标。垂直于出血边的方向只内缩 1mm，
+     * 用来避免贴边路径被裁切到画面外。</p>
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
                                  double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
         switch (edgeType) {
             case RIGHT:
-                return new Rect(clamp(pieceWidth - edgeOffset - markWidth, 0D, pieceWidth - markWidth),
-                        fromStartCorner ? 0D : Math.max(0D, pieceHeight - markHeight), markWidth, markHeight);
+                return new Rect(pieceWidth - markWidth - BLEED_EDGE_INSET_MM,
+                        fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case BOTTOM:
-                return new Rect(fromStartCorner ? 0D : Math.max(0D, pieceWidth - markWidth),
-                        clamp(pieceHeight - edgeOffset - markHeight, 0D, pieceHeight - markHeight), markWidth, markHeight);
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth,
+                        pieceHeight - markHeight - BLEED_EDGE_INSET_MM, markWidth, markHeight);
             case LEFT:
-                return new Rect(clamp(edgeOffset, 0D, pieceWidth - markWidth),
-                        fromStartCorner ? 0D : Math.max(0D, pieceHeight - markHeight), markWidth, markHeight);
+                return new Rect(BLEED_EDGE_INSET_MM,
+                        fromStartCorner ? edgeOffset : pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case TOP:
             default:
-                return new Rect(fromStartCorner ? 0D : Math.max(0D, pieceWidth - markWidth),
-                        clamp(edgeOffset, 0D, pieceHeight - markHeight), markWidth, markHeight);
+                return new Rect(fromStartCorner ? edgeOffset : pieceWidth - edgeOffset - markWidth,
+                        BLEED_EDGE_INSET_MM, markWidth, markHeight);
         }
-    }
-
-    private double clamp(double value, double min, double max) {
-        if (max < min) {
-            return min;
-        }
-        return Math.max(min, Math.min(max, value));
     }
 
     private String buildRectMarkGroup(String id, String img, Rect rect) {
