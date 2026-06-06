@@ -53,6 +53,8 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
+    private static final double TEXT_PNG_DPI = 300D;
+    private static final double MM_PER_INCH = 25.4D;
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -109,19 +111,22 @@ public class SuperWidthSpliceProcessService {
 
     private MarkAssets uploadMarkAssets(String businessId, String markSubDir, String groupText) {
         String darkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
-        int textWidth = Math.max(24, groupText.length() * 8);
-        int textHeight = 10;
+        double textWidthMm = Math.max(24D, groupText.length() * 8D);
+        double textHeightMm = 10D;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
         for (SpliceEdge edge : SpliceEdge.values()) {
-            double angle = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT ? 90D : 0D;
-            BufferedImage yellowTextImage = rotateImageByAngle(createTextImage(textWidth, textHeight, groupText, createYellowColor(20)), angle);
-            BufferedImage grayTextImage = rotateImageByAngle(createTextImage(textWidth, textHeight, groupText, createGrayColor(20)), angle);
+            boolean verticalEdge = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT;
+            double angle = verticalEdge ? 90D : 0D;
+            BufferedImage yellowTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createYellowColor(20)), angle);
+            BufferedImage grayTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createGrayColor(20)), angle);
             BufferedImage stripeImage = rotateImageByAngle(createStripeImage(6, 1), angle);
             String yellowText = ossTagUploadService.uploadTagPng(businessId, toPng(yellowTextImage), markSubDir);
             String grayText = ossTagUploadService.uploadTagPng(businessId, toPng(grayTextImage), markSubDir);
             String stripe = ossTagUploadService.uploadTagPng(businessId, toPng(stripeImage), markSubDir);
+            double displayTextWidthMm = verticalEdge ? textHeightMm : textWidthMm;
+            double displayTextHeightMm = verticalEdge ? textWidthMm : textHeightMm;
             edgeAssets.put(edge, new EdgeAssets(stripe, yellowText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
-                    yellowTextImage.getWidth(), yellowTextImage.getHeight()));
+                    displayTextWidthMm, displayTextHeightMm));
         }
         return new MarkAssets(darkMark, edgeAssets, 1D, 6D);
     }
@@ -258,7 +263,7 @@ public class SuperWidthSpliceProcessService {
      * 超幅拼接自身标识的出血/被出血边判断。
      *
      * <p>这里只影响超幅拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
-     * 切割方向以同组 seq=1 工件的 blood 为准：x=0,y!=0 为竖切；x!=0,y=0 为横切。</p>
+     * 切割方向只以同组 seq=1 工件的 blood 为准：x=0,y!=0 为竖切；x!=0,y=0 为横切。</p>
      */
     private SpliceEdges resolveSpliceEdges(ProductionPiece piece, Blood firstSeqBlood) {
         Set<SpliceEdge> bleedEdges = EnumSet.noneOf(SpliceEdge.class);
@@ -269,7 +274,7 @@ public class SuperWidthSpliceProcessService {
             return new SpliceEdges(bleedEdges, coveredEdges);
         }
 
-        SpliceCutDirection cutDirection = resolveCutDirection(firstSeqBlood != null ? firstSeqBlood : piece.getBlood());
+        SpliceCutDirection cutDirection = resolveCutDirection(firstSeqBlood);
         if (cutDirection == SpliceCutDirection.UNKNOWN) {
             return new SpliceEdges(bleedEdges, coveredEdges);
         }
@@ -369,23 +374,29 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
-    private BufferedImage createTextImage(int width, int height, String text, Color textColor) {
-        BufferedImage image = new BufferedImage(Math.max(1, width), Math.max(1, height), BufferedImage.TYPE_INT_ARGB);
+    private BufferedImage createTextImage(double widthMm, double heightMm, String text, Color textColor) {
+        int width = convertTextMmToPixels(widthMm);
+        int height = convertTextMmToPixels(heightMm);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setComposite(AlphaComposite.Clear);
         g.fillRect(0, 0, width, height);
         g.setComposite(AlphaComposite.SrcOver);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, height - 2)));
+        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, height - convertTextMmToPixels(1D))));
         FontMetrics fm = g.getFontMetrics();
         int textW = fm.stringWidth(text);
         int textH = fm.getAscent();
         int x = Math.max(0, (width - textW) / 2);
-        int y = Math.max(textH, Math.min(height - 2, (height + textH) / 2 - 1));
+        int y = Math.max(textH, Math.min(height - convertTextMmToPixels(0.5D), (height + textH) / 2 - 1));
         g.setColor(textColor);
         g.drawString(text, x, y);
         g.dispose();
         return image;
+    }
+
+    private int convertTextMmToPixels(double valueMm) {
+        return Math.max(1, (int) Math.ceil(valueMm / MM_PER_INCH * TEXT_PNG_DPI));
     }
 
     private BufferedImage createStripeImage(int width, int height) {
