@@ -113,7 +113,6 @@ public class SuperWidthSpliceProcessService {
 
     private MarkAssets uploadMarkAssets(String businessId, String markSubDir, String groupText) {
         String horizontalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(6, 1), markSubDir);
-        String verticalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
         double textWidthMm = Math.max(24D, groupText.length() * 8D);
         double textHeightMm = 10D;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
@@ -131,7 +130,7 @@ public class SuperWidthSpliceProcessService {
             edgeAssets.put(edge, new EdgeAssets(stripe, yellowText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
                     displayTextWidthMm, displayTextHeightMm));
         }
-        return new MarkAssets(horizontalDarkMark, verticalDarkMark, edgeAssets, 6D, 1D, 1D, 6D);
+        return new MarkAssets(horizontalDarkMark, edgeAssets, 6D, 1D);
     }
 
     private String buildMarksSvg(String pieceMongoId,
@@ -468,7 +467,6 @@ public class SuperWidthSpliceProcessService {
             piece.setMarks(marks);
         }
         marks.put("superWidthSpliceHorizontalDarkMark", assets.horizontalDarkMark);
-        marks.put("superWidthSpliceVerticalDarkMark", assets.verticalDarkMark);
         for (Map.Entry<SpliceEdge, EdgeAssets> entry : assets.edgeAssets.entrySet()) {
             EdgeAssets edgeAssets = entry.getValue();
             String suffix = entry.getKey().name().toLowerCase(Locale.ROOT);
@@ -680,28 +678,19 @@ public class SuperWidthSpliceProcessService {
 
     private static class MarkAssets {
         private final String horizontalDarkMark;
-        private final String verticalDarkMark;
         private final Map<SpliceEdge, EdgeAssets> edgeAssets;
         private final double horizontalDarkWidth;
         private final double horizontalDarkHeight;
-        private final double verticalDarkWidth;
-        private final double verticalDarkHeight;
 
-        private MarkAssets(String horizontalDarkMark, String verticalDarkMark, Map<SpliceEdge, EdgeAssets> edgeAssets,
-                           double horizontalDarkWidth, double horizontalDarkHeight, double verticalDarkWidth, double verticalDarkHeight) {
+        private MarkAssets(String horizontalDarkMark, Map<SpliceEdge, EdgeAssets> edgeAssets,
+                           double horizontalDarkWidth, double horizontalDarkHeight) {
             this.horizontalDarkMark = horizontalDarkMark;
-            this.verticalDarkMark = verticalDarkMark;
             this.edgeAssets = edgeAssets;
             this.horizontalDarkWidth = horizontalDarkWidth;
             this.horizontalDarkHeight = horizontalDarkHeight;
-            this.verticalDarkWidth = verticalDarkWidth;
-            this.verticalDarkHeight = verticalDarkHeight;
         }
 
         private BleedMarkAsset bleedMarkAsset(SpliceEdge edgeType) {
-            if (edgeType == SpliceEdge.TOP || edgeType == SpliceEdge.BOTTOM) {
-                return new BleedMarkAsset(verticalDarkMark, verticalDarkWidth, verticalDarkHeight);
-            }
             return new BleedMarkAsset(horizontalDarkMark, horizontalDarkWidth, horizontalDarkHeight);
         }
     }
