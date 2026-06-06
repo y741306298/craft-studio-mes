@@ -263,7 +263,7 @@ public class SuperWidthSpliceProcessService {
      * 超幅拼接自身标识的出血/被出血边判断。
      *
      * <p>这里只影响超幅拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
-     * 切割方向只以同组 seq=1 工件的 blood 为准：x=0,y!=0 为竖切；x!=0,y=0 为横切。</p>
+     * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。</p>
      */
     private SpliceEdges resolveSpliceEdges(ProductionPiece piece, Blood firstSeqBlood) {
         Set<SpliceEdge> bleedEdges = EnumSet.noneOf(SpliceEdge.class);
@@ -297,10 +297,10 @@ public class SuperWidthSpliceProcessService {
         }
         Integer x = firstSeqBlood.getX();
         Integer y = firstSeqBlood.getY();
-        if (isZero(x) && isNonZero(y)) {
+        if (isNonZero(x) && isZero(y)) {
             return SpliceCutDirection.VERTICAL;
         }
-        if (isNonZero(x) && isZero(y)) {
+        if (isZero(x) && isNonZero(y)) {
             return SpliceCutDirection.HORIZONTAL;
         }
         return SpliceCutDirection.UNKNOWN;
