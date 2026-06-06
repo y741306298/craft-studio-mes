@@ -36,9 +36,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 超幅拼接回调预处理服务。
+ * 拼接回调预处理服务。
  *
- * <p>在蒙版算法 callback 创建 {@link ProductionPiece} 后、生产工件落库前运行，直接把超幅拼接的
+ * <p>在蒙版算法 callback 创建 {@link ProductionPiece} 后、生产工件落库前运行，直接把超幅/背胶/覆板/喷绘拼接的
  * 出血边/被出血边标识写入当前工件 mask SVG，并回写 {@code productionPiece.marks}。这样后续
  * toLayout 会像留白/打扣预处理后的工件一样，把该工件作为带 marks 的 forme 元素提交排版。</p>
  */
@@ -47,6 +47,9 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class SuperWidthSpliceProcessService {
     private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
+    private static final String ADHESIVE_SPLICE_NODE_NAME = "背胶拼接";
+    private static final String BOARD_COVER_SPLICE_NODE_NAME = "覆板拼接";
+    private static final String INKJET_SPLICE_NODE_NAME = "喷绘拼接";
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
@@ -55,14 +58,27 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
-    private static final double BLEED_START_OFFSET_MM = 20D;
-    private static final double BLEED_END_OFFSET_MM = 30D;
+    private static final SpliceProcessConfig SUPER_WIDTH_SPLICE_CONFIG = new SpliceProcessConfig(
+            SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 20D, 30D);
+    private static final SpliceProcessConfig ADHESIVE_SPLICE_CONFIG = new SpliceProcessConfig(
+            ADHESIVE_SPLICE_NODE_NAME, "adhesive-splice", 10D, 20D);
+    private static final SpliceProcessConfig BOARD_COVER_SPLICE_CONFIG = new SpliceProcessConfig(
+            BOARD_COVER_SPLICE_NODE_NAME, "board-cover-splice", 10D, 20D);
+    private static final SpliceProcessConfig INKJET_SPLICE_CONFIG = new SpliceProcessConfig(
+            INKJET_SPLICE_NODE_NAME, "inkjet-splice", 20D, 30D);
+    private static final SpliceProcessConfig[] SPLICE_PROCESS_CONFIGS = {
+            SUPER_WIDTH_SPLICE_CONFIG,
+            ADHESIVE_SPLICE_CONFIG,
+            BOARD_COVER_SPLICE_CONFIG,
+            INKJET_SPLICE_CONFIG
+    };
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
 
     public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
-        if (orderItem == null || !matchesSuperWidthSplicePiece(procedureFlow, piece)) {
+        SpliceProcessConfig processConfig = resolveSpliceProcessConfig(procedureFlow, piece);
+        if (orderItem == null || processConfig == null) {
             return;
         }
         if (piece.getMaskImageFile() == null || StringUtils.isBlank(piece.getMaskImageFile().getRawFile())) {
@@ -75,7 +91,7 @@ public class SuperWidthSpliceProcessService {
         }
         String originalMaskUrl = piece.getMaskImageFile().getRawFile();
         String originalSvg = resolveSvg(originalMaskUrl);
-        if (StringUtils.isBlank(originalSvg) || originalSvg.contains("super-width-splice-")) {
+        if (StringUtils.isBlank(originalSvg) || containsSpliceMarks(originalSvg)) {
             updateMarksForExistingSvg(orderItem, piece);
             return;
         }
@@ -92,26 +108,43 @@ public class SuperWidthSpliceProcessService {
             return;
         }
 
-        String marksSvg = buildMarksSvg(pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets);
+        String marksSvg = buildMarksSvg(processConfig, pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalContentImg, marksSvg);
         String orderItemId = StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
-        String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/super-width-splice/";
+        String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/" + processConfig.markPrefix + "/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, markedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
         updateMaskImageFile(piece, newMaskUrl);
         updateMarks(piece, assets);
-        log.info("超幅拼接预处理完成: productionPieceId={}, mask={}", piece.getProductionPieceId(), newMaskUrl);
+        log.info("{}预处理完成: productionPieceId={}, mask={}", processConfig.nodeName, piece.getProductionPieceId(), newMaskUrl);
     }
 
 
     /**
-     * 超幅拼接标识命中条件：必须同时存在“超幅拼接”工艺，并且当前零件带有 callback 回写的 seq / group。
+     * 拼接标识命中条件：必须同时存在已支持的拼接工艺，并且当前零件带有 callback 回写的 seq / group。
      */
-    private boolean matchesSuperWidthSplicePiece(ProcedureFlow procedureFlow, ProductionPiece piece) {
-        return procedureFlow != null && piece != null
-                && hasNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)
-                && piece.getSeq() != null
-                && StringUtils.isNotBlank(piece.getGroup());
+    private SpliceProcessConfig resolveSpliceProcessConfig(ProcedureFlow procedureFlow, ProductionPiece piece) {
+        if (procedureFlow == null || piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
+            return null;
+        }
+        for (SpliceProcessConfig config : SPLICE_PROCESS_CONFIGS) {
+            if (hasNode(procedureFlow, config.nodeName)) {
+                return config;
+            }
+        }
+        return null;
+    }
+
+    private boolean containsSpliceMarks(String svg) {
+        if (StringUtils.isBlank(svg)) {
+            return false;
+        }
+        for (SpliceProcessConfig config : SPLICE_PROCESS_CONFIGS) {
+            if (svg.contains(config.markPrefix + "-")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void updateMarksForExistingSvg(OrderItem orderItem, ProductionPiece piece) {
@@ -144,7 +177,8 @@ public class SuperWidthSpliceProcessService {
         return new MarkAssets(horizontalDarkMark, verticalDarkMark, edgeAssets, 6D, 1D, 1D, 6D);
     }
 
-    private String buildMarksSvg(String pieceMongoId,
+    private String buildMarksSvg(SpliceProcessConfig processConfig,
+                                 String pieceMongoId,
                                  double width,
                                  double height,
                                  String groupText,
@@ -156,14 +190,16 @@ public class SuperWidthSpliceProcessService {
         for (SpliceEdge edgeType : bleedEdges) {
             String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
             BleedMarkAsset bleedMarkAsset = assets.bleedMarkAsset(edgeType);
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-20mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, BLEED_START_OFFSET_MM)));
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-30mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, BLEED_END_OFFSET_MM)));
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-20mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, BLEED_START_OFFSET_MM)));
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-30mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, BLEED_END_OFFSET_MM)));
+            String startOffsetLabel = formatOffsetLabel(processConfig.bleedStartOffsetMm);
+            String endOffsetLabel = formatOffsetLabel(processConfig.bleedEndOffsetMm);
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedStartOffsetMm)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedEndOffsetMm)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedStartOffsetMm)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedEndOffsetMm)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
@@ -171,17 +207,17 @@ public class SuperWidthSpliceProcessService {
             if (edgeAssets == null) {
                 continue;
             }
-            builder.append(buildRectMarkGroup("super-width-splice-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D)));
-            builder.append(buildRectMarkGroup("super-width-splice-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D)));
-            builder.append(buildRectMarkGroup("super-width-splice-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D)));
-            builder.append(buildRectMarkGroup("super-width-splice-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D)));
-            builder.append(buildRectMarkGroup("super-width-splice-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 20D)));
-            builder.append(buildRectMarkGroup("super-width-splice-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 20D)));
             index++;
         }
@@ -210,11 +246,11 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 出血边在自身的两个相邻角各放一组 20mm / 30mm 的 1x6 黑白条。
+     * 出血边在自身的两个相邻角各放一组工艺配置距离的 1x6 黑白条。
      *
      * <p>{@code edgeOffset} 表示从出血边向画面内侧量起的距离，{@code fromStartCorner}
      * 用来选择贴住出血边的起点相邻边还是终点相邻边。因此每条出血边会生成 4 个 mark：
-     * 起点角 20mm、起点角 30mm、终点角 20mm、终点角 30mm。</p>
+     * 起点角较小偏移、起点角较大偏移、终点角较小偏移、终点角较大偏移。</p>
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
                                  double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
@@ -287,9 +323,9 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 超幅拼接自身标识的出血/被出血边判断。
+     * 拼接自身标识的出血/被出血边判断。
      *
-     * <p>这里只影响超幅拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
+     * <p>这里只影响拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
      * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。</p>
      */
     private SpliceEdges resolveSpliceEdges(ProductionPiece piece, Blood firstSeqBlood) {
@@ -387,7 +423,7 @@ public class SuperWidthSpliceProcessService {
             byte[] bytes = restTemplate.getForObject(url, byte[].class);
             return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.warn("下载超幅拼接 mask SVG 失败: {}, error={}", url, e.getMessage());
+            log.warn("下载拼接 mask SVG 失败: {}, error={}", url, e.getMessage());
             return null;
         }
     }
@@ -397,7 +433,7 @@ public class SuperWidthSpliceProcessService {
             BufferedImage image = createStripeImage((int) Math.ceil(width), (int) Math.ceil(height));
             return toPng(image);
         } catch (Exception e) {
-            throw new IllegalStateException("生成超幅拼接出血边 PNG 失败", e);
+            throw new IllegalStateException("生成拼接出血边 PNG 失败", e);
         }
     }
 
@@ -650,6 +686,10 @@ public class SuperWidthSpliceProcessService {
         return String.format(Locale.ROOT, "%.4f", value).replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
+    private String formatOffsetLabel(double value) {
+        return format(value).replace('.', '_');
+    }
+
     private boolean isZero(Integer value) {
         return value != null && value == 0;
     }
@@ -668,6 +708,20 @@ public class SuperWidthSpliceProcessService {
         int black = Math.max(0, Math.min(100, blackPercent));
         int v = (int) Math.round(255 * (1 - black / 100.0));
         return new Color(v, v, v);
+    }
+
+    private static class SpliceProcessConfig {
+        private final String nodeName;
+        private final String markPrefix;
+        private final double bleedStartOffsetMm;
+        private final double bleedEndOffsetMm;
+
+        private SpliceProcessConfig(String nodeName, String markPrefix, double bleedStartOffsetMm, double bleedEndOffsetMm) {
+            this.nodeName = nodeName;
+            this.markPrefix = markPrefix;
+            this.bleedStartOffsetMm = bleedStartOffsetMm;
+            this.bleedEndOffsetMm = bleedEndOffsetMm;
+        }
     }
 
     private enum SpliceEdge {
