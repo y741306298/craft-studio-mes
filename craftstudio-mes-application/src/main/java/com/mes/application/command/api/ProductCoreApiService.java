@@ -786,7 +786,7 @@ public class ProductCoreApiService {
         return result;
     }
 
-    private Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId) {
+    public Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialId(String materialId) {
         try {
             String url = UriComponentsBuilder
                     .fromUriString(productCoreUrl)
