@@ -57,7 +57,7 @@ public class SuperWidthSpliceProcessService {
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
 
-    public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece) {
+    public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
         if (orderItem == null || procedureFlow == null || piece == null || !hasNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)) {
             return;
         }
@@ -84,13 +84,12 @@ public class SuperWidthSpliceProcessService {
         String businessId = productionPieceId;
 
         MarkAssets assets = uploadMarkAssets(businessId, markSubDir, piece.getGroup());
-        Set<SpliceEdge> bleedEdges = resolveBleedEdges(piece.getBlood());
-        Set<SpliceEdge> coveredEdges = resolveCoveredEdges(piece, piece.getBlood());
-        if (bleedEdges.isEmpty() && coveredEdges.isEmpty()) {
+        SpliceEdges spliceEdges = resolveSpliceEdges(piece, firstSeqBlood);
+        if (spliceEdges.bleedEdges.isEmpty() && spliceEdges.coveredEdges.isEmpty()) {
             return;
         }
 
-        String marksSvg = buildMarksSvg(pieceMongoId, width, height, piece.getGroup(), bleedEdges, coveredEdges, assets);
+        String marksSvg = buildMarksSvg(pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalContentImg, marksSvg);
         String orderItemId = StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
@@ -255,50 +254,57 @@ public class SuperWidthSpliceProcessService {
         return false;
     }
 
-    private Set<SpliceEdge> resolveBleedEdges(Blood blood) {
-        Set<SpliceEdge> edges = EnumSet.noneOf(SpliceEdge.class);
-        if (blood == null) {
-            return edges;
-        }
-        Integer x = blood.getX();
-        Integer y = blood.getY();
-        if (x != null && x > 0) {
-            edges.add(SpliceEdge.RIGHT);
-        } else if (x != null && x < 0) {
-            edges.add(SpliceEdge.LEFT);
-        }
-        if (y != null && y > 0) {
-            edges.add(SpliceEdge.TOP);
-        } else if (y != null && y < 0) {
-            edges.add(SpliceEdge.BOTTOM);
-        }
-        return edges;
-    }
-
-    private Set<SpliceEdge> resolveCoveredEdges(ProductionPiece piece, Blood blood) {
-        Set<SpliceEdge> edges = EnumSet.noneOf(SpliceEdge.class);
+    /**
+     * 超幅拼接自身标识的出血/被出血边判断。
+     *
+     * <p>这里只影响超幅拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
+     * 切割方向以同组 seq=1 工件的 blood 为准：x=0,y!=0 为竖切；x!=0,y=0 为横切。</p>
+     */
+    private SpliceEdges resolveSpliceEdges(ProductionPiece piece, Blood firstSeqBlood) {
+        Set<SpliceEdge> bleedEdges = EnumSet.noneOf(SpliceEdge.class);
+        Set<SpliceEdge> coveredEdges = EnumSet.noneOf(SpliceEdge.class);
         Integer currentSeq = piece.getSeq();
         Integer maxSeq = extractMaxSeqInGroup(piece.getGroup());
         if (currentSeq == null || maxSeq == null || maxSeq <= 0) {
-            return edges;
+            return new SpliceEdges(bleedEdges, coveredEdges);
         }
-        SpliceEdge firstCoveredEdge = resolveFirstCoveredEdge(blood);
-        SpliceEdge lastCoveredEdge = oppositeEdge(firstCoveredEdge);
-        if (currentSeq == 1 || (currentSeq > 1 && currentSeq < maxSeq)) {
-            edges.add(firstCoveredEdge);
+
+        SpliceCutDirection cutDirection = resolveCutDirection(firstSeqBlood != null ? firstSeqBlood : piece.getBlood());
+        if (cutDirection == SpliceCutDirection.UNKNOWN) {
+            return new SpliceEdges(bleedEdges, coveredEdges);
         }
-        if (currentSeq.intValue() == maxSeq.intValue() || (currentSeq > 1 && currentSeq < maxSeq)) {
-            edges.add(lastCoveredEdge);
+        SpliceEdge firstBleedEdge = firstBleedEdge(cutDirection);
+        SpliceEdge lastCoveredEdge = oppositeEdge(firstBleedEdge);
+        if (currentSeq == 1) {
+            bleedEdges.add(firstBleedEdge);
+        } else if (currentSeq.intValue() == maxSeq.intValue()) {
+            coveredEdges.add(lastCoveredEdge);
+        } else if (currentSeq > 1 && currentSeq < maxSeq) {
+            coveredEdges.add(lastCoveredEdge);
+            bleedEdges.add(firstBleedEdge);
         }
-        return edges;
+        return new SpliceEdges(bleedEdges, coveredEdges);
     }
 
-    private SpliceEdge resolveFirstCoveredEdge(Blood blood) {
-        if (blood != null && isZero(blood.getX()) && isNonZero(blood.getY())) {
-            return SpliceEdge.BOTTOM;
+    private SpliceCutDirection resolveCutDirection(Blood firstSeqBlood) {
+        if (firstSeqBlood == null) {
+            return SpliceCutDirection.UNKNOWN;
         }
-        return SpliceEdge.RIGHT;
+        Integer x = firstSeqBlood.getX();
+        Integer y = firstSeqBlood.getY();
+        if (isZero(x) && isNonZero(y)) {
+            return SpliceCutDirection.VERTICAL;
+        }
+        if (isNonZero(x) && isZero(y)) {
+            return SpliceCutDirection.HORIZONTAL;
+        }
+        return SpliceCutDirection.UNKNOWN;
     }
+
+    private SpliceEdge firstBleedEdge(SpliceCutDirection cutDirection) {
+        return cutDirection == SpliceCutDirection.HORIZONTAL ? SpliceEdge.BOTTOM : SpliceEdge.RIGHT;
+    }
+
 
     private SpliceEdge oppositeEdge(SpliceEdge edge) {
         switch (edge) {
@@ -627,6 +633,20 @@ public class SuperWidthSpliceProcessService {
 
     private enum SpliceEdge {
         TOP, RIGHT, BOTTOM, LEFT
+    }
+
+    private enum SpliceCutDirection {
+        VERTICAL, HORIZONTAL, UNKNOWN
+    }
+
+    private static class SpliceEdges {
+        private final Set<SpliceEdge> bleedEdges;
+        private final Set<SpliceEdge> coveredEdges;
+
+        private SpliceEdges(Set<SpliceEdge> bleedEdges, Set<SpliceEdge> coveredEdges) {
+            this.bleedEdges = bleedEdges;
+            this.coveredEdges = coveredEdges;
+        }
     }
 
     private static class MarkAssets {
