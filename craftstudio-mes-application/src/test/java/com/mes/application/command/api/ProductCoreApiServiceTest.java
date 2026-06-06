@@ -45,4 +45,26 @@ class ProductCoreApiServiceTest {
         assertEquals(4000.0, result.get("mat-2").getHeight());
         server.verify();
     }
+
+    @Test
+    void findDevelopedSizeMapByMaterialIdPassesRmfIdToProductCore() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        ProductCoreApiService service = new ProductCoreApiService(restTemplate);
+        ReflectionTestUtils.setField(service, "productCoreUrl", "http://product-core");
+
+        server.expect(requestTo("http://product-core/api/internal/mes/product/mto/mat/wm/findDevelopedSizeMap?materialId=mat-1&rmfId=rmf-1"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"code":200,"data":{"spec-1":{"width":102.0,"height":500.0,"depth":1.0}}}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<String, MaterialDevelopedSizeResponse> result = service.findDevelopedSizeMapByMaterialId("mat-1", " rmf-1 ");
+
+        assertEquals(1, result.size());
+        assertEquals(1020.0, result.get("spec-1").getWidth());
+        assertEquals(5000.0, result.get("spec-1").getHeight());
+        server.verify();
+    }
+
 }
