@@ -56,6 +56,8 @@ public class SuperWidthSpliceProcessService {
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
     private static final double BLEED_EDGE_INSET_MM = 1D;
+    private static final double BLEED_START_OFFSET_MM = 20D;
+    private static final double BLEED_END_OFFSET_MM = 30D;
 
     private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
@@ -142,10 +144,11 @@ public class SuperWidthSpliceProcessService {
         StringBuilder builder = new StringBuilder("\n");
         int index = 0;
         for (SpliceEdge edgeType : bleedEdges) {
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, 20D)));
-            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, 30D)));
+            String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
+            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-20mm-" + index + "-" + pieceMongoId,
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, BLEED_START_OFFSET_MM)));
+            builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-30mm-" + index + "-" + pieceMongoId,
+                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, BLEED_END_OFFSET_MM)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
