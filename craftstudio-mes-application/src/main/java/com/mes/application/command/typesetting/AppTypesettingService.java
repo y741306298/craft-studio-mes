@@ -20,7 +20,6 @@ import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
 import com.mes.application.command.typesetting.service.MarkedNestingElementService;
-import com.mes.application.command.typesetting.service.SuperWidthSpliceMarkService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -160,9 +159,6 @@ public class AppTypesettingService {
     private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
     @Autowired
     private OssTagUploadService ossTagUploadService;
-
-    @Autowired
-    private SuperWidthSpliceMarkService superWidthSpliceMarkService;
 
     @Autowired
     private MarkedNestingElementService markedNestingElementService;
@@ -1033,7 +1029,6 @@ public class AppTypesettingService {
         request.setOutputs(modeResult.getOutputs());
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
-        superWidthSpliceMarkService.apply(typesettingInfo, request, businessId);
         mergeFormeMarkResources(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
