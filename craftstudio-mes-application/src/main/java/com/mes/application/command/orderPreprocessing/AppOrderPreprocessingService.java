@@ -16,6 +16,7 @@ import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.proces.buckle.FourCornerBuckleProcessService;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
+import com.mes.application.command.typesetting.proces.splice.SuperWidthSpliceProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -124,6 +125,12 @@ public class AppOrderPreprocessingService {
      */
     @Autowired
     private FourCornerBuckleProcessService fourCornerBuckleProcessService;
+
+    /**
+     * 超幅拼接 callback 标识预处理服务。
+     */
+    @Autowired
+    private SuperWidthSpliceProcessService superWidthSpliceProcessService;
 
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
@@ -554,6 +561,7 @@ public class AppOrderPreprocessingService {
 
             Map<String, Integer> groupToSequenceNo = new HashMap<>();
             Map<String, Integer> groupToCount = new HashMap<>();
+            Map<String, Blood> groupToFirstSeqBlood = new HashMap<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 if (pair == null) {
                     continue;
@@ -568,6 +576,12 @@ public class AppOrderPreprocessingService {
                     continue;
                 }
                 groupToCount.merge(rawGroup, 1, Integer::sum);
+                if (rawSeq == 1 && sideResult.getBlood() != null) {
+                    Blood firstSeqBlood = new Blood();
+                    firstSeqBlood.setX(sideResult.getBlood().getX());
+                    firstSeqBlood.setY(sideResult.getBlood().getY());
+                    groupToFirstSeqBlood.put(rawGroup, firstSeqBlood);
+                }
             }
 
             // 4. 根据pairs生成生产零件
@@ -637,7 +651,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 拼接 callback 路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        // 拼接 callback 路线：先按超幅拼接出血/被出血边写入标识，再按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        applySuperWidthSpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
                         applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
@@ -771,6 +786,19 @@ public class AppOrderPreprocessingService {
         }
         applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
         applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
+    }
+
+    /**
+     * 执行订单预处理阶段的超幅拼接标识处理。
+     *
+     * <p>仅拼接 callback 生成的工件已经具备 blood / seq / group 信息，
+     * 因此可在落库前直接把出血边黑白条、被出血边 group 文本与条纹写入 mask SVG。</p>
+     */
+    public void applySuperWidthSpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
+        if (superWidthSpliceProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+            return;
+        }
+        superWidthSpliceProcessService.process(orderItem, procedureFlow, piece, firstSeqBlood);
     }
 
     /**
