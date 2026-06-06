@@ -112,7 +112,8 @@ public class SuperWidthSpliceProcessService {
     }
 
     private MarkAssets uploadMarkAssets(String businessId, String markSubDir, String groupText) {
-        String darkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
+        String horizontalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(6, 1), markSubDir);
+        String verticalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
         double textWidthMm = Math.max(24D, groupText.length() * 8D);
         double textHeightMm = 10D;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
@@ -130,7 +131,7 @@ public class SuperWidthSpliceProcessService {
             edgeAssets.put(edge, new EdgeAssets(stripe, yellowText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
                     displayTextWidthMm, displayTextHeightMm));
         }
-        return new MarkAssets(darkMark, edgeAssets, 1D, 6D);
+        return new MarkAssets(horizontalDarkMark, verticalDarkMark, edgeAssets, 6D, 1D, 1D, 6D);
     }
 
     private String buildMarksSvg(String pieceMongoId,
@@ -144,14 +145,15 @@ public class SuperWidthSpliceProcessService {
         int index = 0;
         for (SpliceEdge edgeType : bleedEdges) {
             String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
+            BleedMarkAsset bleedMarkAsset = assets.bleedMarkAsset(edgeType);
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-20mm-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, BLEED_START_OFFSET_MM)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, BLEED_START_OFFSET_MM)));
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-start-30mm-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, true, BLEED_END_OFFSET_MM)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, BLEED_END_OFFSET_MM)));
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-20mm-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, BLEED_START_OFFSET_MM)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, BLEED_START_OFFSET_MM)));
             builder.append(buildRectMarkGroup("super-width-splice-bleed-" + edgeName + "-end-30mm-" + index + "-" + pieceMongoId,
-                    assets.darkMark, bleedRectOnEdge(edgeType, width, height, assets.darkWidth, assets.darkHeight, false, BLEED_END_OFFSET_MM)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, BLEED_END_OFFSET_MM)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
@@ -465,7 +467,8 @@ public class SuperWidthSpliceProcessService {
             marks = new LinkedHashMap<>();
             piece.setMarks(marks);
         }
-        marks.put("superWidthSpliceDarkMark", assets.darkMark);
+        marks.put("superWidthSpliceHorizontalDarkMark", assets.horizontalDarkMark);
+        marks.put("superWidthSpliceVerticalDarkMark", assets.verticalDarkMark);
         for (Map.Entry<SpliceEdge, EdgeAssets> entry : assets.edgeAssets.entrySet()) {
             EdgeAssets edgeAssets = entry.getValue();
             String suffix = entry.getKey().name().toLowerCase(Locale.ROOT);
@@ -676,16 +679,42 @@ public class SuperWidthSpliceProcessService {
     }
 
     private static class MarkAssets {
-        private final String darkMark;
+        private final String horizontalDarkMark;
+        private final String verticalDarkMark;
         private final Map<SpliceEdge, EdgeAssets> edgeAssets;
-        private final double darkWidth;
-        private final double darkHeight;
+        private final double horizontalDarkWidth;
+        private final double horizontalDarkHeight;
+        private final double verticalDarkWidth;
+        private final double verticalDarkHeight;
 
-        private MarkAssets(String darkMark, Map<SpliceEdge, EdgeAssets> edgeAssets, double darkWidth, double darkHeight) {
-            this.darkMark = darkMark;
+        private MarkAssets(String horizontalDarkMark, String verticalDarkMark, Map<SpliceEdge, EdgeAssets> edgeAssets,
+                           double horizontalDarkWidth, double horizontalDarkHeight, double verticalDarkWidth, double verticalDarkHeight) {
+            this.horizontalDarkMark = horizontalDarkMark;
+            this.verticalDarkMark = verticalDarkMark;
             this.edgeAssets = edgeAssets;
-            this.darkWidth = darkWidth;
-            this.darkHeight = darkHeight;
+            this.horizontalDarkWidth = horizontalDarkWidth;
+            this.horizontalDarkHeight = horizontalDarkHeight;
+            this.verticalDarkWidth = verticalDarkWidth;
+            this.verticalDarkHeight = verticalDarkHeight;
+        }
+
+        private BleedMarkAsset bleedMarkAsset(SpliceEdge edgeType) {
+            if (edgeType == SpliceEdge.TOP || edgeType == SpliceEdge.BOTTOM) {
+                return new BleedMarkAsset(verticalDarkMark, verticalDarkWidth, verticalDarkHeight);
+            }
+            return new BleedMarkAsset(horizontalDarkMark, horizontalDarkWidth, horizontalDarkHeight);
+        }
+    }
+
+    private static class BleedMarkAsset {
+        private final String img;
+        private final double width;
+        private final double height;
+
+        private BleedMarkAsset(String img, double width, double height) {
+            this.img = img;
+            this.width = width;
+            this.height = height;
         }
     }
 
