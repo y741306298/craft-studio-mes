@@ -300,7 +300,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             graphics.setStroke(new BasicStroke(1F));
             graphics.setColor(Color.BLACK);
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
-            drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm);
+            drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm, margins);
             drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
             graphics.dispose();
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -323,17 +323,30 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.GRAY, false);
     }
 
-    private void drawDashedInsetBorderIfNecessary(Graphics2D graphics, int imageWidth, int imageHeight, double widthMm, double heightMm) {
+    private void drawDashedInsetBorderIfNecessary(Graphics2D graphics,
+                                                   int imageWidth,
+                                                   int imageHeight,
+                                                   double widthMm,
+                                                   double heightMm,
+                                                   ExpandMargins margins) {
         double insetMm = dashedInsetFromOuterBorderMm();
         if (insetMm <= 0D) {
             return;
         }
-        double innerWidthMm = widthMm - insetMm * 2D;
-        double innerHeightMm = heightMm - insetMm * 2D;
+        double leftInsetMm = dashedInsetForMargin(margins.left, insetMm);
+        double topInsetMm = dashedInsetForMargin(margins.top, insetMm);
+        double rightInsetMm = dashedInsetForMargin(margins.right, insetMm);
+        double bottomInsetMm = dashedInsetForMargin(margins.bottom, insetMm);
+        double innerWidthMm = widthMm - leftInsetMm - rightInsetMm;
+        double innerHeightMm = heightMm - topInsetMm - bottomInsetMm;
         if (innerWidthMm <= 0D || innerHeightMm <= 0D) {
             return;
         }
-        drawPhysicalBorder(graphics, imageWidth, imageHeight, insetMm, insetMm, innerWidthMm, innerHeightMm, Color.GRAY, true);
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, leftInsetMm, topInsetMm, innerWidthMm, innerHeightMm, Color.GRAY, true);
+    }
+
+    private double dashedInsetForMargin(double marginMm, double insetMm) {
+        return marginMm <= 0D ? 0D : insetMm;
     }
 
     private void drawPhysicalBorder(Graphics2D graphics,
@@ -763,20 +776,24 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.23\" fill-rule=\"evenodd\" />\n"
-                + buildDashedInsetBorderPath(left, top, right, bottom)
+                + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
     }
 
-    private String buildDashedInsetBorderPath(double outerLeft, double outerTop, double outerRight, double outerBottom) {
+    private String buildDashedInsetBorderPath(double outerLeft,
+                                              double outerTop,
+                                              double outerRight,
+                                              double outerBottom,
+                                              ExpandMargins margins) {
         double insetMm = dashedInsetFromOuterBorderMm();
         if (insetMm <= 0D) {
             return "";
         }
-        double left = outerLeft + insetMm;
-        double top = outerTop + insetMm;
-        double right = outerRight - insetMm;
-        double bottom = outerBottom - insetMm;
+        double left = outerLeft + dashedInsetForMargin(margins.left, insetMm);
+        double top = outerTop + dashedInsetForMargin(margins.top, insetMm);
+        double right = outerRight - dashedInsetForMargin(margins.right, insetMm);
+        double bottom = outerBottom - dashedInsetForMargin(margins.bottom, insetMm);
         if (right <= left || bottom <= top) {
             return "";
         }
