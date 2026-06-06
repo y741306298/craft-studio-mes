@@ -79,32 +79,18 @@ public class ManufacturerProcessCfgController {
 
     /**
      * 配置工艺定义
-     * @param configRequest 配置请求参数
      * @return 操作结果
      */
     @PostMapping("/config")
     public ResponseEntity<byte[]> configProcessMeta(
             HttpServletRequest httpRequest,
-            @RequestBody UpdateProcessPriceRequest configRequest) {
+            @RequestBody(required = false) byte[] body) {
         
         String targetUrl = String.format("%s/api/internal/mes/rmfcfg/configProcessMeta", productCoreUrl);
-        
-        // 构建请求对象
-        ConfigProcessMetaRequest request = new ConfigProcessMetaRequest();
-        request.setRmfId(configRequest.getRmfId());
-        request.setProcessMetaId(configRequest.getProcessMetaId());
-        request.setUnitPrice(configRequest.getUnitPrice());
-        
-        // 将请求对象转换为 JSON 字节数组
-        byte[] requestBody = null;
-        try {
-            requestBody = com.alibaba.fastjson.JSON.toJSONString(request).getBytes(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("Failed to serialize request: " + e.getMessage());
-        }
+
         
         HashMap<String, Object> paramMap = new HashMap<>();
-        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, requestBody, targetUrl, paramMap);
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, body, targetUrl, paramMap);
 
         // 调试：打印响应内容
         if (responseEntity.getBody() != null) {
