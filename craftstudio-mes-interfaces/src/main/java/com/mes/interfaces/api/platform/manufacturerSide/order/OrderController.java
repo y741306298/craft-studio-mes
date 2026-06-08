@@ -11,6 +11,7 @@ import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingServi
 import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
+import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.order.OrderItemResponse;
@@ -149,6 +150,17 @@ public class OrderController {
         return ApiResponse.success("success");
     }
 
+
+
+    /**
+     * 订单转单
+     * @param request 转单请求参数
+     * @return 操作结果
+     */
+    @PostMapping("/transfer")
+    public ApiResponse<String> transferOrder(@Valid @RequestBody OrderTransferRequest request) {
+        return appOrderService.transferOrder(request);
+    }
 
     /**
      * 取消订单
