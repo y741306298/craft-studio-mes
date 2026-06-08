@@ -33,7 +33,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         // 步骤1：识别是否同时存在拼接/异形切割，决定是否预先生成等幅蒙版。
         boolean hasSplicing = SpliceProcessStrategies.hasSpliceNode(procedureFlow);
         boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
-        MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow);
+        MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow, orderItem);
         if (!hasSpecialShape && !hasSplicing) {
             // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
             String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
@@ -98,11 +98,11 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
     /**
      * 双面对裱镜像图提取步骤：
      * 1) 定位“反面相同画面/反面不同画面”节点；
-     * 2) 遍历 paramConfigs；
-     * 3) 读取 param.file.filePreview 下 raw/preview/thumbnail；
+     * 2) 优先遍历 paramConfigs，读取 param.file.filePreview 下 raw/preview/thumbnail；
+     * 3) “反面相同画面”允许无参数，此时使用订单项生产图 filePreview 作为镜像文件信息；
      * 4) 返回第一个有效镜像文件信息。
      */
-    private MirrorImageData resolveMirrorImageData(ProcedureFlow procedureFlow) {
+    private MirrorImageData resolveMirrorImageData(ProcedureFlow procedureFlow, OrderItem orderItem) {
         if (procedureFlow == null || procedureFlow.getNodes() == null) {
             return null;
         }
@@ -113,22 +113,44 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             if (!"反面相同画面".equals(node.getNodeName()) && !"反面不同画面".equals(node.getNodeName())) {
                 continue;
             }
-            if (node.getParamConfigs() == null) {
-                continue;
+            MirrorImageData paramMirrorImageData = resolveMirrorImageDataFromNodeParams(node);
+            if (paramMirrorImageData != null) {
+                return paramMirrorImageData;
             }
-            for (Object config : node.getParamConfigs()) {
-                Object param = extractFieldValue(config, "param");
-                Object file = extractFieldValue(param, "file");
-                Object filePreview = extractFieldValue(file, "filePreview");
-                String raw = toNonBlankString(extractFieldValue(filePreview, "raw"));
-                String preview = toNonBlankString(extractFieldValue(filePreview, "preview"));
-                String thumbnail = toNonBlankString(extractFieldValue(filePreview, "thumbnail"));
-                if (raw != null) {
-                    return new MirrorImageData(raw, preview, thumbnail);
-                }
+            if ("反面相同画面".equals(node.getNodeName())) {
+                return resolveMirrorImageDataFromProductionImage(orderItem);
             }
         }
         return null;
+    }
+
+    private MirrorImageData resolveMirrorImageDataFromNodeParams(com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode node) {
+        if (node == null || node.getParamConfigs() == null) {
+            return null;
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = extractFieldValue(config, "param");
+            Object file = extractFieldValue(param, "file");
+            Object filePreview = extractFieldValue(file, "filePreview");
+            String raw = toNonBlankString(extractFieldValue(filePreview, "raw"));
+            String preview = toNonBlankString(extractFieldValue(filePreview, "preview"));
+            String thumbnail = toNonBlankString(extractFieldValue(filePreview, "thumbnail"));
+            if (raw != null) {
+                return new MirrorImageData(raw, preview, thumbnail);
+            }
+        }
+        return null;
+    }
+
+    private MirrorImageData resolveMirrorImageDataFromProductionImage(OrderItem orderItem) {
+        if (orderItem == null || orderItem.getProductionImgFile() == null
+                || orderItem.getProductionImgFile().getFilePreview() == null) {
+            return null;
+        }
+        String raw = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getRaw());
+        String preview = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getPreview());
+        String thumbnail = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getThumbnail());
+        return raw == null ? null : new MirrorImageData(raw, preview, thumbnail);
     }
 
     private String toNonBlankString(Object value) {

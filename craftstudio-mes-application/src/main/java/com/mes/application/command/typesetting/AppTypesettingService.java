@@ -2660,7 +2660,10 @@ public class AppTypesettingService {
     }
 
     /**
-     * 校验特殊工艺（覆板、双面对裱）的材料一致性
+     * 校验特殊工艺参数一致性。
+     *
+     * <p>双面对裱/覆双面的工艺参数由“反面相同画面”或“反面不同画面”承载，
+     * 其自身节点允许无参数，因此这里只校验仍要求自身携带参数的覆板工艺。</p>
      *
      * @param productionPieces 生产工件列表
      * @return "PASS" 表示通过，否则返回错误信息
@@ -2703,9 +2706,7 @@ public class AppTypesettingService {
     }
 
     private boolean isSpecialProcedureNode(ProcedureFlowNode node) {
-        return node != null && ("覆板".equals(node.getNodeName())
-                || "双面对裱".equals(node.getNodeName())
-                || "覆双面".equals(node.getNodeName()));
+        return node != null && "覆板".equals(node.getNodeName());
     }
 
     private String buildParamConfigsSignature(ProcedureFlowNode node) {
