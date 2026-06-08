@@ -273,7 +273,7 @@ public class SuperWidthSpliceProcessService {
 
     private String buildRectMarkGroup(String id, String img, Rect rect) {
         return "<g id=\"" + escapeAttr(id) + "\" img=\"" + escapeAttr(img)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(img)) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
+                + "\" data-source-name=\"" + escapeAttr(sourceName(img)) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(rect.x) + " " + format(rect.y)
                 + " H" + format(rect.x + rect.width)
                 + " V" + format(rect.y + rect.height)
@@ -306,7 +306,7 @@ public class SuperWidthSpliceProcessService {
         return prefix + "\n<g id=\"" + escapeAttr(groupId)
                 + "\" img=\"" + escapeAttr(originalContentImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+                + "\" data-forme=\"true\" data-rotation=\"0\" require-plt=\"true\">\n"
                 + normalizeRectsToPaths(innerSvg) + "\n</g>\n" + suffix;
     }
 
