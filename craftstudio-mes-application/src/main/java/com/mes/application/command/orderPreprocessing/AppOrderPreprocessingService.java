@@ -30,7 +30,9 @@ import com.mes.domain.manufacturer.procedureFlow.service.ProcedureFlowService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingSequenceUsageType;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingSequencePoolService;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
@@ -105,6 +107,9 @@ public class AppOrderPreprocessingService {
     private ImageToImageSearchService imageToImageSearchService;
     @Autowired
     private TypesettingSequencePoolService typesettingSequencePoolService;
+
+    @Autowired
+    private OrderInfoService orderInfoService;
 
     /**
      * 留白工艺处理服务。
@@ -316,6 +321,12 @@ public class AppOrderPreprocessingService {
         Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
         Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
 
+        if (pieceWidth != null) {
+            pieceWidth = pieceWidth * 10;
+        }
+        if (pieceHeight != null) {
+            pieceHeight = pieceHeight * 10;
+        }
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
@@ -326,7 +337,13 @@ public class AppOrderPreprocessingService {
                 pieceHeight
         );
         piece.setProcessingFlow(processingFlow);
-        // 无拼接/异形切割路线：按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+            piece.setRemark(orderInfo.getRemark());
+        }
+
+        // 无拼接/异形切割路线：按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
         applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
@@ -636,6 +653,12 @@ public class AppOrderPreprocessingService {
                                 svgSize[1]
                         );
                         piece.setProcessingFlow(processingFlow);
+
+                        OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+                        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+                            piece.setRemark(orderInfo.getRemark());
+                        }
+
                         Integer groupCount = rawGroup == null ? null : groupToCount.get(rawGroup);
                         if (rawGroup != null && seq != null && groupCount != null && groupCount > 1) {
                             piece.setGroup(buildBloodGroup(orderItem.getManufacturerId(), rawGroup, seq, groupToCount, groupToSequenceNo));
@@ -651,7 +674,7 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 拼接 callback 路线：先按拼接工艺出血/被出血边写入标识，再按“画内打扣”工艺决定打扣与留白外扩的先后顺序。
+                        // 拼接 callback 路线：先按拼接工艺出血/被出血边写入标识，再按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
                         applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
                         applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();

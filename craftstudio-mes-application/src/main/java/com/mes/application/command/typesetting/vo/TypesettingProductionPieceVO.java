@@ -154,6 +154,7 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setIsUrgent(piece.getIsUrgent());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
+        typesettingProductionPieceVO.setRemark(piece.getRemark());
         return typesettingProductionPieceVO;
     }
 
@@ -201,7 +202,7 @@ public class TypesettingProductionPieceVO {
         if (value == null) {
             return null;
         }
-        return Math.ceil(value);
+        return Math.ceil(value / 10.0);
     }
 
     public ProductionPiece toProductionPiece() {

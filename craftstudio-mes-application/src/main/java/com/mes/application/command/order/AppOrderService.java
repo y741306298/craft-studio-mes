@@ -95,6 +95,7 @@ public class AppOrderService {
             OrderItemVO orderWithItemsVO = new OrderItemVO();
             BeanUtils.copyProperties(item, orderWithItemsVO);
             orderWithItemsVO.setCustomer(orderInfo.getCustomer());
+            orderWithItemsVO.setRemark(orderInfo.getRemark());
             result.add(orderWithItemsVO);
         }
         return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());

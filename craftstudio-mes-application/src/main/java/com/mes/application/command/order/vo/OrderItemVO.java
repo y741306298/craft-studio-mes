@@ -9,4 +9,6 @@ public class OrderItemVO extends OrderItem {
 
     private OrderCustomer customer;
 
+    private String remark;
+
 }

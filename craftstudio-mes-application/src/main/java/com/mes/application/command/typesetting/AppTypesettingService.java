@@ -189,15 +189,20 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
-    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM = 50;
-    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM = 20;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM = 16;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM = 16;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
+            new TypesettingLayoutSpecVO("900*2400", 900, 2400),
+            new TypesettingLayoutSpecVO("1050*2400", 1050, 2400),
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
-            new TypesettingLayoutSpecVO("1200*3000", 1200, 3000),
-            new TypesettingLayoutSpecVO("1040*2403", 1040, 2403),
-            new TypesettingLayoutSpecVO("1040*3210", 1040, 3210),
-            new TypesettingLayoutSpecVO("1040*9950", 1040, 9950),
-            new TypesettingLayoutSpecVO("1270*50000", 1270, 50000)
+            new TypesettingLayoutSpecVO("920*2440", 920, 2440),
+            new TypesettingLayoutSpecVO("1070*2440", 1070, 2440),
+            new TypesettingLayoutSpecVO("1220*2440", 1220, 2440),
+            new TypesettingLayoutSpecVO("920*2000", 920, 2000),
+            new TypesettingLayoutSpecVO("1070*2000", 1070, 2000),
+            new TypesettingLayoutSpecVO("920*1540", 920, 1540),
+            new TypesettingLayoutSpecVO("1220*1540", 1220, 1540),
+            new TypesettingLayoutSpecVO("1520*1500", 1520, 1500)
     );
 
     @PostConstruct

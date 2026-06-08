@@ -4,8 +4,11 @@ import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingServi
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import io.micrometer.common.util.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
@@ -14,6 +17,9 @@ import java.util.List;
 
 @Service
 public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
+
+    @Autowired
+    private OrderInfoService orderInfoService;
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
@@ -40,7 +46,13 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         // 步骤4：创建并持久化生产零件。
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-        // 步骤4.1：按“画内打扣”工艺决定打扣与留白外扩的先后顺序；false 表示没有出血边需要跳过，四边都允许外扩。
+        
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+            piece.setRemark(orderInfo.getRemark());
+        }
+        
+        // 步骤4.1：按"画内打扣"工艺决定打扣与留白外扩的先后顺序；false 表示没有出血边需要跳过，四边都允许外扩。
         processingService.applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
         processingService.getProductionPieceService().addProductionPiece(piece);
         // 步骤5：写入图搜索引并返回结果。

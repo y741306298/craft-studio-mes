@@ -53,6 +53,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private ProcedureFlow procedureFlow;
     private List<DeliveryPkgInfo> deliveryPkgInfos;
     private List<MirrorConfig> mirrorConfigs;
+    private String remark;
 
     @Override
     public ProductionPiece toDO() {
@@ -94,6 +95,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setProcedureFlow(this.procedureFlow);
         piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
         piece.setMirrorConfigs(this.mirrorConfigs);
+        piece.setRemark(this.remark);
 
         return piece;
     }
@@ -137,6 +139,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.procedureFlow = _do.getProcedureFlow();
         this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
         this.mirrorConfigs = _do.getMirrorConfigs();
+        this.remark = _do.getRemark();
 
         return this;
     }

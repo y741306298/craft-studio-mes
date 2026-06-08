@@ -32,6 +32,7 @@ public class DeliveryPkgPieceVO {
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
     private float score;
+    private String remark;
 
     public static DeliveryPkgPieceVO fromProductionPiece(ProductionPiece piece) {
         DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
@@ -47,6 +48,7 @@ public class DeliveryPkgPieceVO {
         if (piece.getProductImageFile() != null && piece.getProductImageFile().getFilePreview() != null) {
             vo.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         }
+        vo.setRemark(piece.getRemark());
         return vo;
     }
 }

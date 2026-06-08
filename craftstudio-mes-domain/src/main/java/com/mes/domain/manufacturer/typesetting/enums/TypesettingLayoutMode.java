@@ -81,7 +81,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             0,
-            false
+            true
     ),
 
     /**
@@ -232,7 +232,7 @@ public enum TypesettingLayoutMode {
             null,
             "none",
             10,
-            true
+            false
     );
 
     private final String code;

@@ -5,7 +5,11 @@ import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrate
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
@@ -14,6 +18,9 @@ import java.util.List;
 
 @Service
 public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
+
+    @Autowired
+    private OrderInfoService orderInfoService;
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
@@ -40,6 +47,12 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
             ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                     orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
+            
+            OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+                piece.setRemark(orderInfo.getRemark());
+            }
+            
             if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
                 MirrorConfig mirrorConfig = new MirrorConfig();
                 mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
