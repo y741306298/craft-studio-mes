@@ -5,6 +5,9 @@ import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.OrderAddRequest;
+import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
+import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -14,7 +17,12 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
+import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
+import com.alibaba.fastjson.JSON;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +46,12 @@ public class AppOrderService {
 
     @Autowired
     private ProductionPieceService productionPieceService;
+
+    @Autowired
+    private ManufacturerMetaRepository manufacturerMetaRepository;
+
+    @Autowired
+    private OrderTransferRecordService orderTransferRecordService;
 
     @Autowired
     private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
@@ -232,6 +246,153 @@ public class AppOrderService {
         return orderInfo;
     }
 
+
+    /**
+     * 订单转单。
+     * 将指定订单项的待生产数量转入目标工厂，并保留每个原订单项维度的转出记录。
+     */
+    @Transactional
+    public ApiResponse<String> transferOrder(OrderTransferRequest request) {
+        if (request == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单参数不能为空");
+        }
+        if (StringUtils.isBlank(request.getOrderId())) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
+        }
+        if (StringUtils.isBlank(request.getManufacturerMetaId())) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转出工厂不能为空");
+        }
+        if (StringUtils.isBlank(request.getTargetId())) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转入工厂不能为空");
+        }
+        if (request.getOrderItemDtos() == null || request.getOrderItemDtos().isEmpty()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单订单项不能为空");
+        }
+
+        ManufacturerMeta sourceManufacturerMeta = findManufacturerMetaByManufacturerMetaId(request.getManufacturerMetaId());
+        ManufacturerMeta targetManufacturerMeta = findManufacturerMetaByManufacturerMetaId(request.getTargetId());
+        if (sourceManufacturerMeta == null || targetManufacturerMeta == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "未匹配到正确的工厂，无法转单");
+        }
+
+        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        if (sourceOrderInfo == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + request.getOrderId());
+        }
+
+        Map<String, OrderItem> orderItemById = new HashMap<>();
+        Map<String, List<ProductionPiece>> productionPiecesByOrderItemId = new HashMap<>();
+        for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
+            if (itemDto == null || StringUtils.isBlank(itemDto.getOrderItemId())) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
+            }
+            if (itemDto.getQuantity() == null || itemDto.getQuantity() <= 0) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单数量必须大于 0");
+            }
+
+            OrderItem orderItem = domainOrderItemService.findByOrderItemId(itemDto.getOrderItemId());
+            if (orderItem == null
+                    || !Objects.equals(request.getOrderId(), orderItem.getOrderId())
+                    || !Objects.equals(request.getManufacturerMetaId(), orderItem.getManufacturerId())) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项不存在：" + itemDto.getOrderItemId());
+            }
+            if (itemDto.getQuantity() > safeQuantity(orderItem.getQuantity())) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams,
+                        itemDto.getOrderItemId() + "订单项转单数量不能大于自身数量");
+            }
+
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
+                    orderItem.getOrderItemId(),
+                    1,
+                    100
+            );
+            List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
+            if (safeProductionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单项已经开始生产，无法转单");
+            }
+
+            orderItemById.put(itemDto.getOrderItemId(), orderItem);
+            productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
+        }
+
+        OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
+        domainOrderInfoService.addOrder(targetOrderInfo);
+
+        List<OrderTransferRecord> transferRecords = new ArrayList<>();
+        for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
+            OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
+            Integer transferQuantity = itemDto.getQuantity();
+            String newOrderItemId = IdGenerator.generateOrderItemId();
+
+            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, request.getTargetId(), transferQuantity);
+            domainOrderItemService.addOrderItem(targetOrderItem);
+
+            for (ProductionPiece sourceProductionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
+                ProductionPiece targetProductionPiece = copyProductionPieceForTransfer(
+                        sourceProductionPiece,
+                        newOrderItemId,
+                        request.getTargetId(),
+                        transferQuantity
+                );
+                productionPieceService.addProductionPiece(targetProductionPiece);
+            }
+
+            int remainQuantity = safeQuantity(sourceOrderItem.getQuantity()) - transferQuantity;
+            if (remainQuantity == 0) {
+                for (ProductionPiece productionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
+                    productionPieceService.deleteProductionPiece(productionPiece.getId());
+                }
+                domainOrderItemService.deleteOrderItem(sourceOrderItem.getId());
+            } else {
+                sourceOrderItem.setQuantity(remainQuantity);
+                domainOrderItemService.updateOrderItem(sourceOrderItem);
+                for (ProductionPiece productionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
+                    productionPiece.setQuantity(remainQuantity);
+                    setPendingTypesettingNodeQuantity(productionPiece, remainQuantity);
+                    productionPieceService.updateProductionPiece(productionPiece);
+                }
+            }
+
+            transferRecords.add(buildOrderTransferRecord(
+                    request,
+                    sourceManufacturerMeta,
+                    targetManufacturerMeta,
+                    sourceOrderItem,
+                    transferQuantity
+            ));
+        }
+        orderTransferRecordService.batchAdd(transferRecords);
+
+        return ApiResponse.success("success");
+    }
+
+
+    /**
+     * 分页查询指定工厂的转入记录。
+     * manufacturerMetaId 对应转单记录 targetId。
+     */
+    public PagedResult<OrderTransferRecord> findTransferInRecords(String manufacturerMetaId, int current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        List<OrderTransferRecord> items = orderTransferRecordService.findTransferInRecords(manufacturerMetaId, current, size);
+        long total = orderTransferRecordService.countTransferInRecords(manufacturerMetaId);
+        return new PagedResult<>(items, total, size, current);
+    }
+
+    /**
+     * 分页查询指定工厂的转出记录。
+     * manufacturerMetaId 对应转单记录 sourceId。
+     */
+    public PagedResult<OrderTransferRecord> findTransferOutRecords(String manufacturerMetaId, int current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        List<OrderTransferRecord> items = orderTransferRecordService.findTransferOutRecords(manufacturerMetaId, current, size);
+        long total = orderTransferRecordService.countTransferOutRecords(manufacturerMetaId);
+        return new PagedResult<>(items, total, size, current);
+    }
+
     /**
      * 取消订单。
      * 根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
@@ -281,6 +442,122 @@ public class AppOrderService {
         }
 
         return ApiResponse.success("success");
+    }
+
+
+    private ManufacturerMeta findManufacturerMetaByManufacturerMetaId(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return null;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaId", manufacturerMetaId);
+        List<ManufacturerMeta> results = manufacturerMetaRepository.filterList(1, 1, filters);
+        return results == null || results.isEmpty() ? null : results.get(0);
+    }
+
+    private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo) {
+        OrderInfo targetOrderInfo = deepCopy(sourceOrderInfo, OrderInfo.class);
+        targetOrderInfo.setId(null);
+        targetOrderInfo.setCreateTime(null);
+        targetOrderInfo.setUpdateTime(null);
+        return targetOrderInfo;
+    }
+
+    private OrderItem copyOrderItemForTransfer(OrderItem sourceOrderItem,
+                                               String newOrderItemId,
+                                               String targetManufacturerMetaId,
+                                               Integer quantity) {
+        OrderItem targetOrderItem = deepCopy(sourceOrderItem, OrderItem.class);
+        targetOrderItem.setId(null);
+        targetOrderItem.setCreateTime(null);
+        targetOrderItem.setUpdateTime(null);
+        targetOrderItem.setOrderItemId(newOrderItemId);
+        targetOrderItem.setManufacturerId(targetManufacturerMetaId);
+        targetOrderItem.setQuantity(quantity);
+        targetOrderItem.setProductionPieces(null);
+        normalizeProcedureFlowForTransfer(targetOrderItem.getProcedureFlow(), quantity);
+        return targetOrderItem;
+    }
+
+    private ProductionPiece copyProductionPieceForTransfer(ProductionPiece sourceProductionPiece,
+                                                           String newOrderItemId,
+                                                           String targetManufacturerMetaId,
+                                                           Integer quantity) {
+        ProductionPiece targetProductionPiece = deepCopy(sourceProductionPiece, ProductionPiece.class);
+        targetProductionPiece.setId(null);
+        targetProductionPiece.setCreateTime(null);
+        targetProductionPiece.setUpdateTime(null);
+        targetProductionPiece.setProductionPieceId(null);
+        targetProductionPiece.setOrderItemId(newOrderItemId);
+        targetProductionPiece.setManufacturerId(targetManufacturerMetaId);
+        targetProductionPiece.setQuantity(quantity);
+        normalizeProcedureFlowForTransfer(targetProductionPiece.getProcedureFlow(), quantity);
+        return targetProductionPiece;
+    }
+
+    private OrderTransferRecord buildOrderTransferRecord(OrderTransferRequest request,
+                                                          ManufacturerMeta sourceManufacturerMeta,
+                                                          ManufacturerMeta targetManufacturerMeta,
+                                                          OrderItem sourceOrderItem,
+                                                          Integer quantity) {
+        OrderTransferRecord record = new OrderTransferRecord();
+        record.setOrderId(request.getOrderId());
+        record.setSourceId(request.getManufacturerMetaId());
+        record.setSourceName(sourceManufacturerMeta == null ? null : sourceManufacturerMeta.getName());
+        record.setTargetId(request.getTargetId());
+        record.setTargetName(targetManufacturerMeta == null ? null : targetManufacturerMeta.getName());
+        record.setOrderItemId(sourceOrderItem.getOrderItemId());
+        record.setPreviewUrl(extractPreviewUrl(sourceOrderItem.getProductionImgFile()));
+        record.setQuantity(quantity);
+        return record;
+    }
+
+    private void normalizeProcedureFlowForTransfer(com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow procedureFlow,
+                                                    Integer quantity) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null) {
+            return;
+        }
+        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+            if (node == null) {
+                continue;
+            }
+            if (Objects.equals("待排版", node.getNodeName())) {
+                node.setPieceQuantity(quantity);
+            } else {
+                node.setPieceQuantity(0);
+            }
+        }
+    }
+
+    private void setPendingTypesettingNodeQuantity(ProductionPiece productionPiece, Integer quantity) {
+        if (productionPiece == null
+                || productionPiece.getProcedureFlow() == null
+                || productionPiece.getProcedureFlow().getNodes() == null) {
+            return;
+        }
+        for (ProcedureFlowNode node : productionPiece.getProcedureFlow().getNodes()) {
+            if (node != null && Objects.equals("待排版", node.getNodeName())) {
+                node.setPieceQuantity(quantity);
+            }
+        }
+    }
+
+    private String extractPreviewUrl(ImageFile imageFile) {
+        if (imageFile == null || imageFile.getFilePreview() == null) {
+            return null;
+        }
+        return imageFile.getFilePreview().getPreview();
+    }
+
+    private int safeQuantity(Integer quantity) {
+        return quantity == null ? 0 : quantity;
+    }
+
+    private <T> T deepCopy(T source, Class<T> clazz) {
+        if (source == null) {
+            return null;
+        }
+        return JSON.parseObject(JSON.toJSONString(source), clazz);
     }
 
     private boolean hasQuantityAfterPendingTypesettingNode(ProductionPiece productionPiece) {
