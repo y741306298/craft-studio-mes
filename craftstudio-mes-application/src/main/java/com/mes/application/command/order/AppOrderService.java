@@ -366,6 +366,33 @@ public class AppOrderService {
         return ApiResponse.success("success");
     }
 
+
+    /**
+     * 分页查询指定工厂的转入记录。
+     * manufacturerMetaId 对应转单记录 targetId。
+     */
+    public PagedResult<OrderTransferRecord> findTransferInRecords(String manufacturerMetaId, int current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        List<OrderTransferRecord> items = orderTransferRecordService.findTransferInRecords(manufacturerMetaId, current, size);
+        long total = orderTransferRecordService.countTransferInRecords(manufacturerMetaId);
+        return new PagedResult<>(items, total, size, current);
+    }
+
+    /**
+     * 分页查询指定工厂的转出记录。
+     * manufacturerMetaId 对应转单记录 sourceId。
+     */
+    public PagedResult<OrderTransferRecord> findTransferOutRecords(String manufacturerMetaId, int current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("制造商 ID 不能为空");
+        }
+        List<OrderTransferRecord> items = orderTransferRecordService.findTransferOutRecords(manufacturerMetaId, current, size);
+        long total = orderTransferRecordService.countTransferOutRecords(manufacturerMetaId);
+        return new PagedResult<>(items, total, size, current);
+    }
+
     /**
      * 取消订单。
      * 根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。

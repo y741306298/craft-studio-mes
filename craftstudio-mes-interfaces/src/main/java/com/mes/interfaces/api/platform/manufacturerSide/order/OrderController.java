@@ -12,11 +12,13 @@ import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.application.dto.req.order.OrderTransferRecordListRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.order.OrderItemResponse;
 import com.mes.application.dto.resp.order.OrderWithItemsResponse;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -160,6 +162,43 @@ public class OrderController {
     @PostMapping("/transfer")
     public ApiResponse<String> transferOrder(@Valid @RequestBody OrderTransferRequest request) {
         return appOrderService.transferOrder(request);
+    }
+
+
+    /**
+     * 分页查询转入记录。
+     * request.manufacturerMetaId 对应转单记录 targetId。
+     * @param request 分页查询参数
+     * @return 转入记录分页结果
+     */
+    @PostMapping("/transfer/in/list")
+    public PagedApiResponse<OrderTransferRecord> listTransferInRecords(
+            @Valid @RequestBody OrderTransferRecordListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<OrderTransferRecord> result = appOrderService.findTransferInRecords(
+                request.getManufacturerMetaId(),
+                (int) query.getCurrent(),
+                query.getSize()
+        );
+        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+    }
+
+    /**
+     * 分页查询转出记录。
+     * request.manufacturerMetaId 对应转单记录 sourceId。
+     * @param request 分页查询参数
+     * @return 转出记录分页结果
+     */
+    @PostMapping("/transfer/out/list")
+    public PagedApiResponse<OrderTransferRecord> listTransferOutRecords(
+            @Valid @RequestBody OrderTransferRecordListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<OrderTransferRecord> result = appOrderService.findTransferOutRecords(
+                request.getManufacturerMetaId(),
+                (int) query.getCurrent(),
+                query.getSize()
+        );
+        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
     /**
