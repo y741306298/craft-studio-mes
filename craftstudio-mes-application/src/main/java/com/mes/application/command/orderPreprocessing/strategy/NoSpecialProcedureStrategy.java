@@ -41,8 +41,8 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
                 : null;
         // 步骤3：生成等幅矩形蒙版。
         String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
-        Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
-        Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
+        Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
+        Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
         // 步骤4：创建并持久化生产零件。
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
@@ -60,6 +60,10 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
         return pieces;
+    }
+
+    private Double toMillimeters(Double centimeters) {
+        return centimeters == null ? null : centimeters * 10;
     }
 
     private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {

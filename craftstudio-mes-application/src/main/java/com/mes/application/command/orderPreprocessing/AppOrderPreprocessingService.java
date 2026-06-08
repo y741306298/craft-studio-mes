@@ -479,6 +479,11 @@ public class AppOrderPreprocessingService {
     }
 
 
+    private Double toMillimeters(Double centimeters) {
+        return centimeters == null ? null : centimeters * 10;
+    }
+
+
 
 
 
@@ -643,14 +648,20 @@ public class AppOrderPreprocessingService {
 
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
                         Double[] svgSize = resolveSvgWidthHeight(maskedImageUrl);
+                        Double pieceWidth = svgSize[0] != null
+                                ? svgSize[0]
+                                : toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
+                        Double pieceHeight = svgSize[1] != null
+                                ? svgSize[1]
+                                : toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
                         ProductionPiece piece = procedureService.createProductionPiece(
                                 orderItem,
                                 "ORIGINAL",
                                 rawImageUrl,
                                 newProcedureFlow,
                                 maskedImageUrl,
-                                svgSize[0],
-                                svgSize[1]
+                                pieceWidth,
+                                pieceHeight
                         );
                         piece.setProcessingFlow(processingFlow);
 
