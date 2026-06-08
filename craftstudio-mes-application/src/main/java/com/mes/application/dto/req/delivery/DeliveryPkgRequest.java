@@ -18,6 +18,7 @@ public class DeliveryPkgRequest {
     private String manufacturerMetaId;
     private String remark;
     private String customerPhone;
+    private String customerName;
     private Date startTime;
     private Date endTime;
     private String carrierName;
