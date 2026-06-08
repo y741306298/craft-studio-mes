@@ -118,6 +118,11 @@ public class AppDeliveryPkgService {
         }
 
         return items.stream().filter(item -> {
+            boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
+                    || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
+            boolean matchCustomerName = StringUtils.isBlank(request.getCustomerName())
+                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerName())
+                    && item.getOrderCustomer().getCustomerName().contains(request.getCustomerName()));
             boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
                     || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerPhone())
                     && item.getOrderCustomer().getCustomerPhone().contains(request.getCustomerPhone()));
@@ -126,7 +131,7 @@ public class AppDeliveryPkgService {
                     && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
-            return matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
+            return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
         }).sorted(Comparator
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
