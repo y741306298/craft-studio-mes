@@ -149,8 +149,8 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setSourceId(piece.getId());
         typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
-        typesettingProductionPieceVO.setWidth(ceilValue(piece.getWidth()));
-        typesettingProductionPieceVO.setHeight(ceilValue(piece.getHeight()));
+        typesettingProductionPieceVO.setWidth(toCentimeters(piece.getWidth()));
+        typesettingProductionPieceVO.setHeight(toCentimeters(piece.getHeight()));
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setIsUrgent(piece.getIsUrgent());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
@@ -184,8 +184,8 @@ public class TypesettingProductionPieceVO {
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
         if (info.getElement() != null) {
-            vo.setWidth(ceilValue(info.getElement().getWidth().doubleValue()));
-            vo.setHeight(ceilValue(info.getElement().getHeight().doubleValue()));
+            vo.setWidth(toCentimeters(info.getElement().getWidth().doubleValue()));
+            vo.setHeight(toCentimeters(info.getElement().getHeight().doubleValue()));
         }
         vo.setCreateTime(info.getCreateTime());
         return vo;
@@ -198,11 +198,11 @@ public class TypesettingProductionPieceVO {
         return typesettingId.substring(0, typesettingId.length() - MIRROR_SUFFIX.length());
     }
 
-    private static Double ceilValue(Double value) {
-        if (value == null) {
+    private static Double toCentimeters(Double millimeters) {
+        if (millimeters == null) {
             return null;
         }
-        return Math.ceil(value / 10.0);
+        return millimeters / 10.0;
     }
 
     public ProductionPiece toProductionPiece() {

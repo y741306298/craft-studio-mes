@@ -43,8 +43,8 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
                     && orderItem.getProductionImgFile().getFilePreview() != null
                     ? orderItem.getProductionImgFile().getFilePreview().getRaw()
                     : null;
-            Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
-            Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
+            Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
+            Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
             ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                     orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
             
@@ -71,6 +71,10 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(),
                 mirrorImageData == null ? null : mirrorImageData.raw);
         return null;
+    }
+
+    private Double toMillimeters(Double centimeters) {
+        return centimeters == null ? null : centimeters * 10;
     }
 
     private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
