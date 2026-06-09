@@ -1,26 +1,15 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
-import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.mes.domain.order.orderInfo.service.OrderInfoService;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
-
-    @Autowired
-    private OrderInfoService orderInfoService;
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
@@ -108,8 +97,8 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
     /**
      * 双面对裱镜像图提取步骤：
      * 1) 定位“反面相同画面/反面不同画面”节点；
-     * 2) 优先遍历 paramConfigs，读取 param.file.filePreview 下 raw/preview/thumbnail；
-     * 3) “反面相同画面”允许无参数，此时使用订单项生产图 filePreview 作为镜像文件信息；
+     * 2) “反面相同画面”使用订单项生产图 filePreview 作为镜像文件信息，并要求算法镜像翻转；
+     * 3) “反面不同画面”遍历 paramConfigs，读取 param.file.filePreview 下 raw/preview/thumbnail，且不镜像翻转；
      * 4) 返回第一个有效镜像文件信息。
      */
     private MirrorImageData resolveMirrorImageData(ProcedureFlow procedureFlow, OrderItem orderItem) {
@@ -123,12 +112,12 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             if (!"反面相同画面".equals(node.getNodeName()) && !"反面不同画面".equals(node.getNodeName())) {
                 continue;
             }
+            if ("反面相同画面".equals(node.getNodeName())) {
+                return resolveMirrorImageDataFromProductionImage(orderItem);
+            }
             MirrorImageData paramMirrorImageData = resolveMirrorImageDataFromNodeParams(node);
             if (paramMirrorImageData != null) {
                 return paramMirrorImageData;
-            }
-            if ("反面相同画面".equals(node.getNodeName())) {
-                return resolveMirrorImageDataFromProductionImage(orderItem);
             }
         }
         return null;
@@ -146,7 +135,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             String preview = toNonBlankString(extractFieldValue(filePreview, "preview"));
             String thumbnail = toNonBlankString(extractFieldValue(filePreview, "thumbnail"));
             if (raw != null) {
-                return new MirrorImageData(raw, preview, thumbnail);
+                return new MirrorImageData(raw, preview, thumbnail, false);
             }
         }
         return null;
@@ -160,7 +149,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         String raw = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getRaw());
         String preview = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getPreview());
         String thumbnail = toNonBlankString(orderItem.getProductionImgFile().getFilePreview().getThumbnail());
-        return raw == null ? null : new MirrorImageData(raw, preview, thumbnail);
+        return raw == null ? null : new MirrorImageData(raw, preview, thumbnail, true);
     }
 
     private String toNonBlankString(Object value) {
@@ -175,11 +164,13 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         private final String raw;
         private final String preview;
         private final String thumbnail;
+        private final boolean mirrorFlip;
 
-        private MirrorImageData(String raw, String preview, String thumbnail) {
+        private MirrorImageData(String raw, String preview, String thumbnail, boolean mirrorFlip) {
             this.raw = raw;
             this.preview = preview;
             this.thumbnail = thumbnail;
+            this.mirrorFlip = mirrorFlip;
         }
     }
 
