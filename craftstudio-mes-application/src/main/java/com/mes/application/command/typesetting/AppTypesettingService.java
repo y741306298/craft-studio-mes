@@ -279,9 +279,12 @@ public class AppTypesettingService {
                     1,
                     Integer.MAX_VALUE
             );
+            Map<String, String> orderGroupIdCache = new HashMap<>();
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) > 0) {
-                    allItems.add(TypesettingProductionPieceVO.fromProductionPiece(piece));
+                    TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+                    applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
+                    allItems.add(vo);
                 }
             }
         }
@@ -315,6 +318,39 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
 
         return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+    }
+
+    private void applyECommerceGroupId(TypesettingProductionPieceVO vo, ProductionPiece piece, TypesettingQuery query, Map<String, String> orderGroupIdCache) {
+        if (vo == null || piece == null || query == null || !Boolean.TRUE.equals(query.getECommerceMmodel())) {
+            return;
+        }
+        String orderItemId = piece.getOrderItemId();
+        if (StringUtils.isBlank(orderItemId)) {
+            return;
+        }
+        String orderId = resolveOrderIdByOrderItemId(orderItemId, orderGroupIdCache);
+        if (StringUtils.isNotBlank(orderId)) {
+            vo.setGroupId(orderId);
+        }
+    }
+
+    private String resolveOrderIdByOrderItemId(String orderItemId, Map<String, String> orderGroupIdCache) {
+        if (StringUtils.isBlank(orderItemId)) {
+            return null;
+        }
+        String normalizedOrderItemId = orderItemId.trim();
+        if (orderGroupIdCache != null && orderGroupIdCache.containsKey(normalizedOrderItemId)) {
+            return orderGroupIdCache.get(normalizedOrderItemId);
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(normalizedOrderItemId);
+        if (orderItem == null) {
+            orderItem = orderItemService.findById(normalizedOrderItemId);
+        }
+        String orderId = orderItem == null ? null : orderItem.getOrderId();
+        if (orderGroupIdCache != null) {
+            orderGroupIdCache.put(normalizedOrderItemId, orderId);
+        }
+        return orderId;
     }
 
     private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
@@ -621,11 +657,13 @@ public class AppTypesettingService {
 
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
+        Map<String, String> orderGroupIdCache = new HashMap<>();
         for (ProductionPiece piece : parts) {
             if (getPendingTypesettingQuantity(piece) <= 0) {
                 continue;
             }
             TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+            applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
             voList.add(vo);
         }
 
