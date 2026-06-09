@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -100,7 +101,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
-        boolean hasDoubleSideMounting = hasDoubleSideMounting(context.getTypesettingInfo());
+        boolean hasDoubleSideMounting = allCellsAreProductionPieces(context.getTypesettingInfo())
+                && hasDoubleSideMounting(context.getTypesettingInfo());
         String elementC = context.getQrDataUriGenerator().apply(elementB);
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
@@ -202,6 +204,14 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
+    }
+
+    private boolean allCellsAreProductionPieces(TypesettingInfo info) {
+        if (info == null || info.getTypesettingCells() == null || info.getTypesettingCells().isEmpty()) {
+            return false;
+        }
+        return info.getTypesettingCells().stream()
+                .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
     }
 
     private boolean hasDoubleSideMounting(TypesettingInfo info) {
