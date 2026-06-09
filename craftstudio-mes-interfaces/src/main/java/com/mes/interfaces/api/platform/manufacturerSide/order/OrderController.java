@@ -180,7 +180,7 @@ public class OrderController {
                 (int) query.getCurrent(),
                 query.getSize()
         );
-        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+        return PagedApiResponse.success((List<OrderTransferRecord>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
     /**
@@ -198,7 +198,7 @@ public class OrderController {
                 (int) query.getCurrent(),
                 query.getSize()
         );
-        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+        return PagedApiResponse.success((List<OrderTransferRecord>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
     /**
