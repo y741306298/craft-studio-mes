@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -22,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -85,8 +85,9 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
-        String elementC = LEFT_ARROW_URL;
-        String elementCC = LEFT_ARROW_URL;
+        boolean allCellsAreParts = allCellsAreProductionPieces(context.getTypesettingInfo());
+        String elementC = allCellsAreParts ? LEFT_ARROW_URL : null;
+        String elementCC = allCellsAreParts ? LEFT_ARROW_URL : null;
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
         String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
@@ -95,7 +96,9 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
             marks.put("elementFRotated", elementFRotated);
-            marks.put("elementG", LEFT_ARROW_URL);
+            if (allCellsAreParts) {
+                marks.put("elementG", LEFT_ARROW_URL);
+            }
             context.getTypesettingInfo().setMarks(marks);
         }
 
@@ -109,13 +112,19 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         bottom.setImg(elementFRotated);
         bottom.setSize(createSize(context.getNestedWidth(), marginHeight));
         bottom.setPosition(createPosition(nestedStartX, elementOriginY + context.getNestedHeight().intValue()));
-        FormeGenerationRequest.Mark leftArrow = new FormeGenerationRequest.Mark();
-        leftArrow.setImg(LEFT_ARROW_URL);
-        leftArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
-        int arrowX = QR_LEFT_MM;
-        int arrowY = (marginHeight.intValue() - QR_SIZE_MM) / 2;
-        leftArrow.setPosition(createPosition(arrowX, arrowY));
-        result.setMarks(Arrays.asList(top, bottom, leftArrow));
+        List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
+        marks.add(top);
+        marks.add(bottom);
+        if (allCellsAreParts) {
+            FormeGenerationRequest.Mark leftArrow = new FormeGenerationRequest.Mark();
+            leftArrow.setImg(LEFT_ARROW_URL);
+            leftArrow.setSize(createSize(BigDecimal.valueOf(QR_SIZE_MM), BigDecimal.valueOf(QR_SIZE_MM)));
+            int arrowX = QR_LEFT_MM;
+            int arrowY = (marginHeight.intValue() - QR_SIZE_MM) / 2;
+            leftArrow.setPosition(createPosition(arrowX, arrowY));
+            marks.add(leftArrow);
+        }
+        result.setMarks(marks);
 
         // 双面对裱镜像印版不需要生成定位点
         result.setAnchorPoints(new ArrayList<>());
@@ -124,6 +133,14 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
+    }
+
+    private boolean allCellsAreProductionPieces(TypesettingInfo info) {
+        if (info == null || info.getTypesettingCells() == null || info.getTypesettingCells().isEmpty()) {
+            return false;
+        }
+        return info.getTypesettingCells().stream()
+                .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
     }
 
     private List<String> buildElementAExtInfos(TypesettingInfo info) {
