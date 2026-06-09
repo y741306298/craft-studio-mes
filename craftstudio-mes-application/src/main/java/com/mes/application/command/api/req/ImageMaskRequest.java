@@ -29,6 +29,7 @@ public class ImageMaskRequest {
     public static class RawImage {
         private String url;
         private String mirrorUrl;
+        private boolean mirrorFlip;
         private ImageProperties imageProperties;
     }
 

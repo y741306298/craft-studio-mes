@@ -189,8 +189,8 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final int TAG_STRIP_HEIGHT_MM = 20;
-    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM = 16;
-    private static final int DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM = 16;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
+    private static final int DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM = 28;
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("900*2400", 900, 2400),
             new TypesettingLayoutSpecVO("1050*2400", 1050, 2400),
@@ -1342,7 +1342,8 @@ public class AppTypesettingService {
 
     /**
      * 按 typesettingCells 中的 materialId + layoutMode 查询 width 内缩配置，并在提交算法前扣减 containers.width。
-     * <p>未配置内缩数据时走默认规则：本次排版不包含印版数据则扣减 50mm，包含印版数据则扣减 20mm。</p>
+     * <p>未配置内缩数据时走默认规则：全部来源为零件且存在“覆板”工艺时扣减 16mm，
+     * 全部来源为零件但不存在“覆板”工艺或包含历史印版来源时扣减 28mm。</p>
      */
     public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request) {
         if (request == null) {
@@ -1381,9 +1382,29 @@ public class AppTypesettingService {
     }
 
     private Integer resolveDefaultContainerWidthInset(List<TypesettingProductionPieceVO> typesettingCells) {
-        return hasTypesettingSourceCell(typesettingCells)
-                ? DEFAULT_CONTAINER_WIDTH_INSET_WITH_FORME_MM
-                : DEFAULT_CONTAINER_WIDTH_INSET_WITHOUT_FORME_MM;
+        if (hasTypesettingSourceCell(typesettingCells)) {
+            return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
+        }
+        if (isAllProductionPieceCells(typesettingCells) && hasAnyCoverBoardNode(typesettingCells)) {
+            return DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM;
+        }
+        return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
+    }
+
+    private boolean isAllProductionPieceCells(List<TypesettingProductionPieceVO> typesettingCells) {
+        if (CollectionUtils.isEmpty(typesettingCells)) {
+            return false;
+        }
+        return typesettingCells.stream()
+                .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
+    }
+
+    private boolean hasAnyCoverBoardNode(List<TypesettingProductionPieceVO> typesettingCells) {
+        if (CollectionUtils.isEmpty(typesettingCells)) {
+            return false;
+        }
+        return typesettingCells.stream()
+                .anyMatch(this::hasCoverBoardNode);
     }
 
     private boolean hasTypesettingSourceCell(List<TypesettingProductionPieceVO> typesettingCells) {
