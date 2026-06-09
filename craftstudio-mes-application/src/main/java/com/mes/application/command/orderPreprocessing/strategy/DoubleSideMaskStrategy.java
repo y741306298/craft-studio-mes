@@ -19,45 +19,78 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
 
     @Override
     public List<ProductionPiece> process(OrderItem orderItem, ProcedureFlow procedureFlow, AppOrderPreprocessingService processingService) {
-        // 步骤1：识别反面画面数据。
         MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow, orderItem);
-        if (!hasSpecialShape && !hasSplicing) {
-            // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
-            String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
-            processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
-
-            String productionImgUrl = orderItem.getProductionImgFile() != null
-                    && orderItem.getProductionImgFile().getFilePreview() != null
-                    ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                    : null;
-            Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
-            Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
-            ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
-                    orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-
-            OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
-            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-                piece.setRemark(orderInfo.getRemark());
-            }
-
-            if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
-                MirrorConfig mirrorConfig = new MirrorConfig();
-                mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
-                mirrorConfig.setSvg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
-                mirrorConfig.setPreviewImg(processingService.completeOssUrlForStrategy(mirrorImageData.preview));
-                mirrorConfig.setThumbnail(processingService.completeOssUrlForStrategy(mirrorImageData.thumbnail));
-                piece.setMirrorConfigs(List.of(mirrorConfig));
-            }
-            processingService.getProductionPieceService().addProductionPiece(piece);
-            processingService.indexProductionPieceImageForStrategy(piece);
-            List<ProductionPiece> pieces = new ArrayList<>();
-            pieces.add(piece);
-            return pieces;
+        if (shouldCreateProductionPieceDirectly(procedureFlow)) {
+            return createProductionPieceDirectly(orderItem, procedureFlow, processingService, mirrorImageData);
         }
-        // 步骤3：存在拼接/异形切割时才调用异步蒙版算法。
+
+        // 存在拼接/异形切割时才调用异步蒙版算法。
         processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(),
-                mirrorImageData == null ? null : mirrorImageData.raw,
-                mirrorImageData != null && mirrorImageData.mirrorFlip);
+                mirrorImageData == null ? null : mirrorImageData.raw);
+        return null;
+    }
+
+    private boolean shouldCreateProductionPieceDirectly(ProcedureFlow procedureFlow) {
+        return !AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割")
+                && !SpliceProcessStrategies.hasSpliceNode(procedureFlow);
+    }
+
+    private List<ProductionPiece> createProductionPieceDirectly(OrderItem orderItem,
+                                                               ProcedureFlow procedureFlow,
+                                                               AppOrderPreprocessingService processingService,
+                                                               MirrorImageData mirrorImageData) {
+        // 仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
+        String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
+        processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
+
+        String productionImgUrl = orderItem.getProductionImgFile() != null
+                && orderItem.getProductionImgFile().getFilePreview() != null
+                ? orderItem.getProductionImgFile().getFilePreview().getRaw()
+                : null;
+        Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
+        Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+        ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
+                orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
+
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+            piece.setRemark(orderInfo.getRemark());
+        }
+
+        if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
+            MirrorConfig mirrorConfig = new MirrorConfig();
+            mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
+            mirrorConfig.setSvg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
+            mirrorConfig.setPreviewImg(processingService.completeOssUrlForStrategy(mirrorImageData.preview));
+            mirrorConfig.setThumbnail(processingService.completeOssUrlForStrategy(mirrorImageData.thumbnail));
+            piece.setMirrorConfigs(List.of(mirrorConfig));
+        }
+        processingService.getProductionPieceService().addProductionPiece(piece);
+        processingService.indexProductionPieceImageForStrategy(piece);
+        List<ProductionPiece> pieces = new ArrayList<>();
+        pieces.add(piece);
+        return pieces;
+    }
+
+    private Double toMillimeters(Double centimeters) {
+        return centimeters == null ? null : centimeters * 10;
+    }
+
+    private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
+        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
+        }
+        for (String methodName : methodNames) {
+            try {
+                Method method = usageSize3D.getClass().getMethod(methodName);
+                Object value = method.invoke(usageSize3D);
+                if (value instanceof Number number) {
+                    return number.doubleValue();
+                }
+            } catch (Exception ignored) {
+            }
+        }
         return null;
     }
 
