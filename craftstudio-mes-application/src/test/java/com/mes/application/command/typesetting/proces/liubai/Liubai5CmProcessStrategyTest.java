@@ -1,6 +1,8 @@
 package com.mes.application.command.typesetting.proces.liubai;
 
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -11,6 +13,8 @@ import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -129,6 +133,32 @@ class Liubai5CmProcessStrategyTest {
         assertRgbClose(Color.GRAY, image.getRGB(innerLeft, innerTop));
     }
 
+    @Test
+    void processAddsCombinedLiubaiPostProcessTagsOnOuterRectangleEdges() throws Exception {
+        ProductionPiece piece = pieceWithInlineMask("<svg width=\"300\" height=\"280\" viewBox=\"0 0 300 280\"><rect width=\"300\" height=\"280\"/></svg>");
+        LiubaiProcessContext context = context(piece, false);
+        context.setProcedureFlow(procedureFlow("覆膜", "留白5cm", "穿钢丝绳", "粘边", "粘边"));
+
+        strategy.process(context);
+
+        String uploadedSvg = ossTagUploadService.uploadedSvgText();
+        assertTrue(uploadedSvg.contains("data-tag-text=\"穿钢丝绳粘边\""));
+        assertTrue(uploadedSvg.contains("id=\"liubai-tag-horizontal-top-left-"));
+        assertTrue(uploadedSvg.contains("id=\"liubai-tag-vertical-left-top-"));
+        assertTrue(uploadedSvg.contains("transform=\"translate(50 -50)\""));
+        assertTrue(uploadedSvg.contains("transform=\"translate(-50 50)\""));
+        assertEquals("https://example.test/mark-2.png", piece.getMarks().get("liubai-tag-horizontal"));
+        assertEquals("https://example.test/mark-3.png", piece.getMarks().get("liubai-tag-vertical"));
+
+        BufferedImage horizontal = ImageIO.read(new ByteArrayInputStream(ossTagUploadService.uploadedPngBytesList.get(1)));
+        BufferedImage vertical = ImageIO.read(new ByteArrayInputStream(ossTagUploadService.uploadedPngBytesList.get(2)));
+        assertNotNull(horizontal);
+        assertNotNull(vertical);
+        assertEquals(convertMmToPixels(10D, 300D), horizontal.getHeight());
+        assertEquals(horizontal.getHeight(), vertical.getWidth());
+        assertEquals(horizontal.getWidth(), vertical.getHeight());
+    }
+
     private ProductionPiece pieceWithInlineMask(String svg) {
         ProductionPiece piece = new ProductionPiece();
         piece.setProductionPieceId("PP_TEST");
@@ -139,6 +169,18 @@ class Liubai5CmProcessStrategyTest {
         mask.setRawFile(svg);
         piece.setMaskImageFile(mask);
         return piece;
+    }
+
+    private ProcedureFlow procedureFlow(String... nodeNames) {
+        ProcedureFlow procedureFlow = new ProcedureFlow();
+        List<ProcedureFlowNode> nodes = new ArrayList<>();
+        for (String nodeName : nodeNames) {
+            ProcedureFlowNode node = new ProcedureFlowNode();
+            node.setNodeName(nodeName);
+            nodes.add(node);
+        }
+        procedureFlow.setNodes(nodes);
+        return procedureFlow;
     }
 
     private LiubaiProcessContext context(ProductionPiece piece, boolean skipBloodEdges) {
@@ -152,7 +194,11 @@ class Liubai5CmProcessStrategyTest {
     }
 
     private int convertMmToPixels(double valueMm) {
-        return Math.max(1, (int) Math.ceil(valueMm / 25.4D * 36D));
+        return convertMmToPixels(valueMm, 36D);
+    }
+
+    private int convertMmToPixels(double valueMm, double dpi) {
+        return Math.max(1, (int) Math.ceil(valueMm / 25.4D * dpi));
     }
 
     private void assertRgbClose(Color expected, int actualRgb) {
@@ -166,6 +212,7 @@ class Liubai5CmProcessStrategyTest {
     private static class CapturingOssTagUploadService extends OssTagUploadService {
         private byte[] uploadedPngBytes;
         private byte[] uploadedSvgBytes;
+        private final List<byte[]> uploadedPngBytesList = new ArrayList<>();
 
         private CapturingOssTagUploadService() {
             super(null);
@@ -174,7 +221,8 @@ class Liubai5CmProcessStrategyTest {
         @Override
         public String uploadTagPng(String businessId, byte[] bytes, String subDir) {
             this.uploadedPngBytes = bytes;
-            return "https://example.test/mark.png";
+            this.uploadedPngBytesList.add(bytes);
+            return "https://example.test/mark-" + uploadedPngBytesList.size() + ".png";
         }
 
         @Override
