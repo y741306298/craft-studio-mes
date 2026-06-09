@@ -2218,7 +2218,6 @@ public class AppTypesettingService {
                                                               Map<String, String> marks,
                                                               Set<String> productionPieceIds) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
-        boolean isMirrorTypesetting = StringUtils.isNotBlank(typesettingInfoId) && typesettingInfoId.contains("-Mirror");
         for (String productionPieceId : productionPieceIds) {
             ProductionPiece piece = productionPieceService.findById(productionPieceId);
             if (piece == null) {
@@ -2226,11 +2225,7 @@ public class AppTypesettingService {
             }
             String baseImage = resolveProductionPieceImageForDownload(piece);
             appendRawFile(imageSet, baseImage);
-            if (isMirrorTypesetting) {
-                if (piece.getMirrorConfigs() != null && !piece.getMirrorConfigs().isEmpty()) {
-                    appendRawFile(imageSet, piece.getMirrorConfigs().get(0).getImg());
-                }
-            }
+            appendMirrorConfigImages(imageSet, piece);
         }
         LinkedHashSet<String> pltSet = new LinkedHashSet<>();
         LinkedHashSet<String> jsonSet = new LinkedHashSet<>();
@@ -2288,6 +2283,18 @@ public class AppTypesettingService {
         }
     }
 
+
+    private void appendMirrorConfigImages(Set<String> imageSet, ProductionPiece piece) {
+        if (piece == null || piece.getMirrorConfigs() == null || piece.getMirrorConfigs().isEmpty()) {
+            return;
+        }
+        for (MirrorConfig mirrorConfig : piece.getMirrorConfigs()) {
+            if (mirrorConfig == null) {
+                continue;
+            }
+            appendRawFile(imageSet, mirrorConfig.getImg());
+        }
+    }
 
     private String resolveProductionPieceImageForDownload(ProductionPiece piece) {
         if (piece == null || piece.getProductImageFile() == null) {

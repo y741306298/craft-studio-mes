@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.strategy;
 
 import com.alibaba.fastjson.JSON;
+import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.apache.commons.lang3.StringUtils;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * 双面对裱镜像印版策略：
- * 仅当存在“双面对裱”或“覆双面”节点，且 nestedMirrorSvg 存在时触发。
+ * 仅当排版元素全部为零件、存在“双面对裱”或“覆双面”节点，且 nestedMirrorSvg 存在时触发。
  */
 @Service
 public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrategy {
@@ -17,7 +18,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
 
     @Override
     public boolean supports(TypesettingInfo info) {
-        return hasDoubleSideMounting(info);
+        return allCellsAreProductionPieces(info) && hasDoubleSideMounting(info);
     }
 
     @Override
@@ -34,6 +35,14 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
         return mirror;
+    }
+
+    private boolean allCellsAreProductionPieces(TypesettingInfo info) {
+        if (info == null || info.getTypesettingCells() == null || info.getTypesettingCells().isEmpty()) {
+            return false;
+        }
+        return info.getTypesettingCells().stream()
+                .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()));
     }
 
     private boolean hasDoubleSideMounting(TypesettingInfo info) {
