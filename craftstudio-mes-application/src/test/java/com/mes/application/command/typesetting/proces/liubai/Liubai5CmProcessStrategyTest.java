@@ -142,7 +142,9 @@ class Liubai5CmProcessStrategyTest {
         strategy.process(context);
 
         String uploadedSvg = ossTagUploadService.uploadedSvgText();
-        assertTrue(uploadedSvg.contains("data-tag-text=\"穿钢丝绳粘边\""));
+        assertFalse(uploadedSvg.contains("data-tag-text"));
+        assertTrue(uploadedSvg.contains("fill=\"#999999\""));
+        assertFalse(uploadedSvg.contains("stroke=\"none\""));
         assertTrue(uploadedSvg.contains("id=\"liubai-tag-horizontal-top-left-"));
         assertTrue(uploadedSvg.contains("id=\"liubai-tag-vertical-left-top-"));
         assertTrue(uploadedSvg.contains("transform=\"translate(50 -50)\""));

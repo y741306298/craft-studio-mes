@@ -945,16 +945,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private void appendHorizontalLiubaiTagGroup(StringBuilder builder, String pieceMongoId, LiubaiTagAssets tagAssets, String suffix, double x, double y) {
-        appendLiubaiTagGroup(builder, pieceMongoId, tagAssets.text, "horizontal", suffix, tagAssets.horizontalUrl, tagAssets.horizontalWidthMm, tagAssets.horizontalHeightMm, x, y);
+        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", suffix, tagAssets.horizontalUrl, tagAssets.horizontalWidthMm, tagAssets.horizontalHeightMm, x, y);
     }
 
     private void appendVerticalLiubaiTagGroup(StringBuilder builder, String pieceMongoId, LiubaiTagAssets tagAssets, String suffix, double x, double y) {
-        appendLiubaiTagGroup(builder, pieceMongoId, tagAssets.text, "vertical", suffix, tagAssets.verticalUrl, tagAssets.verticalWidthMm, tagAssets.verticalHeightMm, x, y);
+        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", suffix, tagAssets.verticalUrl, tagAssets.verticalWidthMm, tagAssets.verticalHeightMm, x, y);
     }
 
     private void appendLiubaiTagGroup(StringBuilder builder,
                                       String pieceMongoId,
-                                      String text,
                                       String direction,
                                       String suffix,
                                       String imageUrl,
@@ -965,9 +964,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         builder.append("<g id=\"liubai-tag-").append(direction).append("-").append(suffix).append("-").append(escapeAttr(pieceMongoId))
                 .append("\" img=\"").append(escapeAttr(imageUrl))
                 .append("\" data-source-name=\"").append(escapeAttr(sourceName(imageUrl)))
-                .append("\" data-tag-text=\"").append(escapeAttr(text))
                 .append("\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
-                .append("<path d=\"M0 0 H").append(format(widthMm)).append(" V").append(format(heightMm)).append(" H0 Z\" fill=\"none\" stroke=\"none\" />\n")
+                .append("<path d=\"M0 0 H").append(format(widthMm)).append(" V").append(format(heightMm)).append(" H0 Z\" fill=\"#999999\" />\n")
                 .append("</g>\n");
     }
 
