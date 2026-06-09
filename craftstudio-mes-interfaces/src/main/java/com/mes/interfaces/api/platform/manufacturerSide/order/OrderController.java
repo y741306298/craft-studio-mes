@@ -102,6 +102,17 @@ public class OrderController {
 
 
     /**
+     * 根据订单 ID 全量查询 quantity 不为 0 的订单项列表，返回结构与 listOrders 的 item 一致。
+     */
+    @PostMapping("/listByOrderId")
+    public ApiResponse<List<OrderItemVO>> listOrderItemsByOrderId(@RequestBody OrderListRequest request) {
+        OrderQuery orderQuery = new OrderQuery();
+        orderQuery.setOrderId(request.getOrderId());
+        orderQuery.setManufacturerId(request.getManufacturerId());
+        return ApiResponse.success(appOrderService.findNonZeroQuantityOrderItemsByOrderId(orderQuery));
+    }
+
+    /**
      * 根据订单项 ID 获取详情（包含生产工件）
      * @param orderItemId 订单项 ID
      * @return 订单项详情及生产工件

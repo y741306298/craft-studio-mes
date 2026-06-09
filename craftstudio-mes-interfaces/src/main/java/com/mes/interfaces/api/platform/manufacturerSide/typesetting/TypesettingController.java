@@ -61,6 +61,24 @@ public class TypesettingController {
         return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult()));
     }
 
+    /**
+     * 按 typesettingId / orderId / orderItemId 之一全量查询排版对象或生产工件。
+     */
+    @PostMapping("/listById")
+    public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPiecesById(@RequestBody TypesettingQuery request) {
+        List<TypesettingProductionPieceVO> items = appTypesettingService.findTypesettingAndProductionPiecesById(request);
+        sanitizeProcedureFlow(items);
+        TypesettingAndProductionPiecesResponse response = new TypesettingAndProductionPiecesResponse(
+                items,
+                (long) items.size(),
+                1L,
+                buildProcessingFlowList(items),
+                buildMaterialList(items),
+                buildSourceTypeList()
+        );
+        return ApiResponse.success(response);
+    }
+
     @GetMapping("/list/condition")
     public ApiResponse<TypesettingAndProductionPiecesResponse> listByCondition(
             @RequestParam String manufacturerMetaId,
@@ -109,6 +127,16 @@ public class TypesettingController {
                 appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, current, size);
         
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 根据排版 ID 全量查询待确认排版信息，包含对应的 -Mirror 数据。
+     */
+    @GetMapping("/confirming/listByTypesettingId")
+    public ApiResponse<List<TypesettingInfo>> listConfirmingTypesettingByTypesettingId(
+            @RequestParam String manufacturerMetaId,
+            @RequestParam String typesettingId) {
+        return ApiResponse.success(appTypesettingService.findConfirmingTypesettingByTypesettingId(manufacturerMetaId, typesettingId));
     }
 
     /**

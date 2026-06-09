@@ -102,17 +102,62 @@ public class AppOrderService {
                 filters
         );
         total = domainOrderItemService.filterTotal(filters);
-        List<OrderItemVO> result = new ArrayList<OrderItemVO>();
+        List<OrderItemVO> result = buildOrderItemVOs(orderItems);
+        return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
+    }
+
+    /**
+     * 根据订单 ID 全量查询数量不为 0 的订单项，返回结构与订单列表项一致。
+     */
+    public List<OrderItemVO> findNonZeroQuantityOrderItemsByOrderId(OrderQuery query) {
+        if (query == null || StringUtils.isBlank(query.getOrderId())) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orderId", query.getOrderId().trim());
+        if (StringUtils.isNotBlank(query.getManufacturerId())) {
+            filters.put("manufacturerId", query.getManufacturerId());
+        }
+
+        List<OrderItem> orderItems = new ArrayList<>();
+        int current = 1;
+        while (true) {
+            List<OrderItem> pageItems = domainOrderItemService.filterListUrgentFirst(current, 100, filters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            pageItems.stream()
+                    .filter(item -> item != null && item.getQuantity() != null && item.getQuantity() != 0)
+                    .forEach(orderItems::add);
+            if (pageItems.size() < 100) {
+                break;
+            }
+            current++;
+        }
+        return buildOrderItemVOs(orderItems);
+    }
+
+    private List<OrderItemVO> buildOrderItemVOs(List<OrderItem> orderItems) {
+        List<OrderItemVO> result = new ArrayList<>();
+        if (orderItems == null) {
+            return result;
+        }
         for (OrderItem item : orderItems) {
+            if (item == null) {
+                continue;
+            }
             String oid = item.getOrderId();
             OrderInfo orderInfo = domainOrderInfoService.findByOrderId(oid);
             OrderItemVO orderWithItemsVO = new OrderItemVO();
             BeanUtils.copyProperties(item, orderWithItemsVO);
-            orderWithItemsVO.setCustomer(orderInfo.getCustomer());
-            orderWithItemsVO.setRemark(orderInfo.getRemark());
+            if (orderInfo != null) {
+                orderWithItemsVO.setCustomer(orderInfo.getCustomer());
+                orderWithItemsVO.setRemark(orderInfo.getRemark());
+            }
             result.add(orderWithItemsVO);
         }
-        return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
+        return result;
     }
 
     /**

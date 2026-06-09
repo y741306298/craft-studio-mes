@@ -7,6 +7,7 @@ import com.mes.application.command.delivery.vo.DeliveryPkgAddResultVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
+import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
 import com.mes.application.dto.req.delivery.ImageSearchRequest;
 import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
@@ -77,6 +78,22 @@ public class DeliveryPkgController {
     @PostMapping("/list")
     public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
         List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
+        DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
+                items,
+                appDeliveryPkgService.buildMaterialList(items),
+                appDeliveryPkgService.buildSizeList(items),
+                appDeliveryPkgService.buildProcessList(items)
+        );
+        return ApiResponse.success(response);
+    }
+
+
+    /**
+     * 按 orderId / orderItemId 之一全量查询待打包零件列表。
+     */
+    @PostMapping("/listById")
+    public ApiResponse<DeliveryPkgPiecesResponse> listPendingPackagingPiecesById(@RequestBody DeliveryPkgScopedRequest request) {
+        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPiecesById(request);
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                 items,
                 appDeliveryPkgService.buildMaterialList(items),

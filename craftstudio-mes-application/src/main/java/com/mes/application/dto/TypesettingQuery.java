@@ -16,6 +16,8 @@ public class TypesettingQuery {
     private String status;
     private String materialName;
     private String processingName;
+    private String typesettingId;
+    private String orderId;
     private String orderItemId;
     /**
      * 电商模式：true 时生产工件按订单 ID 分组，false 或空时按订单项 ID 分组。

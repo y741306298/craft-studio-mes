@@ -6,6 +6,7 @@ import com.mes.application.command.delivery.req.Kuaidi100OrderParam;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
+import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
 import com.mes.application.shared.utils.MD5Util;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryMan;
@@ -138,6 +139,101 @@ public class AppDeliveryPkgService {
                 .thenComparing(DeliveryPkgPieceVO::getCreateTime,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
+    }
+
+
+    public List<DeliveryPkgPieceVO> listPendingPackagingPiecesById(DeliveryPkgScopedRequest request) {
+        if (request == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询参数不能为空");
+        }
+        if (StringUtils.isBlank(request.getManufacturerMetaId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+        validateSingleDeliveryScopedId(request);
+
+        List<ProductionPiece> productionPieces = new ArrayList<>();
+        if (StringUtils.isNotBlank(request.getOrderId())) {
+            int current = 1;
+            while (true) {
+                List<OrderItem> orderItems = orderItemService.findByOrderId(request.getOrderId().trim(), request.getManufacturerMetaId(), current, 100);
+                if (orderItems == null || orderItems.isEmpty()) {
+                    break;
+                }
+                orderItems.stream()
+                        .map(OrderItem::getOrderItemId)
+                        .filter(StringUtils::isNotBlank)
+                        .map(orderItemId -> listPendingPackagingPiecesByOrderItemId(request, orderItemId))
+                        .forEach(productionPieces::addAll);
+                if (orderItems.size() < 100) {
+                    break;
+                }
+                current++;
+            }
+        } else {
+            productionPieces.addAll(listPendingPackagingPiecesByOrderItemId(request, request.getOrderItemId()));
+        }
+
+        List<DeliveryPkgPieceVO> items = new ArrayList<>();
+        for (ProductionPiece productionPiece : productionPieces) {
+            DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
+            if (vo != null) {
+                items.add(vo);
+            }
+        }
+
+        return items.stream()
+                .filter(item -> matchesDeliveryScopedRequest(item, request))
+                .sorted(Comparator
+                        .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                        .reversed()
+                        .thenComparing(DeliveryPkgPieceVO::getCreateTime,
+                                Comparator.nullsLast(Comparator.reverseOrder())))
+                .collect(Collectors.toList());
+    }
+
+    private void validateSingleDeliveryScopedId(DeliveryPkgScopedRequest request) {
+        int idCount = 0;
+        if (StringUtils.isNotBlank(request.getOrderId())) {
+            idCount++;
+        }
+        if (StringUtils.isNotBlank(request.getOrderItemId())) {
+            idCount++;
+        }
+        if (idCount != 1) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "orderId、orderItemId 必须且只能传一个");
+        }
+    }
+
+    private List<ProductionPiece> listPendingPackagingPiecesByOrderItemId(DeliveryPkgScopedRequest request, String orderItemId) {
+        return productionPieceService.findProductionPiecesByConditions(
+                request.getManufacturerMetaId(),
+                null,
+                request.getMaterialName(),
+                request.getProcessName(),
+                orderItemId,
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+    }
+
+    private boolean matchesDeliveryScopedRequest(DeliveryPkgPieceVO item, DeliveryPkgScopedRequest request) {
+        boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
+                || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
+        boolean matchCustomerName = StringUtils.isBlank(request.getCustomerName())
+                || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerName())
+                && item.getOrderCustomer().getCustomerName().contains(request.getCustomerName()));
+        boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
+                || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerPhone())
+                && item.getOrderCustomer().getCustomerPhone().contains(request.getCustomerPhone()));
+        boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
+                || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
+                && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
+        boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
+        boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
+        boolean matchWidth = request.getWidth() == null || Objects.equals(item.getWidth(), request.getWidth());
+        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth;
     }
 
 
