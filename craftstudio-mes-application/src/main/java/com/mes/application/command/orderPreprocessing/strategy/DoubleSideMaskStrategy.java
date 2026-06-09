@@ -47,12 +47,12 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
             ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                     orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-            
+
             OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
             if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
                 piece.setRemark(orderInfo.getRemark());
             }
-            
+
             if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
                 MirrorConfig mirrorConfig = new MirrorConfig();
                 mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
