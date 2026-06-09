@@ -263,13 +263,18 @@ public class AppOrderPreprocessingService {
 
     /**
      * 双面对裱专用异步调用：
-     * 1) 强制携带 maskSvgUrl（即使无拼接/异形切割）；
+     * 1) 无异形切割时先生成并保存等幅矩形 SVG 蒙版，确保请求携带 maskSvgUrl；
      * 2) 若存在拼接则仍保留 slice；
-     * 3) 补充 mirrorUrl 并发起异步调用。
+     * 3) 补充 mirrorUrl/mirrorFlip 并发起异步调用。
      */
-    public void callMaskAsyncForDoubleSide(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, String mirrorUrl) {
+    public void callMaskAsyncForDoubleSide(OrderItem orderItem, ProcedureFlow procedureFlow, String presetType, String mirrorUrl, boolean mirrorFlip) {
         List<ProcedureFlowNode> processingNodes = procedureFlow.getNodes();
         boolean hasSplicing = SpliceProcessStrategies.hasSpliceNode(procedureFlow);
+        boolean hasSpecialShape = hasNodeWithName(procedureFlow, "异形切割");
+        if (!hasSpecialShape) {
+            String generatedMaskImgUrl = generateRectMaskSvgForStrategy(orderItem);
+            saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
+        }
         ImageMaskRequest imageMaskRequest = ImageMaskRequest.processWithSplicing(orderItem, processingNodes, true, hasSplicing, SpliceProcessStrategies.defaults());
 
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
@@ -283,6 +288,7 @@ public class AppOrderPreprocessingService {
         if (StringUtils.isNotBlank(mirrorUrl)) {
             imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
         }
+        imageMaskRequest.getRawImage().setMirrorFlip(mirrorFlip);
 
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
