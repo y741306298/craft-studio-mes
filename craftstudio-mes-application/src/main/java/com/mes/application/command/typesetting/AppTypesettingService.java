@@ -320,6 +320,147 @@ public class AppTypesettingService {
         return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
     }
 
+    /**
+     * 按 typesettingId / orderId / orderItemId 之一全量查询待排版对象。
+     */
+    public List<TypesettingProductionPieceVO> findTypesettingAndProductionPiecesById(TypesettingQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("查询参数不能为空");
+        }
+        if (StringUtils.isBlank(query.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        validateSingleTypesettingScopedId(query);
+
+        List<TypesettingProductionPieceVO> items;
+        if (StringUtils.isNotBlank(query.getTypesettingId())) {
+            items = findPendingTypesettingItemsByTypesettingId(query);
+        } else {
+            items = findPendingProductionPieceItemsByOrderScope(query);
+        }
+        sortTypesettingProductionPiecesByUrgencyAndCreateTime(items);
+        return items;
+    }
+
+    private void validateSingleTypesettingScopedId(TypesettingQuery query) {
+        int idCount = 0;
+        if (StringUtils.isNotBlank(query.getTypesettingId())) {
+            idCount++;
+        }
+        if (StringUtils.isNotBlank(query.getOrderId())) {
+            idCount++;
+        }
+        if (StringUtils.isNotBlank(query.getOrderItemId())) {
+            idCount++;
+        }
+        if (idCount != 1) {
+            throw new IllegalArgumentException("typesettingId、orderId、orderItemId 必须且只能传一个");
+        }
+    }
+
+    private List<TypesettingProductionPieceVO> findPendingTypesettingItemsByTypesettingId(TypesettingQuery query) {
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                query.getManufacturerMetaId(),
+                null,
+                query.getMaterialName(),
+                query.getProcessingName(),
+                query.getStartTime(),
+                query.getEndTime(),
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        for (TypesettingInfo info : typesettingInfos) {
+            if (info == null) {
+                continue;
+            }
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
+            if (leaveQuantity > 0 && isPending && matchesTypesettingId(info.getTypesettingId(), query.getTypesettingId())) {
+                items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
+            }
+        }
+        return items;
+    }
+
+    private List<TypesettingProductionPieceVO> findPendingProductionPieceItemsByOrderScope(TypesettingQuery query) {
+        List<String> orderItemIds = StringUtils.isNotBlank(query.getOrderId())
+                ? findOrderItemIdsByOrderId(query.getOrderId(), query.getManufacturerMetaId())
+                : Collections.singletonList(query.getOrderItemId());
+
+        List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        Map<String, String> orderGroupIdCache = new HashMap<>();
+        for (String orderItemId : orderItemIds) {
+            if (StringUtils.isBlank(orderItemId)) {
+                continue;
+            }
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+                    query.getManufacturerMetaId(),
+                    null,
+                    query.getMaterialName(),
+                    query.getProcessingName(),
+                    orderItemId,
+                    query.getStartTime(),
+                    query.getEndTime(),
+                    1,
+                    Integer.MAX_VALUE
+            );
+            for (ProductionPiece piece : productionPieces) {
+                if (getPendingTypesettingQuantity(piece) <= 0) {
+                    continue;
+                }
+                TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+                applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
+                items.add(vo);
+            }
+        }
+        return items;
+    }
+
+    private List<String> findOrderItemIdsByOrderId(String orderId, String manufacturerMetaId) {
+        if (StringUtils.isBlank(orderId)) {
+            return Collections.emptyList();
+        }
+        List<String> orderItemIds = new ArrayList<>();
+        int current = 1;
+        while (true) {
+            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId.trim(), manufacturerMetaId, current, 100);
+            if (orderItems == null || orderItems.isEmpty()) {
+                break;
+            }
+            orderItems.stream()
+                    .map(OrderItem::getOrderItemId)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(orderItemIds::add);
+            if (orderItems.size() < 100) {
+                break;
+            }
+            current++;
+        }
+        return orderItemIds;
+    }
+
+    private boolean matchesTypesettingId(String candidate, String requestTypesettingId) {
+        if (StringUtils.isBlank(requestTypesettingId)) {
+            return true;
+        }
+        if (StringUtils.isBlank(candidate)) {
+            return false;
+        }
+        String normalizedRequest = normalizeTypesettingId(requestTypesettingId);
+        return normalizeTypesettingId(candidate).equalsIgnoreCase(normalizedRequest);
+    }
+
+    private String normalizeTypesettingId(String typesettingId) {
+        String normalized = typesettingId == null ? "" : typesettingId.trim();
+        String mirrorSuffix = "-Mirror";
+        if (normalized.toLowerCase().endsWith(mirrorSuffix.toLowerCase())) {
+            return normalized.substring(0, normalized.length() - mirrorSuffix.length());
+        }
+        return normalized;
+    }
+
     private void applyECommerceGroupId(TypesettingProductionPieceVO vo, ProductionPiece piece, TypesettingQuery query, Map<String, String> orderGroupIdCache) {
         if (vo == null || piece == null || query == null || !Boolean.TRUE.equals(query.getECommerceMmodel())) {
             return;
@@ -614,6 +755,44 @@ public class AppTypesettingService {
         long total = allTypesettingInfos.size();
 
         return new PagedResult<>(pagedTypesettingInfos, total, size, current);
+    }
+
+    /**
+     * 根据 typesettingId 全量查询待确认排版数据，包含对应的 -Mirror 数据。
+     */
+    public List<TypesettingInfo> findConfirmingTypesettingByTypesettingId(String manufacturerMetaId, String typesettingId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        if (StringUtils.isBlank(typesettingId)) {
+            throw new IllegalArgumentException("typesettingId 不能为空");
+        }
+        List<TypesettingInfo> confirmingTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+                manufacturerMetaId,
+                TypesettingStatus.CONFIRMING.getCode(),
+                null,
+                null,
+                1,
+                Integer.MAX_VALUE
+        );
+        List<TypesettingInfo> result = confirmingTypesettingInfos == null
+                ? new ArrayList<>()
+                : confirmingTypesettingInfos.stream()
+                .filter(info -> info != null && matchesTypesettingId(info.getTypesettingId(), typesettingId))
+                .collect(Collectors.toList());
+        result.sort(Comparator
+                .comparing((TypesettingInfo info) -> Boolean.TRUE.equals(info.getIsUrgent()))
+                .reversed()
+                .thenComparing(TypesettingInfo::getCreateTime,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+        for (TypesettingInfo typesettingInfo : result) {
+            if (typesettingInfo == null || typesettingInfo.getElement() == null) {
+                continue;
+            }
+            typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
+            typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
+        }
+        return result;
     }
 
     /**
