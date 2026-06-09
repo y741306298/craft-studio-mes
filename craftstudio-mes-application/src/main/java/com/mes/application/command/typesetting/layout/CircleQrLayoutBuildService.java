@@ -98,7 +98,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
-        log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
+        String commonOrderId = qrLayoutOrderIdResolver.resolveCommonOrderId(context.getTypesettingInfo());
+        log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}, commonOrderId={}", elementA, elementAExtInfos, commonOrderId);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         boolean hasDoubleSideMounting = allCellsAreProductionPieces(context.getTypesettingInfo())
@@ -107,8 +108,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -228,13 +229,9 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         if (info == null) {
             return extInfos;
         }
+        extInfos.addAll(extractAccessoryLabels(info));
         if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
             extInfos.add(info.getTemplateCode());
-        }
-        extInfos.addAll(extractAccessoryLabels(info));
-        String commonOrderId = qrLayoutOrderIdResolver.resolveCommonOrderId(info);
-        if (StringUtils.isNotBlank(commonOrderId)) {
-            extInfos.add(commonOrderId);
         }
         return extInfos;
     }
@@ -309,6 +306,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         String typesettingId,
                                         String elementA,
                                         List<String> elementAExtInfos,
+                                        String commonOrderId,
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
@@ -324,7 +322,6 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int qrSizePx = mmToPx(QR_SIZE_MM);
         int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
-        int cX = bX + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
 
         BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
@@ -345,8 +342,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
             drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
-            drawTextRotate180(g, elementA, cX, textBaseLineY, fontMetrics);
-            int currentX = cX + fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
+            int currentX = bX + fontMetrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
             if (elementAExtInfos != null) {
                 for (String extInfo : elementAExtInfos) {
                     if (StringUtils.isBlank(extInfo)) {
@@ -355,6 +351,11 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                     drawTextRotate180(g, extInfo, currentX, textBaseLineY, fontMetrics);
                     currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
                 }
+            }
+            drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
+            currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
+            if (StringUtils.isNotBlank(commonOrderId)) {
+                drawTextRotate180(g, commonOrderId, currentX, textBaseLineY, fontMetrics);
             }
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
