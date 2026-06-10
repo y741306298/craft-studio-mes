@@ -365,6 +365,21 @@ public class AppManufacturerMetaService {
     }
 
     /**
+     * 切换制造商电商模式。
+     *
+     * @param id 制造商主键 ID
+     * @param eCommerceMmodel true 表示电商模式，false 表示非电商模式
+     */
+    public void switchECommerceMmodel(String id, Boolean eCommerceMmodel) {
+        ManufacturerMeta manufacturerMeta = findById(id);
+        if (manufacturerMeta == null) {
+            throw new IllegalArgumentException("制造商不存在：" + id);
+        }
+        manufacturerMeta.setECommerceMmodel(Boolean.TRUE.equals(eCommerceMmodel));
+        updateManufacturerMeta(manufacturerMeta);
+    }
+
+    /**
      * 分页查询制造商元数据（包含设备数量）
      * @param name 制造商名称
      * @param manufacturerType 制造商类型
