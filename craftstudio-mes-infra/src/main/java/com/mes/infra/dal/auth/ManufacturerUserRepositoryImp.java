@@ -28,6 +28,15 @@ public class ManufacturerUserRepositoryImp extends BaseRepositoryImp<Manufacture
     }
 
     @Override
+    public ManufacturerUser findByPhone(String phone) {
+        ManufacturerUserPo po = mongoTemplate.findOne(
+                new SoftDeleteQuery(Criteria.where("phone").is(phone)),
+                ManufacturerUserPo.class
+        );
+        return po == null ? null : po.toDO();
+    }
+
+    @Override
     public List<ManufacturerUser> listByManufacturerMetaId(String manufacturerMetaId, String phone, long current, int size) {
         Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId);
         if (phone != null && !phone.trim().isEmpty()) {

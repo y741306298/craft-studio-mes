@@ -25,6 +25,7 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
     private Address address;
     private String name;
     private String description;
+    private Boolean eCommerceMmodel = false;
     private String status;
     private List<ManufacturerWorkshopMeta> manufacturerWorkshopMetas;
 
@@ -38,6 +39,7 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
         manufacturerMeta.setManufacturerMetaType(ManufacturerType.getByCode(manufacturerMetaType));
         manufacturerMeta.setName(name);
         manufacturerMeta.setDescription(description);
+        manufacturerMeta.setECommerceMmodel(Boolean.TRUE.equals(eCommerceMmodel));
         manufacturerMeta.setStatus(CfgStatus.getByCode(status));
         manufacturerMeta.setManufacturerWorkshopMetas(manufacturerWorkshopMetas);
         manufacturerMeta.setConsignee(consignee);
@@ -56,6 +58,7 @@ public class ManufacturerMetaPo extends BasePO<ManufacturerMeta> {
         this.manufacturerMetaType = _do.getManufacturerMetaType() != null ? _do.getManufacturerMetaType().getCode() : null;
         this.name = _do.getName();
         this.description = _do.getDescription();
+        this.eCommerceMmodel = Boolean.TRUE.equals(_do.getECommerceMmodel());
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         this.manufacturerWorkshopMetas = _do.getManufacturerWorkshopMetas();
         this.consignee = _do.getConsignee();

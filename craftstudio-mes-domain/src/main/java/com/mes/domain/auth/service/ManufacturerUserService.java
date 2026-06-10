@@ -26,6 +26,9 @@ public class ManufacturerUserService {
         if (manufacturerUserRepository.findByAccount(user.getAccount()) != null) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "账号已存在");
         }
+        if (StringUtils.isNotBlank(user.getPhone()) && manufacturerUserRepository.findByPhone(user.getPhone()) != null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该手机号已经注册，无法再次注册");
+        }
         return manufacturerUserRepository.add(user);
     }
 
@@ -34,6 +37,13 @@ public class ManufacturerUserService {
             return null;
         }
         return manufacturerUserRepository.findByAccount(account);
+    }
+
+    public ManufacturerUser findByPhone(String phone) {
+        if (StringUtils.isBlank(phone)) {
+            return null;
+        }
+        return manufacturerUserRepository.findByPhone(phone);
     }
 
     public List<ManufacturerUser> listByManufacturerMetaId(String manufacturerMetaId, String phone, long current, int size) {
