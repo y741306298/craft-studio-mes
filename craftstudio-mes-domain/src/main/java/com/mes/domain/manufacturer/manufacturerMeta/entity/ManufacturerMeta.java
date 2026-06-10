@@ -20,6 +20,7 @@ public class ManufacturerMeta extends BaseEntity {
     private Address address;
     private String name;
     private String description;
+    private Boolean eCommerceMmodel = false;
     private CfgStatus status;
     private List<ManufacturerWorkshopMeta> manufacturerWorkshopMetas;
 

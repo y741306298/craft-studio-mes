@@ -83,6 +83,12 @@ public class ManufacturerMetaService {
         if (StringUtils.isBlank(manufacturerMeta.getName())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "制造商名称不能为空");
         }
+        String manufacturerName = manufacturerMeta.getName().trim();
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("name", manufacturerName);
+        if (!manufacturerMetaRepository.filterList(1, 1, filters).isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "已存在" + manufacturerName + "名称工厂，无法注册");
+        }
         if (manufacturerMeta.getConsignee() == null ||
                 StringUtils.isBlank(manufacturerMeta.getConsignee().getName()) ||
                 StringUtils.isBlank(manufacturerMeta.getConsignee().getPhone())) {

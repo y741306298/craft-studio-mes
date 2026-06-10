@@ -38,6 +38,8 @@ public class ManufacturerMetaRequest extends ApiRequest {
     
     @Size(max = 720, message = "描述长度不能超过 720 个字符")
     private String description;
+
+    private Boolean eCommerceMmodel = false;
     
     private String status;
 
@@ -60,6 +62,7 @@ public class ManufacturerMetaRequest extends ApiRequest {
         manufacturerMeta.setManufacturerMetaType(ManufacturerType.getByCode(this.manufacturerMetaType));
         manufacturerMeta.setName(this.name);
         manufacturerMeta.setDescription(this.description);
+        manufacturerMeta.setECommerceMmodel(Boolean.TRUE.equals(this.eCommerceMmodel));
         manufacturerMeta.setConsignee(this.consignee);
         manufacturerMeta.setAddress(this.address);
         

@@ -19,6 +19,7 @@ public class ManufacturerMetaListResponse {
     private String manufacturerMetaTypeName;
     private String name;
     private String description;
+    private Boolean eCommerceMmodel;
     private String status;
     
     // 时间信息
@@ -62,6 +63,7 @@ public class ManufacturerMetaListResponse {
         response.setManufacturerMetaTypeName(manufacturerMeta.getManufacturerMetaType() != null ? manufacturerMeta.getManufacturerMetaType().getDescription() : null);
         response.setName(manufacturerMeta.getName());
         response.setDescription(manufacturerMeta.getDescription());
+        response.setECommerceMmodel(Boolean.TRUE.equals(manufacturerMeta.getECommerceMmodel()));
         response.setCreateTime(manufacturerMeta.getCreateTime());
         response.setUpdateTime(manufacturerMeta.getUpdateTime());
         response.setStatus(manufacturerMeta.getStatus().getCode());

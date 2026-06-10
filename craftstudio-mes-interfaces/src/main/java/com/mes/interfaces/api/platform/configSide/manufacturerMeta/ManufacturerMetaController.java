@@ -207,6 +207,18 @@ public class ManufacturerMetaController {
     }
 
     /**
+     * 切换制造商电商模式。
+     *
+     * @param request 电商模式开关请求，true 表示电商模式，false 或空表示非电商模式
+     * @return 操作结果
+     */
+    @PostMapping("/eCommerceMmodel")
+    public ApiResponse<String> switchECommerceMmodel(@Valid @RequestBody ECommerceMmodelSwitchRequest request) {
+        appManufacturerMetaService.switchECommerceMmodel(request.getId(), request.getECommerceMmodel());
+        return ApiResponse.success("success");
+    }
+
+    /**
      * 根据 manufacturerMetaId 级联删除订单相关数据：
      * - orderItem（manufacturerId = manufacturerMetaId）
      * - productionPiece（按 orderItemId 关联删除）
@@ -349,6 +361,16 @@ public class ManufacturerMetaController {
     public static class ManufacturerMetaAddRequest extends ManufacturerMetaRequest {
 
         private List<ManufacturerDeviceCfgRequest> deviceCfgs;
+    }
+
+    /**
+     * 电商模式切换请求。
+     */
+    @Data
+    public static class ECommerceMmodelSwitchRequest {
+        @NotBlank(message = "制造商 ID 不能为空")
+        private String id;
+        private Boolean eCommerceMmodel = false;
     }
 
     /**
