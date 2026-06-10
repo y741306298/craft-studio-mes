@@ -268,7 +268,7 @@ public class DeliveryPkgController {
         String routeDesc = "";
         routeDesc = buildRouteDesc(deliveryPkg);
         result.setRouteDesc(routeDesc);
-        result.setRemark("这是一个备注");
+        result.setRemark(deliveryPkg.getRemarks());
 
         return result;
     }
