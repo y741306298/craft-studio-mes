@@ -1,8 +1,7 @@
 package com.mes.application.command.typesetting.strategy.policy;
 
 import com.mes.application.command.api.req.NestingRequest;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -16,9 +15,6 @@ import java.util.List;
  */
 @Component
 public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
-
-    private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
-    private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
 
     @Override
     public boolean matches(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
@@ -69,8 +65,7 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
     private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces) {
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
-                if (piece != null && (procedureFlowHasNode(piece.getProcedureFlow(), DOUBLE_SIDE_NODE_NAME)
-                        || procedureFlowHasNode(piece.getProcedureFlow(), COVER_DOUBLE_SIDE_NODE_NAME))) {
+                if (piece != null && ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow())) {
                     return true;
                 }
             }
@@ -78,15 +73,4 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         return false;
     }
 
-    private boolean procedureFlowHasNode(ProcedureFlow procedureFlow, String nodeName) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null || StringUtils.isBlank(nodeName)) {
-            return false;
-        }
-        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node != null && nodeName.equals(node.getNodeName())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }
