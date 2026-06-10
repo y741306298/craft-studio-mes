@@ -84,26 +84,19 @@ public class DeliveryNetController {
     /**
      * 配置物流
      * @param httpRequest HTTP请求
-     * @param configRequest 配置请求参数
      * @return 操作结果
      */
     @PostMapping("/config")
     public ResponseEntity<byte[]> configLogistics(
             HttpServletRequest httpRequest,
-            @Valid @RequestBody ConfigLogisticsRequest configRequest) {
+            @RequestBody(required = false) byte[] body) {
         
         String targetUrl = String.format("%s/api/internal/mes/rmfcfg/configLogistics", productCoreUrl);
         
         // 将请求对象转换为 JSON 字节数组
-        byte[] requestBody = null;
-        try {
-            requestBody = com.alibaba.fastjson.JSON.toJSONString(configRequest).getBytes(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("Failed to serialize request: " + e.getMessage());
-        }
         
         HashMap<String, Object> paramMap = new HashMap<>();
-        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, requestBody, targetUrl, paramMap);
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, body, targetUrl, paramMap);
 
         // 调试：打印响应内容
         if (responseEntity.getBody() != null) {

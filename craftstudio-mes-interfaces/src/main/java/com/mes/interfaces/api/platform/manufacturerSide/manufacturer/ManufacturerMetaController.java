@@ -213,7 +213,7 @@ public class ManufacturerMetaController {
      */
     @PostMapping("/eCommerceMmodel")
     public ApiResponse<String> switchECommerceMmodel(@Valid @RequestBody ECommerceMmodelSwitchRequest request) {
-        appManufacturerMetaService.switchECommerceMmodel(request.getId(), request.getECommerceMmodel());
+        appManufacturerMetaService.switchECommerceMmodel(request.getManufacturerMetaId(), request.getECommerceMmodel());
         return ApiResponse.success("success");
     }
 
@@ -355,8 +355,7 @@ public class ManufacturerMetaController {
      */
     @Data
     public static class ECommerceMmodelSwitchRequest {
-        @NotBlank(message = "制造商 ID 不能为空")
-        private String id;
+        private String manufacturerMetaId;
         private Boolean eCommerceMmodel = false;
     }
 

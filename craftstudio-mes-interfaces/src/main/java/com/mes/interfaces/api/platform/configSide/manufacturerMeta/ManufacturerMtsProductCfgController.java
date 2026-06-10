@@ -110,25 +110,17 @@ public class ManufacturerMtsProductCfgController {
     /**
      * 配置成品商品规格
      *
-     * @param configRequest 配置请求参数
      * @return 操作结果
      */
     @PostMapping("/product-specs/config")
     public ResponseEntity<byte[]> configMTSProductSpec(
             HttpServletRequest httpRequest,
-            @Valid @RequestBody ConfigMTSProductSpecRequest configRequest) {
+            @RequestBody(required = false) byte[] body) {
 
         String targetUrl = String.format("%s/api/internal/mes/rmfcfg/configMTSProductSpec", productCoreUrl);
 
-        byte[] requestBody = null;
-        try {
-            requestBody = com.alibaba.fastjson.JSON.toJSONString(configRequest).getBytes(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("Failed to serialize request: " + e.getMessage());
-        }
-
         HashMap<String, Object> paramMap = new HashMap<>();
-        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, requestBody, targetUrl, paramMap);
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(httpRequest, body, targetUrl, paramMap);
 
         if (responseEntity.getBody() != null) {
             String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
@@ -141,19 +133,13 @@ public class ManufacturerMtsProductCfgController {
     @PostMapping("/searchByName")
     public ResponseEntity<byte[]> searchMTSProductsByName(
             HttpServletRequest request,
-            @Valid @RequestBody SearchMTSProductByNameRequest searchRequest) {
+            @RequestBody(required = false) byte[] body) {
 
         StringBuilder urlBuilder = new StringBuilder(String.format("%s/api/internal/mes/product/mts/searchByName", productCoreUrl));
 
-        byte[] requestBody = null;
-        try {
-            requestBody = com.alibaba.fastjson.JSON.toJSONString(searchRequest).getBytes(StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("Failed to serialize request: " + e.getMessage());
-        }
 
         HashMap<String, Object> paramMap = new HashMap<>();
-        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, requestBody, urlBuilder.toString(), paramMap);
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, urlBuilder.toString(), paramMap);
 
         if (responseEntity.getBody() != null) {
             String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);

@@ -371,7 +371,7 @@ public class AppManufacturerMetaService {
      * @param eCommerceMmodel true 表示电商模式，false 表示非电商模式
      */
     public void switchECommerceMmodel(String id, Boolean eCommerceMmodel) {
-        ManufacturerMeta manufacturerMeta = findById(id);
+        ManufacturerMeta manufacturerMeta = findByManufacturerMetaId(id);
         if (manufacturerMeta == null) {
             throw new IllegalArgumentException("制造商不存在：" + id);
         }
