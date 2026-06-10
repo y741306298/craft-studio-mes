@@ -47,6 +47,7 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -579,7 +580,12 @@ public class AppTypesettingService {
 
     private boolean hasAnyDoubleSideMountNode(List<TypesettingProductionPieceVO> typesettingCells) {
         return typesettingCells.stream()
-                .anyMatch(cell -> hasProcedureNode(cell, "双面对裱", "覆双面"));
+                .anyMatch(this::hasDoubleSideMountNode);
+    }
+
+    private boolean hasDoubleSideMountNode(TypesettingProductionPieceVO cell) {
+        return cell != null
+                && ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(cell.getProcedureFlow());
     }
 
     private boolean hasProcedureNode(TypesettingProductionPieceVO cell, String... nodeNames) {
@@ -2154,17 +2160,16 @@ public class AppTypesettingService {
         if (CollectionUtils.isEmpty(nodes)) {
             return null;
         }
-        List<String> blockedProcedureNames = Arrays.asList("双面对裱", "覆双面", "覆板");
-        for (String blockedProcedureName : blockedProcedureNames) {
-            boolean containsProcedure = nodes.stream()
-                    .filter(Objects::nonNull)
-                    .map(ProcedureFlowNode::getNodeName)
-                    .anyMatch(blockedProcedureName::equals);
-            if (containsProcedure) {
-                return blockedProcedureName;
-            }
+        if (ProcedureFlowNodeMatcher.hasAnyNodeNameContaining(nodes,
+                ProcedureFlowNodeMatcher.DOUBLE_SIDE_MOUNTING_KEYWORD,
+                ProcedureFlowNodeMatcher.COVER_DOUBLE_SIDE_KEYWORD)) {
+            return "双面对裱/覆双面";
         }
-        return null;
+        boolean containsCoverBoard = nodes.stream()
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .anyMatch("覆板"::equals);
+        return containsCoverBoard ? "覆板" : null;
     }
 
     private boolean isAllPartCompositionTypesetting(TypesettingInfo typesettingInfo) {

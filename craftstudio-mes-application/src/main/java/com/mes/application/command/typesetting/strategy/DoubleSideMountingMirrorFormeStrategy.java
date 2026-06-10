@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting.strategy;
 
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
+import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.apache.commons.lang3.StringUtils;
@@ -13,9 +14,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrategy {
-    private static final String DOUBLE_SIDE_NODE_NAME = "双面对裱";
-    private static final String COVER_DOUBLE_SIDE_NODE_NAME = "覆双面";
-
     @Override
     public boolean supports(TypesettingInfo info) {
         return allCellsAreProductionPieces(info) && hasDoubleSideMounting(info);
@@ -46,12 +44,6 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
     }
 
     private boolean hasDoubleSideMounting(TypesettingInfo info) {
-        if (info == null || info.getProcedureFlow() == null || info.getProcedureFlow().getNodes() == null) {
-            return false;
-        }
-        return info.getProcedureFlow().getNodes().stream()
-                .anyMatch(n -> n != null
-                        && (DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName())
-                        || COVER_DOUBLE_SIDE_NODE_NAME.equals(n.getNodeName())));
+        return info != null && ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(info.getProcedureFlow());
     }
 }

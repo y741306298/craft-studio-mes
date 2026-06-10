@@ -3,6 +3,7 @@ package com.mes.application.command.orderPreprocessing.strategy;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
@@ -24,8 +25,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
-        return AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "双面对裱")
-                || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "覆双面");
+        return ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(procedureFlow);
     }
 
     public List<ProductionPiece> process(OrderItem orderItem, ProcedureFlow procedureFlow, AppOrderPreprocessingService processingService) {
