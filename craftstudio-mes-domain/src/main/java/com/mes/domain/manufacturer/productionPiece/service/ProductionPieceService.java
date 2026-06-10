@@ -2,6 +2,7 @@ package com.mes.domain.manufacturer.productionPiece.service;
 
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
@@ -655,7 +656,8 @@ public class ProductionPieceService {
         }
 
         return piece.getProcedureFlow().getNodes().stream()
-                .anyMatch(node -> "覆板".equals(node.getNodeName()) || "双面对裱".equals(node.getNodeName()));
+                .anyMatch(node -> node != null && "覆板".equals(node.getNodeName()))
+                || ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow());
     }
 
     /**
