@@ -327,6 +327,47 @@ public class OrderInfoService {
     }
 
     /**
+     * 根据订单号和客户信息模糊查询匹配的订单号。
+     *
+     * @param orderId 订单号
+     * @param customerPhone 客户手机号（模糊匹配）
+     * @param customerName 客户姓名（模糊匹配）
+     * @return 匹配的订单号集合
+     */
+    public Set<String> findOrderIdsByCustomerConditions(String orderId, String customerPhone, String customerName) {
+        Map<String, Object> filters = new HashMap<>();
+        if (StringUtils.isNotBlank(orderId)) {
+            filters.put("orderId", orderId);
+        }
+        if (StringUtils.isNotBlank(customerPhone)) {
+            filters.put("customer.customerPhone_like", customerPhone);
+        }
+        if (StringUtils.isNotBlank(customerName)) {
+            filters.put("customer.customerName_like", customerName);
+        }
+
+        Set<String> orderIds = new HashSet<>();
+        int current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderInfo> orders = orderInfoRepository.filterList(current, size, filters);
+            if (orders == null || orders.isEmpty()) {
+                break;
+            }
+            for (OrderInfo order : orders) {
+                if (order != null && StringUtils.isNotBlank(order.getOrderId())) {
+                    orderIds.add(order.getOrderId());
+                }
+            }
+            if (orders.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return orderIds;
+    }
+
+    /**
      * 根据多条件统计订单数量
      * @param orderId 订单号（可为 null）
      * @param status 订单状态（可为 null）
