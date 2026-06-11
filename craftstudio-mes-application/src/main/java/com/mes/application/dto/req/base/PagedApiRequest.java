@@ -16,7 +16,7 @@ public class PagedApiRequest extends ApiRequest {
 
     @Override
     public String getValidationMessage() {
-        if (size <= 0 || size > 100) return "每页大小(size)必须在1-100之间";
+        if (size <= 0) return "每页大小(size)必须在1-100之间";
         return "";
     }
 

@@ -123,14 +123,14 @@ public class AppOrderService {
         List<OrderItem> orderItems = new ArrayList<>();
         int current = 1;
         while (true) {
-            List<OrderItem> pageItems = domainOrderItemService.filterListUrgentFirst(current, 100, filters);
+            List<OrderItem> pageItems = domainOrderItemService.filterListUrgentFirst(current, 99, filters);
             if (pageItems == null || pageItems.isEmpty()) {
                 break;
             }
             pageItems.stream()
                     .filter(item -> item != null && item.getQuantity() != null && item.getQuantity() != 0)
                     .forEach(orderItems::add);
-            if (pageItems.size() < 100) {
+            if (pageItems.size() < 99) {
                 break;
             }
             current++;
