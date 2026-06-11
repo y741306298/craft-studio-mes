@@ -260,7 +260,7 @@ public class OrderController {
      * 图像蒙版生成回调接口
      * 供算法服务异步调用，接收图像处理结果并生成生产零件
      * 
-     * @param response 算法服务返回的蒙版结果，其中id字段为orderItemId
+     * @param response 算法服务返回的蒙版结果，其中 id 字段为回调 ID（兼容 orderItemId 或 orderItemId#preprocessRequestId）
      * @return 操作结果
      */
     @PostMapping("/callback/generate_mask_files")
@@ -269,15 +269,18 @@ public class OrderController {
         logger.info("response: " + JSON.toJSONString(response));
         logger.info("========== handleGenerateMaskFilesCallback 入参结束 ==========");
         try {
-            // 从response中获取orderItemId
-            String orderItemId = response.getId();
+            // 从 response 中获取回调 ID，新版格式为 orderItemId#preprocessRequestId。
+            String callbackId = response.getId();
+            if ((callbackId == null || callbackId.isEmpty()) && response.getOrderItemId() != null) {
+                callbackId = response.getOrderItemId();
+            }
             
-            if (orderItemId == null || orderItemId.isEmpty()) {
-                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项ID不能为空");
+            if (callbackId == null || callbackId.isEmpty()) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "回调ID不能为空");
             }
 
-            // 调用服务层处理回调
-            appOrderPreprocessingService.handleGenerateMaskFilesCallback(response, orderItemId);
+            // 调用服务层处理回调，由服务层判断是否为当前有效预处理请求。
+            appOrderPreprocessingService.handleGenerateMaskFilesCallback(response, callbackId);
             
             return ApiResponse.success("回调处理成功");
             

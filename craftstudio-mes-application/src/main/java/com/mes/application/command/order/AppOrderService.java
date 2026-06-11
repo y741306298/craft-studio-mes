@@ -307,6 +307,10 @@ public class AppOrderService {
             throw new IllegalArgumentException("订单项不存在：" + orderItemId);
         }
 
+        // 先更新预处理请求 ID，使重做前已发出的异步算法回调在返回时被识别为过期并丢弃。
+        orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+        domainOrderItemService.updateOrderItem(orderItem);
+
         long deletedCount = productionPieceService.deleteProductionPiecesByOrderItemId(orderItemId);
         orderPreprocessTaskQueue.submit(List.of(orderItem));
         return deletedCount;

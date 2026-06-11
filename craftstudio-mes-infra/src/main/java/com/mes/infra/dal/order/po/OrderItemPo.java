@@ -31,6 +31,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private ImageFile productionImgFile;
     private ImageFile maskImgFile;
     private String failureReason;
+    private String preprocessRequestId;
     private String kuaidiWay;
     private String kuaidiNum;
     private String routeId;
@@ -59,6 +60,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setProductionImgFile(this.productionImgFile);
         orderItem.setMaskImgFile(this.maskImgFile);
         orderItem.setFailureReason(this.failureReason);
+        orderItem.setPreprocessRequestId(this.preprocessRequestId);
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
         orderItem.setRouteId(this.routeId);
@@ -82,6 +84,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.productionImgFile = _do.getProductionImgFile();
         this.maskImgFile = _do.getMaskImgFile();
         this.failureReason = _do.getFailureReason();
+        this.preprocessRequestId = _do.getPreprocessRequestId();
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
         this.kuaidiNum = _do.getKuaidiNum();
