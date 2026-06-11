@@ -103,6 +103,54 @@ public class ProductionPieceService {
         return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width);
     }
 
+    public List<ProductionPiece> listPendingTypesettingPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        if (current < 1) {
+            current = 1;
+        }
+        if (size < 1) {
+            size = 50;
+        }
+        return productionPieceRepository.listPendingTypesettingPiecesByConditions(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                orderItemId,
+                startTime,
+                endTime,
+                current,
+                size
+        );
+    }
+
+    public long countPendingTypesettingPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime) {
+        return productionPieceRepository.countPendingTypesettingPiecesByConditions(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                orderItemId,
+                startTime,
+                endTime
+        );
+    }
+
     /**
      * 根据多条件查询生产工件总数
      * @param status 状态
