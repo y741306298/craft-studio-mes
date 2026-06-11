@@ -15,6 +15,7 @@ public class DeliveryRoute extends BaseEntity {
     private String routeName;
     private String manufacturerMetaId;
     private List<DeliveryRouteNode> deliveryRouteNodes;
+    private List<RouteNode> routeNodes;
     private String status;
 
 }
