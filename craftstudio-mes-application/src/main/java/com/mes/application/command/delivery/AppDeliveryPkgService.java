@@ -132,7 +132,8 @@ public class AppDeliveryPkgService {
                     && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
-            return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
+            boolean matchName = matchesDeliveryName(item, request.getName());
+            return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchName;
         }).sorted(Comparator
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
@@ -233,7 +234,43 @@ public class AppDeliveryPkgService {
         boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
         boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
         boolean matchWidth = request.getWidth() == null || Objects.equals(item.getWidth(), request.getWidth());
-        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth;
+        boolean matchName = matchesDeliveryName(item, request.getName());
+        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth && matchName;
+    }
+
+
+    private boolean matchesDeliveryName(DeliveryPkgPieceVO item, String name) {
+        if (StringUtils.isBlank(name)) {
+            return true;
+        }
+        if (item == null) {
+            return false;
+        }
+        String keyword = name.trim();
+        return containsIgnoreCase(item.getOrderId(), keyword)
+                || containsIgnoreCase(item.getOrderItemId(), keyword)
+                || containsIgnoreCase(item.getProductionPieceId(), keyword)
+                || containsIgnoreCase(item.getAddress(), keyword)
+                || containsIgnoreCase(item.getRemark(), keyword)
+                || containsIgnoreCase(item.getStatus(), keyword)
+                || (item.getOrderCustomer() != null
+                && (containsIgnoreCase(item.getOrderCustomer().getCustomerName(), keyword)
+                || containsIgnoreCase(item.getOrderCustomer().getCustomerPhone(), keyword)))
+                || (item.getLogisticsCarrierInfo() != null
+                && (containsIgnoreCase(item.getLogisticsCarrierInfo().getCarrierName(), keyword)
+                || containsIgnoreCase(item.getLogisticsCarrierInfo().getCarrierId(), keyword)))
+                || (item.getMaterialConfig() != null
+                && item.getMaterialConfig().getMaterialSnapshot() != null
+                && containsIgnoreCase(item.getMaterialConfig().getMaterialSnapshot().getName(), keyword))
+                || (item.getProcedureFlow() != null
+                && item.getProcedureFlow().getNodes() != null
+                && item.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .anyMatch(node -> containsIgnoreCase(node.getNodeName(), keyword)));
+    }
+
+    private boolean containsIgnoreCase(String value, String keyword) {
+        return value != null && keyword != null && value.toLowerCase().contains(keyword.toLowerCase());
     }
 
 

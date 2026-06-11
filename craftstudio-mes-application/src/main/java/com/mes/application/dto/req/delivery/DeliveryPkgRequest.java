@@ -25,6 +25,7 @@ public class DeliveryPkgRequest {
     private String materialName;
     private String processName;
     private Double width;
+    private String name;
 
 
 }
