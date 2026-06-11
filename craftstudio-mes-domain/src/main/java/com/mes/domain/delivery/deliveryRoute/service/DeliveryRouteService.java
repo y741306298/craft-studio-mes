@@ -11,6 +11,10 @@ import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecord
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
+import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
@@ -33,6 +37,10 @@ public class DeliveryRouteService {
     private DeliveryRouteNodeBindingRepository deliveryRouteNodeBindingRepository;
     @Autowired
     private AddressRecognitionRecordRepository addressRecognitionRecordRepository;
+    @Autowired
+    private OrderInfoRepository orderInfoRepository;
+    @Autowired
+    private OrderItemRepository orderItemRepository;
 
     /**
      * 根据路线名称查询配送路线（支持分页）
@@ -317,6 +325,44 @@ public class DeliveryRouteService {
         record.setNodeId(nodeId);
         record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
         addressRecognitionRecordRepository.update(record);
+        syncOrderRouteBinding(record.getOrderId(), routeId, nodeId);
+    }
+
+
+    private void syncOrderRouteBinding(String orderId, String routeId, String nodeId) {
+        if (StringUtils.isBlank(orderId)) {
+            return;
+        }
+
+        Map<String, Object> orderFilters = new HashMap<>();
+        orderFilters.put("orderId", orderId);
+        List<OrderInfo> orderInfos = orderInfoRepository.filterList(1, 1, orderFilters);
+        if (orderInfos != null && !orderInfos.isEmpty()) {
+            OrderInfo orderInfo = orderInfos.get(0);
+            orderInfo.setRouteId(routeId);
+            orderInfo.setRouteNodeId(nodeId);
+            orderInfoRepository.update(orderInfo);
+        }
+
+        Map<String, Object> itemFilters = new HashMap<>();
+        itemFilters.put("orderId", orderId);
+        long current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderItem> orderItems = orderItemRepository.filterList(current, size, itemFilters);
+            if (orderItems == null || orderItems.isEmpty()) {
+                break;
+            }
+            for (OrderItem orderItem : orderItems) {
+                orderItem.setRouteId(routeId);
+                orderItem.setRouteNodeId(nodeId);
+            }
+            orderItemRepository.batchUpdate(orderItems);
+            if (orderItems.size() < size) {
+                break;
+            }
+            current++;
+        }
     }
 
     public void deleteAddressRecognitionRecord(String recordId) {

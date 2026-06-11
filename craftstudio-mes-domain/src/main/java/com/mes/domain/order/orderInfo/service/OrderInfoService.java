@@ -553,8 +553,15 @@ public class OrderInfoService {
         if (record == null) {
             record = new AddressRecognitionRecord();
             record.setAddress(address);
+            record.setOrderId(orderInfo.getOrderId());
             record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
             addressRecognitionRecordRepository.add(record);
+            return;
+        }
+
+        if (AddressRecognitionRecordStatus.UNASSIGNED.equals(record.getStatus()) && StringUtils.isBlank(record.getOrderId())) {
+            record.setOrderId(orderInfo.getOrderId());
+            addressRecognitionRecordRepository.update(record);
             return;
         }
 

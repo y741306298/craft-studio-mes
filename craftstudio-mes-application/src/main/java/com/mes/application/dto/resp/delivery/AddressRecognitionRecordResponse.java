@@ -14,6 +14,7 @@ public class AddressRecognitionRecordResponse {
     private String id;
     private Address address;
     private String fullAddress;
+    private String orderId;
     private String routeId;
     private String nodeId;
     private AddressRecognitionRecordStatus status;
@@ -31,6 +32,7 @@ public class AddressRecognitionRecordResponse {
         if (record.getAddress() != null) {
             response.setFullAddress(record.getAddress().buildFullAddressString(world));
         }
+        response.setOrderId(record.getOrderId());
         response.setRouteId(record.getRouteId());
         response.setNodeId(record.getNodeId());
         response.setStatus(record.getStatus());

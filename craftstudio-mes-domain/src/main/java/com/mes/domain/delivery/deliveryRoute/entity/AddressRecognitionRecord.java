@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 public class AddressRecognitionRecord extends BaseEntity {
 
     private Address address;
+    private String orderId;
     private String routeId;
     private String nodeId;
     private AddressRecognitionRecordStatus status;

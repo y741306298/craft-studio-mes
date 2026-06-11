@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord> {
 
     private Address address;
+    private String orderId;
     private String routeId;
     private String nodeId;
     private String status;
@@ -23,6 +24,7 @@ public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord>
         AddressRecognitionRecord record = new AddressRecognitionRecord();
         copyBaseFieldsToDO(record);
         record.setAddress(this.address);
+        record.setOrderId(this.orderId);
         record.setRouteId(this.routeId);
         record.setNodeId(this.nodeId);
         if (this.status != null) {
@@ -37,6 +39,7 @@ public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord>
             return null;
         }
         this.address = _do.getAddress();
+        this.orderId = _do.getOrderId();
         this.routeId = _do.getRouteId();
         this.nodeId = _do.getNodeId();
         this.status = _do.getStatus() == null ? null : _do.getStatus().getValue();
