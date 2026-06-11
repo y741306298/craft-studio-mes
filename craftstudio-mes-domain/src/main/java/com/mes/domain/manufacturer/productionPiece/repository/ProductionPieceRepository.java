@@ -3,6 +3,9 @@ package com.mes.domain.manufacturer.productionPiece.repository;
 import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 
+import java.util.Date;
+import java.util.List;
+
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
     
     /**
@@ -20,4 +23,22 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
     void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent);
 
     java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
+
+    List<ProductionPiece> listPendingPackagingPiecesByConditions(
+            String manufacturerId,
+            String materialName,
+            String processName,
+            Double width,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size);
+
+    long countPendingPackagingPiecesByConditions(
+            String manufacturerId,
+            String materialName,
+            String processName,
+            Double width,
+            Date startTime,
+            Date endTime);
 }

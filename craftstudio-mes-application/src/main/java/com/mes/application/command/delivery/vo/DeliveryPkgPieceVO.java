@@ -4,12 +4,8 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
-import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
-import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
-import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Data
 public class DeliveryPkgPieceVO {
@@ -28,6 +24,7 @@ public class DeliveryPkgPieceVO {
     private Double width;
     private Double height;
     private MaterialConfig materialConfig;
+    private String processingFlow;
     private ProcedureFlow procedureFlow;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
@@ -41,6 +38,7 @@ public class DeliveryPkgPieceVO {
         vo.setQuantity(piece.getQuantity());
         vo.setIsUrgent(piece.getIsUrgent());
         vo.setMaterialConfig(piece.getMaterialConfig());
+        vo.setProcessingFlow(piece.getProcessingFlow());
         vo.setProcedureFlow(piece.getProcedureFlow());
         vo.setCreateTime(piece.getCreateTime());
         vo.setWidth(piece.getWidth());
