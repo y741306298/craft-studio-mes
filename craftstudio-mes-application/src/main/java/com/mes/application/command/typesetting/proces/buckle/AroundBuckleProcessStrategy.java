@@ -1,8 +1,8 @@
 package com.mes.application.command.typesetting.proces.buckle;
 
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import io.micrometer.common.util.StringUtils;
@@ -26,7 +26,6 @@ import java.util.regex.Pattern;
  */
 @Service
 public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
-    private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
     private static final double BLEED_EDGE_OFFSET_MM = 150D;
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
 
@@ -119,7 +118,7 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
 
     private Set<BuckleEdge> resolveBleedSides(ProductionPiece piece, ProcedureFlow procedureFlow) {
         Set<BuckleEdge> bleedSides = EnumSet.noneOf(BuckleEdge.class);
-        if (!hasProcedureNode(piece, SUPER_WIDTH_SPLICE_NODE_NAME) && !hasProcedureNode(procedureFlow, SUPER_WIDTH_SPLICE_NODE_NAME)) {
+        if (!hasSpliceProcedureNode(piece) && !SpliceProcessStrategies.hasSpliceNode(procedureFlow)) {
             return bleedSides;
         }
         Blood blood = piece == null ? null : piece.getBlood();
@@ -205,20 +204,8 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
         return value != null && value != 0;
     }
 
-    private boolean hasProcedureNode(ProductionPiece piece, String nodeName) {
-        return piece != null && hasProcedureNode(piece.getProcedureFlow(), nodeName);
-    }
-
-    private boolean hasProcedureNode(ProcedureFlow procedureFlow, String nodeName) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null) {
-            return false;
-        }
-        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node != null && nodeName.equals(node.getNodeName())) {
-                return true;
-            }
-        }
-        return false;
+    private boolean hasSpliceProcedureNode(ProductionPiece piece) {
+        return piece != null && SpliceProcessStrategies.hasSpliceNode(piece.getProcedureFlow());
     }
 
     private Integer extractMaxSeqInGroup(String group) {
