@@ -33,6 +33,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
 import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
@@ -100,18 +101,65 @@ public class AppDeliveryPkgService {
     private DeliveryPkgService deliveryPkgService;
 
 
-    public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
+    public PagedResult<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
         String manufacturerMetaId = request.getManufacturerMetaId();
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+        int current = request.getCurrent() == null || request.getCurrent() < 1 ? 1 : request.getCurrent();
+        int size = request.getSize() == null || request.getSize() < 1 ? 50 : Math.min(request.getSize(), 100);
+
+        boolean needsVoFilter = StringUtils.isNotBlank(request.getOrderId())
+                || StringUtils.isNotBlank(request.getCustomerName())
+                || StringUtils.isNotBlank(request.getCustomerPhone())
+                || StringUtils.isNotBlank(request.getCarrierName())
+                || StringUtils.isNotBlank(request.getName());
+
+        if (needsVoFilter) {
+            List<ProductionPiece> productionPieces = productionPieceService.listPendingPackagingPiecesByConditions(
+                    manufacturerMetaId,
+                    request.getMaterialName(),
+                    request.getProcessName(),
+                    request.getWidth(),
+                    request.getStartTime(),
+                    request.getEndTime(),
+                    1,
+                    Integer.MAX_VALUE);
+            List<DeliveryPkgPieceVO> filteredItems = buildPendingPackagingPieceVOs(productionPieces).stream()
+                    .filter(item -> matchesDeliveryRequest(item, request))
+                    .sorted(this::compareDeliveryPkgPieces)
+                    .collect(Collectors.toList());
+            long total = filteredItems.size();
+            int fromIndex = Math.min((current - 1) * size, filteredItems.size());
+            int toIndex = Math.min(fromIndex + size, filteredItems.size());
+            return new PagedResult<>(new ArrayList<>(filteredItems.subList(fromIndex, toIndex)), total, size, current);
         }
 
         List<ProductionPiece> productionPieces = productionPieceService.listPendingPackagingPiecesByConditions(
                 manufacturerMetaId,
                 request.getMaterialName(),
                 request.getProcessName(),
-                request.getWidth());
+                request.getWidth(),
+                request.getStartTime(),
+                request.getEndTime(),
+                current,
+                size);
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(productionPieces).stream()
+                .sorted(this::compareDeliveryPkgPieces)
+                .collect(Collectors.toList());
+        long total = productionPieceService.countPendingPackagingPiecesByConditions(
+                manufacturerMetaId,
+                request.getMaterialName(),
+                request.getProcessName(),
+                request.getWidth(),
+                request.getStartTime(),
+                request.getEndTime());
+        return new PagedResult<>(items, total, size, current);
+    }
 
+
+
+    private List<DeliveryPkgPieceVO> buildPendingPackagingPieceVOs(List<ProductionPiece> productionPieces) {
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
             DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
@@ -119,29 +167,32 @@ public class AppDeliveryPkgService {
                 items.add(vo);
             }
         }
+        return items;
+    }
 
-        return items.stream().filter(item -> {
-            boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
-                    || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
-            boolean matchCustomerName = StringUtils.isBlank(request.getCustomerName())
-                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerName())
-                    && item.getOrderCustomer().getCustomerName().contains(request.getCustomerName()));
-            boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
-                    || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerPhone())
-                    && item.getOrderCustomer().getCustomerPhone().contains(request.getCustomerPhone()));
-            boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
-                    || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
-                    && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
-            boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
-            boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
-            boolean matchName = matchesDeliveryName(item, request.getName());
-            return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchName;
-        }).sorted(Comparator
+    private boolean matchesDeliveryRequest(DeliveryPkgPieceVO item, DeliveryPkgRequest request) {
+        boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
+                || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
+        boolean matchCustomerName = StringUtils.isBlank(request.getCustomerName())
+                || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerName())
+                && item.getOrderCustomer().getCustomerName().contains(request.getCustomerName()));
+        boolean matchCustomerPhone = StringUtils.isBlank(request.getCustomerPhone())
+                || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerPhone())
+                && item.getOrderCustomer().getCustomerPhone().contains(request.getCustomerPhone()));
+        boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
+                || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
+                && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
+        boolean matchName = matchesDeliveryName(item, request.getName());
+        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchName;
+    }
+
+    private int compareDeliveryPkgPieces(DeliveryPkgPieceVO left, DeliveryPkgPieceVO right) {
+        return Comparator
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
                 .thenComparing(DeliveryPkgPieceVO::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .collect(Collectors.toList());
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .compare(left, right);
     }
 
 
@@ -268,6 +319,7 @@ public class AppDeliveryPkgService {
                 || containsIgnoreCase(item.getAddress(), keyword)
                 || containsIgnoreCase(item.getRemark(), keyword)
                 || containsIgnoreCase(item.getStatus(), keyword)
+                || containsIgnoreCase(item.getProcessingFlow(), keyword)
                 || (item.getOrderCustomer() != null
                 && (containsIgnoreCase(item.getOrderCustomer().getCustomerName(), keyword)
                 || containsIgnoreCase(item.getOrderCustomer().getCustomerPhone(), keyword)))

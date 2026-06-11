@@ -28,6 +28,7 @@ import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceServic
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -73,13 +74,16 @@ public class DeliveryPkgController {
     private String pkgDetailBaseUrl;
 
     /**
-     * 查询待打包零件全量列表
+     * 分页查询待打包零件列表
      */
     @PostMapping("/list")
     public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
-        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
+        PagedResult<DeliveryPkgPieceVO> pagedResult = appDeliveryPkgService.listPendingPackagingPieces(request);
+        List<DeliveryPkgPieceVO> items = (List<DeliveryPkgPieceVO>) pagedResult.items();
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                 items,
+                pagedResult.total(),
+                pagedResult.current(),
                 appDeliveryPkgService.buildMaterialList(items),
                 appDeliveryPkgService.buildSizeList(items),
                 appDeliveryPkgService.buildProcessList(items)

@@ -24,23 +24,21 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
 
-    List<ProductionPiece> listPendingTypesettingPiecesByConditions(
+    List<ProductionPiece> listPendingPackagingPiecesByConditions(
             String manufacturerId,
-            String status,
             String materialName,
-            String processingName,
-            String orderItemId,
+            String processName,
+            Double width,
             Date startTime,
             Date endTime,
             int current,
             int size);
 
-    long countPendingTypesettingPiecesByConditions(
+    long countPendingPackagingPiecesByConditions(
             String manufacturerId,
-            String status,
             String materialName,
-            String processingName,
-            String orderItemId,
+            String processName,
+            Double width,
             Date startTime,
             Date endTime);
 }

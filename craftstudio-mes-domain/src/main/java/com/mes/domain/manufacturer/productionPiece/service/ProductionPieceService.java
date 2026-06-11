@@ -103,12 +103,11 @@ public class ProductionPieceService {
         return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width);
     }
 
-    public List<ProductionPiece> listPendingTypesettingPiecesByConditions(
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(
             String manufacturerId,
-            String status,
             String materialName,
-            String processingName,
-            String orderItemId,
+            String processName,
+            Double width,
             Date startTime,
             Date endTime,
             int current,
@@ -119,12 +118,11 @@ public class ProductionPieceService {
         if (size < 1) {
             size = 50;
         }
-        return productionPieceRepository.listPendingTypesettingPiecesByConditions(
+        return productionPieceRepository.listPendingPackagingPiecesByConditions(
                 manufacturerId,
-                status,
                 materialName,
-                processingName,
-                orderItemId,
+                processName,
+                width,
                 startTime,
                 endTime,
                 current,
@@ -132,20 +130,18 @@ public class ProductionPieceService {
         );
     }
 
-    public long countPendingTypesettingPiecesByConditions(
+    public long countPendingPackagingPiecesByConditions(
             String manufacturerId,
-            String status,
             String materialName,
-            String processingName,
-            String orderItemId,
+            String processName,
+            Double width,
             Date startTime,
             Date endTime) {
-        return productionPieceRepository.countPendingTypesettingPiecesByConditions(
+        return productionPieceRepository.countPendingPackagingPiecesByConditions(
                 manufacturerId,
-                status,
                 materialName,
-                processingName,
-                orderItemId,
+                processName,
+                width,
                 startTime,
                 endTime
         );
