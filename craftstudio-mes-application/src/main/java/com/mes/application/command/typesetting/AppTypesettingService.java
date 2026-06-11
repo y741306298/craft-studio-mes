@@ -11,6 +11,7 @@ import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.model.ObjectMetadata;
@@ -1734,10 +1735,10 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                boolean superWidthLastSeqPiece = isSuperWidthLastSeqPiece(piece);
-                boolean superWidthLastHasVerticalCut = superWidthLastSeqPiece && hasVerticalCut(piece);
-                if (superWidthLastSeqPiece) {
-                    if (!superWidthLastHasVerticalCut) {
+                boolean spliceLastSeqPiece = isSpliceLastSeqPiece(piece);
+                boolean spliceLastHasVerticalCut = spliceLastSeqPiece && hasVerticalCut(piece);
+                if (spliceLastSeqPiece) {
+                    if (!spliceLastHasVerticalCut) {
                         element.setRotation(-90);
                     }
                 } else if (isBloodBasedRotationCandidate(piece)) {
@@ -1748,7 +1749,7 @@ public class AppTypesettingService {
                 if (nestingRequestRuleService != null) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
-                if (superWidthLastSeqPiece) {
+                if (spliceLastSeqPiece) {
                     element.setAlign("left");
                     element.setSafeDistance(0D);
                 } else {
@@ -1911,7 +1912,7 @@ public class AppTypesettingService {
             return false;
         }
         for (ProcedureFlowNode node : orderItem.getProcedureFlow().getNodes()) {
-            if (node == null || !"超幅拼接".equals(node.getNodeName())
+            if (node == null || SpliceProcessStrategies.findByNode(node).isEmpty()
                     || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
                 continue;
             }
@@ -2016,8 +2017,8 @@ public class AppTypesettingService {
     }
 
 
-    private boolean isSuperWidthLastSeqPiece(ProductionPiece piece) {
-        if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
+    private boolean isSpliceLastSeqPiece(ProductionPiece piece) {
+        if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup()) || !hasSupportedSpliceNode(piece)) {
             return false;
         }
         Matcher matcher = Pattern.compile("#\\s*\\d+-(\\d+)").matcher(piece.getGroup());
@@ -2030,6 +2031,20 @@ public class AppTypesettingService {
         } catch (Exception ignore) {
             return false;
         }
+    }
+
+    private boolean hasSupportedSpliceNode(ProductionPiece piece) {
+        if (piece == null) {
+            return false;
+        }
+        if (SpliceProcessStrategies.hasSpliceNode(piece.getProcedureFlow())) {
+            return true;
+        }
+        if (StringUtils.isBlank(piece.getOrderItemId())) {
+            return false;
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(piece.getOrderItemId());
+        return orderItem != null && SpliceProcessStrategies.hasSpliceNode(orderItem.getProcedureFlow());
     }
 
     private boolean isBloodBasedRotationCandidate(ProductionPiece piece) {

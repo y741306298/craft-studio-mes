@@ -48,8 +48,11 @@ import java.util.regex.Pattern;
 public class SuperWidthSpliceProcessService {
     private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
     private static final String ADHESIVE_SPLICE_NODE_NAME = "背胶拼接";
+    private static final String PHOTO_SPLICE_NODE_NAME = "写真拼接";
     private static final String BOARD_COVER_SPLICE_NODE_NAME = "覆板拼接";
     private static final String INKJET_SPLICE_NODE_NAME = "喷绘拼接";
+    private static final String SEAMLESS_SPLICE_NODE_NAME = "无痕拼接";
+    private static final String PANEL_SPLICE_NODE_NAME = "板材拼接";
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
@@ -59,18 +62,27 @@ public class SuperWidthSpliceProcessService {
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
     private static final SpliceProcessConfig SUPER_WIDTH_SPLICE_CONFIG = new SpliceProcessConfig(
-            SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 20D, 30D);
+            SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 20D, 30D, true);
     private static final SpliceProcessConfig ADHESIVE_SPLICE_CONFIG = new SpliceProcessConfig(
-            ADHESIVE_SPLICE_NODE_NAME, "adhesive-splice", 10D, 20D);
+            ADHESIVE_SPLICE_NODE_NAME, "adhesive-splice", 10D, 20D, true);
+    private static final SpliceProcessConfig PHOTO_SPLICE_CONFIG = new SpliceProcessConfig(
+            PHOTO_SPLICE_NODE_NAME, "photo-splice", 0D, 0D, false);
     private static final SpliceProcessConfig BOARD_COVER_SPLICE_CONFIG = new SpliceProcessConfig(
-            BOARD_COVER_SPLICE_NODE_NAME, "board-cover-splice", 10D, 20D);
+            BOARD_COVER_SPLICE_NODE_NAME, "board-cover-splice", 10D, 20D, true);
     private static final SpliceProcessConfig INKJET_SPLICE_CONFIG = new SpliceProcessConfig(
-            INKJET_SPLICE_NODE_NAME, "inkjet-splice", 20D, 30D);
+            INKJET_SPLICE_NODE_NAME, "inkjet-splice", 20D, 30D, true);
+    private static final SpliceProcessConfig SEAMLESS_SPLICE_CONFIG = new SpliceProcessConfig(
+            SEAMLESS_SPLICE_NODE_NAME, "seamless-splice", 0D, 0D, false);
+    private static final SpliceProcessConfig PANEL_SPLICE_CONFIG = new SpliceProcessConfig(
+            PANEL_SPLICE_NODE_NAME, "panel-splice", 0D, 0D, false);
     private static final SpliceProcessConfig[] SPLICE_PROCESS_CONFIGS = {
             SUPER_WIDTH_SPLICE_CONFIG,
             ADHESIVE_SPLICE_CONFIG,
+            PHOTO_SPLICE_CONFIG,
             BOARD_COVER_SPLICE_CONFIG,
-            INKJET_SPLICE_CONFIG
+            INKJET_SPLICE_CONFIG,
+            SEAMLESS_SPLICE_CONFIG,
+            PANEL_SPLICE_CONFIG
     };
 
     private final RestTemplate restTemplate;
@@ -103,7 +115,7 @@ public class SuperWidthSpliceProcessService {
         String businessId = productionPieceId;
 
         MarkAssets assets = uploadMarkAssets(businessId, markSubDir, piece.getGroup());
-        SpliceEdges spliceEdges = resolveSpliceEdges(piece, firstSeqBlood);
+        SpliceEdges spliceEdges = resolveSpliceEdges(procedureFlow, processConfig, piece, firstSeqBlood);
         if (spliceEdges.bleedEdges.isEmpty() && spliceEdges.coveredEdges.isEmpty()) {
             return;
         }
@@ -328,7 +340,7 @@ public class SuperWidthSpliceProcessService {
      * <p>这里只影响拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
      * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。</p>
      */
-    private SpliceEdges resolveSpliceEdges(ProductionPiece piece, Blood firstSeqBlood) {
+    private SpliceEdges resolveSpliceEdges(ProcedureFlow procedureFlow, SpliceProcessConfig processConfig, ProductionPiece piece, Blood firstSeqBlood) {
         Set<SpliceEdge> bleedEdges = EnumSet.noneOf(SpliceEdge.class);
         Set<SpliceEdge> coveredEdges = EnumSet.noneOf(SpliceEdge.class);
         Integer currentSeq = piece.getSeq();
@@ -339,17 +351,25 @@ public class SuperWidthSpliceProcessService {
 
         SpliceCutDirection cutDirection = resolveCutDirection(firstSeqBlood);
         if (cutDirection == SpliceCutDirection.UNKNOWN) {
+            cutDirection = resolveCutDirection(procedureFlow, processConfig);
+        }
+        if (cutDirection == SpliceCutDirection.UNKNOWN) {
             return new SpliceEdges(bleedEdges, coveredEdges);
         }
-        SpliceEdge firstBleedEdge = firstBleedEdge(cutDirection);
-        SpliceEdge lastCoveredEdge = oppositeEdge(firstBleedEdge);
-        if (currentSeq == 1) {
-            bleedEdges.add(firstBleedEdge);
-        } else if (currentSeq.intValue() == maxSeq.intValue()) {
-            coveredEdges.add(lastCoveredEdge);
-        } else if (currentSeq > 1 && currentSeq < maxSeq) {
-            coveredEdges.add(lastCoveredEdge);
-            bleedEdges.add(firstBleedEdge);
+        for (SpliceEdge firstBleedEdge : firstBleedEdges(cutDirection)) {
+            SpliceEdge lastCoveredEdge = oppositeEdge(firstBleedEdge);
+            if (currentSeq == 1) {
+                if (processConfig.bleedMarksEnabled) {
+                    bleedEdges.add(firstBleedEdge);
+                }
+            } else if (currentSeq.intValue() == maxSeq.intValue()) {
+                coveredEdges.add(lastCoveredEdge);
+            } else if (currentSeq > 1 && currentSeq < maxSeq) {
+                coveredEdges.add(lastCoveredEdge);
+                if (processConfig.bleedMarksEnabled) {
+                    bleedEdges.add(firstBleedEdge);
+                }
+            }
         }
         return new SpliceEdges(bleedEdges, coveredEdges);
     }
@@ -369,8 +389,47 @@ public class SuperWidthSpliceProcessService {
         return SpliceCutDirection.UNKNOWN;
     }
 
-    private SpliceEdge firstBleedEdge(SpliceCutDirection cutDirection) {
-        return cutDirection == SpliceCutDirection.HORIZONTAL ? SpliceEdge.BOTTOM : SpliceEdge.RIGHT;
+    private SpliceCutDirection resolveCutDirection(ProcedureFlow procedureFlow, SpliceProcessConfig processConfig) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null || processConfig == null) {
+            return SpliceCutDirection.UNKNOWN;
+        }
+        boolean hasXs = false;
+        boolean hasYs = false;
+        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+            if (node == null || !processConfig.nodeName.equals(node.getNodeName()) || node.getParamConfigs() == null) {
+                continue;
+            }
+            for (com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
+                Object param = config == null ? null : config.getParam();
+                if (param instanceof Map) {
+                    Object xs = ((Map<?, ?>) param).get("xs");
+                    Object ys = ((Map<?, ?>) param).get("ys");
+                    hasXs = hasXs || (xs instanceof Iterable && ((Iterable<?>) xs).iterator().hasNext());
+                    hasYs = hasYs || (ys instanceof Iterable && ((Iterable<?>) ys).iterator().hasNext());
+                }
+            }
+        }
+        if (hasXs && hasYs) {
+            return SpliceCutDirection.BOTH;
+        }
+        if (hasXs) {
+            return SpliceCutDirection.VERTICAL;
+        }
+        if (hasYs) {
+            return SpliceCutDirection.HORIZONTAL;
+        }
+        return SpliceCutDirection.UNKNOWN;
+    }
+
+    private Set<SpliceEdge> firstBleedEdges(SpliceCutDirection cutDirection) {
+        Set<SpliceEdge> edges = EnumSet.noneOf(SpliceEdge.class);
+        if (cutDirection == SpliceCutDirection.HORIZONTAL || cutDirection == SpliceCutDirection.BOTH) {
+            edges.add(SpliceEdge.BOTTOM);
+        }
+        if (cutDirection == SpliceCutDirection.VERTICAL || cutDirection == SpliceCutDirection.BOTH) {
+            edges.add(SpliceEdge.RIGHT);
+        }
+        return edges;
     }
 
 
@@ -715,12 +774,14 @@ public class SuperWidthSpliceProcessService {
         private final String markPrefix;
         private final double bleedStartOffsetMm;
         private final double bleedEndOffsetMm;
+        private final boolean bleedMarksEnabled;
 
-        private SpliceProcessConfig(String nodeName, String markPrefix, double bleedStartOffsetMm, double bleedEndOffsetMm) {
+        private SpliceProcessConfig(String nodeName, String markPrefix, double bleedStartOffsetMm, double bleedEndOffsetMm, boolean bleedMarksEnabled) {
             this.nodeName = nodeName;
             this.markPrefix = markPrefix;
             this.bleedStartOffsetMm = bleedStartOffsetMm;
             this.bleedEndOffsetMm = bleedEndOffsetMm;
+            this.bleedMarksEnabled = bleedMarksEnabled;
         }
     }
 
@@ -729,7 +790,7 @@ public class SuperWidthSpliceProcessService {
     }
 
     private enum SpliceCutDirection {
-        VERTICAL, HORIZONTAL, UNKNOWN
+        VERTICAL, HORIZONTAL, BOTH, UNKNOWN
     }
 
     private static class SpliceEdges {
