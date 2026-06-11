@@ -59,6 +59,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class AppDeliveryPkgService {
+    private static final int FULL_LIST_PAGE_SIZE = 99;
+
 
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
@@ -155,7 +157,7 @@ public class AppDeliveryPkgService {
         if (StringUtils.isNotBlank(request.getOrderId())) {
             int current = 1;
             while (true) {
-                List<OrderItem> orderItems = orderItemService.findByOrderId(request.getOrderId().trim(), request.getManufacturerMetaId(), current, 100);
+                List<OrderItem> orderItems = orderItemService.findByOrderId(request.getOrderId().trim(), request.getManufacturerMetaId(), current, 99);
                 if (orderItems == null || orderItems.isEmpty()) {
                     break;
                 }
@@ -164,7 +166,7 @@ public class AppDeliveryPkgService {
                         .filter(StringUtils::isNotBlank)
                         .map(orderItemId -> listPendingPackagingPiecesByOrderItemId(request, orderItemId))
                         .forEach(productionPieces::addAll);
-                if (orderItems.size() < 100) {
+                if (orderItems.size() < 99) {
                     break;
                 }
                 current++;
@@ -205,17 +207,30 @@ public class AppDeliveryPkgService {
     }
 
     private List<ProductionPiece> listPendingPackagingPiecesByOrderItemId(DeliveryPkgScopedRequest request, String orderItemId) {
-        return productionPieceService.findProductionPiecesByConditions(
-                request.getManufacturerMetaId(),
-                null,
-                request.getMaterialName(),
-                request.getProcessName(),
-                orderItemId,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
+        List<ProductionPiece> result = new ArrayList<>();
+        int current = 1;
+        while (true) {
+            List<ProductionPiece> pageItems = productionPieceService.findProductionPiecesByConditions(
+                    request.getManufacturerMetaId(),
+                    null,
+                    request.getMaterialName(),
+                    request.getProcessName(),
+                    orderItemId,
+                    null,
+                    null,
+                    current,
+                    FULL_LIST_PAGE_SIZE
+            );
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            result.addAll(pageItems);
+            if (pageItems.size() < FULL_LIST_PAGE_SIZE) {
+                break;
+            }
+            current++;
+        }
+        return result;
     }
 
     private boolean matchesDeliveryScopedRequest(DeliveryPkgPieceVO item, DeliveryPkgScopedRequest request) {
