@@ -166,6 +166,20 @@ public class OrderController {
 
 
     /**
+     * 重新处理订单项。
+     * 根据 orderItemId 删除该订单项已生成的生产工件，并重新提交预处理生成零件。
+     *
+     * @param orderItemId 订单项 ID
+     * @return 操作结果
+     */
+    @PostMapping("/item/reprocess")
+    public ApiResponse<String> reprocessOrderItem(@RequestParam String orderItemId) {
+        long deletedCount = appOrderService.reprocessOrderItem(orderItemId);
+        return ApiResponse.success("重新处理任务已提交，已删除生产工件数量：" + deletedCount);
+    }
+
+
+    /**
      * 订单转单
      * @param request 转单请求参数
      * @return 操作结果
