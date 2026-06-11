@@ -9,6 +9,8 @@ public class ImageMaskResponse {
     private String error;
     private String status;
     private String id;
+    private String orderItemId;
+    private String preprocessRequestId;
     private String taskId;
     private String task_id;
     private List<Pair> pairs;

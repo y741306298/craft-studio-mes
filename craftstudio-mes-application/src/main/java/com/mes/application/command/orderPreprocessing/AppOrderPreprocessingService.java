@@ -33,6 +33,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
@@ -249,11 +250,14 @@ public class AppOrderPreprocessingService {
             // 步骤3：双面场景下补充 mirrorUrl。
             imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
         }
-        // 步骤4：设置回调元信息（orderItemId/presetType）。
+        // 步骤4：设置回调元信息（orderItemId/preprocessRequestId/presetType）。
+        String preprocessRequestId = ensurePreprocessRequestId(orderItem);
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
         CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
-        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setId(buildCallbackId(orderItem.getOrderItemId(), preprocessRequestId));
+        callbackCustomValue.setOrderItemId(orderItem.getOrderItemId());
+        callbackCustomValue.setPreprocessRequestId(preprocessRequestId);
         callbackCustomValue.setPresetType(presetType);
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         imageMaskRequest.setCallbackConfig(callbackConfig);
@@ -284,10 +288,13 @@ public class AppOrderPreprocessingService {
             imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
         }
 
+        String preprocessRequestId = ensurePreprocessRequestId(orderItem);
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
         CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
-        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setId(buildCallbackId(orderItem.getOrderItemId(), preprocessRequestId));
+        callbackCustomValue.setOrderItemId(orderItem.getOrderItemId());
+        callbackCustomValue.setPreprocessRequestId(preprocessRequestId);
         callbackCustomValue.setPresetType(presetType);
         callbackConfig.setCallbackCustomValue(callbackCustomValue);
         imageMaskRequest.setCallbackConfig(callbackConfig);
@@ -546,19 +553,93 @@ public class AppOrderPreprocessingService {
         return new ArrayList<>();
     }
 
+    private static final String CALLBACK_ID_SEPARATOR = "#";
+
+    private String ensurePreprocessRequestId(OrderItem orderItem) {
+        if (orderItem == null) {
+            throw new IllegalArgumentException("订单项不能为空");
+        }
+        if (StringUtils.isNotBlank(orderItem.getPreprocessRequestId())) {
+            return orderItem.getPreprocessRequestId();
+        }
+
+        String preprocessRequestId = IdGenerator.generateId("OPR");
+        orderItem.setPreprocessRequestId(preprocessRequestId);
+        orderItemService.updateOrderItem(orderItem);
+        return preprocessRequestId;
+    }
+
+    private String buildCallbackId(String orderItemId, String preprocessRequestId) {
+        if (StringUtils.isBlank(preprocessRequestId)) {
+            return orderItemId;
+        }
+        return orderItemId + CALLBACK_ID_SEPARATOR + preprocessRequestId;
+    }
+
+    private CallbackIdentity parseCallbackIdentity(ImageMaskResponse response, String callbackId) {
+        String orderItemId = response != null && StringUtils.isNotBlank(response.getOrderItemId())
+                ? response.getOrderItemId()
+                : callbackId;
+        String preprocessRequestId = response != null ? response.getPreprocessRequestId() : null;
+
+        if (StringUtils.isNotBlank(callbackId) && callbackId.contains(CALLBACK_ID_SEPARATOR)) {
+            String[] parts = callbackId.split(CALLBACK_ID_SEPARATOR, 2);
+            orderItemId = parts[0];
+            if (parts.length > 1 && StringUtils.isNotBlank(parts[1])) {
+                preprocessRequestId = parts[1];
+            }
+        }
+
+        return new CallbackIdentity(orderItemId, preprocessRequestId);
+    }
+
+    /**
+     * 回调防过期校验：重做时会先刷新订单项 preprocessRequestId。
+     * 只有回调携带的请求 ID 与订单项当前请求 ID 一致，才允许生成零件。
+     */
+    private boolean isCurrentPreprocessCallback(OrderItem orderItem, String callbackPreprocessRequestId) {
+        String currentPreprocessRequestId = orderItem.getPreprocessRequestId();
+        if (StringUtils.isBlank(callbackPreprocessRequestId)) {
+            return StringUtils.isBlank(currentPreprocessRequestId);
+        }
+        return Objects.equals(callbackPreprocessRequestId, currentPreprocessRequestId);
+    }
+
+    private record CallbackIdentity(String orderItemId, String preprocessRequestId) {
+    }
+
     /**
      * 处理图像蒙版回调，根据回调结果生成生产零件
      *
      * @param response 算法服务返回的蒙版结果
-     * @param orderItemId 订单项ID（从callbackCustomValue传入）
+     * @param callbackId 回调 ID（新请求格式为 orderItemId#preprocessRequestId）
      *
      * <p>方式使用备注：该方法仅用于算法服务异步回调，不建议在业务代码中主动构造回调数据调用。</p>
      */
-    public void handleGenerateMaskFilesCallback(ImageMaskResponse response, String orderItemId) {
+    public void handleGenerateMaskFilesCallback(ImageMaskResponse response, String callbackId) {
+        String orderItemId = callbackId;
         try {
             // 1. 验证回调响应
             if (response == null) {
                 throw new RuntimeException("回调响应不能为空");
+            }
+
+            CallbackIdentity callbackIdentity = parseCallbackIdentity(response, callbackId);
+            orderItemId = callbackIdentity.orderItemId();
+            if (StringUtils.isBlank(orderItemId)) {
+                throw new RuntimeException("订单项ID不能为空");
+            }
+
+            // 2. 查询订单项，并判断该回调是否仍属于订单项当前预处理请求。
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            if (orderItem == null) {
+                throw new RuntimeException("订单项不存在：" + orderItemId);
+            }
+            if (!isCurrentPreprocessCallback(orderItem, callbackIdentity.preprocessRequestId())) {
+                System.out.println("丢弃过期图像蒙版回调，订单项ID：" + orderItemId
+                        + "，callbackPreprocessRequestId=" + callbackIdentity.preprocessRequestId()
+                        + "，currentPreprocessRequestId=" + orderItem.getPreprocessRequestId());
+                return;
             }
 
             if ("error".equals(response.getStatus())) {
@@ -566,12 +647,6 @@ public class AppOrderPreprocessingService {
                 orderItemService.markAsFailed(orderItemId, "图像蒙版处理失败：" + errorMsg);
                 System.err.println("图像蒙版处理失败，订单项ID：" + orderItemId + "，错误：" + errorMsg);
                 return;
-            }
-
-            // 2. 查询订单项
-            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
-            if (orderItem == null) {
-                throw new RuntimeException("订单项不存在：" + orderItemId);
             }
 
             // 3. 检查pairs是否为空
@@ -733,7 +808,9 @@ public class AppOrderPreprocessingService {
 
         } catch (Exception e) {
             // 处理异常，标记订单项为失败
-            orderItemService.markAsFailed(orderItemId, "处理图像蒙版回调异常：" + e.getMessage());
+            if (StringUtils.isNotBlank(orderItemId)) {
+                orderItemService.markAsFailed(orderItemId, "处理图像蒙版回调异常：" + e.getMessage());
+            }
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
         }

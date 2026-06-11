@@ -31,6 +31,10 @@ public class OrderItem extends BaseEntity {
     private ImageFile productionImgFile;
     private ImageFile maskImgFile;
     private String failureReason;
+    /**
+     * 当前订单项正在等待的预处理请求 ID，用于区分重做前后的异步算法回调。
+     */
+    private String preprocessRequestId;
     private String kuaidiWay;
     private String kuaidiNum;
     private String routeId;

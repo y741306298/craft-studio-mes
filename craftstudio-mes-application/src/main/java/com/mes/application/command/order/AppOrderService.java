@@ -291,6 +291,31 @@ public class AppOrderService {
         return orderInfo;
     }
 
+    /**
+     * 重新处理订单项：删除该订单项已生成的所有生产工件，并重新提交预处理任务。
+     *
+     * @param orderItemId 订单项业务 ID
+     * @return 被删除的生产工件数量
+     */
+    public long reprocessOrderItem(String orderItemId) {
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new IllegalArgumentException("订单项 ID 不能为空");
+        }
+
+        OrderItem orderItem = domainOrderItemService.findByOrderItemId(orderItemId);
+        if (orderItem == null) {
+            throw new IllegalArgumentException("订单项不存在：" + orderItemId);
+        }
+
+        // 先更新预处理请求 ID，使重做前已发出的异步算法回调在返回时被识别为过期并丢弃。
+        orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+        domainOrderItemService.updateOrderItem(orderItem);
+
+        long deletedCount = productionPieceService.deleteProductionPiecesByOrderItemId(orderItemId);
+        orderPreprocessTaskQueue.submit(List.of(orderItem));
+        return deletedCount;
+    }
+
 
     /**
      * 订单转单。

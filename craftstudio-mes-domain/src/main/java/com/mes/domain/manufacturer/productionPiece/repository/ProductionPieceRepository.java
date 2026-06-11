@@ -19,5 +19,13 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      */
     void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent);
 
+    /**
+     * 根据订单项目 ID 删除全部生产工件。
+     *
+     * @param orderItemId 订单项目 ID
+     * @return 删除的生产工件数量
+     */
+    long deleteByOrderItemId(String orderItemId);
+
     java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
 }
