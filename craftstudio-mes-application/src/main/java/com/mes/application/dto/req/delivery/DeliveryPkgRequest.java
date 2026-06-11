@@ -26,6 +26,8 @@ public class DeliveryPkgRequest {
     private String processName;
     private Double width;
     private String name;
+    private Integer current = 1;
+    private Integer size = 10;
 
 
 }

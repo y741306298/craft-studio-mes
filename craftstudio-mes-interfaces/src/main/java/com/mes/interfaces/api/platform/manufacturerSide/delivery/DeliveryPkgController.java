@@ -73,18 +73,56 @@ public class DeliveryPkgController {
     private String pkgDetailBaseUrl;
 
     /**
-     * 查询待打包零件全量列表
+     * 分页查询待打包零件列表
      */
     @PostMapping("/list")
     public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
-        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
+        if (request == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询参数不能为空");
+        }
+        int current = normalizeCurrent(request.getCurrent());
+        int size = normalizeSize(request.getSize());
+        List<DeliveryPkgPieceVO> allItems = appDeliveryPkgService.listPendingPackagingPieces(request);
+        List<DeliveryPkgPieceVO> pageItems = paginate(allItems, current, size);
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
-                items,
-                appDeliveryPkgService.buildMaterialList(items),
-                appDeliveryPkgService.buildSizeList(items),
-                appDeliveryPkgService.buildProcessList(items)
+                pageItems,
+                appDeliveryPkgService.buildMaterialList(allItems),
+                appDeliveryPkgService.buildSizeList(allItems),
+                appDeliveryPkgService.buildProcessList(allItems),
+                (long) allItems.size(),
+                (long) current,
+                (long) size
         );
         return ApiResponse.success(response);
+    }
+
+    private int normalizeCurrent(Integer current) {
+        if (current == null) {
+            return 1;
+        }
+        if (current <= 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "current必须大于0");
+        }
+        return current;
+    }
+
+    private int normalizeSize(Integer size) {
+        if (size == null) {
+            return 10;
+        }
+        if (size <= 0 || size > 100) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "size必须在1-100之间");
+        }
+        return size;
+    }
+
+    private List<DeliveryPkgPieceVO> paginate(List<DeliveryPkgPieceVO> items, int current, int size) {
+        if (items == null || items.isEmpty()) {
+            return new ArrayList<>();
+        }
+        int fromIndex = Math.toIntExact(Math.min(((long) current - 1) * size, (long) items.size()));
+        int toIndex = Math.min(fromIndex + size, items.size());
+        return new ArrayList<>(items.subList(fromIndex, toIndex));
     }
 
 

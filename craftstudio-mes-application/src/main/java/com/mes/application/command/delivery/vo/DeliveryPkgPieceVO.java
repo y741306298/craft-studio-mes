@@ -29,6 +29,7 @@ public class DeliveryPkgPieceVO {
     private Double height;
     private MaterialConfig materialConfig;
     private ProcedureFlow procedureFlow;
+    private String processingFlow;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
     private float score;
@@ -42,6 +43,7 @@ public class DeliveryPkgPieceVO {
         vo.setIsUrgent(piece.getIsUrgent());
         vo.setMaterialConfig(piece.getMaterialConfig());
         vo.setProcedureFlow(piece.getProcedureFlow());
+        vo.setProcessingFlow(piece.getProcessingFlow());
         vo.setCreateTime(piece.getCreateTime());
         vo.setWidth(piece.getWidth());
         vo.setHeight(piece.getHeight());
