@@ -20,6 +20,8 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private String status;
     private String remark;
     private String platformCode;
+    private String routeId;
+    private String routeNodeId;
 
     @Override
     public OrderInfo toDO() {
@@ -33,6 +35,8 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setDeliveryAddress(this.deliveryAddress);
         orderInfo.setRemark(this.remark);
         orderInfo.setPlatformCode(this.platformCode);
+        orderInfo.setRouteId(this.routeId);
+        orderInfo.setRouteNodeId(this.routeNodeId);
         if (this.status != null) {
             orderInfo.setStatus(OrderStatus.getByCode(this.status));
         }
@@ -47,6 +51,8 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.deliveryAddress = _do.getDeliveryAddress();
         this.remark = _do.getRemark();
         this.platformCode = _do.getPlatformCode();
+        this.routeId = _do.getRouteId();
+        this.routeNodeId = _do.getRouteNodeId();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }

@@ -2,6 +2,7 @@ package com.mes.application.dto.resp.delivery;
 
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import lombok.Data;
 
 import java.util.Date;
@@ -15,6 +16,7 @@ public class DeliveryRouteListResponse {
     private String routeId;
     private String routeName;
     private List<DeliveryRouteNode> deliveryRouteNodes;
+    private List<RouteNode> routeNodes;
     private String status;
     private Date createTime;
     private Date updateTime;
@@ -39,6 +41,7 @@ public class DeliveryRouteListResponse {
         response.setDeliveryRouteNodes(rebuildNodes
                 ? rebuildDeliveryRouteNodes(deliveryRoute.getDeliveryRouteNodes())
                 : deliveryRoute.getDeliveryRouteNodes());
+        response.setRouteNodes(deliveryRoute.getRouteNodes());
         response.setStatus(deliveryRoute.getStatus());
         response.setCreateTime(deliveryRoute.getCreateTime());
         response.setUpdateTime(deliveryRoute.getUpdateTime());
