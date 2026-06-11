@@ -23,5 +23,7 @@ public class OrderInfo extends BaseEntity {
     private Date expectedDeliveryDate;
     private String remark;
     private String platformCode;
+    private String routeId;
+    private String routeNodeId;
 
 }

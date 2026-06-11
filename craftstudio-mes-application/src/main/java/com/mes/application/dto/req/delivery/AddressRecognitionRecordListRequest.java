@@ -7,12 +7,11 @@ import lombok.EqualsAndHashCode;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class DeliveryRouteListRequest extends PagedApiRequest {
-    private String routeName;
+public class AddressRecognitionRecordListRequest extends PagedApiRequest {
     private String name;
-    private String manufacturerMetaId;
+    private String detailAddress;
 
     public String getSearchName() {
-        return StringUtils.isNotBlank(name) ? name : routeName;
+        return StringUtils.isNotBlank(name) ? name : detailAddress;
     }
 }
