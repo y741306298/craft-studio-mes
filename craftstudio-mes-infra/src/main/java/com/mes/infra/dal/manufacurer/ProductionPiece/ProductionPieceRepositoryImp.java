@@ -3,6 +3,7 @@ package com.mes.infra.dal.manufacurer.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.infra.base.BaseRepositoryImp;
+import com.mongodb.client.result.UpdateResult;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -59,6 +60,20 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
                 .set("isUrgent", isUrgent)
                 .set("updateTime", new Date());
         mongoTemplate.updateMulti(query, update, poClass());
+    }
+
+    @Override
+    public long deleteByOrderItemId(String orderItemId) {
+        if (orderItemId == null || orderItemId.isBlank()) {
+            throw new IllegalArgumentException("订单项目 ID 不能为空");
+        }
+
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").is(orderItemId));
+        Update update = new Update()
+                .set(SoftDeleteQuery.DELETED_AT, new Date())
+                .set("updateTime", new Date());
+        UpdateResult result = mongoTemplate.updateMulti(query, update, poClass());
+        return result.getModifiedCount();
     }
 
     @Override

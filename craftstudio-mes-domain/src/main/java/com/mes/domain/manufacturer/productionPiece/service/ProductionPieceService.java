@@ -185,6 +185,16 @@ public class ProductionPieceService {
     }
 
     /**
+     * 根据订单项目 ID 删除全部生产工件。
+     */
+    public long deleteProductionPiecesByOrderItemId(String orderItemId) {
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项目 ID 不能为空");
+        }
+        return productionPieceRepository.deleteByOrderItemId(orderItemId);
+    }
+
+    /**
      * 根据工艺路线 ID 查询生产工件（支持分页）
      */
     public List<ProductionPiece> findProductionPiecesByProcedureFlowId(String procedureFlowId, int current, int size) {
