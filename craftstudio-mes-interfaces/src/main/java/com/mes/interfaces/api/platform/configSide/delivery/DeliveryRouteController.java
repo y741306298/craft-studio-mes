@@ -193,7 +193,7 @@ public class DeliveryRouteController {
             @Valid @RequestBody AddressRecognitionRecordListRequest request) {
         PagedQuery query = request.toPagedQuery();
         PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getSearchName(), query);
-        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+        return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
 
@@ -207,7 +207,7 @@ public class DeliveryRouteController {
                 request.getSearchName(),
                 query
         );
-        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+        return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
     @PostMapping("/address-recognition/bind")
