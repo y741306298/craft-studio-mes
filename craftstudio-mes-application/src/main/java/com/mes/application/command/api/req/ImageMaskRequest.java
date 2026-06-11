@@ -131,26 +131,23 @@ public class ImageMaskRequest {
         List<Coordinate> xs = new ArrayList<>();
         List<Coordinate> ys = new ArrayList<>();
 
-        for (ProcedureFlowNode node : processingNodes) {
-            if (node == null) {
-                continue;
-            }
-            AlgorithmSpliceProcessStrategy matchedStrategy = effectiveStrategies.stream()
-                    .filter(strategy -> strategy.matches(node))
-                    .findFirst()
-                    .orElse(null);
-            if (matchedStrategy == null) {
-                continue;
-            }
-            List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs = node.getParamConfigs();
-            if (paramConfigs != null) {
-                for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
-                    if (config == null) {
-                        continue;
-                    }
-                    Object paramValue = config.getParam();
-                    resolveCoordinates(paramValue, xs, ys, orderItem, rawImage, matchedStrategy);
+        // 多个拼接工艺同时存在时，只把工艺流中最后一个拼接节点转换成算法 slice。
+        ProcedureFlowNode node = SpliceProcessStrategies.findLastSpliceNode(processingNodes, effectiveStrategies).orElse(null);
+        AlgorithmSpliceProcessStrategy matchedStrategy = node == null ? null : effectiveStrategies.stream()
+                .filter(strategy -> strategy.matches(node))
+                .findFirst()
+                .orElse(null);
+        if (matchedStrategy == null) {
+            return null;
+        }
+        List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs = node.getParamConfigs();
+        if (paramConfigs != null) {
+            for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
+                if (config == null) {
+                    continue;
                 }
+                Object paramValue = config.getParam();
+                resolveCoordinates(paramValue, xs, ys, orderItem, rawImage, matchedStrategy);
             }
         }
 
