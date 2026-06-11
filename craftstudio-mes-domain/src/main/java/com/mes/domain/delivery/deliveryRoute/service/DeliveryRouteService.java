@@ -1,10 +1,13 @@
 package com.mes.domain.delivery.deliveryRoute.service;
 
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecordStatus;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNodeBinding;
 import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
+import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecordRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
@@ -28,6 +31,8 @@ public class DeliveryRouteService {
     private DeliveryRouteNodeRepository deliveryRouteNodeRepository;
     @Autowired
     private DeliveryRouteNodeBindingRepository deliveryRouteNodeBindingRepository;
+    @Autowired
+    private AddressRecognitionRecordRepository addressRecognitionRecordRepository;
 
     /**
      * 根据路线名称查询配送路线（支持分页）
@@ -46,9 +51,8 @@ public class DeliveryRouteService {
 
         Map<String, String> searchFilters = new HashMap<>();
         searchFilters.put("routeName", routeName);
-        searchFilters.put("manufacturerId", manufacturerId);
+        searchFilters.put("manufacturerMetaId", manufacturerId);
         List<DeliveryRoute> routes = deliveryRouteRepository.fuzzySearch(searchFilters, current, size);
-        fillRouteNodes(routes);
         return routes;
     }
 
@@ -59,7 +63,7 @@ public class DeliveryRouteService {
         if (StringUtils.isNotBlank(routeName)) {
             Map<String, String> searchFilters = new HashMap<>();
             searchFilters.put("routeName", routeName);
-            searchFilters.put("manufacturerId", manufacturerId);
+            searchFilters.put("manufacturerMetaId", manufacturerId);
             return deliveryRouteRepository.totalByFuzzySearch(searchFilters);
         } else {
             return deliveryRouteRepository.totalByManufacturerId(manufacturerId);
@@ -98,11 +102,12 @@ public class DeliveryRouteService {
         if (routeNodes == null || routeNodes.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不能为空");
         }
-        for (RouteNode routeNode : routeNodes) {
+        for (int i = 0; i < routeNodes.size(); i++) {
+            RouteNode routeNode = routeNodes.get(i);
             if (routeNode == null || StringUtils.isBlank(routeNode.getName())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点名称不能为空");
             }
-            routeNode.setId(IdGenerator.generateId("RN"));
+            routeNode.setId(String.valueOf(i + 1));
         }
     }
 
@@ -120,6 +125,9 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
+        if (deliveryRoute.getRouteNodes() != null) {
+            prepareRouteNodes(deliveryRoute.getRouteNodes());
+        }
         List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
         deliveryRoute.setDeliveryRouteNodes(null);
         deliveryRouteRepository.update(deliveryRoute);
@@ -267,6 +275,57 @@ public class DeliveryRouteService {
             if (!nodes.isEmpty()) {
                 deliveryRouteNodeRepository.batchUpdate(nodes);
             }
+        }
+    }
+
+
+    public List<AddressRecognitionRecord> listUnassignedAddressRecognitionRecords(long current, int size) {
+        if (current <= 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "页码必须大于 0");
+        }
+        if (size <= 0 || size > 100) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
+        }
+        return addressRecognitionRecordRepository.listByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), current, size);
+    }
+
+    public long countUnassignedAddressRecognitionRecords() {
+        return addressRecognitionRecordRepository.totalByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue());
+    }
+
+    public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId) {
+        if (recordIds == null || recordIds.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不能为空");
+        }
+        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
+        }
+        for (String recordId : recordIds) {
+            bindAddressRecognitionRecord(recordId, routeId, nodeId);
+        }
+    }
+
+    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId) {
+        if (StringUtils.isBlank(recordId) || StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "绑定参数不能为空");
+        }
+        AddressRecognitionRecord record = addressRecognitionRecordRepository.findById(recordId);
+        if (record == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不存在");
+        }
+        record.setRouteId(routeId);
+        record.setNodeId(nodeId);
+        record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
+        addressRecognitionRecordRepository.update(record);
+    }
+
+    public void deleteAddressRecognitionRecord(String recordId) {
+        if (StringUtils.isBlank(recordId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
+        }
+        AddressRecognitionRecord record = addressRecognitionRecordRepository.findById(recordId);
+        if (record != null) {
+            addressRecognitionRecordRepository.delete(record);
         }
     }
 

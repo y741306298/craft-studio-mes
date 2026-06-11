@@ -1,5 +1,7 @@
 package com.mes.application.command.delivery;
 
+import com.mes.application.dto.resp.delivery.AddressRecognitionRecordResponse;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
@@ -7,6 +9,8 @@ import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeBindingMatchResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
+import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,9 @@ public class AppDeliveryRouteService {
 
     @Autowired
     private DeliveryRouteRepository deliveryRouteRepository;
+
+    @Autowired
+    private WorldRepository worldRepository;
 
     public PagedResult<DeliveryRoute> findDeliveryRoutes(String routeName, String manufacturerId, PagedQuery query) {
         if (query == null) {
@@ -45,8 +52,6 @@ public class AppDeliveryRouteService {
             items = domainDeliveryRouteService.findDeliveryRoutesByName(routeName, manufacturerId, (int) query.getCurrent(), query.getSize());
             total = domainDeliveryRouteService.getTotalCount(routeName, manufacturerId);
         }
-        domainDeliveryRouteService.hydrateRouteNodes(items);
-
         return new PagedResult<DeliveryRoute>(items, total, query.getSize(), query.getCurrent());
     }
 
@@ -116,6 +121,38 @@ public class AppDeliveryRouteService {
             throw new IllegalArgumentException("节点 ID 不能为空");
         }
         domainDeliveryRouteService.removeRouteNode(routeId, nodeId);
+    }
+
+
+    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(PagedQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("分页参数不能为空");
+        }
+        if (query.getSize() <= 0 || query.getSize() > 100) {
+            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        }
+
+        List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
+                query.getCurrent(), query.getSize()
+        );
+        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords();
+        World world = worldRepository.loadWorld();
+        List<AddressRecognitionRecordResponse> responses = records.stream()
+                .map(record -> AddressRecognitionRecordResponse.from(record, world))
+                .toList();
+        return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+    }
+
+    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId) {
+        domainDeliveryRouteService.bindAddressRecognitionRecord(recordId, routeId, nodeId);
+    }
+
+    public void batchBindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId) {
+        domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId);
+    }
+
+    public void deleteAddressRecognitionRecord(String recordId) {
+        domainDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
     }
 
     public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {
