@@ -857,6 +857,7 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
+        enrichTypesettingSourceCellPreviewUrls(pagedTypesettingInfos);
 
         long total = allTypesettingInfos.size();
 
@@ -899,7 +900,82 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
+        enrichTypesettingSourceCellPreviewUrls(result);
         return result;
+    }
+
+    private void enrichTypesettingSourceCellPreviewUrls(List<TypesettingInfo> typesettingInfos) {
+        if (CollectionUtils.isEmpty(typesettingInfos)) {
+            return;
+        }
+
+        Map<String, String> productionPiecePreviewUrlMap = new HashMap<>();
+        Map<String, String> typesettingPreviewUrlMap = new HashMap<>();
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
+                continue;
+            }
+            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+                if (cell == null || StringUtils.isBlank(cell.getSourceId())) {
+                    continue;
+                }
+                if (isProductionPieceSource(cell.getSourceType())) {
+                    cell.setPreviewUrl(productionPiecePreviewUrlMap.computeIfAbsent(
+                            cell.getSourceId(),
+                            this::resolveProductionPiecePreviewUrl
+                    ));
+                } else if (isTypesettingSource(cell.getSourceType())) {
+                    cell.setPreviewUrl(typesettingPreviewUrlMap.computeIfAbsent(
+                            cell.getSourceId(),
+                            this::resolveTypesettingNestedSvg
+                    ));
+                }
+            }
+        }
+    }
+
+    private boolean isProductionPieceSource(String sourceType) {
+        return TypesettingSourceType.PART.getCode().equals(sourceType)
+                || TypesettingSourceType.PART.name().equals(sourceType);
+    }
+
+    private boolean isTypesettingSource(String sourceType) {
+        return TypesettingSourceType.TYPESETTING.getCode().equals(sourceType)
+                || TypesettingSourceType.TYPESETTING.name().equals(sourceType);
+    }
+
+    private String resolveProductionPiecePreviewUrl(String sourceId) {
+        if (StringUtils.isBlank(sourceId)) {
+            return null;
+        }
+        try {
+            ProductionPiece piece = productionPieceService.findById(sourceId);
+            if (piece == null
+                    || piece.getProductImageFile() == null
+                    || piece.getProductImageFile().getFilePreview() == null) {
+                return null;
+            }
+            return piece.getProductImageFile().getFilePreview().getPreview();
+        } catch (Exception e) {
+            log.warn("获取生产工件预览图失败: sourceId={}, error={}", sourceId, e.getMessage());
+            return null;
+        }
+    }
+
+    private String resolveTypesettingNestedSvg(String sourceId) {
+        if (StringUtils.isBlank(sourceId)) {
+            return null;
+        }
+        try {
+            TypesettingInfo sourceTypesetting = domainTypesettingService.findById(sourceId);
+            if (sourceTypesetting == null || sourceTypesetting.getElement() == null) {
+                return null;
+            }
+            return sourceTypesetting.getElement().getNestedSvg();
+        } catch (Exception e) {
+            log.warn("获取印版预览图失败: sourceId={}, error={}", sourceId, e.getMessage());
+            return null;
+        }
     }
 
     /**
