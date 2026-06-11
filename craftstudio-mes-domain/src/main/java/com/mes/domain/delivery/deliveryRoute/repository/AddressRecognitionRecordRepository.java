@@ -9,7 +9,11 @@ public interface AddressRecognitionRecordRepository extends BaseRepository<Addre
 
     AddressRecognitionRecord findByAddress(String terminalRegionCode, String detailAddress);
 
-    List<AddressRecognitionRecord> listByStatus(String status, long current, int size);
+    List<AddressRecognitionRecord> listByStatus(String status, String detailAddress, long current, int size);
 
-    long totalByStatus(String status);
+    long totalByStatus(String status, String detailAddress);
+
+    List<AddressRecognitionRecord> listAssignedByRouteNode(String routeId, String nodeId, String detailAddress, long current, int size);
+
+    long totalAssignedByRouteNode(String routeId, String nodeId, String detailAddress);
 }

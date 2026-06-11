@@ -7,4 +7,5 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AddressRecognitionRecordListRequest extends PagedApiRequest {
+    private String detailAddress;
 }

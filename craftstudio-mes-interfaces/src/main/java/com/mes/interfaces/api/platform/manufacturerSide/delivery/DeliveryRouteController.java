@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryRouteService;
+import com.mes.application.dto.req.delivery.AddressRecognitionRecordAssignedListRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordBatchBindRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordBindRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordListRequest;
@@ -191,8 +192,22 @@ public class DeliveryRouteController {
     public PagedApiResponse<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(
             @Valid @RequestBody AddressRecognitionRecordListRequest request) {
         PagedQuery query = request.toPagedQuery();
-        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(query);
-        return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getDetailAddress(), query);
+        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+    }
+
+
+    @PostMapping("/address-recognition/assigned/list")
+    public PagedApiResponse<AddressRecognitionRecordResponse> listAssignedAddressRecognitionRecords(
+            @Valid @RequestBody AddressRecognitionRecordAssignedListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listAssignedAddressRecognitionRecords(
+                request.getRouteId(),
+                request.getNodeId(),
+                request.getDetailAddress(),
+                query
+        );
+        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
     @PostMapping("/address-recognition/bind")

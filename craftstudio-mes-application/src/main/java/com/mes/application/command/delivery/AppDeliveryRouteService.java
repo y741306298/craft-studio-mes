@@ -124,7 +124,7 @@ public class AppDeliveryRouteService {
     }
 
 
-    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(PagedQuery query) {
+    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(String detailAddress, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -133,9 +133,30 @@ public class AppDeliveryRouteService {
         }
 
         List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
-                query.getCurrent(), query.getSize()
+                detailAddress, query.getCurrent(), query.getSize()
         );
-        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords();
+        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(detailAddress);
+        World world = worldRepository.loadWorld();
+        List<AddressRecognitionRecordResponse> responses = records.stream()
+                .map(record -> AddressRecognitionRecordResponse.from(record, world))
+                .toList();
+        return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+    }
+
+
+    public PagedResult<AddressRecognitionRecordResponse> listAssignedAddressRecognitionRecords(
+            String routeId, String nodeId, String detailAddress, PagedQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("分页参数不能为空");
+        }
+        if (query.getSize() <= 0 || query.getSize() > 100) {
+            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        }
+
+        List<AddressRecognitionRecord> records = domainDeliveryRouteService.listAssignedAddressRecognitionRecords(
+                routeId, nodeId, detailAddress, query.getCurrent(), query.getSize()
+        );
+        long total = domainDeliveryRouteService.countAssignedAddressRecognitionRecords(routeId, nodeId, detailAddress);
         World world = worldRepository.loadWorld();
         List<AddressRecognitionRecordResponse> responses = records.stream()
                 .map(record -> AddressRecognitionRecordResponse.from(record, world))

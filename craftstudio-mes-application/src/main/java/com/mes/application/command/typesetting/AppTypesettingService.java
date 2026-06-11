@@ -310,6 +310,12 @@ public class AppTypesettingService {
             }
         }
 
+        if (StringUtils.isNotBlank(query.getName())) {
+            allItems = allItems.stream()
+                    .filter(item -> matchesTypesettingName(item, query.getName()))
+                    .collect(Collectors.toList());
+        }
+
         sortTypesettingProductionPiecesByUrgencyAndCreateTime(allItems);
 
         long total = allItems.size();
@@ -318,6 +324,34 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
 
         return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+    }
+
+
+    private boolean matchesTypesettingName(TypesettingProductionPieceVO item, String name) {
+        if (StringUtils.isBlank(name)) {
+            return true;
+        }
+        if (item == null) {
+            return false;
+        }
+        String keyword = name.trim();
+        return containsIgnoreCase(item.getOrderItemId(), keyword)
+                || containsIgnoreCase(item.getGroupId(), keyword)
+                || containsIgnoreCase(item.getSourceId(), keyword)
+                || containsIgnoreCase(item.getProcessingFlow(), keyword)
+                || containsIgnoreCase(item.getRemark(), keyword)
+                || containsIgnoreCase(item.getTemplateCode(), keyword)
+                || containsIgnoreCase(item.getLayoutMode(), keyword)
+                || containsIgnoreCase(item.getStatus(), keyword)
+                || (item.getMaterialConfig() != null
+                && item.getMaterialConfig().getMaterialSnapshot() != null
+                && containsIgnoreCase(item.getMaterialConfig().getMaterialSnapshot().getName(), keyword))
+                || (item.getMaterialConfigs() != null
+                && item.getMaterialConfigs().stream().anyMatch(material -> containsIgnoreCase(material, keyword)));
+    }
+
+    private boolean containsIgnoreCase(String value, String keyword) {
+        return value != null && keyword != null && value.toLowerCase().contains(keyword.toLowerCase());
     }
 
     /**
