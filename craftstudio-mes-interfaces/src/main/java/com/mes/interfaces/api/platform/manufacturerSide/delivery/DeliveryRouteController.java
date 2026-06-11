@@ -1,11 +1,15 @@
 package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryRouteService;
+import com.mes.application.dto.req.delivery.AddressRecognitionRecordBatchBindRequest;
+import com.mes.application.dto.req.delivery.AddressRecognitionRecordBindRequest;
+import com.mes.application.dto.req.delivery.AddressRecognitionRecordListRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteNodeBindingMatchRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteNodeBindingRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
+import com.mes.application.dto.resp.delivery.AddressRecognitionRecordResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteListResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeBindingMatchResponse;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeRequest;
@@ -64,7 +68,7 @@ public class DeliveryRouteController {
         PagedResult<DeliveryRoute> result = appDeliveryRouteService.findDeliveryRoutes(routeName, request.getManufacturerMetaId(), query);
 
         List<DeliveryRouteListResponse> responses = result.items().stream()
-                .map(DeliveryRouteListResponse::fromRaw)
+                .map(DeliveryRouteListResponse::from)
                 .collect(Collectors.toList());
 
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
@@ -179,6 +183,54 @@ public class DeliveryRouteController {
         
         appDeliveryRouteService.removeRouteNode(routeId, nodeId);
         
+        return ApiResponse.success("success");
+    }
+
+
+    @PostMapping("/address-recognition/unassigned/list")
+    public PagedApiResponse<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(
+            @Valid @RequestBody AddressRecognitionRecordListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(query);
+        return PagedApiResponse.success(result.items(), query.getCurrent(), query.getSize(), result.total());
+    }
+
+    @PostMapping("/address-recognition/bind")
+    public ApiResponse<String> bindAddressRecognitionRecord(
+            @Valid @RequestBody AddressRecognitionRecordBindRequest request) {
+        appDeliveryRouteService.bindAddressRecognitionRecord(
+                request.getRecordId(),
+                request.getRouteId(),
+                request.getNodeId()
+        );
+        return ApiResponse.success("success");
+    }
+
+    @PostMapping("/address-recognition/change-bind")
+    public ApiResponse<String> changeAddressRecognitionRecordBinding(
+            @Valid @RequestBody AddressRecognitionRecordBindRequest request) {
+        appDeliveryRouteService.bindAddressRecognitionRecord(
+                request.getRecordId(),
+                request.getRouteId(),
+                request.getNodeId()
+        );
+        return ApiResponse.success("success");
+    }
+
+    @PostMapping("/address-recognition/batch-bind")
+    public ApiResponse<String> batchBindAddressRecognitionRecords(
+            @Valid @RequestBody AddressRecognitionRecordBatchBindRequest request) {
+        appDeliveryRouteService.batchBindAddressRecognitionRecords(
+                request.getRecordIds(),
+                request.getRouteId(),
+                request.getNodeId()
+        );
+        return ApiResponse.success("success");
+    }
+
+    @DeleteMapping("/address-recognition/{recordId}")
+    public ApiResponse<String> deleteAddressRecognitionRecord(@PathVariable String recordId) {
+        appDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
         return ApiResponse.success("success");
     }
 

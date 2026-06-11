@@ -1,7 +1,7 @@
 package com.mes.application.dto.req.delivery;
 
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
-import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -19,7 +19,7 @@ public class DeliveryRouteRequest {
 
     private String manufacturerMetaId;
 
-    private List<DeliveryRouteNode> deliveryRouteNodes;
+    private List<RouteNode> routeNodes;
 
     private String status;
 
@@ -28,7 +28,7 @@ public class DeliveryRouteRequest {
         deliveryRoute.setId(this.id);
         deliveryRoute.setRouteId(this.routeId);
         deliveryRoute.setRouteName(this.routeName);
-        deliveryRoute.setDeliveryRouteNodes(this.deliveryRouteNodes);
+        deliveryRoute.setRouteNodes(this.routeNodes);
         deliveryRoute.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryRoute.setStatus(this.status);
 

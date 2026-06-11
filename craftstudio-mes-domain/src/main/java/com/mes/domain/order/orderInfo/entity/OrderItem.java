@@ -33,6 +33,8 @@ public class OrderItem extends BaseEntity {
     private String failureReason;
     private String kuaidiWay;
     private String kuaidiNum;
+    private String routeId;
+    private String routeNodeId;
     private List<ProductionPiece> productionPieces;
 
 }
