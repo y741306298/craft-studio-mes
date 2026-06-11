@@ -98,9 +98,6 @@ public class OrderItemService {
      * @return 订单项列表
      */
     public java.util.List<OrderItem> filterListUrgentFirst(int current, int size, Map<String, Object> filters) {
-        if (size <= 0 || size > 100) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
-        }
         return orderItemRepository.filterListUrgentFirst(current, size, filters);
     }
 
