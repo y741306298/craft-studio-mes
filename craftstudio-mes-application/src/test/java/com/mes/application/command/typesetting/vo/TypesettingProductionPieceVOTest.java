@@ -1,5 +1,6 @@
 package com.mes.application.command.typesetting.vo;
 
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,16 @@ class TypesettingProductionPieceVOTest {
         TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromTypesettingInfo(info);
 
         assertEquals("TS-001", vo.getGroupId());
+    }
+
+    @Test
+    void fromProductionPieceReturnsProcessingFlow() {
+        ProductionPiece piece = new ProductionPiece();
+        piece.setProcessingFlow("激光切割-覆膜");
+
+        TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+
+        assertEquals("激光切割-覆膜", vo.getProcessingFlow());
     }
 
     private TypesettingInfo buildTypesettingInfo(String typesettingId) {
