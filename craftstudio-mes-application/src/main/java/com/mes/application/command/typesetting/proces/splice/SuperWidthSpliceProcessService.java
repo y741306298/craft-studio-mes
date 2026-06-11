@@ -26,6 +26,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -136,11 +137,27 @@ public class SuperWidthSpliceProcessService {
      * 拼接标识命中条件：必须同时存在已支持的拼接工艺，并且当前零件带有 callback 回写的 seq / group。
      */
     private SpliceProcessConfig resolveSpliceProcessConfig(ProcedureFlow procedureFlow, ProductionPiece piece) {
-        if (procedureFlow == null || piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null || piece == null
+                || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
+            return null;
+        }
+        // 多个拼接工艺同时存在时，只使用工艺流中最后一个拼接策略生成 callback 标识。
+        return procedureFlow.getNodes().stream()
+                .filter(node -> node != null)
+                .filter(node -> resolveConfigByNodeName(node.getNodeName()) != null)
+                .max(Comparator
+                        .comparingInt((ProcedureFlowNode node) -> node.getNodeOrder() == null ? Integer.MIN_VALUE : node.getNodeOrder())
+                        .thenComparingInt(procedureFlow.getNodes()::indexOf))
+                .map(node -> resolveConfigByNodeName(node.getNodeName()))
+                .orElse(null);
+    }
+
+    private SpliceProcessConfig resolveConfigByNodeName(String nodeName) {
+        if (StringUtils.isBlank(nodeName)) {
             return null;
         }
         for (SpliceProcessConfig config : SPLICE_PROCESS_CONFIGS) {
-            if (hasNode(procedureFlow, config.nodeName)) {
+            if (config.nodeName.equals(nodeName)) {
                 return config;
             }
         }
@@ -322,17 +339,6 @@ public class SuperWidthSpliceProcessService {
                 + normalizeRectsToPaths(innerSvg) + "\n</g>\n" + suffix;
     }
 
-    private boolean hasNode(ProcedureFlow procedureFlow, String nodeName) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null) {
-            return false;
-        }
-        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node != null && nodeName.equals(node.getNodeName())) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * 拼接自身标识的出血/被出血边判断。

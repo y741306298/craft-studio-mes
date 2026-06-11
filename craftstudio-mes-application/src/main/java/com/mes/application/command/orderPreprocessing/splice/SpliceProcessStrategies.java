@@ -3,6 +3,7 @@ package com.mes.application.command.orderPreprocessing.splice;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -36,8 +37,41 @@ public final class SpliceProcessStrategies {
                 && procedureFlow.getNodes().stream().anyMatch(node -> findByNode(node).isPresent());
     }
 
+    public static Optional<ProcedureFlowNode> findLastSpliceNode(ProcedureFlow procedureFlow) {
+        return procedureFlow == null ? Optional.empty() : findLastSpliceNode(procedureFlow.getNodes());
+    }
+
+    public static Optional<ProcedureFlowNode> findLastSpliceNode(List<ProcedureFlowNode> nodes) {
+        return findLastSpliceNode(nodes, DEFAULT_STRATEGIES);
+    }
+
+    public static Optional<ProcedureFlowNode> findLastSpliceNode(List<ProcedureFlowNode> nodes, List<AlgorithmSpliceProcessStrategy> spliceStrategies) {
+        if (nodes == null || nodes.isEmpty()) {
+            return Optional.empty();
+        }
+        List<AlgorithmSpliceProcessStrategy> effectiveStrategies = spliceStrategies == null || spliceStrategies.isEmpty()
+                ? DEFAULT_STRATEGIES
+                : spliceStrategies;
+        return nodes.stream()
+                .filter(node -> findByNode(node, effectiveStrategies).isPresent())
+                .max(Comparator
+                        .comparingInt((ProcedureFlowNode node) -> node.getNodeOrder() == null ? Integer.MIN_VALUE : node.getNodeOrder())
+                        .thenComparingInt(nodes::indexOf));
+    }
+
+    public static Optional<AlgorithmSpliceProcessStrategy> findLastStrategy(ProcedureFlow procedureFlow) {
+        return findLastSpliceNode(procedureFlow).flatMap(SpliceProcessStrategies::findByNode);
+    }
+
     public static Optional<AlgorithmSpliceProcessStrategy> findByNode(ProcedureFlowNode node) {
-        return DEFAULT_STRATEGIES.stream().filter(strategy -> strategy.matches(node)).findFirst();
+        return findByNode(node, DEFAULT_STRATEGIES);
+    }
+
+    public static Optional<AlgorithmSpliceProcessStrategy> findByNode(ProcedureFlowNode node, List<AlgorithmSpliceProcessStrategy> spliceStrategies) {
+        List<AlgorithmSpliceProcessStrategy> effectiveStrategies = spliceStrategies == null || spliceStrategies.isEmpty()
+                ? DEFAULT_STRATEGIES
+                : spliceStrategies;
+        return effectiveStrategies.stream().filter(strategy -> strategy.matches(node)).findFirst();
     }
 
     public static String nodeNamesText() {
