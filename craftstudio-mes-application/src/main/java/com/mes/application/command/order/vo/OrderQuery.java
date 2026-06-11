@@ -15,5 +15,6 @@ public class OrderQuery {
     private Date startTime;
     private Date endTime;
     private String customerPhone;
+    private String customerName;
     private PagedQuery pagedQuery;
 }
