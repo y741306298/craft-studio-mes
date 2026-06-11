@@ -11,6 +11,7 @@ public class OrderListRequest extends PagedApiRequest {
     private String orderId;
     private String status;
     private String customerPhone;
+    private String customerName;
     private String createDateStart;
     private String createDateEnd;
 }

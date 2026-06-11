@@ -220,6 +220,12 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 } else {
                     criteria.and(fieldName).regex(String.valueOf(value), "i");
                 }
+            } else if (value instanceof Collection<?> collectionValue) {
+                if (criteria == null) {
+                    criteria = Criteria.where(key).in(collectionValue);
+                } else {
+                    criteria.and(key).in(collectionValue);
+                }
             } else {
                 if (criteria == null) {
                     criteria = Criteria.where(key).is(value);

@@ -113,6 +113,8 @@ import java.util.Comparator;
 @Slf4j
 @Service
 public class AppTypesettingService {
+    private static final int FULL_LIST_PAGE_SIZE = 99;
+
 
     @Autowired
     private TypesettingService domainTypesettingService;
@@ -270,16 +272,14 @@ public class AppTypesettingService {
         boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
 
         if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+            List<ProductionPiece> productionPieces = findAllProductionPiecesByConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getOrderItemId(),
                     query.getStartTime(),
-                    query.getEndTime(),
-                    1,
-                    Integer.MAX_VALUE
+                    query.getEndTime()
             );
             Map<String, String> orderGroupIdCache = new HashMap<>();
             for (ProductionPiece piece : productionPieces) {
@@ -292,16 +292,14 @@ public class AppTypesettingService {
         }
 
         if (!queryPartOnly) {
-            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+            List<TypesettingInfo> typesettingInfos = findAllTypesettingByConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getStartTime(),
                     query.getEndTime(),
-                    null,
-                    1,
-                    Integer.MAX_VALUE
+                    null
             );
             for (TypesettingInfo info : typesettingInfos) {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
@@ -378,6 +376,74 @@ public class AppTypesettingService {
         return items;
     }
 
+    private List<TypesettingInfo> findAllTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
+            String processingName,
+            Date startTime,
+            Date endTime,
+            String deviceCode) {
+        List<TypesettingInfo> result = new ArrayList<>();
+        int current = 1;
+        while (true) {
+            List<TypesettingInfo> pageItems = domainTypesettingService.findTypesettingByConditions(
+                    manufacturerMetaId,
+                    status,
+                    materialName,
+                    processingName,
+                    startTime,
+                    endTime,
+                    deviceCode,
+                    current,
+                    FULL_LIST_PAGE_SIZE
+            );
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            result.addAll(pageItems);
+            if (pageItems.size() < FULL_LIST_PAGE_SIZE) {
+                break;
+            }
+            current++;
+        }
+        return result;
+    }
+
+    private List<ProductionPiece> findAllProductionPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime) {
+        List<ProductionPiece> result = new ArrayList<>();
+        int current = 1;
+        while (true) {
+            List<ProductionPiece> pageItems = productionPieceService.findProductionPiecesByConditions(
+                    manufacturerId,
+                    status,
+                    materialName,
+                    processingName,
+                    orderItemId,
+                    startTime,
+                    endTime,
+                    current,
+                    FULL_LIST_PAGE_SIZE
+            );
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            result.addAll(pageItems);
+            if (pageItems.size() < FULL_LIST_PAGE_SIZE) {
+                break;
+            }
+            current++;
+        }
+        return result;
+    }
+
     private void validateSingleTypesettingScopedId(TypesettingQuery query) {
         int idCount = 0;
         if (StringUtils.isNotBlank(query.getTypesettingId())) {
@@ -395,16 +461,14 @@ public class AppTypesettingService {
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItemsByTypesettingId(TypesettingQuery query) {
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> typesettingInfos = findAllTypesettingByConditions(
                 query.getManufacturerMetaId(),
                 null,
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getStartTime(),
                 query.getEndTime(),
-                null,
-                1,
-                Integer.MAX_VALUE
+                null
         );
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
         for (TypesettingInfo info : typesettingInfos) {
@@ -431,16 +495,14 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(orderItemId)) {
                 continue;
             }
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+            List<ProductionPiece> productionPieces = findAllProductionPiecesByConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
                     query.getProcessingName(),
                     orderItemId,
                     query.getStartTime(),
-                    query.getEndTime(),
-                    1,
-                    Integer.MAX_VALUE
+                    query.getEndTime()
             );
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) <= 0) {
@@ -461,7 +523,7 @@ public class AppTypesettingService {
         List<String> orderItemIds = new ArrayList<>();
         int current = 1;
         while (true) {
-            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId.trim(), manufacturerMetaId, current, 100);
+            List<OrderItem> orderItems = orderItemService.findByOrderId(orderId.trim(), manufacturerMetaId, current, 99);
             if (orderItems == null || orderItems.isEmpty()) {
                 break;
             }
@@ -469,7 +531,7 @@ public class AppTypesettingService {
                     .map(OrderItem::getOrderItemId)
                     .filter(StringUtils::isNotBlank)
                     .forEach(orderItemIds::add);
-            if (orderItems.size() < 100) {
+            if (orderItems.size() < 99) {
                 break;
             }
             current++;
@@ -732,29 +794,32 @@ public class AppTypesettingService {
             size = 20;
         }
 
-        List<TypesettingInfo> confirmingTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> confirmingTypesettingInfos = findAllTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.CONFIRMING.getCode(),
                 null,
                 null,
-                1,
-                Integer.MAX_VALUE
+                null,
+                null,
+                null
         );
-        List<TypesettingInfo> inProgressTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> inProgressTypesettingInfos = findAllTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.IN_PROGRESS.getCode(),
                 null,
                 null,
-                1,
-                Integer.MAX_VALUE
+                null,
+                null,
+                null
         );
-        List<TypesettingInfo> failedTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> failedTypesettingInfos = findAllTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.FAILED.getCode(),
                 null,
                 null,
-                1,
-                Integer.MAX_VALUE
+                null,
+                null,
+                null
         );
 
         List<TypesettingInfo> allTypesettingInfos = new ArrayList<>();
@@ -808,13 +873,14 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(typesettingId)) {
             throw new IllegalArgumentException("typesettingId 不能为空");
         }
-        List<TypesettingInfo> confirmingTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> confirmingTypesettingInfos = findAllTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.CONFIRMING.getCode(),
                 null,
                 null,
-                1,
-                Integer.MAX_VALUE
+                null,
+                null,
+                null
         );
         List<TypesettingInfo> result = confirmingTypesettingInfos == null
                 ? new ArrayList<>()
@@ -863,16 +929,14 @@ public class AppTypesettingService {
      */
     private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
         // 不走分页查询：先按 manufacturerId 查询符合基础条件的全部零件，再在内存中过滤“待排版数量>0”
-        List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
+        List<ProductionPiece> parts = findAllProductionPiecesByConditions(
                 query.getManufacturerMetaId(),
                 ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getOrderItemId(),
                 query.getStartTime(),
-                query.getEndTime(),
-                1,
-                Integer.MAX_VALUE
+                query.getEndTime()
         );
 
         // 转换为 VO
@@ -902,16 +966,14 @@ public class AppTypesettingService {
      */
     private List<TypesettingProductionPieceVO> queryTypesettingOnly(TypesettingQuery query) {
         // 不走分页查询：先查全量排版记录，再在内存中过滤 leaveQuantity > 0
-        List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> typesettings = findAllTypesettingByConditions(
                 query.getManufacturerMetaId(),
                 query.getStatus(),
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getStartTime(),
                 query.getEndTime(),
-                null,
-                1,
-                Integer.MAX_VALUE
+                null
         );
 
         // 转换为 VO
