@@ -61,6 +61,7 @@ public class OrderController {
         String orderId = request.getOrderId();
         String status = request.getStatus();
         String customerPhone = request.getCustomerPhone();
+        String customerName = request.getCustomerName();
         String createDateStart = request.getCreateDateStart();
         String createDateEnd = request.getCreateDateEnd();
         
@@ -72,6 +73,7 @@ public class OrderController {
             orderQuery.setStatus(com.mes.domain.order.enums.OrderStatus.valueOf(status));
         }
         orderQuery.setCustomerPhone(customerPhone);
+        orderQuery.setCustomerName(customerName);
         
         // 处理日期字符串转换为 Date 对象
         if (createDateStart != null && !createDateStart.trim().isEmpty()) {

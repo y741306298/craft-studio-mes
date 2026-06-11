@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class AppOrderService {
@@ -78,6 +79,8 @@ public class AppOrderService {
         String status = query.getStatus() != null ? query.getStatus().getCode() : null;
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
+        String customerPhone = query.getCustomerPhone();
+        String customerName = query.getCustomerName();
         var pagedQuery = query.getPagedQuery();
 
         long total;
@@ -95,6 +98,17 @@ public class AppOrderService {
         }
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
+        }
+        if (StringUtils.isNotBlank(customerPhone) || StringUtils.isNotBlank(customerName)) {
+            Set<String> matchedOrderIds = domainOrderInfoService.findOrderIdsByCustomerConditions(
+                    orderId,
+                    customerPhone,
+                    customerName
+            );
+            if (matchedOrderIds.isEmpty()) {
+                return new PagedResult<>(new ArrayList<>(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
+            }
+            filters.put("orderId", matchedOrderIds);
         }
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(),
