@@ -8,6 +8,7 @@ import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
@@ -131,5 +132,94 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
         query.addCriteria(Criteria.where("deleteAt").is(null));
         return query;
+    }
+
+    @Override
+    public List<ProductionPiece> listPendingTypesettingPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        Query query = buildPendingTypesettingQuery(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                orderItemId,
+                startTime,
+                endTime
+        );
+        query.with(Sort.by(Sort.Direction.DESC, "updateTime"))
+                .limit(size)
+                .skip((long) (current - 1) * size);
+        return mongoTemplate.find(query, ProductionPiecePo.class)
+                .stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public long countPendingTypesettingPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime) {
+        Query query = buildPendingTypesettingQuery(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                orderItemId,
+                startTime,
+                endTime
+        );
+        return mongoTemplate.count(query, ProductionPiecePo.class);
+    }
+
+    private Query buildPendingTypesettingQuery(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime) {
+        List<Criteria> criteriaList = new ArrayList<>();
+        criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
+                Criteria.where("nodeName").is("待排版").and("pieceQuantity").gt(0)
+        ));
+        if (isNotBlank(status)) {
+            criteriaList.add(Criteria.where("status").is(status));
+        }
+        if (isNotBlank(materialName)) {
+            criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name").regex(materialName, "i"));
+        }
+        if (isNotBlank(processingName)) {
+            criteriaList.add(Criteria.where("procedureFlow.nodes.nodeName").is(processingName));
+        }
+        if (isNotBlank(orderItemId)) {
+            criteriaList.add(Criteria.where("orderItemId").is(orderItemId));
+        }
+        if (startTime != null) {
+            criteriaList.add(Criteria.where("createTime").gte(startTime));
+        }
+        if (endTime != null) {
+            criteriaList.add(Criteria.where("createTime").lte(endTime));
+        }
+
+        Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        query.addCriteria(Criteria.where("deleteAt").is(null));
+        return query;
+    }
+
+    private boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
     }
 }

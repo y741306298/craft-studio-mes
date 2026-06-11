@@ -270,9 +270,24 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>();
         boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
         boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
+        boolean queryBoth = !queryPartOnly && !queryTypesettingOnly;
+        int queryCurrent = queryBoth ? 1 : current;
+        int querySize = queryBoth ? current * size : size;
+        long total = 0;
 
         if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = findAllProductionPiecesByConditions(
+            List<ProductionPiece> productionPieces = productionPieceService.listPendingTypesettingPiecesByConditions(
+                    query.getManufacturerMetaId(),
+                    null,
+                    query.getMaterialName(),
+                    query.getProcessingName(),
+                    query.getOrderItemId(),
+                    query.getStartTime(),
+                    query.getEndTime(),
+                    queryCurrent,
+                    querySize
+            );
+            total += productionPieceService.countPendingTypesettingPiecesByConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
@@ -283,28 +298,35 @@ public class AppTypesettingService {
             );
             Map<String, String> orderGroupIdCache = new HashMap<>();
             for (ProductionPiece piece : productionPieces) {
-                if (getPendingTypesettingQuantity(piece) > 0) {
-                    TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
-                    applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
-                    allItems.add(vo);
-                }
+                TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+                // ProductionPiece 本身已经持有 processingFlow，列表接口直接返回该字段。
+                vo.setProcessingFlow(piece.getProcessingFlow());
+                applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
+                allItems.add(vo);
             }
         }
 
         if (!queryPartOnly) {
-            List<TypesettingInfo> typesettingInfos = findAllTypesettingByConditions(
+            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
                     query.getManufacturerMetaId(),
-                    null,
+                    TypesettingStatus.PENDING.getCode(),
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getStartTime(),
                     query.getEndTime(),
-                    null
+                    null,
+                    queryCurrent,
+                    querySize
+            );
+            total += domainTypesettingService.countTypesettingByConditions(
+                    query.getManufacturerMetaId(),
+                    TypesettingStatus.PENDING.getCode(),
+                    query.getMaterialName(),
+                    query.getProcessingName()
             );
             for (TypesettingInfo info : typesettingInfos) {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-                boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
-                if (leaveQuantity > 0 && isPending) {
+                if (leaveQuantity > 0) {
                     allItems.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
                 }
             }
@@ -314,16 +336,21 @@ public class AppTypesettingService {
             allItems = allItems.stream()
                     .filter(item -> matchesTypesettingName(item, query.getName()))
                     .collect(Collectors.toList());
+            total = allItems.size();
         }
 
         sortTypesettingProductionPiecesByUrgencyAndCreateTime(allItems);
 
-        long total = allItems.size();
-        int fromIndex = Math.min((current - 1) * size, allItems.size());
-        int toIndex = Math.min(fromIndex + size, allItems.size());
-        List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
+        List<TypesettingProductionPieceVO> items;
+        if (queryBoth || StringUtils.isNotBlank(query.getName())) {
+            int fromIndex = Math.min((current - 1) * size, allItems.size());
+            int toIndex = Math.min(fromIndex + size, allItems.size());
+            items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
+        } else {
+            items = new ArrayList<>(allItems);
+        }
 
-        return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+        return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), items);
     }
 
 
