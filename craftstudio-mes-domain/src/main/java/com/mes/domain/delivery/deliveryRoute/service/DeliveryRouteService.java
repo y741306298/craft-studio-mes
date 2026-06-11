@@ -4,6 +4,7 @@ import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNodeBinding;
+import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
@@ -86,16 +87,23 @@ public class DeliveryRouteService {
         String routeId = IdGenerator.generateId("ROUTE");
         deliveryRoute.setRouteId(routeId);
         
-        if (!validateDeliveryRoute(deliveryRoute)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线配置不完整");
-        }
-        
-        List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
+        List<RouteNode> routeNodes = deliveryRoute.getRouteNodes();
+        prepareRouteNodes(routeNodes);
         deliveryRoute.setDeliveryRouteNodes(null);
-        DeliveryRoute savedRoute = deliveryRouteRepository.add(deliveryRoute);
-        saveRouteNodes(savedRoute.getId(), routeNodes);
-        savedRoute.setDeliveryRouteNodes(routeNodes);
-        return savedRoute;
+        return deliveryRouteRepository.add(deliveryRoute);
+    }
+
+
+    private void prepareRouteNodes(List<RouteNode> routeNodes) {
+        if (routeNodes == null || routeNodes.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不能为空");
+        }
+        for (RouteNode routeNode : routeNodes) {
+            if (routeNode == null || StringUtils.isBlank(routeNode.getName())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点名称不能为空");
+            }
+            routeNode.setId(IdGenerator.generateId("RN"));
+        }
     }
 
     /**

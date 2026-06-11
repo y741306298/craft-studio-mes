@@ -33,6 +33,8 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String failureReason;
     private String kuaidiWay;
     private String kuaidiNum;
+    private String routeId;
+    private String routeNodeId;
 
     @Override
     public OrderItem toDO() {
@@ -59,6 +61,8 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setFailureReason(this.failureReason);
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
+        orderItem.setRouteId(this.routeId);
+        orderItem.setRouteNodeId(this.routeNodeId);
 
         return orderItem;
     }
@@ -81,6 +85,8 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
         this.kuaidiNum = _do.getKuaidiNum();
+        this.routeId = _do.getRouteId();
+        this.routeNodeId = _do.getRouteNodeId();
         return this;
     }
 }

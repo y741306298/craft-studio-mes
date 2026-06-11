@@ -1,6 +1,9 @@
 package com.mes.domain.order.orderInfo.service;
 
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecordStatus;
+import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecordRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
@@ -11,6 +14,7 @@ import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOP
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.file.vo.File;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.entity.MTOProductSpec;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
@@ -33,6 +37,9 @@ public class OrderInfoService {
 
     @Autowired
     private OrderPreprocessingService orderPreprocessingService;
+
+    @Autowired
+    private AddressRecognitionRecordRepository addressRecognitionRecordRepository;
 
     /**
      * 根据 ID 获取订单信息
@@ -470,6 +477,8 @@ public class OrderInfoService {
      * @return 添加后的订单信息
      */
     public List<OrderItem> addOrderWithItems(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        matchOrCreateAddressRecognitionRecord(orderInfo, orderItems);
+
         // 为每个订单项生成唯一的 orderItemId 并完善 procedureFlow 数据
         for (OrderItem item : orderItems) {
             if (StringUtils.isBlank(item.getOrderItemId())) {
@@ -525,6 +534,44 @@ public class OrderInfoService {
         List<OrderItem> orderItemsResult = new ArrayList<>(savedOrderItemsCollection);
 
         return orderItemsResult;
+    }
+
+
+    private void matchOrCreateAddressRecognitionRecord(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        if (orderInfo == null || orderInfo.getCustomer() == null || orderInfo.getCustomer().getAddress() == null) {
+            return;
+        }
+        Address address = orderInfo.getCustomer().getAddress();
+        if (StringUtils.isBlank(address.getTerminalRegionCode()) || StringUtils.isBlank(address.getDetailAddress())) {
+            return;
+        }
+
+        AddressRecognitionRecord record = addressRecognitionRecordRepository.findByAddress(
+                address.getTerminalRegionCode(),
+                address.getDetailAddress()
+        );
+        if (record == null) {
+            record = new AddressRecognitionRecord();
+            record.setAddress(address);
+            record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
+            addressRecognitionRecordRepository.add(record);
+            return;
+        }
+
+        if (AddressRecognitionRecordStatus.ASSIGNED.equals(record.getStatus())
+                && StringUtils.isNotBlank(record.getRouteId())
+                && StringUtils.isNotBlank(record.getNodeId())) {
+            orderInfo.setRouteId(record.getRouteId());
+            orderInfo.setRouteNodeId(record.getNodeId());
+            if (orderItems != null) {
+                for (OrderItem item : orderItems) {
+                    if (item != null) {
+                        item.setRouteId(record.getRouteId());
+                        item.setRouteNodeId(record.getNodeId());
+                    }
+                }
+            }
+        }
     }
 
     private ImageFile getFirstAssetImageFile(MTOProductSpec mtoProductSpec) {
