@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRep
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -63,6 +64,46 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
 
     @Override
     public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {
+        Query query = buildPendingPackagingQuery(manufacturerId, materialName, processName, width, null, null);
+        return mongoTemplate.find(query, ProductionPiecePo.class)
+                .stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(
+            String manufacturerId,
+            String materialName,
+            String processName,
+            Double width,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        Query query = buildPendingPackagingQuery(manufacturerId, materialName, processName, width, startTime, endTime);
+        query.with(Sort.by(Sort.Direction.DESC, "updateTime"))
+                .limit(size)
+                .skip((long) (current - 1) * size);
+        return mongoTemplate.find(query, ProductionPiecePo.class)
+                .stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    public long countPendingPackagingPiecesByConditions(
+            String manufacturerId,
+            String materialName,
+            String processName,
+            Double width,
+            Date startTime,
+            Date endTime) {
+        Query query = buildPendingPackagingQuery(manufacturerId, materialName, processName, width, startTime, endTime);
+        return mongoTemplate.count(query, ProductionPiecePo.class);
+    }
+
+    private Query buildPendingPackagingQuery(
+            String manufacturerId,
+            String materialName,
+            String processName,
+            Double width,
+            Date startTime,
+            Date endTime) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
@@ -78,10 +119,15 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         if (width != null) {
             criteriaList.add(Criteria.where("width").is(width));
         }
+        if (startTime != null) {
+            criteriaList.add(Criteria.where("createTime").gte(startTime));
+        }
+        if (endTime != null) {
+            criteriaList.add(Criteria.where("createTime").lte(endTime));
+        }
 
         Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
         query.addCriteria(Criteria.where("deleteAt").is(null));
-        return mongoTemplate.find(query, ProductionPiecePo.class)
-                .stream().map(ProductionPiecePo::toDO).toList();
+        return query;
     }
 }

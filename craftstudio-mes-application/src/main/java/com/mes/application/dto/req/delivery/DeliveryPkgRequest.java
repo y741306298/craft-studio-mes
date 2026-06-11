@@ -9,6 +9,8 @@ import java.util.List;
 @Data
 public class DeliveryPkgRequest {
 
+    private Integer current;
+    private Integer size;
     private List<ProductionPiece> productionPieces;
     private String orderId;
     private String carrierId;//快递id
