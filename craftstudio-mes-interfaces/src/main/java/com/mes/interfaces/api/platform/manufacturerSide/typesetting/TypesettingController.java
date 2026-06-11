@@ -345,20 +345,27 @@ public class TypesettingController {
     }
 
     private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
-        return items.stream()
-                .filter(Objects::nonNull)
-                .map(TypesettingProductionPieceVO::getProcedureFlow)
-                .filter(Objects::nonNull)
-                .map(ProcedureFlow::getNodes)
-                .filter(Objects::nonNull)
-                .flatMap(List::stream)
-                .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .filter(Objects::nonNull)
-                .filter(nodeName -> !nodeName.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .collect(Collectors.toList());
+        LinkedHashSet<String> processingFlows = new LinkedHashSet<>();
+        for (TypesettingProductionPieceVO item : items) {
+            if (item == null) {
+                continue;
+            }
+            String processingFlow = item.getProcessingFlow();
+            if (processingFlow != null && !processingFlow.isBlank()) {
+                processingFlows.add(processingFlow);
+            }
+            ProcedureFlow procedureFlow = item.getProcedureFlow();
+            if (procedureFlow == null || procedureFlow.getNodes() == null) {
+                continue;
+            }
+            procedureFlow.getNodes().stream()
+                    .filter(Objects::nonNull)
+                    .map(ProcedureFlowNode::getNodeName)
+                    .filter(Objects::nonNull)
+                    .filter(nodeName -> !nodeName.isBlank())
+                    .forEach(processingFlows::add);
+        }
+        return new ArrayList<>(processingFlows);
     }
 
     private List<String> buildMaterialList(List<TypesettingProductionPieceVO> items) {
