@@ -2523,7 +2523,7 @@ public class AppTypesettingService {
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
                 savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
-                savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
+                savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData, typesettingInfo);
             }
         }catch (Exception e) {
             log.error("处理打印印版回调异常", e);
@@ -2898,7 +2898,20 @@ public class AppTypesettingService {
                                            String typesettingCode,
                                            String manufacturerMetaId,
                                            TypesettingDownloadTaskData originalData) {
-        if (originalData == null || originalData.getPlts() == null || originalData.getPlts().isEmpty()) {
+        savePltBroadcastPrintTask(typesettingInfoId, typesettingCode, manufacturerMetaId, originalData, null);
+    }
+
+    private void savePltBroadcastPrintTask(String typesettingInfoId,
+                                           String typesettingCode,
+                                           String manufacturerMetaId,
+                                           TypesettingDownloadTaskData originalData,
+                                           TypesettingInfo rootTypesettingInfo) {
+        LinkedHashSet<String> pltSet = new LinkedHashSet<>();
+        if (originalData != null) {
+            pltSet.addAll(normalizeStringList(originalData.getPlts()));
+        }
+        collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
+        if (pltSet.isEmpty()) {
             return;
         }
         List<ManufacturerDeviceCfg> cuttingDeviceCfgs = findCuttingDeviceCfgs(manufacturerMetaId);
@@ -2911,6 +2924,15 @@ public class AppTypesettingService {
             if (StringUtils.isNotBlank(cfg.getDeviceCode())) {
                 cuttingDeviceCodes.add(cfg.getDeviceCode());
             }
+        }
+        if (cuttingDeviceInfoIds.isEmpty() && originalData != null) {
+            cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
+            if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
+                cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
+            }
+        }
+        if (cuttingDeviceCodes.isEmpty() && originalData != null) {
+            cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
         if (cuttingDeviceInfoIds.isEmpty()) {
             cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
@@ -2925,12 +2947,12 @@ public class AppTypesettingService {
             return;
         }
         TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
-        pltOnlyData.setId(originalData.getId());
-        pltOnlyData.setDeviceInfoId(originalData.getDeviceInfoId());
+        pltOnlyData.setId(originalData == null ? typesettingInfoId : originalData.getId());
+        pltOnlyData.setDeviceInfoId(originalData == null ? null : originalData.getDeviceInfoId());
         pltOnlyData.setDeviceInfoIds(new ArrayList<>(cuttingDeviceInfoIds));
         pltOnlyData.setDeviceCodes(new ArrayList<>(cuttingDeviceCodes));
         pltOnlyData.setImamges(Collections.emptyList());
-        pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
+        pltOnlyData.setPlts(new ArrayList<>(pltSet));
         pltOnlyData.setJsons(Collections.emptyList());
         pltOnlyData.setMarks(Collections.emptyList());
         savePrintTask(typesettingInfoId + "_plt", typesettingCode, manufacturerMetaId, new ArrayList<>(cuttingDeviceInfoIds), new ArrayList<>(cuttingDeviceCodes), pltOnlyData);

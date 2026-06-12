@@ -97,6 +97,47 @@ class AppTypesettingServicePrintTaskPltTest {
         assertThat(task.getData().getPlts()).containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
     }
 
+    @Test
+    void savePltBroadcastPrintTaskCollectsPltsFromRootWhenDownloadDataHasNoPlts() {
+        ManufacturerDeviceCfgRepository deviceCfgRepository = mock(ManufacturerDeviceCfgRepository.class);
+        TypesettingPrintTaskService printTaskService = mock(TypesettingPrintTaskService.class);
+        TypesettingService typesettingService = mock(TypesettingService.class);
+        ReflectionTestUtils.setField(service, "manufacturerDeviceCfgRepository", deviceCfgRepository);
+        ReflectionTestUtils.setField(service, "typesettingPrintTaskService", printTaskService);
+        ReflectionTestUtils.setField(service, "domainTypesettingService", typesettingService);
+        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(Collections.emptyList());
+
+        TypesettingInfo root = typesetting("root", TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM, null, null);
+        root.setTypesettingCells(List.of(typesettingCell("child-require-plt")));
+        TypesettingInfo childRequirePlt = typesetting(
+                "child-require-plt",
+                TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE,
+                "oss://bucket/child-normal.plt",
+                "oss://bucket/child-reverse.plt");
+        when(typesettingService.findById("child-require-plt")).thenReturn(childRequirePlt);
+
+        TypesettingDownloadTaskData originalData = new TypesettingDownloadTaskData();
+        originalData.setId("print-task-id");
+        originalData.setDeviceInfoId("printer-device-info-id");
+        originalData.setDeviceInfoIds(List.of("printer-device-info-id"));
+        originalData.setDeviceCodes(List.of("printer-device-code"));
+        originalData.setPlts(Collections.emptyList());
+
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "savePltBroadcastPrintTask",
+                "print-task-id",
+                "typesetting-code",
+                "manufacturer-meta-id",
+                originalData,
+                root);
+
+        ArgumentCaptor<TypesettingPrintTask> taskCaptor = ArgumentCaptor.forClass(TypesettingPrintTask.class);
+        verify(printTaskService).saveOrUpdate(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getData().getPlts())
+                .containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
+    }
+
     private TypesettingInfo typesetting(String id,
                                         TypesettingLayoutMode layoutMode,
                                         String normalPlt,
