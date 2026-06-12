@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.enums.FormeGenerationElementType;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
@@ -154,24 +155,28 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
+        tl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tl.setSvg(circleSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
         tr.setImg("circle.png");
+        tr.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tr.setSvg(circleSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
         bl.setImg("circle.png");
+        bl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         bl.setSvg(circleSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
         br.setImg("circle.png");
+        br.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         br.setSvg(circleSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
         br.setPosition(createPosition(bottomRightX, bottomY));
@@ -184,12 +189,14 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
                 leftPoint.setImg("circle.png");
+                leftPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 leftPoint.setSvg(circleSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
                 rightPoint.setImg("circle.png");
+                rightPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 rightPoint.setSvg(circleSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));
                 rightPoint.setPosition(createPosition(rightExpandCenterX, pointY));

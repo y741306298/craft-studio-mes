@@ -18,6 +18,10 @@ public class FormeGenerationRequest {
 
     @Data
     public static class FormeInfo {
+        /**
+         * 刀线类型，传给印版生成算法（例如：SP3）。
+         */
+        private String knife;
         private String svgUrl;
         private Margin margin;
         private List<Mark> marks;
@@ -42,6 +46,10 @@ public class FormeGenerationRequest {
     @Data
     public static class AnchorPoint {
         private String img;
+        /**
+         * 定位点类型，传给印版生成算法（例如：SP9）。
+         */
+        private String type;
         private String svg;
         private Size size;
         private Position position;
