@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting;
 
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
+import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
@@ -63,12 +64,16 @@ class AppTypesettingServicePrintTaskPltTest {
     }
 
     @Test
-    void savePltBroadcastPrintTaskFallsBackToOriginalDeviceWhenNoCuttingDeviceIsConfigured() {
+    void savePltBroadcastPrintTaskAssignsAllCuttingDevices() {
         ManufacturerDeviceCfgRepository deviceCfgRepository = mock(ManufacturerDeviceCfgRepository.class);
         TypesettingPrintTaskService printTaskService = mock(TypesettingPrintTaskService.class);
         ReflectionTestUtils.setField(service, "manufacturerDeviceCfgRepository", deviceCfgRepository);
         ReflectionTestUtils.setField(service, "typesettingPrintTaskService", printTaskService);
-        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(Collections.emptyList());
+        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(List.of(
+                deviceCfg("cutting-device-info-1", "cutting-device-code-1", "切割机1"),
+                deviceCfg("printer-device-info-id", "printer-device-code", "严-测试打印机"),
+                deviceCfg("cutting-device-info-2", "cutting-device-code-2", "自动切割机2")
+        ));
 
         TypesettingDownloadTaskData originalData = new TypesettingDownloadTaskData();
         originalData.setId("print-task-id");
@@ -89,8 +94,11 @@ class AppTypesettingServicePrintTaskPltTest {
         verify(printTaskService).saveOrUpdate(taskCaptor.capture());
         TypesettingPrintTask task = taskCaptor.getValue();
         assertThat(task.getTypesettingInfoId()).isEqualTo("print-task-id_plt");
-        assertThat(task.getDeviceInfoId()).containsExactly("printer-device-info-id");
-        assertThat(task.getDeviceCode()).containsExactly("printer-device-code");
+        assertThat(task.getDeviceInfoId()).containsExactly("cutting-device-info-1", "cutting-device-info-2");
+        assertThat(task.getDeviceCode()).containsExactly("cutting-device-code-1", "cutting-device-code-2");
+        assertThat(task.getData().getDeviceInfoId()).isEqualTo("cutting-device-info-1");
+        assertThat(task.getData().getDeviceInfoIds()).containsExactly("cutting-device-info-1", "cutting-device-info-2");
+        assertThat(task.getData().getDeviceCodes()).containsExactly("cutting-device-code-1", "cutting-device-code-2");
         assertThat(task.getData().getImamges()).isEmpty();
         assertThat(task.getData().getJsons()).isEmpty();
         assertThat(task.getData().getMarks()).isEmpty();
@@ -105,7 +113,10 @@ class AppTypesettingServicePrintTaskPltTest {
         ReflectionTestUtils.setField(service, "manufacturerDeviceCfgRepository", deviceCfgRepository);
         ReflectionTestUtils.setField(service, "typesettingPrintTaskService", printTaskService);
         ReflectionTestUtils.setField(service, "domainTypesettingService", typesettingService);
-        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(Collections.emptyList());
+        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(List.of(
+                deviceCfg("cutting-device-info-1", "cutting-device-code-1", "切割机1"),
+                deviceCfg("cutting-device-info-2", "cutting-device-code-2", "自动切割机2")
+        ));
 
         TypesettingInfo root = typesetting("root", TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM, null, null);
         root.setTypesettingCells(List.of(typesettingCell("child-require-plt")));
@@ -134,8 +145,19 @@ class AppTypesettingServicePrintTaskPltTest {
 
         ArgumentCaptor<TypesettingPrintTask> taskCaptor = ArgumentCaptor.forClass(TypesettingPrintTask.class);
         verify(printTaskService).saveOrUpdate(taskCaptor.capture());
-        assertThat(taskCaptor.getValue().getData().getPlts())
+        TypesettingPrintTask task = taskCaptor.getValue();
+        assertThat(task.getDeviceInfoId()).containsExactly("cutting-device-info-1", "cutting-device-info-2");
+        assertThat(task.getDeviceCode()).containsExactly("cutting-device-code-1", "cutting-device-code-2");
+        assertThat(task.getData().getPlts())
                 .containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
+    }
+
+    private ManufacturerDeviceCfg deviceCfg(String deviceInfoId, String deviceCode, String deviceName) {
+        ManufacturerDeviceCfg cfg = new ManufacturerDeviceCfg();
+        cfg.setDeviceInfoId(deviceInfoId);
+        cfg.setDeviceCode(deviceCode);
+        cfg.setDeviceName(deviceName);
+        return cfg;
     }
 
     private TypesettingInfo typesetting(String id,

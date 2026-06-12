@@ -2763,6 +2763,11 @@ public class AppTypesettingService {
             TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
             collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
         }
+        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
+            return layoutMode.isRequirePltFile();
+        }
+        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
 
     private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
@@ -2948,7 +2953,7 @@ public class AppTypesettingService {
         }
         TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
         pltOnlyData.setId(originalData == null ? typesettingInfoId : originalData.getId());
-        pltOnlyData.setDeviceInfoId(originalData == null ? null : originalData.getDeviceInfoId());
+        pltOnlyData.setDeviceInfoId(cuttingDeviceInfoIds.iterator().next());
         pltOnlyData.setDeviceInfoIds(new ArrayList<>(cuttingDeviceInfoIds));
         pltOnlyData.setDeviceCodes(new ArrayList<>(cuttingDeviceCodes));
         pltOnlyData.setImamges(Collections.emptyList());
