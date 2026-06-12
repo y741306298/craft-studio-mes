@@ -31,9 +31,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class AppOrderService {
@@ -76,6 +78,8 @@ public class AppOrderService {
         String orderId = query.getOrderId();
         String manufacturerId = query.getManufacturerId();
         String status = query.getStatus() != null ? query.getStatus().getCode() : null;
+        String customerName = query.getCustomerName();
+        String customerPhone = query.getCustomerPhone();
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
         var pagedQuery = query.getPagedQuery();
@@ -95,6 +99,18 @@ public class AppOrderService {
         }
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
+        }
+        if (StringUtils.isNotBlank(customerName) || StringUtils.isNotBlank(customerPhone)) {
+            Set<String> customerMatchedOrderIds = new LinkedHashSet<>(
+                    domainOrderInfoService.findOrderIdsByCustomerConditions(customerName, customerPhone)
+            );
+            if (customerMatchedOrderIds.isEmpty()
+                    || (StringUtils.isNotBlank(orderId) && !customerMatchedOrderIds.contains(orderId))) {
+                return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
+            }
+            if (StringUtils.isBlank(orderId)) {
+                filters.put("orderId_in", customerMatchedOrderIds);
+            }
         }
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(),
