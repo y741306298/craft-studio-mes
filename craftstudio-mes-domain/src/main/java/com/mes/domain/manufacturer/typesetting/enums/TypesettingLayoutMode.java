@@ -69,6 +69,21 @@ public enum TypesettingLayoutMode {
             true
     ),
     /**
+     * 网格排版（plt二维码）-十字定位点：
+     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
+     */
+    GRID_TYPESETTING_PLT_QR_CROSS(
+            "grid_typesetting_plt_qr_cross",
+            "网格排版（plt二维码）-十字定位点",
+            "grid_typesetting",
+            true, true, true,
+            "plt_qr",
+            "xxx",
+            "cross",
+            0,
+            true
+    ),
+    /**
      * 基础网格排版：
      * 仅按 grid_typesetting 归类，确认排版时不需要额外印版放置处理。
      */

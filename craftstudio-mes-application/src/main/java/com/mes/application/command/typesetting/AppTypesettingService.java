@@ -1320,8 +1320,7 @@ public class AppTypesettingService {
      *   <li>构建 FormeGenerationRequest 并异步提交给算法服务。</li>
      * </ol>
      *
-     * <p>说明：圆形二维码模式（shaped_cutting_plt_qr_circle / grid_typesetting_plt_qr_circle）
-     * 依赖 manufacturerMetaId 生成队列码与二维码。
+     * <p>说明：plt 二维码模式依赖 manufacturerMetaId 生成队列码与二维码。
      */
     public LayoutConfirmResult confirmLayout(TypesettingInfo request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
@@ -1340,7 +1339,7 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
         }
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-            throw new IllegalArgumentException("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+            throw new IllegalArgumentException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
@@ -2331,7 +2330,7 @@ public class AppTypesettingService {
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
         );
         if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-            throw new RuntimeException("圆形定位点排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+            throw new RuntimeException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
         }
         typesettingInfo.setLayoutMode(layoutMode.getCode());
         typesettingInfo.applyLayoutModeConfig();
@@ -2534,7 +2533,8 @@ public class AppTypesettingService {
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
                 || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS == layoutMode
-                || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode;
+                || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode
+                || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CROSS == layoutMode;
     }
 
     private String resolveDeviceInfoIdByDeviceCode(String manufacturerMetaId, String deviceCode) {
@@ -3784,7 +3784,9 @@ public class AppTypesettingService {
 
     private boolean isPrintingPlateLayoutMode(TypesettingLayoutMode layoutMode) {
         return layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
-                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS;
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS
+                || layoutMode == TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE
+                || layoutMode == TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CROSS;
     }
 
 
