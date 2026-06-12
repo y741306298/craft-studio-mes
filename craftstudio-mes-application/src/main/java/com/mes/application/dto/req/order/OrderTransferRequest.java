@@ -18,6 +18,9 @@ public class OrderTransferRequest {
     @NotBlank(message = "转出工厂不能为空")
     private String manufacturerMetaId;
 
+    /**
+     * 转入工厂账号，对应 manufacturerUser.account。
+     */
     @NotBlank(message = "转入工厂不能为空")
     private String targetId;
 

@@ -20,11 +20,17 @@ public class ManufacturerUserRepositoryImp extends BaseRepositoryImp<Manufacture
 
     @Override
     public ManufacturerUser findByAccount(String account) {
-        ManufacturerUserPo po = mongoTemplate.findOne(
+        List<ManufacturerUser> users = listByAccount(account);
+        return users.isEmpty() ? null : users.get(0);
+    }
+
+    @Override
+    public List<ManufacturerUser> listByAccount(String account) {
+        List<ManufacturerUserPo> pos = mongoTemplate.find(
                 new SoftDeleteQuery(Criteria.where("account").is(account)),
                 ManufacturerUserPo.class
         );
-        return po == null ? null : po.toDO();
+        return pos.stream().map(ManufacturerUserPo::toDO).toList();
     }
 
     @Override
