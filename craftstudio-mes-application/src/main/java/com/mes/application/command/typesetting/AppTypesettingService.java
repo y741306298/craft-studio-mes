@@ -1954,30 +1954,54 @@ public class AppTypesettingService {
                                                    List<ProductionPiece> productionPieces,
                                                    List<TypesettingInfo> typesettingInfos,
                                                    TypesettingLayoutMode layoutMode) {
-        Double containerShortSide = null;
-        Double containerLongSide = null;
+        List<LayoutConfirmRequest.ContainerInfo> configuredContainers = new ArrayList<>();
         if (request.getContainers() != null) {
             for (LayoutConfirmRequest.ContainerInfo containerInfo : request.getContainers()) {
                 if (containerInfo == null || containerInfo.getWidth() == null || containerInfo.getHeight() == null) {
                     continue;
                 }
-                double containerWidth = containerInfo.getWidth().doubleValue();
-                double containerHeight = containerInfo.getHeight().doubleValue();
-                containerShortSide = Math.min(containerWidth, containerHeight);
-                containerLongSide = Math.max(containerWidth, containerHeight);
-                break;
+                configuredContainers.add(containerInfo);
             }
         }
-        if (containerShortSide == null || containerLongSide == null) {
-            containerShortSide = Math.min(1500D, 1000D);
-            containerLongSide = Math.max(1500D, 1000D);
+
+        if (configuredContainers.isEmpty()) {
+            configuredContainers.add(new LayoutConfirmRequest.ContainerInfo(1500, 1000));
+        }
+
+        List<LayoutConfirmRequest.ContainerInfo> availableContainers = configuredContainers.stream()
+                .filter(containerInfo -> canContainerFitAllCells(containerInfo, productionPieces, typesettingInfos))
+                .collect(Collectors.toList());
+        if (availableContainers.isEmpty()) {
+            String oversizedCellId = resolveFirstOversizedCellId(configuredContainers, productionPieces, typesettingInfos);
+            throw new IllegalArgumentException(oversizedCellId + "零件的尺寸大于所选规格，不能排版");
+        }
+        if (request.getContainers() != null) {
+            request.setContainers(availableContainers);
         }
 
         NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
         if (nestingRequestRuleService != null) {
             nestingRequestRuleService.validateBeforeBuild(request, productionPieces, typesettingInfos);
         }
+    }
 
+    private boolean canContainerFitAllCells(LayoutConfirmRequest.ContainerInfo containerInfo,
+                                            List<ProductionPiece> productionPieces,
+                                            List<TypesettingInfo> typesettingInfos) {
+        double containerWidth = containerInfo.getWidth().doubleValue();
+        double containerHeight = containerInfo.getHeight().doubleValue();
+        double containerShortSide = Math.min(containerWidth, containerHeight);
+        double containerLongSide = Math.max(containerWidth, containerHeight);
+        return canAllProductionPiecesFitContainer(productionPieces, containerShortSide, containerLongSide)
+                && canAllTypesettingInfosFitContainer(typesettingInfos, containerShortSide, containerLongSide);
+    }
+
+    private boolean canAllProductionPiecesFitContainer(List<ProductionPiece> productionPieces,
+                                                       double containerShortSide,
+                                                       double containerLongSide) {
+        if (productionPieces == null) {
+            return true;
+        }
         for (ProductionPiece piece : productionPieces) {
             if (piece == null || piece.getWidth() == null || piece.getHeight() == null) {
                 continue;
@@ -1985,11 +2009,18 @@ public class AppTypesettingService {
             double pieceShortSideMm = Math.min(piece.getWidth(), piece.getHeight());
             double pieceLongSideMm = Math.max(piece.getWidth(), piece.getHeight());
             if (pieceShortSideMm > containerShortSide || pieceLongSideMm > containerLongSide) {
-                String pieceId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
-                throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
+                return false;
             }
         }
+        return true;
+    }
 
+    private boolean canAllTypesettingInfosFitContainer(List<TypesettingInfo> typesettingInfos,
+                                                       double containerShortSide,
+                                                       double containerLongSide) {
+        if (typesettingInfos == null) {
+            return true;
+        }
         for (TypesettingInfo info : typesettingInfos) {
             if (info == null || info.getElement() == null
                     || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
@@ -1998,10 +2029,53 @@ public class AppTypesettingService {
             double typesettingShortSideMm = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
             double typesettingLongSideMm = info.getElement().getWidth().max(info.getElement().getHeight()).doubleValue();
             if (typesettingShortSideMm > containerShortSide || typesettingLongSideMm > containerLongSide) {
-                String pieceId = StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
-                throw new IllegalArgumentException(pieceId + "零件的尺寸大于所选规格，不能排版");
+                return false;
             }
         }
+        return true;
+    }
+
+    private String resolveFirstOversizedCellId(List<LayoutConfirmRequest.ContainerInfo> containers,
+                                               List<ProductionPiece> productionPieces,
+                                               List<TypesettingInfo> typesettingInfos) {
+        if (productionPieces != null) {
+            for (ProductionPiece piece : productionPieces) {
+                if (piece == null || piece.getWidth() == null || piece.getHeight() == null) {
+                    continue;
+                }
+                if (containers.stream().noneMatch(container -> canProductionPieceFitContainer(piece, container))) {
+                    return StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
+                }
+            }
+        }
+        if (typesettingInfos != null) {
+            for (TypesettingInfo info : typesettingInfos) {
+                if (info == null || info.getElement() == null
+                        || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
+                    continue;
+                }
+                if (containers.stream().noneMatch(container -> canTypesettingInfoFitContainer(info, container))) {
+                    return StringUtils.isNotBlank(info.getTypesettingId()) ? info.getTypesettingId() : info.getId();
+                }
+            }
+        }
+        return "";
+    }
+
+    private boolean canProductionPieceFitContainer(ProductionPiece piece, LayoutConfirmRequest.ContainerInfo container) {
+        double containerShortSide = Math.min(container.getWidth().doubleValue(), container.getHeight().doubleValue());
+        double containerLongSide = Math.max(container.getWidth().doubleValue(), container.getHeight().doubleValue());
+        double pieceShortSideMm = Math.min(piece.getWidth(), piece.getHeight());
+        double pieceLongSideMm = Math.max(piece.getWidth(), piece.getHeight());
+        return pieceShortSideMm <= containerShortSide && pieceLongSideMm <= containerLongSide;
+    }
+
+    private boolean canTypesettingInfoFitContainer(TypesettingInfo info, LayoutConfirmRequest.ContainerInfo container) {
+        double containerShortSide = Math.min(container.getWidth().doubleValue(), container.getHeight().doubleValue());
+        double containerLongSide = Math.max(container.getWidth().doubleValue(), container.getHeight().doubleValue());
+        double typesettingShortSideMm = info.getElement().getWidth().min(info.getElement().getHeight()).doubleValue();
+        double typesettingLongSideMm = info.getElement().getWidth().max(info.getElement().getHeight()).doubleValue();
+        return typesettingShortSideMm <= containerShortSide && typesettingLongSideMm <= containerLongSide;
     }
 
 
