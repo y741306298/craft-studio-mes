@@ -115,75 +115,6 @@ import java.util.Comparator;
 @Service
 public class AppTypesettingService {
 
-    @Autowired
-    private TypesettingService domainTypesettingService;
-
-    @Autowired
-    private TypesettingContainerWidthInsetService containerWidthInsetService;
-
-    @Autowired
-    private ProductionPieceService productionPieceService;
-
-    @Autowired
-    private TypesettingPrintTaskService typesettingPrintTaskService;
-
-    @Autowired
-    private TypesettingSequencePoolService typesettingSequencePoolService;
-
-    @Autowired
-    private OrderItemService orderItemService;
-
-    @Autowired
-    private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
-
-    @Autowired
-    private AlgorithmCoreApiService algorithmCoreApiService;
-
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
-
-    @Autowired
-    private AliCloudAuthService aliCloudAuthService;
-
-    @Autowired
-    private NestingManifestStrategy nestingManifestStrategy;
-    @Autowired(required = false)
-    private List<MirrorFormeStrategy> mirrorFormeStrategies;
-    @Autowired(required = false)
-    private List<SpecialCraftMarkStrategy> specialCraftMarkStrategies;
-
-    @Autowired
-    private RestTemplate restTemplate;
-
-    @Autowired
-    private ProductCoreApiService productCoreApiService;
-
-    @Autowired
-    private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
-    @Autowired
-    private OssTagUploadService ossTagUploadService;
-
-    @Autowired
-    private MarkedNestingElementService markedNestingElementService;
-
-    @Autowired(required = false)
-    private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
-
-    @Autowired(required = false)
-    private List<NestingRequestRuleService> nestingRequestRuleServices;
-
-    @Autowired(required = false)
-    private List<NestingRequestComposeService> nestingRequestComposeServices;
-
-    /**
-     * layoutMode -> builder 的运行时映射表。
-     * 在容器初始化完成后由 initLayoutModeBuilders 填充。
-     */
-    private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
-    private final Map<TypesettingLayoutMode, TypesettingLayoutModeConfirmService> layoutModeConfirmServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
-    private final Map<TypesettingLayoutMode, NestingRequestRuleService> nestingRequestRuleServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
-    private final Map<TypesettingLayoutMode, NestingRequestComposeService> nestingRequestComposeServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
-
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -207,6 +138,73 @@ public class AppTypesettingService {
             new TypesettingLayoutSpecVO("1220*1540", 1220, 1540),
             new TypesettingLayoutSpecVO("1520*1500", 1520, 1500)
     );
+    /**
+     * layoutMode -> builder 的运行时映射表。
+     * 在容器初始化完成后由 initLayoutModeBuilders 填充。
+     */
+    private final Map<TypesettingLayoutMode, TypesettingLayoutModeBuildService> layoutModeBuildServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, TypesettingLayoutModeConfirmService> layoutModeConfirmServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, NestingRequestRuleService> nestingRequestRuleServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    private final Map<TypesettingLayoutMode, NestingRequestComposeService> nestingRequestComposeServiceMap = new EnumMap<>(TypesettingLayoutMode.class);
+    @Autowired
+    private TypesettingService domainTypesettingService;
+    @Autowired
+    private TypesettingContainerWidthInsetService containerWidthInsetService;
+    @Autowired
+    private ProductionPieceService productionPieceService;
+    @Autowired
+    private TypesettingPrintTaskService typesettingPrintTaskService;
+    @Autowired
+    private TypesettingSequencePoolService typesettingSequencePoolService;
+    @Autowired
+    private OrderItemService orderItemService;
+    @Autowired
+    private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
+    @Autowired
+    private AlgorithmCoreApiService algorithmCoreApiService;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+    @Autowired
+    private AliCloudAuthService aliCloudAuthService;
+    @Autowired
+    private NestingManifestStrategy nestingManifestStrategy;
+    @Autowired(required = false)
+    private List<MirrorFormeStrategy> mirrorFormeStrategies;
+    @Autowired(required = false)
+    private List<SpecialCraftMarkStrategy> specialCraftMarkStrategies;
+    @Autowired
+    private RestTemplate restTemplate;
+    @Autowired
+    private ProductCoreApiService productCoreApiService;
+    @Autowired
+    private List<TypesettingLayoutModeBuildService> layoutModeBuildServices;
+    @Autowired
+    private OssTagUploadService ossTagUploadService;
+    @Autowired
+    private MarkedNestingElementService markedNestingElementService;
+    @Autowired(required = false)
+    private List<TypesettingLayoutModeConfirmService> layoutModeConfirmServices;
+    @Autowired(required = false)
+    private List<NestingRequestRuleService> nestingRequestRuleServices;
+    @Autowired(required = false)
+    private List<NestingRequestComposeService> nestingRequestComposeServices;
+    @Value("${external.callbackApi.generate_nested_files:}")
+    private String generateNestedFilesCallbackUrl;
+    @Value("${external.callbackApi.generate_grid_nested_files:}")
+    private String generateGridNestedFilesCallbackUrl;
+    @Value("${external.callbackApi.generate_forme:}")
+    private String generateFormeUrl;
+    @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
+    private String ossEndpoint;
+    @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:}}")
+    private String ossBucket;
+
+    private static BigDecimal ceilBigDecimal(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(0, RoundingMode.CEILING);
+    }
 
     @PostConstruct
     public void initLayoutModeBuilders() {
@@ -237,18 +235,6 @@ public class AppTypesettingService {
             layoutModeConfirmServiceMap.put(confirmService.supportMode(), confirmService);
         }
     }
-
-    @Value("${external.callbackApi.generate_nested_files:}")
-    private String generateNestedFilesCallbackUrl;
-    @Value("${external.callbackApi.generate_grid_nested_files:}")
-    private String generateGridNestedFilesCallbackUrl;
-    @Value("${external.callbackApi.generate_forme:}")
-    private String generateFormeUrl;
-    @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:}}")
-    private String ossEndpoint;
-    @Value("${ali-cloud.oss.raw-bucket:${spring.cloud.alicloud.oss.bucket-name:}}")
-    private String ossBucket;
-
 
     /**
      * 统一查询接口
@@ -960,13 +946,6 @@ public class AppTypesettingService {
      */
     private long countTypesettingOnly(TypesettingQuery query) {
         return queryTypesettingOnly(query).size();
-    }
-
-    private static BigDecimal ceilBigDecimal(BigDecimal value) {
-        if (value == null) {
-            return null;
-        }
-        return value.setScale(0, RoundingMode.CEILING);
     }
 
     private int getPendingTypesettingQuantity(ProductionPiece piece) {
@@ -2739,6 +2718,7 @@ public class AppTypesettingService {
         return data;
     }
 
+
     private void collectRequiredPltsRecursive(TypesettingInfo typesettingInfo,
                                               Set<String> pltSet,
                                               Set<String> visitedIds) {
@@ -2761,33 +2741,6 @@ public class AppTypesettingService {
                 }
             }
         }
-        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
-            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
-            return layoutMode.isRequirePltFile();
-        }
-        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
-    }
-
-    private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo == null) {
-            return false;
-        }
-        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
-            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
-            return layoutMode.isRequirePltFile();
-        }
-        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
-    }
-
-    private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo == null) {
-            return false;
-        }
-        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
-            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
-            return layoutMode.isRequirePltFile();
-        }
-        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
 
     private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
