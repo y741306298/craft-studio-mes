@@ -6,6 +6,8 @@ import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.domain.auth.entity.ManufacturerUser;
+import com.mes.domain.auth.repository.ManufacturerUserRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
@@ -51,6 +53,9 @@ public class AppOrderService {
 
     @Autowired
     private ManufacturerMetaRepository manufacturerMetaRepository;
+
+    @Autowired
+    private ManufacturerUserRepository manufacturerUserRepository;
 
     @Autowired
     private OrderTransferRecordService orderTransferRecordService;
@@ -336,6 +341,7 @@ public class AppOrderService {
     /**
      * 订单转单。
      * 将指定订单项的待生产数量转入目标工厂，并保留每个原订单项维度的转出记录。
+     * request.targetId 使用目标工厂 manufacturerUser.account，再由账号关联 manufacturerMetaId。
      */
     @Transactional
     public ApiResponse<String> transferOrder(OrderTransferRequest request) {
@@ -356,10 +362,14 @@ public class AppOrderService {
         }
 
         ManufacturerMeta sourceManufacturerMeta = findManufacturerMetaByManufacturerMetaId(request.getManufacturerMetaId());
-        ManufacturerMeta targetManufacturerMeta = findManufacturerMetaByManufacturerMetaId(request.getTargetId());
+        ManufacturerUser targetManufacturerUser = findUniqueManufacturerUserByAccount(request.getTargetId());
+        ManufacturerMeta targetManufacturerMeta = targetManufacturerUser == null
+                ? null
+                : findManufacturerMetaByManufacturerMetaId(targetManufacturerUser.getManufacturerMetaId());
         if (sourceManufacturerMeta == null || targetManufacturerMeta == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "未匹配到正确的工厂，无法转单");
         }
+        String targetManufacturerMetaId = targetManufacturerMeta.getManufacturerMetaId();
 
         OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
         if (sourceOrderInfo == null) {
@@ -410,14 +420,14 @@ public class AppOrderService {
             Integer transferQuantity = itemDto.getQuantity();
             String newOrderItemId = IdGenerator.generateOrderItemId();
 
-            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, request.getTargetId(), transferQuantity);
+            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
             domainOrderItemService.addOrderItem(targetOrderItem);
 
             for (ProductionPiece sourceProductionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
                 ProductionPiece targetProductionPiece = copyProductionPieceForTransfer(
                         sourceProductionPiece,
                         newOrderItemId,
-                        request.getTargetId(),
+                        targetManufacturerMetaId,
                         transferQuantity
                 );
                 productionPieceService.addProductionPiece(targetProductionPiece);
@@ -539,6 +549,20 @@ public class AppOrderService {
         filters.put("manufacturerMetaId", manufacturerMetaId);
         List<ManufacturerMeta> results = manufacturerMetaRepository.filterList(1, 1, filters);
         return results == null || results.isEmpty() ? null : results.get(0);
+    }
+
+    private ManufacturerUser findUniqueManufacturerUserByAccount(String account) {
+        if (StringUtils.isBlank(account)) {
+            return null;
+        }
+        List<ManufacturerUser> users = manufacturerUserRepository.listByAccount(account);
+        if (users == null || users.isEmpty()) {
+            return null;
+        }
+        if (users.size() > 1) {
+            throw new IllegalArgumentException("查询到多条账号信息，无法转单");
+        }
+        return users.get(0);
     }
 
     private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo) {
