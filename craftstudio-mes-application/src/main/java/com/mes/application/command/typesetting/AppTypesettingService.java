@@ -2763,6 +2763,11 @@ public class AppTypesettingService {
             TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
             collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
         }
+        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
+            return layoutMode.isRequirePltFile();
+        }
+        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
 
     private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
@@ -2924,6 +2929,24 @@ public class AppTypesettingService {
             if (StringUtils.isNotBlank(cfg.getDeviceCode())) {
                 cuttingDeviceCodes.add(cfg.getDeviceCode());
             }
+        }
+        if (cuttingDeviceInfoIds.isEmpty() && originalData != null) {
+            cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
+            if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
+                cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
+            }
+        }
+        if (cuttingDeviceCodes.isEmpty() && originalData != null) {
+            cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
+        }
+        if (cuttingDeviceInfoIds.isEmpty()) {
+            cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
+            if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
+                cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
+            }
+        }
+        if (cuttingDeviceCodes.isEmpty()) {
+            cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
         if (cuttingDeviceInfoIds.isEmpty()) {
             return;
