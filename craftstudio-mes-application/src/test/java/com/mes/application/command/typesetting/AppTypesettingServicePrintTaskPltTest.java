@@ -21,6 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -150,6 +151,52 @@ class AppTypesettingServicePrintTaskPltTest {
         assertThat(task.getDeviceCode()).containsExactly("cutting-device-code-1", "cutting-device-code-2");
         assertThat(task.getData().getPlts())
                 .containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
+    }
+
+
+    @Test
+    void buildDownloadTaskDataCollectsRootPltWhenOnlyTypesettingIdIsAvailable() {
+        TypesettingInfo root = typesetting(null, TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE,
+                "oss://bucket/root-normal.plt",
+                "oss://bucket/root-reverse.plt");
+        root.setTypesettingId("root-typesetting-id");
+
+        TypesettingDownloadTaskData data = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildDownloadTaskData",
+                "print-task-id",
+                "device-info-id",
+                "device-code",
+                root.getElement(),
+                Collections.emptyMap(),
+                Collections.emptySet(),
+                root);
+
+        assertThat(data.getPlts()).containsExactly("oss://bucket/root-normal.plt", "oss://bucket/root-reverse.plt");
+    }
+
+    @Test
+    void savePltBroadcastPrintTaskSkipsWhenOnlyRootPltsExistButNoTargetDeviceCanBeResolved() {
+        ManufacturerDeviceCfgRepository deviceCfgRepository = mock(ManufacturerDeviceCfgRepository.class);
+        TypesettingPrintTaskService printTaskService = mock(TypesettingPrintTaskService.class);
+        ReflectionTestUtils.setField(service, "manufacturerDeviceCfgRepository", deviceCfgRepository);
+        ReflectionTestUtils.setField(service, "typesettingPrintTaskService", printTaskService);
+        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(Collections.emptyList());
+
+        TypesettingInfo root = typesetting(null, TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE,
+                "oss://bucket/root-normal.plt",
+                null);
+
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "savePltBroadcastPrintTask",
+                "print-task-id",
+                "typesetting-code",
+                "manufacturer-meta-id",
+                null,
+                root);
+
+        verify(printTaskService, never()).saveOrUpdate(any(TypesettingPrintTask.class));
     }
 
     private ManufacturerDeviceCfg deviceCfg(String deviceInfoId, String deviceCode, String deviceName) {
