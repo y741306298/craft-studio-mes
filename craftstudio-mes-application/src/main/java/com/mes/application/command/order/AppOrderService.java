@@ -35,8 +35,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.Set;
 
 @Service
@@ -94,7 +96,7 @@ public class AppOrderService {
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId", manufacturerId);
         if (StringUtils.isNotBlank(orderId)) {
-            filters.put("orderId", orderId);
+            filters.put("orderId_like", Pattern.quote(orderId.trim()));
         }
         if (StringUtils.isNotBlank(status)) {
             filters.put("status", status);
@@ -109,13 +111,17 @@ public class AppOrderService {
             Set<String> customerMatchedOrderIds = new LinkedHashSet<>(
                     domainOrderInfoService.findOrderIdsByCustomerConditions(customerName, customerPhone)
             );
-            if (customerMatchedOrderIds.isEmpty()
-                    || (StringUtils.isNotBlank(orderId) && !customerMatchedOrderIds.contains(orderId))) {
+            if (StringUtils.isNotBlank(orderId)) {
+                String normalizedOrderId = orderId.trim().toLowerCase(Locale.ROOT);
+                customerMatchedOrderIds.removeIf(matchedOrderId ->
+                        StringUtils.isBlank(matchedOrderId)
+                                || !matchedOrderId.toLowerCase(Locale.ROOT).contains(normalizedOrderId));
+                filters.remove("orderId_like");
+            }
+            if (customerMatchedOrderIds.isEmpty()) {
                 return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
             }
-            if (StringUtils.isBlank(orderId)) {
-                filters.put("orderId_in", customerMatchedOrderIds);
-            }
+            filters.put("orderId_in", customerMatchedOrderIds);
         }
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(),
@@ -141,21 +147,9 @@ public class AppOrderService {
             filters.put("manufacturerId", query.getManufacturerId());
         }
 
-        List<OrderItem> orderItems = new ArrayList<>();
-        int current = 1;
-        while (true) {
-            List<OrderItem> pageItems = domainOrderItemService.filterListUrgentFirst(current, 100, filters);
-            if (pageItems == null || pageItems.isEmpty()) {
-                break;
-            }
-            pageItems.stream()
-                    .filter(item -> item != null && item.getQuantity() != null && item.getQuantity() != 0)
-                    .forEach(orderItems::add);
-            if (pageItems.size() < 100) {
-                break;
-            }
-            current++;
-        }
+        List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters).stream()
+                .filter(item -> item != null && item.getQuantity() != null && item.getQuantity() != 0)
+                .toList();
         return buildOrderItemVOs(orderItems);
     }
 
