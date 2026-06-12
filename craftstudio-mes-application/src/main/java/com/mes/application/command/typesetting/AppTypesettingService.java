@@ -27,6 +27,7 @@ import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.command.typesetting.enums.FormeGenerationElementType;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.ConfirmPrintResult;
 import com.mes.application.command.typesetting.vo.GenerateQrCodeResult;
@@ -1411,6 +1412,7 @@ public class AppTypesettingService {
 
         // 4) 回填 forme 基础输入
         FormeGenerationRequest.FormeInfo formeInfo = new FormeGenerationRequest.FormeInfo();
+        formeInfo.setKnife(resolveFormeKnife(typesettingInfo));
         formeInfo.setSvgUrl(buildCompleteOssUrl(typesettingInfo.getElement().getNestedSvg()));
         formeInfo.setMargin(modeResult.getMargin());
         formeInfo.setMarks(modeResult.getMarks());
@@ -1439,6 +1441,20 @@ public class AppTypesettingService {
         return request;
     }
 
+
+    private String resolveFormeKnife(TypesettingInfo typesettingInfo) {
+        return isCoverBoardPartOnlyTypesetting(typesettingInfo)
+                ? FormeGenerationElementType.VIBRATION_KNIFE.getCode()
+                : FormeGenerationElementType.DRAG_KNIFE.getCode();
+    }
+
+    private boolean isCoverBoardPartOnlyTypesetting(TypesettingInfo typesettingInfo) {
+        return typesettingInfo != null
+                && !CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())
+                && typesettingInfo.getTypesettingCells().stream()
+                .allMatch(cell -> cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType()))
+                && hasProcedureNode(typesettingInfo.getProcedureFlow(), "覆板");
+    }
 
 
     private void applySpecialCraftMarkStrategies(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {

@@ -339,7 +339,6 @@ public class AlgorithmCoreApiService {
         if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
-
         return callAlgorithmAsync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", request,
                 request.getCallbackConfig().getCallbackUrl(), FormeGenerationResponse.class);
     }
@@ -378,7 +377,6 @@ public class AlgorithmCoreApiService {
         if (request.getOutputs() == null) {
             throw new RuntimeException("输出配置不能为空");
         }
-
         return callAlgorithmSync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", request,
                 FormeGenerationResponse.class);
     }
