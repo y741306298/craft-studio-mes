@@ -2790,6 +2790,17 @@ public class AppTypesettingService {
         return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
 
+    private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
+            return layoutMode.isRequirePltFile();
+        }
+        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
+    }
+
 
     private void appendMirrorConfigImages(Set<String> imageSet, ProductionPiece piece) {
         if (piece == null || piece.getMirrorConfigs() == null || piece.getMirrorConfigs().isEmpty()) {
