@@ -86,6 +86,39 @@ class AppTypesettingServiceContainerWidthInsetTest {
         assertThat(request.getContainers().get(0).getWidth()).isEqualTo(972);
     }
 
+
+    @Test
+    void applyToLayoutContainerWidthInsetUsesLoadedProductionPieceProcedureFlowWhenRequestCellIsMinimal() {
+        LayoutConfirmRequest request = buildRequest(minimalPartCell());
+        ProductionPiece piece = productionPiece("piece-1", 500D, 500D);
+        piece.setProcedureFlow(procedureFlow("覆板"));
+
+        service.applyToLayoutContainerWidthInset(request, List.of(piece), List.of());
+
+        assertThat(request.getContainers().get(0).getWidth()).isEqualTo(984);
+    }
+
+    @Test
+    void applyToLayoutContainerWidthInsetUsesLoadedProductionPieceMaterialWhenRequestCellIsMinimal() {
+        TypesettingContainerWidthInsetService insetService = mock(TypesettingContainerWidthInsetService.class);
+        TypesettingContainerWidthInset inset = new TypesettingContainerWidthInset();
+        inset.setWidthInset(40);
+        when(insetService.findByMaterialIdAndLayoutMode("material-1", TypesettingLayoutMode.GRID_TYPESETTING_BASIC.getCode()))
+                .thenReturn(inset);
+        ReflectionTestUtils.setField(service, "containerWidthInsetService", insetService);
+        LayoutConfirmRequest request = buildRequest(minimalPartCell());
+        request.setLayoutMode(TypesettingLayoutMode.GRID_TYPESETTING_BASIC.getCode());
+        ProductionPiece piece = productionPiece("piece-1", 500D, 500D);
+        MaterialConfig materialConfig = new MaterialConfig();
+        materialConfig.setMaterialId("material-1");
+        piece.setMaterialConfig(materialConfig);
+        piece.setProcedureFlow(procedureFlow("排版"));
+
+        service.applyToLayoutContainerWidthInset(request, List.of(piece), List.of());
+
+        assertThat(request.getContainers().get(0).getWidth()).isEqualTo(960);
+    }
+
     @Test
     void validateCellSizeAgainstContainersKeepsOnlyContainersThatFitAllCells() {
         LayoutConfirmRequest request = new LayoutConfirmRequest();
@@ -164,6 +197,12 @@ class AppTypesettingServiceContainerWidthInsetTest {
         TypesettingProductionPieceVO cell = new TypesettingProductionPieceVO();
         cell.setSourceType(TypesettingSourceType.PART.getCode());
         cell.setProcedureFlow(procedureFlow(nodeNames));
+        return cell;
+    }
+
+    private TypesettingProductionPieceVO minimalPartCell() {
+        TypesettingProductionPieceVO cell = new TypesettingProductionPieceVO();
+        cell.setSourceType(TypesettingSourceType.PART.getCode());
         return cell;
     }
 
