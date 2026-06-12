@@ -2742,26 +2742,35 @@ public class AppTypesettingService {
     private void collectRequiredPltsRecursive(TypesettingInfo typesettingInfo,
                                               Set<String> pltSet,
                                               Set<String> visitedIds) {
-        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId()) || visitedIds.contains(typesettingInfo.getId())) {
-            return;
-        }
-        visitedIds.add(typesettingInfo.getId());
-        if (isRequirePltFile(typesettingInfo)) {
-            TypesettingElement element = typesettingInfo.getElement();
-            if (element != null && element.getPlt() != null) {
-                appendRawFile(pltSet, element.getPlt().getNormal());
-                appendRawFile(pltSet, element.getPlt().getReverse());
+        if (typesettingInfo != null && StringUtils.isNotBlank(typesettingInfo.getId()) && !visitedIds.contains(typesettingInfo.getId())) {
+            visitedIds.add(typesettingInfo.getId());
+            if (isRequirePltFile(typesettingInfo)) {
+                TypesettingElement element = typesettingInfo.getElement();
+                if (element != null && element.getPlt() != null) {
+                    appendRawFile(pltSet, element.getPlt().getNormal());
+                    appendRawFile(pltSet, element.getPlt().getReverse());
+                }
+            }
+            if (typesettingInfo.getTypesettingCells() != null) {
+                for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+                    if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                        continue;
+                    }
+                    TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
+                    collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
+                }
             }
         }
-        if (typesettingInfo.getTypesettingCells() == null) {
-            return;
+        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
+            return layoutMode.isRequirePltFile();
         }
-        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-            if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
-                continue;
-            }
-            TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
-            collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
+        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
+    }
+
+    private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
         }
         if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
