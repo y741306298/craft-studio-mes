@@ -2935,6 +2935,15 @@ public class AppTypesettingService {
             cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
         if (cuttingDeviceInfoIds.isEmpty()) {
+            cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
+            if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
+                cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
+            }
+        }
+        if (cuttingDeviceCodes.isEmpty()) {
+            cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
+        }
+        if (cuttingDeviceInfoIds.isEmpty()) {
             return;
         }
         TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
