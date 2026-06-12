@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.time.Instant;
 
 /**
@@ -264,7 +265,7 @@ public class DeliveryPkgService {
             filters.put("manufacturerMetaId", manufacturerMetaId);
         }
         if (StringUtils.isNotBlank(orderId)) {
-            filters.put("orderId", orderId);
+            filters.put("orderId_like", Pattern.quote(orderId.trim()));
         }
         if (StringUtils.isNotBlank(recipientName)) {
             filters.put("recipientName", recipientName);

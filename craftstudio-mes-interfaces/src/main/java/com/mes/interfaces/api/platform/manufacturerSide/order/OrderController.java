@@ -11,6 +11,7 @@ import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingServi
 import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
+import com.mes.application.dto.req.order.OrderItemsByOrderIdRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.application.dto.req.order.OrderTransferRecordListRequest;
 import com.mes.domain.base.repository.ApiResponse;
@@ -107,7 +108,7 @@ public class OrderController {
      * 根据订单 ID 全量查询 quantity 不为 0 的订单项列表，返回结构与 listOrders 的 item 一致。
      */
     @PostMapping("/listByOrderId")
-    public ApiResponse<List<OrderItemVO>> listOrderItemsByOrderId(@RequestBody OrderListRequest request) {
+    public ApiResponse<List<OrderItemVO>> listOrderItemsByOrderId(@RequestBody OrderItemsByOrderIdRequest request) {
         OrderQuery orderQuery = new OrderQuery();
         orderQuery.setOrderId(request.getOrderId());
         orderQuery.setManufacturerId(request.getManufacturerId());
