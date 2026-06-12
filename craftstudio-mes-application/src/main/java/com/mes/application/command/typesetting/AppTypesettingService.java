@@ -1380,6 +1380,7 @@ public class AppTypesettingService {
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
         mergeFormeMarkResources(typesettingInfo, request);
+        syncTypesettingElementSizeAfterFormeExpand(typesettingInfo, request);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
@@ -1410,6 +1411,37 @@ public class AppTypesettingService {
             }
             strategy.apply(typesettingInfo, formeRequest);
         }
+    }
+
+    /**
+     * 将印版生成阶段的最终外扩尺寸同步回排版元素。
+     *
+     * <p>confirmLayout / confirmPrint 会通过 forme.margin 在原 nestedSvg 四周追加标签条、定位点或辅助线区域。
+     * 算法请求提交后、回调返回前，列表和后续打印任务仍读取 typesetting.element.width/height，
+     * 因此需要在所有外扩参数处理完成后，把展示/落库尺寸同步为原印版尺寸 + 四边 margin。</p>
+     */
+    private void syncTypesettingElementSizeAfterFormeExpand(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
+        if (typesettingInfo == null || typesettingInfo.getElement() == null || formeRequest == null
+                || formeRequest.getForme() == null || formeRequest.getForme().getMargin() == null) {
+            return;
+        }
+        TypesettingElement element = typesettingInfo.getElement();
+        if (element.getWidth() == null || element.getHeight() == null) {
+            return;
+        }
+        FormeGenerationRequest.Margin margin = formeRequest.getForme().getMargin();
+        BigDecimal expandedWidth = element.getWidth()
+                .add(BigDecimal.valueOf(defaultMarginValue(margin.getLeft())))
+                .add(BigDecimal.valueOf(defaultMarginValue(margin.getRight())));
+        BigDecimal expandedHeight = element.getHeight()
+                .add(BigDecimal.valueOf(defaultMarginValue(margin.getTop())))
+                .add(BigDecimal.valueOf(defaultMarginValue(margin.getBottom())));
+        element.setWidth(expandedWidth);
+        element.setHeight(expandedHeight);
+    }
+
+    private int defaultMarginValue(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private void mergeFormeMarkResources(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
