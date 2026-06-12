@@ -287,6 +287,45 @@ public class OrderInfoService {
     }
 
     /**
+     * 根据客户信息查询订单号列表。
+     *
+     * @param customerName 客户姓名，支持模糊匹配
+     * @param customerPhone 客户手机号，支持模糊匹配
+     * @return 匹配的订单号列表
+     */
+    public List<String> findOrderIdsByCustomerConditions(String customerName, String customerPhone) {
+        Map<String, Object> filters = new HashMap<>();
+        if (StringUtils.isNotBlank(customerName)) {
+            filters.put("customer.customerName_like", customerName);
+        }
+        if (StringUtils.isNotBlank(customerPhone)) {
+            filters.put("customer.customerPhone_like", customerPhone);
+        }
+        if (filters.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> orderIds = new ArrayList<>();
+        int current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderInfo> orders = orderInfoRepository.filterList(current, size, filters);
+            if (orders == null || orders.isEmpty()) {
+                break;
+            }
+            orders.stream()
+                    .map(OrderInfo::getOrderId)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(orderIds::add);
+            if (orders.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return orderIds;
+    }
+
+    /**
      * 根据多条件查询订单（包含客户手机号）
      * @param orderId 订单号
      * @param status 订单状态

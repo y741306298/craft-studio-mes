@@ -14,6 +14,7 @@ public class OrderQuery {
     private OrderStatus status;
     private Date startTime;
     private Date endTime;
+    private String customerName;
     private String customerPhone;
     private PagedQuery pagedQuery;
 }
