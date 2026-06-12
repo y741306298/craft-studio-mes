@@ -108,6 +108,7 @@ import java.util.concurrent.TimeUnit;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.Comparator;
 
 @Slf4j
@@ -590,11 +591,15 @@ public class AppTypesettingService {
     }
 
     private boolean hasProcedureNode(TypesettingProductionPieceVO cell, String... nodeNames) {
-        if (cell == null || cell.getProcedureFlow() == null || CollectionUtils.isEmpty(cell.getProcedureFlow().getNodes())) {
+        return cell != null && hasProcedureNode(cell.getProcedureFlow(), nodeNames);
+    }
+
+    private boolean hasProcedureNode(ProcedureFlow procedureFlow, String... nodeNames) {
+        if (procedureFlow == null || CollectionUtils.isEmpty(procedureFlow.getNodes())) {
             return false;
         }
         Set<String> targetNodeNames = Arrays.stream(nodeNames).collect(Collectors.toSet());
-        return cell.getProcedureFlow().getNodes().stream()
+        return procedureFlow.getNodes().stream()
                 .anyMatch(node -> node != null && targetNodeNames.contains(node.getNodeName()));
     }
 
@@ -1069,6 +1074,7 @@ public class AppTypesettingService {
             return LayoutConfirmResult.failed(validateProcedureResult);
         }
         try {
+            applyToLayoutContainerWidthInset(request, productionPieces, typesettingInfos);
             validateCellSizeAgainstContainers(request, productionPieces, typesettingInfos, TypesettingLayoutMode.fromCode(request.getLayoutMode()));
         } catch (IllegalArgumentException ex) {
             return LayoutConfirmResult.failed(ex.getMessage());
@@ -1655,18 +1661,39 @@ public class AppTypesettingService {
 
     /**
      * 在提交算法前扣减 containers.width。
-     * <p>全部来源为零件且存在“覆板”工艺时固定扣减 16mm；其他场景优先按
-     * typesettingCells 中的 materialId + layoutMode 查询 width 内缩配置，未配置时默认扣减 28mm。</p>
+     * <p>兼容仅传前端 cell 的老调用；toLayout 主流程会在按 sourceId 补全 DB 零件/印版后，
+     * 调用 {@link #applyToLayoutContainerWidthInset(LayoutConfirmRequest, List, List)}，避免前端未传
+     * procedureFlow/materialConfig 时误走默认扣减。</p>
      */
     public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request) {
+        if (request == null) {
+            return;
+        }
+        applyContainerWidthInset(request, resolveContainerWidthInset(request.getTypesettingCells(), TypesettingLayoutMode.fromCode(request.getLayoutMode())));
+    }
+
+    /**
+     * 在提交算法前，基于已从 DB 补全的零件/印版数据扣减 containers.width。
+     * <p>全部实际来源为零件且存在“覆板”工艺时固定扣减 16mm；其他场景优先按实际来源的
+     * materialId + layoutMode 查询 width 内缩配置，未配置时默认扣减 28mm。</p>
+     */
+    public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request,
+                                                 List<ProductionPiece> productionPieces,
+                                                 List<TypesettingInfo> typesettingInfos) {
+        if (request == null) {
+            return;
+        }
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        applyContainerWidthInset(request, resolveContainerWidthInset(productionPieces, typesettingInfos, layoutMode));
+    }
+
+    private void applyContainerWidthInset(LayoutConfirmRequest request, Integer widthInset) {
         if (request == null) {
             return;
         }
         if (CollectionUtils.isEmpty(request.getContainers())) {
             request.setContainers(new ArrayList<>(List.of(new LayoutConfirmRequest.ContainerInfo(1500, 1000))));
         }
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
-        Integer widthInset = resolveContainerWidthInset(request.getTypesettingCells(), layoutMode);
         if (widthInset == null || widthInset <= 0) {
             return;
         }
@@ -1697,8 +1724,32 @@ public class AppTypesettingService {
         return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
     }
 
+    private Integer resolveContainerWidthInset(List<ProductionPiece> productionPieces,
+                                               List<TypesettingInfo> typesettingInfos,
+                                               TypesettingLayoutMode layoutMode) {
+        if (isCoverBoardProductionPieceOnlyLayout(productionPieces, typesettingInfos)) {
+            return DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM;
+        }
+        String materialId = resolveSingleMaterialId(productionPieces, typesettingInfos);
+        if (StringUtils.isNotBlank(materialId) && layoutMode != null && containerWidthInsetService != null) {
+            TypesettingContainerWidthInset inset = containerWidthInsetService
+                    .findByMaterialIdAndLayoutMode(materialId, layoutMode.getCode());
+            if (inset != null && inset.getWidthInset() != null) {
+                return inset.getWidthInset();
+            }
+        }
+        return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
+    }
+
     private boolean isCoverBoardProductionPieceOnlyLayout(List<TypesettingProductionPieceVO> typesettingCells) {
         return isAllProductionPieceCells(typesettingCells) && hasAnyCoverBoardNode(typesettingCells);
+    }
+
+    private boolean isCoverBoardProductionPieceOnlyLayout(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
+        return !CollectionUtils.isEmpty(productionPieces)
+                && CollectionUtils.isEmpty(typesettingInfos)
+                && productionPieces.stream().allMatch(Objects::nonNull)
+                && productionPieces.stream().anyMatch(piece -> hasProcedureNode(piece.getProcedureFlow(), "覆板"));
     }
 
     private boolean isAllProductionPieceCells(List<TypesettingProductionPieceVO> typesettingCells) {
@@ -1726,6 +1777,32 @@ public class AppTypesettingService {
                 .map(TypesettingProductionPieceVO::getMaterialConfig)
                 .filter(Objects::nonNull)
                 .map(MaterialConfig::getMaterialId)
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .distinct()
+                .limit(2)
+                .reduce((first, second) -> {
+                    throw new IllegalArgumentException("同一次排版只能根据一组 materialId + layoutMode 匹配 containers.width 内缩值");
+                })
+                .orElse(null);
+    }
+
+    private String resolveSingleMaterialId(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
+        Stream<String> productionPieceMaterialIds = productionPieces == null
+                ? Stream.empty()
+                : productionPieces.stream()
+                .filter(Objects::nonNull)
+                .map(ProductionPiece::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(MaterialConfig::getMaterialId);
+        Stream<String> typesettingMaterialIds = typesettingInfos == null
+                ? Stream.empty()
+                : typesettingInfos.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingInfo::getMaterialConfig)
+                .filter(Objects::nonNull)
+                .map(MaterialConfig::getMaterialId);
+        return Stream.concat(productionPieceMaterialIds, typesettingMaterialIds)
                 .filter(StringUtils::isNotBlank)
                 .map(String::trim)
                 .distinct()
