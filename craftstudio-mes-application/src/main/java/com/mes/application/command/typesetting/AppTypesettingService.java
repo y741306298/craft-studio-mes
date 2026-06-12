@@ -68,7 +68,6 @@ import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingSequencePoolService;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
@@ -2722,25 +2721,43 @@ public class AppTypesettingService {
     private void collectRequiredPltsRecursive(TypesettingInfo typesettingInfo,
                                               Set<String> pltSet,
                                               Set<String> visitedIds) {
-        if (typesettingInfo != null && StringUtils.isNotBlank(typesettingInfo.getId()) && !visitedIds.contains(typesettingInfo.getId())) {
-            visitedIds.add(typesettingInfo.getId());
-            if (isRequirePltFile(typesettingInfo)) {
-                TypesettingElement element = typesettingInfo.getElement();
-                if (element != null && element.getPlt() != null) {
-                    appendRawFile(pltSet, element.getPlt().getNormal());
-                    appendRawFile(pltSet, element.getPlt().getReverse());
-                }
-            }
-            if (typesettingInfo.getTypesettingCells() != null) {
-                for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-                    if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
-                        continue;
-                    }
-                    TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
-                    collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
-                }
+        if (typesettingInfo == null) {
+            return;
+        }
+        String visitedKey = resolveTypesettingVisitedKey(typesettingInfo);
+        if (StringUtils.isNotBlank(visitedKey) && !visitedIds.add(visitedKey)) {
+            return;
+        }
+        if (isRequirePltFile(typesettingInfo)) {
+            TypesettingElement element = typesettingInfo.getElement();
+            if (element != null && element.getPlt() != null) {
+                appendRawFile(pltSet, element.getPlt().getNormal());
+                appendRawFile(pltSet, element.getPlt().getReverse());
             }
         }
+        if (typesettingInfo.getTypesettingCells() == null || typesettingInfo.getTypesettingCells().isEmpty()) {
+            return;
+        }
+        for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+            if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                continue;
+            }
+            if (visitedIds.contains(cell.getSourceId())) {
+                continue;
+            }
+            TypesettingInfo cellTypesetting = domainTypesettingService == null ? null : domainTypesettingService.findById(cell.getSourceId());
+            collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
+        }
+    }
+
+    private String resolveTypesettingVisitedKey(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(typesettingInfo.getId())) {
+            return typesettingInfo.getId();
+        }
+        return typesettingInfo.getTypesettingId();
     }
 
     private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
@@ -2749,7 +2766,7 @@ public class AppTypesettingService {
         }
         if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
-            return layoutMode.isRequirePltFile();
+            return layoutMode != null && layoutMode.isRequirePltFile();
         }
         return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
@@ -2912,13 +2929,13 @@ public class AppTypesettingService {
         if (cuttingDeviceCodes.isEmpty() && originalData != null) {
             cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
-        if (cuttingDeviceInfoIds.isEmpty()) {
+        if (cuttingDeviceInfoIds.isEmpty() && originalData != null) {
             cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
             if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
                 cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
             }
         }
-        if (cuttingDeviceCodes.isEmpty()) {
+        if (cuttingDeviceCodes.isEmpty() && originalData != null) {
             cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
         if (cuttingDeviceInfoIds.isEmpty()) {
