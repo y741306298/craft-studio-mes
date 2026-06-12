@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -261,16 +262,62 @@ public class AppManufacturerDeviceCfgService {
         Map<String, Object> filters = new HashMap<String, Object>();
         filters.put("typesettingCode", typesettingCode);
         List<TypesettingPrintTask> tasks = typesettingPrintTaskRepository.filterList(1, 100, filters);
-        List<TypesettingDownloadTaskData> result = new ArrayList<TypesettingDownloadTaskData>();
         if (tasks == null || tasks.isEmpty()) {
             return null;
         }
+
+        TypesettingDownloadTaskData merged = new TypesettingDownloadTaskData();
+        LinkedHashSet<String> images = new LinkedHashSet<String>();
+        LinkedHashSet<String> plts = new LinkedHashSet<String>();
+        LinkedHashSet<String> jsons = new LinkedHashSet<String>();
+        LinkedHashSet<String> marks = new LinkedHashSet<String>();
+        LinkedHashSet<String> deviceInfoIds = new LinkedHashSet<String>();
+        LinkedHashSet<String> deviceCodes = new LinkedHashSet<String>();
+
         for (TypesettingPrintTask task : tasks) {
-            if (task != null && task.getData() != null) {
-                result.add(task.getData());
+            if (task == null || task.getData() == null) {
+                continue;
+            }
+            TypesettingDownloadTaskData data = task.getData();
+            if (StringUtils.isBlank(merged.getId())) {
+                merged.setId(data.getId());
+            }
+            if (StringUtils.isBlank(merged.getDeviceInfoId())) {
+                merged.setDeviceInfoId(data.getDeviceInfoId());
+            }
+            if (StringUtils.isNotBlank(data.getDeviceInfoId())) {
+                deviceInfoIds.add(data.getDeviceInfoId());
+            }
+            addAllNotBlank(images, data.getImamges());
+            addAllNotBlank(plts, data.getPlts());
+            addAllNotBlank(jsons, data.getJsons());
+            addAllNotBlank(marks, data.getMarks());
+            addAllNotBlank(deviceInfoIds, data.getDeviceInfoIds());
+            addAllNotBlank(deviceCodes, data.getDeviceCodes());
+        }
+
+        if (StringUtils.isBlank(merged.getId()) && images.isEmpty() && plts.isEmpty() && jsons.isEmpty()
+                && marks.isEmpty() && deviceInfoIds.isEmpty() && deviceCodes.isEmpty()) {
+            return null;
+        }
+        merged.setImamges(new ArrayList<String>(images));
+        merged.setPlts(new ArrayList<String>(plts));
+        merged.setJsons(new ArrayList<String>(jsons));
+        merged.setMarks(new ArrayList<String>(marks));
+        merged.setDeviceInfoIds(new ArrayList<String>(deviceInfoIds));
+        merged.setDeviceCodes(new ArrayList<String>(deviceCodes));
+        return merged;
+    }
+
+    private void addAllNotBlank(LinkedHashSet<String> target, List<String> source) {
+        if (source == null || source.isEmpty()) {
+            return;
+        }
+        for (String item : source) {
+            if (StringUtils.isNotBlank(item)) {
+                target.add(item);
             }
         }
-        return result.get(0);
     }
 
     public ManufacturerDeviceCfg unbindDeviceByManufacturerAndId(String manufacturerMetaId, String id) {
