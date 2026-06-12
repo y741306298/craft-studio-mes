@@ -3,18 +3,24 @@ package com.mes.application.command.typesetting;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
+import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
+import com.mes.domain.manufacturer.typesetting.service.TypesettingPrintTaskService;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AppTypesettingServicePrintTaskPltTest {
@@ -53,7 +59,42 @@ class AppTypesettingServicePrintTaskPltTest {
                 Collections.emptySet(),
                 root);
 
-        assertThat(data.getPlts()).containsExactly("child-normal.plt", "child-reverse.plt");
+        assertThat(data.getPlts()).containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
+    }
+
+    @Test
+    void savePltBroadcastPrintTaskFallsBackToOriginalDeviceWhenNoCuttingDeviceIsConfigured() {
+        ManufacturerDeviceCfgRepository deviceCfgRepository = mock(ManufacturerDeviceCfgRepository.class);
+        TypesettingPrintTaskService printTaskService = mock(TypesettingPrintTaskService.class);
+        ReflectionTestUtils.setField(service, "manufacturerDeviceCfgRepository", deviceCfgRepository);
+        ReflectionTestUtils.setField(service, "typesettingPrintTaskService", printTaskService);
+        when(deviceCfgRepository.filterList(any(Integer.class), any(Integer.class), any())).thenReturn(Collections.emptyList());
+
+        TypesettingDownloadTaskData originalData = new TypesettingDownloadTaskData();
+        originalData.setId("print-task-id");
+        originalData.setDeviceInfoId("printer-device-info-id");
+        originalData.setDeviceInfoIds(List.of("printer-device-info-id"));
+        originalData.setDeviceCodes(List.of("printer-device-code"));
+        originalData.setPlts(List.of("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt"));
+
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "savePltBroadcastPrintTask",
+                "print-task-id",
+                "typesetting-code",
+                "manufacturer-meta-id",
+                originalData);
+
+        ArgumentCaptor<TypesettingPrintTask> taskCaptor = ArgumentCaptor.forClass(TypesettingPrintTask.class);
+        verify(printTaskService).saveOrUpdate(taskCaptor.capture());
+        TypesettingPrintTask task = taskCaptor.getValue();
+        assertThat(task.getTypesettingInfoId()).isEqualTo("print-task-id_plt");
+        assertThat(task.getDeviceInfoId()).containsExactly("printer-device-info-id");
+        assertThat(task.getDeviceCode()).containsExactly("printer-device-code");
+        assertThat(task.getData().getImamges()).isEmpty();
+        assertThat(task.getData().getJsons()).isEmpty();
+        assertThat(task.getData().getMarks()).isEmpty();
+        assertThat(task.getData().getPlts()).containsExactly("oss://bucket/child-normal.plt", "oss://bucket/child-reverse.plt");
     }
 
     private TypesettingInfo typesetting(String id,

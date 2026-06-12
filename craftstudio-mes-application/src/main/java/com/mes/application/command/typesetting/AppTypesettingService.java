@@ -2902,9 +2902,6 @@ public class AppTypesettingService {
             return;
         }
         List<ManufacturerDeviceCfg> cuttingDeviceCfgs = findCuttingDeviceCfgs(manufacturerMetaId);
-        if (cuttingDeviceCfgs.isEmpty()) {
-            return;
-        }
         LinkedHashSet<String> cuttingDeviceInfoIds = new LinkedHashSet<>();
         LinkedHashSet<String> cuttingDeviceCodes = new LinkedHashSet<>();
         for (ManufacturerDeviceCfg cfg : cuttingDeviceCfgs) {
@@ -2914,6 +2911,15 @@ public class AppTypesettingService {
             if (StringUtils.isNotBlank(cfg.getDeviceCode())) {
                 cuttingDeviceCodes.add(cfg.getDeviceCode());
             }
+        }
+        if (cuttingDeviceInfoIds.isEmpty()) {
+            cuttingDeviceInfoIds.addAll(normalizeStringList(originalData.getDeviceInfoIds()));
+            if (cuttingDeviceInfoIds.isEmpty() && StringUtils.isNotBlank(originalData.getDeviceInfoId())) {
+                cuttingDeviceInfoIds.add(originalData.getDeviceInfoId());
+            }
+        }
+        if (cuttingDeviceCodes.isEmpty()) {
+            cuttingDeviceCodes.addAll(normalizeStringList(originalData.getDeviceCodes()));
         }
         if (cuttingDeviceInfoIds.isEmpty()) {
             return;
