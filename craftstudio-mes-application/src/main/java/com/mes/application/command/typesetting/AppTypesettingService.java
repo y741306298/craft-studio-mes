@@ -2516,13 +2516,14 @@ public class AppTypesettingService {
                         deviceCode,
                         typesettingInfo.getElement(),
                         allMarks,
-                        productionPieceIds);
+                        productionPieceIds,
+                        typesettingInfo);
                 typesettingInfo.setRemark(null);
                 mergeExistingMarksBeforeUpdate(typesettingInfo);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
                 savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
-                savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData);
+                savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData, typesettingInfo);
             }
         }catch (Exception e) {
             log.error("处理打印印版回调异常", e);
@@ -2702,7 +2703,8 @@ public class AppTypesettingService {
                                                               String deviceCode,
                                                               TypesettingElement typesettingElement,
                                                               Map<String, String> marks,
-                                                              Set<String> productionPieceIds) {
+                                                              Set<String> productionPieceIds,
+                                                              TypesettingInfo rootTypesettingInfo) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
         for (String productionPieceId : productionPieceIds) {
             ProductionPiece piece = productionPieceService.findById(productionPieceId);
@@ -2717,14 +2719,9 @@ public class AppTypesettingService {
         LinkedHashSet<String> jsonSet = new LinkedHashSet<>();
         LinkedHashSet<String> markSet = new LinkedHashSet<>();
         if (typesettingElement != null) {
-            if (typesettingElement.getPlt() != null) {
-                appendRawFile(pltSet, typesettingElement.getPlt().getNormal());
-                appendRawFile(pltSet, typesettingElement.getPlt().getReverse());
-            }
             appendRawFile(jsonSet, typesettingElement.getJson());
         }
-        TypesettingInfo typesettingInfo = domainTypesettingService.findById(typesettingInfoId);
-        collectCellTypesettingPltsRecursive(typesettingInfo, pltSet, new HashSet<>());
+        collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
             for (String markFile : marks.values()) {
                 appendMarkFiles(markSet, markFile);
@@ -2742,13 +2739,20 @@ public class AppTypesettingService {
         return data;
     }
 
-    private void collectCellTypesettingPltsRecursive(TypesettingInfo typesettingInfo,
-                                                     Set<String> pltSet,
-                                                     Set<String> visitedIds) {
+    private void collectRequiredPltsRecursive(TypesettingInfo typesettingInfo,
+                                              Set<String> pltSet,
+                                              Set<String> visitedIds) {
         if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId()) || visitedIds.contains(typesettingInfo.getId())) {
             return;
         }
         visitedIds.add(typesettingInfo.getId());
+        if (isRequirePltFile(typesettingInfo)) {
+            TypesettingElement element = typesettingInfo.getElement();
+            if (element != null && element.getPlt() != null) {
+                appendRawFile(pltSet, element.getPlt().getNormal());
+                appendRawFile(pltSet, element.getPlt().getReverse());
+            }
+        }
         if (typesettingInfo.getTypesettingCells() == null) {
             return;
         }
@@ -2757,16 +2761,19 @@ public class AppTypesettingService {
                 continue;
             }
             TypesettingInfo cellTypesetting = domainTypesettingService.findById(cell.getSourceId());
-            if (cellTypesetting == null) {
-                continue;
-            }
-            TypesettingElement cellElement = cellTypesetting.getElement();
-            if (cellElement != null && cellElement.getPlt() != null) {
-                appendRawFile(pltSet, cellElement.getPlt().getNormal());
-                appendRawFile(pltSet, cellElement.getPlt().getReverse());
-            }
-            collectCellTypesettingPltsRecursive(cellTypesetting, pltSet, visitedIds);
+            collectRequiredPltsRecursive(cellTypesetting, pltSet, visitedIds);
         }
+    }
+
+    private boolean isRequirePltFile(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        if (StringUtils.isNotBlank(typesettingInfo.getLayoutMode())) {
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode());
+            return layoutMode.isRequirePltFile();
+        }
+        return Boolean.TRUE.equals(typesettingInfo.getRequirePltFile());
     }
 
 
@@ -2891,13 +2898,23 @@ public class AppTypesettingService {
                                            String typesettingCode,
                                            String manufacturerMetaId,
                                            TypesettingDownloadTaskData originalData) {
-        if (originalData == null || originalData.getPlts() == null || originalData.getPlts().isEmpty()) {
+        savePltBroadcastPrintTask(typesettingInfoId, typesettingCode, manufacturerMetaId, originalData, null);
+    }
+
+    private void savePltBroadcastPrintTask(String typesettingInfoId,
+                                           String typesettingCode,
+                                           String manufacturerMetaId,
+                                           TypesettingDownloadTaskData originalData,
+                                           TypesettingInfo rootTypesettingInfo) {
+        LinkedHashSet<String> pltSet = new LinkedHashSet<>();
+        if (originalData != null) {
+            pltSet.addAll(normalizeStringList(originalData.getPlts()));
+        }
+        collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
+        if (pltSet.isEmpty()) {
             return;
         }
         List<ManufacturerDeviceCfg> cuttingDeviceCfgs = findCuttingDeviceCfgs(manufacturerMetaId);
-        if (cuttingDeviceCfgs.isEmpty()) {
-            return;
-        }
         LinkedHashSet<String> cuttingDeviceInfoIds = new LinkedHashSet<>();
         LinkedHashSet<String> cuttingDeviceCodes = new LinkedHashSet<>();
         for (ManufacturerDeviceCfg cfg : cuttingDeviceCfgs) {
@@ -2912,12 +2929,12 @@ public class AppTypesettingService {
             return;
         }
         TypesettingDownloadTaskData pltOnlyData = new TypesettingDownloadTaskData();
-        pltOnlyData.setId(originalData.getId());
-        pltOnlyData.setDeviceInfoId(originalData.getDeviceInfoId());
+        pltOnlyData.setId(originalData == null ? typesettingInfoId : originalData.getId());
+        pltOnlyData.setDeviceInfoId(cuttingDeviceInfoIds.iterator().next());
         pltOnlyData.setDeviceInfoIds(new ArrayList<>(cuttingDeviceInfoIds));
         pltOnlyData.setDeviceCodes(new ArrayList<>(cuttingDeviceCodes));
         pltOnlyData.setImamges(Collections.emptyList());
-        pltOnlyData.setPlts(new ArrayList<>(originalData.getPlts()));
+        pltOnlyData.setPlts(new ArrayList<>(pltSet));
         pltOnlyData.setJsons(Collections.emptyList());
         pltOnlyData.setMarks(Collections.emptyList());
         savePrintTask(typesettingInfoId + "_plt", typesettingCode, manufacturerMetaId, new ArrayList<>(cuttingDeviceInfoIds), new ArrayList<>(cuttingDeviceCodes), pltOnlyData);
