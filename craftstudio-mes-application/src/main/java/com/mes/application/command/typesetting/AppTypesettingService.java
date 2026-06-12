@@ -1565,9 +1565,9 @@ public class AppTypesettingService {
     }
 
     /**
-     * 按 typesettingCells 中的 materialId + layoutMode 查询 width 内缩配置，并在提交算法前扣减 containers.width。
-     * <p>未配置内缩数据时走默认规则：全部来源为零件且存在“覆板”工艺时扣减 16mm，
-     * 全部来源为零件但不存在“覆板”工艺或包含历史印版来源时扣减 28mm。</p>
+     * 在提交算法前扣减 containers.width。
+     * <p>全部来源为零件且存在“覆板”工艺时固定扣减 16mm；其他场景优先按
+     * typesettingCells 中的 materialId + layoutMode 查询 width 内缩配置，未配置时默认扣减 28mm。</p>
      */
     public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request) {
         if (request == null) {
@@ -1594,25 +1594,22 @@ public class AppTypesettingService {
     }
 
     private Integer resolveContainerWidthInset(List<TypesettingProductionPieceVO> typesettingCells, TypesettingLayoutMode layoutMode) {
+        if (isCoverBoardProductionPieceOnlyLayout(typesettingCells)) {
+            return DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM;
+        }
         String materialId = resolveSingleMaterialId(typesettingCells);
-        if (StringUtils.isNotBlank(materialId) && layoutMode != null) {
+        if (StringUtils.isNotBlank(materialId) && layoutMode != null && containerWidthInsetService != null) {
             TypesettingContainerWidthInset inset = containerWidthInsetService
                     .findByMaterialIdAndLayoutMode(materialId, layoutMode.getCode());
             if (inset != null && inset.getWidthInset() != null) {
                 return inset.getWidthInset();
             }
         }
-        return resolveDefaultContainerWidthInset(typesettingCells);
+        return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
     }
 
-    private Integer resolveDefaultContainerWidthInset(List<TypesettingProductionPieceVO> typesettingCells) {
-        if (hasTypesettingSourceCell(typesettingCells)) {
-            return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
-        }
-        if (isAllProductionPieceCells(typesettingCells) && hasAnyCoverBoardNode(typesettingCells)) {
-            return DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM;
-        }
-        return DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM;
+    private boolean isCoverBoardProductionPieceOnlyLayout(List<TypesettingProductionPieceVO> typesettingCells) {
+        return isAllProductionPieceCells(typesettingCells) && hasAnyCoverBoardNode(typesettingCells);
     }
 
     private boolean isAllProductionPieceCells(List<TypesettingProductionPieceVO> typesettingCells) {
@@ -1629,15 +1626,6 @@ public class AppTypesettingService {
         }
         return typesettingCells.stream()
                 .anyMatch(this::hasCoverBoardNode);
-    }
-
-    private boolean hasTypesettingSourceCell(List<TypesettingProductionPieceVO> typesettingCells) {
-        if (typesettingCells == null) {
-            return false;
-        }
-        return typesettingCells.stream()
-                .filter(Objects::nonNull)
-                .anyMatch(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()));
     }
 
     private String resolveSingleMaterialId(List<TypesettingProductionPieceVO> typesettingCells) {
