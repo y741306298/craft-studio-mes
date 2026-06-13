@@ -248,15 +248,15 @@ public class DeliveryRouteController {
     }
 
     @DeleteMapping("/address-recognition/{recordId}")
-    public ApiResponse<String> deleteAddressRecognitionRecord(@PathVariable String recordId) {
-        appDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
+    public ApiResponse<String> unbindAddressRecognitionRecord(@PathVariable String recordId) {
+        appDeliveryRouteService.unbindAddressRecognitionRecord(recordId);
         return ApiResponse.success("success");
     }
 
     @DeleteMapping("/address-recognition/batch")
-    public ApiResponse<String> batchDeleteAddressRecognitionRecords(
+    public ApiResponse<String> batchUnbindAddressRecognitionRecords(
             @Valid @RequestBody AddressRecognitionRecordBatchDeleteRequest request) {
-        appDeliveryRouteService.batchDeleteAddressRecognitionRecords(request.getRecordIds());
+        appDeliveryRouteService.batchUnbindAddressRecognitionRecords(request.getRecordIds());
         return ApiResponse.success("success");
     }
 

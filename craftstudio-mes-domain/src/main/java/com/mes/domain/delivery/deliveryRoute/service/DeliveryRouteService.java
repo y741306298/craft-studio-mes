@@ -394,22 +394,68 @@ public class DeliveryRouteService {
         }
     }
 
-    public void deleteAddressRecognitionRecords(List<String> recordIds) {
+    public void unbindAddressRecognitionRecords(List<String> recordIds) {
         if (recordIds == null || recordIds.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
         for (String recordId : recordIds) {
-            deleteAddressRecognitionRecord(recordId);
+            unbindAddressRecognitionRecord(recordId);
         }
     }
 
-    public void deleteAddressRecognitionRecord(String recordId) {
+    public void unbindAddressRecognitionRecord(String recordId) {
         if (StringUtils.isBlank(recordId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
         AddressRecognitionRecord record = addressRecognitionRecordRepository.findById(recordId);
-        if (record != null) {
-            addressRecognitionRecordRepository.delete(record);
+        if (record == null) {
+            return;
+        }
+        unbindAddressRecognitionRecord(record);
+    }
+
+    private void unbindAddressRecognitionRecord(AddressRecognitionRecord record) {
+        record.setRouteId(null);
+        record.setNodeId(null);
+        record.setOrder(null);
+        record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
+        addressRecognitionRecordRepository.update(record);
+        clearOrderRouteBinding(record.getOrderId());
+    }
+
+    private void clearOrderRouteBinding(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            return;
+        }
+
+        Map<String, Object> orderFilters = new HashMap<>();
+        orderFilters.put("orderId", orderId);
+        List<OrderInfo> orderInfos = orderInfoRepository.filterList(1, 1, orderFilters);
+        if (orderInfos != null && !orderInfos.isEmpty()) {
+            OrderInfo orderInfo = orderInfos.get(0);
+            orderInfo.setRouteId(null);
+            orderInfo.setRouteNodeId(null);
+            orderInfoRepository.update(orderInfo);
+        }
+
+        Map<String, Object> itemFilters = new HashMap<>();
+        itemFilters.put("orderId", orderId);
+        long current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderItem> orderItems = orderItemRepository.filterList(current, size, itemFilters);
+            if (orderItems == null || orderItems.isEmpty()) {
+                break;
+            }
+            for (OrderItem orderItem : orderItems) {
+                orderItem.setRouteId(null);
+                orderItem.setRouteNodeId(null);
+            }
+            orderItemRepository.batchUpdate(orderItems);
+            if (orderItems.size() < size) {
+                break;
+            }
+            current++;
         }
     }
 
