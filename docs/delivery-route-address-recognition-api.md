@@ -74,12 +74,15 @@
 | --- | --- | --- |
 | `id` | string | 地址识别记录 ID |
 | `address` | object | 原始地址对象，保存订单收件地址 |
+| `orgInfo` | object | 下单企业信息，包含 `name` |
+| `consignee` | object | 收货人信息，包含 `name`、`phone`、`address` |
 | `fullAddress` | string | 补全后的完整地址展示文本 |
 | `orderId` | string | 关联订单号 |
 | `routeId` | string | 已绑定路线 ID；未分配时为空 |
 | `nodeId` | string | 已绑定路线节点 ID；未分配时为空 |
 | `status` | string | 枚举：`ASSIGNED` / `UNASSIGNED` |
 | `statusName` | string | 中文状态：`已分配` / `未分配` |
+| `order` | integer | 节点内排序值 |
 | `createTime` | datetime | 创建时间 |
 | `updateTime` | datetime | 更新时间 |
 
@@ -429,7 +432,8 @@ POST {basePath}/address-recognition/bind
 {
   "recordId": "recordMongoId",
   "routeId": "ROUTE_001",
-  "nodeId": "1"
+  "nodeId": "1",
+  "order": 1
 }
 ```
 
@@ -440,10 +444,11 @@ POST {basePath}/address-recognition/bind
 | `recordId` | string | 是 | 地址识别记录 ID |
 | `routeId` | string | 是 | 目标路线 ID |
 | `nodeId` | string | 是 | 目标路线节点 ID |
+| `order` | integer | 否 | 节点内排序值；不传时默认追加到当前节点最大排序值之后 |
 
 #### 业务说明
 
-绑定成功后，地址识别记录会写入 `routeId`、`nodeId`，状态更新为“已分配”。若记录有关联 `orderId`，会同步更新对应 `OrderInfo` 和所有 `OrderItem` 的 `routeId` / `routeNodeId`。
+绑定成功后，地址识别记录会写入 `routeId`、`nodeId`、`order`，状态更新为“已分配”。若记录有关联 `orderId`，会同步更新对应 `OrderInfo` 和所有 `OrderItem` 的 `routeId` / `routeNodeId`。
 
 #### 响应体
 
@@ -465,7 +470,8 @@ POST {basePath}/address-recognition/change-bind
 {
   "recordId": "recordMongoId",
   "routeId": "ROUTE_002",
-  "nodeId": "2"
+  "nodeId": "2",
+  "order": 2
 }
 ```
 
@@ -493,7 +499,8 @@ POST {basePath}/address-recognition/batch-bind
 {
   "recordIds": ["recordMongoId1", "recordMongoId2"],
   "routeId": "ROUTE_001",
-  "nodeId": "1"
+  "nodeId": "1",
+  "order": 1
 }
 ```
 
@@ -504,6 +511,7 @@ POST {basePath}/address-recognition/batch-bind
 | `recordIds` | string[] | 是 | 地址识别记录 ID 列表，不能为空 |
 | `routeId` | string | 是 | 目标路线 ID |
 | `nodeId` | string | 是 | 目标路线节点 ID |
+| `order` | integer | 否 | 节点内排序值；不传时默认追加到当前节点最大排序值之后 |
 
 #### 响应体
 
@@ -524,6 +532,34 @@ DELETE {basePath}/address-recognition/{recordId}
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `recordId` | string | 是 | 地址识别记录 ID |
+
+#### 响应体
+
+```json
+{
+  "data": "success"
+}
+```
+
+### 5.7 批量删除地址识别记录
+
+```http
+DELETE {basePath}/address-recognition/batch
+```
+
+#### 请求体
+
+```json
+{
+  "recordIds": ["recordMongoId1", "recordMongoId2"]
+}
+```
+
+#### 字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `recordIds` | string[] | 是 | 地址识别记录 ID 列表，不能为空 |
 
 #### 响应体
 

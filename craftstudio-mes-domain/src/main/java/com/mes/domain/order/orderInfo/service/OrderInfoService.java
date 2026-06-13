@@ -3,6 +3,7 @@ package com.mes.domain.order.orderInfo.service;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
 import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecordStatus;
+import com.mes.domain.delivery.deliveryRoute.vo.AddressRecognitionConsignee;
 import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecordRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
@@ -576,6 +577,18 @@ public class OrderInfoService {
     }
 
 
+    private void fillAddressRecognitionOrderInfo(AddressRecognitionRecord record, OrderInfo orderInfo) {
+        record.setOrderId(orderInfo.getOrderId());
+        record.setOrgInfo(orderInfo.getOrgInfo());
+        if (orderInfo.getCustomer() != null) {
+            AddressRecognitionConsignee consignee = new AddressRecognitionConsignee();
+            consignee.setName(orderInfo.getCustomer().getCustomerName());
+            consignee.setPhone(orderInfo.getCustomer().getCustomerPhone());
+            consignee.setAddress(orderInfo.getCustomer().getAddress());
+            record.setConsignee(consignee);
+        }
+    }
+
     private void matchOrCreateAddressRecognitionRecord(OrderInfo orderInfo, List<OrderItem> orderItems) {
         if (orderInfo == null || orderInfo.getCustomer() == null || orderInfo.getCustomer().getAddress() == null) {
             return;
@@ -592,16 +605,21 @@ public class OrderInfoService {
         if (record == null) {
             record = new AddressRecognitionRecord();
             record.setAddress(address);
-            record.setOrderId(orderInfo.getOrderId());
+            fillAddressRecognitionOrderInfo(record, orderInfo);
             record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
             addressRecognitionRecordRepository.add(record);
             return;
         }
 
         if (AddressRecognitionRecordStatus.UNASSIGNED.equals(record.getStatus()) && StringUtils.isBlank(record.getOrderId())) {
-            record.setOrderId(orderInfo.getOrderId());
+            fillAddressRecognitionOrderInfo(record, orderInfo);
             addressRecognitionRecordRepository.update(record);
             return;
+        }
+
+        if (record.getOrgInfo() == null || record.getConsignee() == null) {
+            fillAddressRecognitionOrderInfo(record, orderInfo);
+            addressRecognitionRecordRepository.update(record);
         }
 
         if (AddressRecognitionRecordStatus.ASSIGNED.equals(record.getStatus())

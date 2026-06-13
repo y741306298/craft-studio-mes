@@ -61,6 +61,20 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
         return mongoTemplate.count(query, poClass());
     }
 
+    @Override
+    public Integer findMaxOrderByRouteNode(String routeId, String nodeId) {
+        Query query = new SoftDeleteQuery(
+                Criteria.where("status").is(AddressRecognitionRecordStatus.ASSIGNED.getValue())
+                        .and("routeId").is(routeId)
+                        .and("nodeId").is(nodeId)
+                        .and("order").ne(null)
+        );
+        query.with(Sort.by(Sort.Direction.DESC, "order"));
+        query.limit(1);
+        AddressRecognitionRecordPo po = mongoTemplate.findOne(query, poClass());
+        return po == null ? null : po.getOrder();
+    }
+
     private Criteria buildStatusCriteria(String status, String detailAddress) {
         Criteria criteria = Criteria.where("status").is(status);
         addDetailAddressCriteria(criteria, detailAddress);

@@ -1,6 +1,7 @@
 package com.mes.application.dto.req.order;
 
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -17,6 +18,7 @@ import java.util.List;
 public class OrderAddRequest {
     private List<OrderItemRequest> orderItems;
     private ConsigneeRequest consignee;
+    private OrgInfo orgInfo;
     private Long id;
     private String state;
     private String note;
@@ -27,6 +29,7 @@ public class OrderAddRequest {
         OrderInfo orderInfo = new OrderInfo();
         orderInfo.setOrderId(String.valueOf(id));
         orderInfo.setCustomer(consignee.toOrderCustomer());
+        orderInfo.setOrgInfo(orgInfo);
         orderInfo.setDeliveryAddress(consignee.getDetailAddress());
         orderInfo.setRemark(note);
         orderInfo.setPlatformCode(platformCode);
