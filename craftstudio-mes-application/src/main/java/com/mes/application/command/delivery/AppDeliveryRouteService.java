@@ -172,12 +172,12 @@ public class AppDeliveryRouteService {
         domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId, order);
     }
 
-    public void deleteAddressRecognitionRecord(String recordId) {
-        domainDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
+    public void unbindAddressRecognitionRecord(String recordId) {
+        domainDeliveryRouteService.unbindAddressRecognitionRecord(recordId);
     }
 
-    public void batchDeleteAddressRecognitionRecords(List<String> recordIds) {
-        domainDeliveryRouteService.deleteAddressRecognitionRecords(recordIds);
+    public void batchUnbindAddressRecognitionRecords(List<String> recordIds) {
+        domainDeliveryRouteService.unbindAddressRecognitionRecords(recordIds);
     }
 
     public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {

@@ -521,7 +521,7 @@ POST {basePath}/address-recognition/batch-bind
 }
 ```
 
-### 5.6 删除地址识别记录
+### 5.6 解绑地址识别记录
 
 ```http
 DELETE {basePath}/address-recognition/{recordId}
@@ -533,6 +533,8 @@ DELETE {basePath}/address-recognition/{recordId}
 | --- | --- | --- | --- |
 | `recordId` | string | 是 | 地址识别记录 ID |
 
+> 说明：该接口仅清除记录的路线/节点绑定和节点内排序，并将记录状态改为未分配，不删除地址识别记录本身。
+
 #### 响应体
 
 ```json
@@ -541,7 +543,7 @@ DELETE {basePath}/address-recognition/{recordId}
 }
 ```
 
-### 5.7 批量删除地址识别记录
+### 5.7 批量解绑地址识别记录
 
 ```http
 DELETE {basePath}/address-recognition/batch
@@ -559,7 +561,7 @@ DELETE {basePath}/address-recognition/batch
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `recordIds` | string[] | 是 | 地址识别记录 ID 列表，不能为空 |
+| `recordIds` | string[] | 是 | 地址识别记录 ID 列表，不能为空；接口仅清除路线/节点绑定并将记录状态改为未分配，不删除记录 |
 
 #### 响应体
 
