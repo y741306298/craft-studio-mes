@@ -2318,7 +2318,7 @@ public class AppTypesettingService {
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
-//        validateConfirmPrintForSpecialProcedure(typesettingInfo);
+        validateConfirmPrintForDoubleSideMirror(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                 StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
@@ -2376,36 +2376,22 @@ public class AppTypesettingService {
         return result;
     }
 
-    private void validateConfirmPrintForSpecialProcedure(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo == null || typesettingInfo.getProcedureFlow() == null
-                || CollectionUtils.isEmpty(typesettingInfo.getProcedureFlow().getNodes())) {
+    private void validateConfirmPrintForDoubleSideMirror(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
             return;
         }
-
-        String blockedProcedureName = findBlockedProcedureName(typesettingInfo.getProcedureFlow().getNodes());
-        if (StringUtils.isBlank(blockedProcedureName)) {
+        boolean hasDoubleSideMirrorProcedure = ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(typesettingInfo.getProcedureFlow())
+                || containsDoubleSideMirrorKeyword(typesettingInfo.getProcessingFlow());
+        if (!hasDoubleSideMirrorProcedure || !isAllPartCompositionTypesetting(typesettingInfo)) {
             return;
         }
-        if (!isAllPartCompositionTypesetting(typesettingInfo)) {
-            return;
-        }
-        throw new RuntimeException("该印版包含" + blockedProcedureName + "工艺，请先确认印版");
+        throw new RuntimeException("该印版存在镜像印版，却要先确认，不能直接下发");
     }
 
-    private String findBlockedProcedureName(List<ProcedureFlowNode> nodes) {
-        if (CollectionUtils.isEmpty(nodes)) {
-            return null;
-        }
-        if (ProcedureFlowNodeMatcher.hasAnyNodeNameContaining(nodes,
-                ProcedureFlowNodeMatcher.DOUBLE_SIDE_MOUNTING_KEYWORD,
-                ProcedureFlowNodeMatcher.COVER_DOUBLE_SIDE_KEYWORD)) {
-            return "双面对裱/覆双面";
-        }
-        boolean containsCoverBoard = nodes.stream()
-                .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .anyMatch("覆板"::equals);
-        return containsCoverBoard ? "覆板" : null;
+    private boolean containsDoubleSideMirrorKeyword(String processingFlow) {
+        return StringUtils.isNotBlank(processingFlow)
+                && (processingFlow.contains(ProcedureFlowNodeMatcher.DOUBLE_SIDE_MOUNTING_KEYWORD)
+                || processingFlow.contains(ProcedureFlowNodeMatcher.COVER_DOUBLE_SIDE_KEYWORD));
     }
 
     private boolean isAllPartCompositionTypesetting(TypesettingInfo typesettingInfo) {

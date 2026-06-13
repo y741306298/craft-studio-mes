@@ -198,7 +198,7 @@
 | id | string | 来源数据主键 |
 | sourceType | string | 来源类型：生产工件或排版数据，按现有枚举编码返回 |
 | sourceId | string | 来源 ID |
-| groupId | string | 分组 ID；生产工件通常为 `orderItemId`，电商模式可为 `orderId`；排版数据为去掉 `-Mirror` 后缀的基础 `typesettingId` |
+| groupId | string | 分组 ID；生产工件通常为 `orderItemId`，电商模式可为 `orderId`；排版数据使用完整 `typesettingId`，`-Mirror` 印版会作为独立分组返回 |
 | orderItemId | string | 订单项 ID；生产工件来源时有值 |
 | quantity | number | 数量 |
 | leaveQuantity | number | 剩余数量；排版来源取排版剩余量，生产工件来源取待排版节点数量 |

@@ -11,12 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TypesettingProductionPieceVOTest {
 
     @Test
-    void fromTypesettingInfoRemovesMirrorSuffixFromGroupId() {
+    void fromTypesettingInfoKeepsMirrorSuffixAsGroupId() {
         TypesettingInfo info = buildTypesettingInfo("TS-001-Mirror");
 
         TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromTypesettingInfo(info);
 
-        assertEquals("TS-001", vo.getGroupId());
+        assertEquals("TS-001-Mirror", vo.getGroupId());
     }
 
     @Test
