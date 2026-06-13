@@ -33,40 +33,16 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         boolean hasSplicing = SpliceProcessStrategies.hasSpliceNode(procedureFlow);
         boolean hasSpecialShape = AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
         MirrorImageData mirrorImageData = resolveMirrorImageData(procedureFlow, orderItem);
-        if (!hasSpecialShape && !hasSplicing) {
-            // 步骤2：仅双面对裱场景直接按 NoSpecialProcedureStrategy 生成生产零件，不调用算法。
+        if (shouldCreateProductionPieceDirectly(procedureFlow)) {
+            // 步骤2：仅双面对裱场景直接生成生产零件，不调用算法。
+            return createProductionPieceDirectly(orderItem, procedureFlow, processingService, mirrorImageData);
+        }
+        if (hasSplicing && !hasSpecialShape) {
+            // 步骤3：拼接 + 覆双面但无异形切割时，算法仍需要 maskSvgUrl 作为等幅蒙版输入。
             String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
             processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
-
-            String productionImgUrl = orderItem.getProductionImgFile() != null
-                    && orderItem.getProductionImgFile().getFilePreview() != null
-                    ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                    : null;
-            Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
-            Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
-            ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
-                    orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
-
-            OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
-            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-                piece.setRemark(orderInfo.getRemark());
-            }
-
-            if (mirrorImageData != null && mirrorImageData.raw != null && !mirrorImageData.raw.isBlank()) {
-                MirrorConfig mirrorConfig = new MirrorConfig();
-                mirrorConfig.setImg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
-                mirrorConfig.setSvg(processingService.completeOssUrlForStrategy(mirrorImageData.raw));
-                mirrorConfig.setPreviewImg(processingService.completeOssUrlForStrategy(mirrorImageData.preview));
-                mirrorConfig.setThumbnail(processingService.completeOssUrlForStrategy(mirrorImageData.thumbnail));
-                piece.setMirrorConfigs(List.of(mirrorConfig));
-            }
-            processingService.getProductionPieceService().addProductionPiece(piece);
-            processingService.indexProductionPieceImageForStrategy(piece);
-            List<ProductionPiece> pieces = new ArrayList<>();
-            pieces.add(piece);
-            return pieces;
         }
-        // 步骤3：存在拼接/异形切割时才调用异步蒙版算法。
+        // 步骤4：存在拼接/异形切割时才调用异步蒙版算法。
         processingService.callMaskAsyncForDoubleSide(orderItem, procedureFlow, getStrategyType(),
                 mirrorImageData == null ? null : mirrorImageData.raw);
         return null;
