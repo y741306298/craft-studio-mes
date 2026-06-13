@@ -35,6 +35,9 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.nestFilesUrl}")
     private String nestFilesUrl;
 
+    @Value("${external.api.generateFormeUrl}")
+    private String generateFormeUrl;
+
     /**
      * 同步调用算法服务
      * 请求发起方需一直等处理结束才释放连接
@@ -339,7 +342,7 @@ public class AlgorithmCoreApiService {
         if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
-        return callAlgorithmAsync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", request,
+        return callAlgorithmAsync(generateFormeUrl, "", request,
                 request.getCallbackConfig().getCallbackUrl(), FormeGenerationResponse.class);
     }
 
@@ -351,7 +354,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", requestJson,
+        return callAlgorithmAsync(generateFormeUrl, "", requestJson,
                 callbackUrl, FormeGenerationResponse.class);
     }
 
@@ -377,7 +380,7 @@ public class AlgorithmCoreApiService {
         if (request.getOutputs() == null) {
             throw new RuntimeException("输出配置不能为空");
         }
-        return callAlgorithmSync("http://craftstenerator-ygfncedtli.cn-hangzhou.fcapp.run", "/generate_forme", request,
+        return callAlgorithmSync(generateFormeUrl, "", request,
                 FormeGenerationResponse.class);
     }
 
