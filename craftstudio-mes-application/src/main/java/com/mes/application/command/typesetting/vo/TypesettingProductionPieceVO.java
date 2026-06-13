@@ -20,8 +20,6 @@ import java.util.List;
 @Data
 public class TypesettingProductionPieceVO {
 
-    private static final String MIRROR_SUFFIX = "-Mirror";
-
     private String id;
 
     /**
@@ -170,7 +168,7 @@ public class TypesettingProductionPieceVO {
         vo.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
         vo.setSourceId(info.getId());
         vo.setId(info.getId());
-        vo.setGroupId(normalizeTypesettingGroupId(info.getTypesettingId()));
+        vo.setGroupId(info.getTypesettingId());
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
@@ -189,13 +187,6 @@ public class TypesettingProductionPieceVO {
         }
         vo.setCreateTime(info.getCreateTime());
         return vo;
-    }
-
-    private static String normalizeTypesettingGroupId(String typesettingId) {
-        if (typesettingId == null || !typesettingId.endsWith(MIRROR_SUFFIX)) {
-            return typesettingId;
-        }
-        return typesettingId.substring(0, typesettingId.length() - MIRROR_SUFFIX.length());
     }
 
     private static Double toCentimeters(Double millimeters) {
