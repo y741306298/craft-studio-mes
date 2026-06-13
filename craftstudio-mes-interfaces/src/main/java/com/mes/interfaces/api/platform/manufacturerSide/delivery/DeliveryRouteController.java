@@ -3,6 +3,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 import com.mes.application.command.delivery.AppDeliveryRouteService;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordAssignedListRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordBatchBindRequest;
+import com.mes.application.dto.req.delivery.AddressRecognitionRecordBatchDeleteRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordBindRequest;
 import com.mes.application.dto.req.delivery.AddressRecognitionRecordListRequest;
 import com.mes.application.dto.req.delivery.DeliveryRouteListRequest;
@@ -216,7 +217,8 @@ public class DeliveryRouteController {
         appDeliveryRouteService.bindAddressRecognitionRecord(
                 request.getRecordId(),
                 request.getRouteId(),
-                request.getNodeId()
+                request.getNodeId(),
+                request.getOrder()
         );
         return ApiResponse.success("success");
     }
@@ -227,7 +229,8 @@ public class DeliveryRouteController {
         appDeliveryRouteService.bindAddressRecognitionRecord(
                 request.getRecordId(),
                 request.getRouteId(),
-                request.getNodeId()
+                request.getNodeId(),
+                request.getOrder()
         );
         return ApiResponse.success("success");
     }
@@ -238,7 +241,8 @@ public class DeliveryRouteController {
         appDeliveryRouteService.batchBindAddressRecognitionRecords(
                 request.getRecordIds(),
                 request.getRouteId(),
-                request.getNodeId()
+                request.getNodeId(),
+                request.getOrder()
         );
         return ApiResponse.success("success");
     }
@@ -246,6 +250,13 @@ public class DeliveryRouteController {
     @DeleteMapping("/address-recognition/{recordId}")
     public ApiResponse<String> deleteAddressRecognitionRecord(@PathVariable String recordId) {
         appDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
+        return ApiResponse.success("success");
+    }
+
+    @DeleteMapping("/address-recognition/batch")
+    public ApiResponse<String> batchDeleteAddressRecognitionRecords(
+            @Valid @RequestBody AddressRecognitionRecordBatchDeleteRequest request) {
+        appDeliveryRouteService.batchDeleteAddressRecognitionRecords(request.getRecordIds());
         return ApiResponse.success("success");
     }
 

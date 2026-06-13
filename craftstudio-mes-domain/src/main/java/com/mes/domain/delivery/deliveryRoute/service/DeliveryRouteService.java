@@ -321,7 +321,7 @@ public class DeliveryRouteService {
         return addressRecognitionRecordRepository.totalAssignedByRouteNode(routeId, nodeId, detailAddress);
     }
 
-    public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId) {
+    public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId, Integer order) {
         if (recordIds == null || recordIds.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不能为空");
         }
@@ -329,11 +329,11 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
         }
         for (String recordId : recordIds) {
-            bindAddressRecognitionRecord(recordId, routeId, nodeId);
+            bindAddressRecognitionRecord(recordId, routeId, nodeId, order);
         }
     }
 
-    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId) {
+    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId, Integer order) {
         if (StringUtils.isBlank(recordId) || StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "绑定参数不能为空");
         }
@@ -343,11 +343,20 @@ public class DeliveryRouteService {
         }
         record.setRouteId(routeId);
         record.setNodeId(nodeId);
+        record.setOrder(resolveAddressRecognitionRecordOrder(routeId, nodeId, order));
         record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
         addressRecognitionRecordRepository.update(record);
         syncOrderRouteBinding(record.getOrderId(), routeId, nodeId);
     }
 
+
+    private Integer resolveAddressRecognitionRecordOrder(String routeId, String nodeId, Integer order) {
+        if (order != null) {
+            return order;
+        }
+        Integer maxOrder = addressRecognitionRecordRepository.findMaxOrderByRouteNode(routeId, nodeId);
+        return maxOrder == null ? 0 : maxOrder + 1;
+    }
 
     private void syncOrderRouteBinding(String orderId, String routeId, String nodeId) {
         if (StringUtils.isBlank(orderId)) {
@@ -382,6 +391,15 @@ public class DeliveryRouteService {
                 break;
             }
             current++;
+        }
+    }
+
+    public void deleteAddressRecognitionRecords(List<String> recordIds) {
+        if (recordIds == null || recordIds.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
+        }
+        for (String recordId : recordIds) {
+            deleteAddressRecognitionRecord(recordId);
         }
     }
 

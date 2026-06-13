@@ -164,16 +164,20 @@ public class AppDeliveryRouteService {
         return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
     }
 
-    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId) {
-        domainDeliveryRouteService.bindAddressRecognitionRecord(recordId, routeId, nodeId);
+    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId, Integer order) {
+        domainDeliveryRouteService.bindAddressRecognitionRecord(recordId, routeId, nodeId, order);
     }
 
-    public void batchBindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId) {
-        domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId);
+    public void batchBindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId, Integer order) {
+        domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId, order);
     }
 
     public void deleteAddressRecognitionRecord(String recordId) {
         domainDeliveryRouteService.deleteAddressRecognitionRecord(recordId);
+    }
+
+    public void batchDeleteAddressRecognitionRecords(List<String> recordIds) {
+        domainDeliveryRouteService.deleteAddressRecognitionRecords(recordIds);
     }
 
     public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {
