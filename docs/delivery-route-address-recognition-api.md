@@ -577,6 +577,34 @@ DELETE {basePath}/address-recognition/batch
 }
 ```
 
+### 5.7 批量删除地址识别记录
+
+```http
+DELETE {basePath}/address-recognition/batch
+```
+
+#### 请求体
+
+```json
+{
+  "recordIds": ["recordMongoId1", "recordMongoId2"]
+}
+```
+
+#### 字段说明
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `recordIds` | string[] | 是 | 地址识别记录 ID 列表，不能为空 |
+
+#### 响应体
+
+```json
+{
+  "data": "success"
+}
+```
+
 ## 6. 兼容与注意事项
 
 1. 路线列表搜索优先使用 `name`，兼容旧字段 `routeName`。
