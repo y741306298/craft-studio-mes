@@ -16,4 +16,6 @@ public interface AddressRecognitionRecordRepository extends BaseRepository<Addre
     List<AddressRecognitionRecord> listAssignedByRouteNode(String routeId, String nodeId, String detailAddress, long current, int size);
 
     long totalAssignedByRouteNode(String routeId, String nodeId, String detailAddress);
+
+    Integer findMaxOrderByRouteNode(String routeId, String nodeId);
 }

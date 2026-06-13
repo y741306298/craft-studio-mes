@@ -11,6 +11,7 @@ import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecord
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
@@ -264,7 +265,7 @@ public class DeliveryRouteService {
         if (!nodes.isEmpty()) {
             DeliveryRouteNode removedNode = null;
             for (DeliveryRouteNode node : nodes) {
-                if (nodeId.equals(node.getId())) {
+                if (nodeId.equals(node.getId()) || nodeId.equals(node.getRouteNodeId())) {
                     removedNode = node;
                     break;
                 }
@@ -272,7 +273,11 @@ public class DeliveryRouteService {
             if (removedNode == null) {
                 return;
             }
-            nodes.removeIf(node -> nodeId.equals(node.getId()));
+            assertNoInProductionOrderItemsBound(routeId, removedNode.getId());
+            if (StringUtils.isNotBlank(removedNode.getRouteNodeId()) && !removedNode.getRouteNodeId().equals(removedNode.getId())) {
+                assertNoInProductionOrderItemsBound(routeId, removedNode.getRouteNodeId());
+            }
+            nodes.removeIf(node -> nodeId.equals(node.getId()) || nodeId.equals(node.getRouteNodeId()));
             deliveryRouteNodeRepository.delete(removedNode);
 
             int order = 0;
@@ -321,7 +326,7 @@ public class DeliveryRouteService {
         return addressRecognitionRecordRepository.totalAssignedByRouteNode(routeId, nodeId, detailAddress);
     }
 
-    public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId) {
+    public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId, Integer order) {
         if (recordIds == null || recordIds.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不能为空");
         }
@@ -329,11 +334,11 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
         }
         for (String recordId : recordIds) {
-            bindAddressRecognitionRecord(recordId, routeId, nodeId);
+            bindAddressRecognitionRecord(recordId, routeId, nodeId, order);
         }
     }
 
-    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId) {
+    public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId, Integer order) {
         if (StringUtils.isBlank(recordId) || StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "绑定参数不能为空");
         }
@@ -343,11 +348,20 @@ public class DeliveryRouteService {
         }
         record.setRouteId(routeId);
         record.setNodeId(nodeId);
+        record.setOrder(resolveAddressRecognitionRecordOrder(routeId, nodeId, order));
         record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
         addressRecognitionRecordRepository.update(record);
         syncOrderRouteBinding(record.getOrderId(), routeId, nodeId);
     }
 
+
+    private Integer resolveAddressRecognitionRecordOrder(String routeId, String nodeId, Integer order) {
+        if (order != null) {
+            return order;
+        }
+        Integer maxOrder = addressRecognitionRecordRepository.findMaxOrderByRouteNode(routeId, nodeId);
+        return maxOrder == null ? 0 : maxOrder + 1;
+    }
 
     private void syncOrderRouteBinding(String orderId, String routeId, String nodeId) {
         if (StringUtils.isBlank(orderId)) {
@@ -385,13 +399,110 @@ public class DeliveryRouteService {
         }
     }
 
+    public void deleteAddressRecognitionRecords(List<String> recordIds) {
+        if (recordIds == null || recordIds.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
+        }
+        List<AddressRecognitionRecord> records = new ArrayList<>();
+        for (String recordId : recordIds) {
+            AddressRecognitionRecord record = getAddressRecognitionRecordForUnbind(recordId);
+            if (record != null) {
+                validateAddressRecognitionRecordUnbindAllowed(record);
+                records.add(record);
+            }
+        }
+        for (AddressRecognitionRecord record : records) {
+            unbindAddressRecognitionRecord(record);
+        }
+    }
+
     public void deleteAddressRecognitionRecord(String recordId) {
+        AddressRecognitionRecord record = getAddressRecognitionRecordForUnbind(recordId);
+        if (record == null) {
+            return;
+        }
+        validateAddressRecognitionRecordUnbindAllowed(record);
+        unbindAddressRecognitionRecord(record);
+    }
+
+    private AddressRecognitionRecord getAddressRecognitionRecordForUnbind(String recordId) {
         if (StringUtils.isBlank(recordId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
-        AddressRecognitionRecord record = addressRecognitionRecordRepository.findById(recordId);
-        if (record != null) {
-            addressRecognitionRecordRepository.delete(record);
+        return addressRecognitionRecordRepository.findById(recordId);
+    }
+
+    private void validateAddressRecognitionRecordUnbindAllowed(AddressRecognitionRecord record) {
+        if (record == null || StringUtils.isBlank(record.getRouteId()) || StringUtils.isBlank(record.getNodeId())) {
+            return;
+        }
+        assertNoInProductionOrderItemsBound(record.getRouteId(), record.getNodeId());
+    }
+
+    private void unbindAddressRecognitionRecord(AddressRecognitionRecord record) {
+        if (record == null) {
+            return;
+        }
+        String routeId = record.getRouteId();
+        String nodeId = record.getNodeId();
+        if (StringUtils.isNotBlank(routeId) && StringUtils.isNotBlank(nodeId)) {
+            clearOrderRouteBinding(record.getOrderId(), routeId, nodeId);
+        }
+        record.setRouteId(null);
+        record.setNodeId(null);
+        record.setOrder(null);
+        record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
+        addressRecognitionRecordRepository.update(record);
+    }
+
+    private void assertNoInProductionOrderItemsBound(String routeId, String nodeId) {
+        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
+            return;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("routeId", routeId);
+        filters.put("routeNodeId", nodeId);
+        filters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+        if (orderItemRepository.filterTotal(filters) > 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在生产中的订单项绑定该路线节点，不能移除绑定");
+        }
+    }
+
+    private void clearOrderRouteBinding(String orderId, String routeId, String nodeId) {
+        if (StringUtils.isBlank(orderId)) {
+            return;
+        }
+
+        Map<String, Object> orderFilters = new HashMap<>();
+        orderFilters.put("orderId", orderId);
+        List<OrderInfo> orderInfos = orderInfoRepository.filterList(1, 1, orderFilters);
+        if (orderInfos != null && !orderInfos.isEmpty()) {
+            OrderInfo orderInfo = orderInfos.get(0);
+            if (routeId.equals(orderInfo.getRouteId()) && nodeId.equals(orderInfo.getRouteNodeId())) {
+                orderInfo.setRouteId(null);
+                orderInfo.setRouteNodeId(null);
+                orderInfoRepository.update(orderInfo);
+            }
+        }
+
+        Map<String, Object> itemFilters = new HashMap<>();
+        itemFilters.put("orderId", orderId);
+        itemFilters.put("routeId", routeId);
+        itemFilters.put("routeNodeId", nodeId);
+        int size = 100;
+        while (true) {
+            List<OrderItem> orderItems = orderItemRepository.filterList(1, size, itemFilters);
+            if (orderItems == null || orderItems.isEmpty()) {
+                break;
+            }
+            for (OrderItem orderItem : orderItems) {
+                orderItem.setRouteId(null);
+                orderItem.setRouteNodeId(null);
+            }
+            orderItemRepository.batchUpdate(orderItems);
+            if (orderItems.size() < size) {
+                break;
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package com.mes.domain.order.orderInfo.entity;
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.delivery.deliveryNet.entity.DeliveryWay;
 import com.mes.domain.delivery.deliveryNet.enums.DeliveryWayNUM;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
@@ -25,5 +26,6 @@ public class OrderInfo extends BaseEntity {
     private String platformCode;
     private String routeId;
     private String routeNodeId;
+    private OrgInfo orgInfo;
 
 }

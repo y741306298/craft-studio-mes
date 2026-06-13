@@ -1,5 +1,6 @@
 package com.mes.infra.dal.order.po;
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
@@ -22,6 +23,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private String platformCode;
     private String routeId;
     private String routeNodeId;
+    private OrgInfo orgInfo;
 
     @Override
     public OrderInfo toDO() {
@@ -37,6 +39,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setPlatformCode(this.platformCode);
         orderInfo.setRouteId(this.routeId);
         orderInfo.setRouteNodeId(this.routeNodeId);
+        orderInfo.setOrgInfo(this.orgInfo);
         if (this.status != null) {
             orderInfo.setStatus(OrderStatus.getByCode(this.status));
         }
@@ -53,6 +56,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.platformCode = _do.getPlatformCode();
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
+        this.orgInfo = _do.getOrgInfo();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }

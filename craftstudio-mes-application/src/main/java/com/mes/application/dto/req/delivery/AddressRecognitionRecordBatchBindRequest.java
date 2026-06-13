@@ -17,4 +17,6 @@ public class AddressRecognitionRecordBatchBindRequest {
 
     @NotBlank(message = "节点 ID 不能为空")
     private String nodeId;
+
+    private Integer order;
 }
