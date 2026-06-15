@@ -2389,7 +2389,7 @@ public class AppTypesettingService {
         if (!hasDoubleSideMirrorProcedure || !isAllPartCompositionTypesetting(typesettingInfo)) {
             return;
         }
-        throw new RuntimeException("该印版存在镜像印版，却要先确认，不能直接下发");
+        throw new RuntimeException("该印版存在反面文件，需要先确认，不能直接下发");
     }
 
     private boolean containsDoubleSideMirrorKeyword(String processingFlow) {

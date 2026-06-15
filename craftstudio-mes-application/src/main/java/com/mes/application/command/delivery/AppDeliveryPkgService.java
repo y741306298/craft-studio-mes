@@ -760,7 +760,7 @@ public class AppDeliveryPkgService {
     private String buildDeliveryPkgRemarks(String orderId, String presetType, String kuaidiNum) {
         List<String> remarkParts = new ArrayList<>();
         if (StringUtils.isNotBlank(orderId)) {
-            remarkParts.add("orderId:" + orderId);
+            remarkParts.add("订单:" + orderId);
         }
         if (!"CUSTOM".equalsIgnoreCase(presetType)) {
             remarkParts.add("kuaidiNum:" + (StringUtils.isBlank(kuaidiNum) ? "" : kuaidiNum));
