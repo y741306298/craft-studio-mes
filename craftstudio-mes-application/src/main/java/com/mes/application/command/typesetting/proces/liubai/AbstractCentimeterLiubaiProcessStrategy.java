@@ -70,7 +70,7 @@ public abstract class AbstractCentimeterLiubaiProcessStrategy extends AbstractFi
 
     @Override
     protected double borderStrokeWidthScale() {
-        return 1.2D;
+        return 1.1D;
     }
 
     @Override
