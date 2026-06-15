@@ -2,15 +2,17 @@ package com.mes.application.command.api;
 
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
-import com.mes.application.command.api.req.ImpositionRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.req.SvgToPltRequest;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
-import com.mes.application.command.api.resp.ImpositionResponse;
 import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.domain.shared.algorithm.entity.AlgorithmCoreApiCallRecord;
+import com.mes.domain.shared.algorithm.repository.AlgorithmCoreApiCallRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Map;
+import java.lang.reflect.Method;
 
 @Service
 public class AlgorithmCoreApiService {
@@ -31,6 +33,9 @@ public class AlgorithmCoreApiService {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Autowired
+    private AlgorithmCoreApiCallRecordRepository algorithmCoreApiCallRecordRepository;
 
     @Value("${external.api.nestFilesUrl}")
     private String nestFilesUrl;
@@ -49,6 +54,10 @@ public class AlgorithmCoreApiService {
      * @return 算法处理结果
      */
     public <T> T callAlgorithmSync(String baseUrl, String apiPath, Object requestBody, Class<T> responseType) {
+        return callAlgorithmSync(baseUrl, apiPath, requestBody, null, responseType);
+    }
+
+    public <T> T callAlgorithmSync(String baseUrl, String apiPath, Object requestBody, String type, Class<T> responseType) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new RuntimeException("算法服务地址未配置");
         }
@@ -61,6 +70,7 @@ public class AlgorithmCoreApiService {
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
             log.info("AlgorithmCoreApiService request start: mode=sync, url={}, apiPath={}, requestBody={}", url, apiPath, JSON.toJSONString(requestBody));
+            saveCallRecord("sync", url, apiPath, requestBody, type);
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);
 
@@ -85,6 +95,10 @@ public class AlgorithmCoreApiService {
      * @return 任务接受响应
      */
     public <T> T callAlgorithmAsync(String baseUrl, String apiPath, Object requestBody, String callbackUrl, Class<T> responseType) {
+        return callAlgorithmAsync(baseUrl, apiPath, requestBody, callbackUrl, null, responseType);
+    }
+
+    public <T> T callAlgorithmAsync(String baseUrl, String apiPath, Object requestBody, String callbackUrl, String type, Class<T> responseType) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new RuntimeException("算法服务地址未配置");
         }
@@ -101,6 +115,7 @@ public class AlgorithmCoreApiService {
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
             log.info("AlgorithmCoreApiService request start: mode=async, url={}, apiPath={}, callbackUrl={}, requestBody={}", url, apiPath, callbackUrl, JSON.toJSONString(requestBody));
+            saveCallRecord("async", url, apiPath, requestBody, type);
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);
 
@@ -112,6 +127,43 @@ public class AlgorithmCoreApiService {
         } catch (Exception e) {
             throw new RuntimeException("调用算法服务失败：" + e.getMessage());
         }
+    }
+
+    private void saveCallRecord(String mode, String url, String apiPath, Object requestBody, String type) {
+        AlgorithmCoreApiCallRecord record = new AlgorithmCoreApiCallRecord();
+        record.setMode(mode);
+        record.setUrl(url);
+        record.setApiPath(apiPath);
+        record.setRequestBody(JSON.toJSONString(requestBody));
+        Object callbackCustomValue = extractCallbackCustomValue(requestBody);
+        record.setCallbackCustomValue(callbackCustomValue == null ? null : JSON.toJSONString(callbackCustomValue));
+        record.setType(type);
+        algorithmCoreApiCallRecordRepository.add(record);
+    }
+
+    private Object extractCallbackCustomValue(Object requestBody) {
+        if (requestBody == null) {
+            return null;
+        }
+        if (requestBody instanceof String) {
+            JSONObject requestJson = JSON.parseObject((String) requestBody);
+            JSONObject callbackConfig = requestJson == null ? null : requestJson.getJSONObject("callbackConfig");
+            return callbackConfig == null ? null : callbackConfig.get("callbackCustomValue");
+        }
+        try {
+            Method getCallbackConfig = requestBody.getClass().getMethod("getCallbackConfig");
+            Object callbackConfig = getCallbackConfig.invoke(requestBody);
+            if (callbackConfig instanceof CallbackConfig) {
+                return ((CallbackConfig) callbackConfig).getCallbackCustomValue();
+            }
+            if (callbackConfig != null) {
+                Method getCallbackCustomValue = callbackConfig.getClass().getMethod("getCallbackCustomValue");
+                return getCallbackCustomValue.invoke(callbackConfig);
+            }
+        } catch (ReflectiveOperationException e) {
+            log.debug("AlgorithmCoreApiService request has no callbackCustomValue, type={}", requestBody.getClass().getName());
+        }
+        return null;
     }
 
 
@@ -138,8 +190,9 @@ public class AlgorithmCoreApiService {
         }
         validateSliceBloodDirection(request);
         return callAlgorithmAsync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request,
-                request.getCallbackConfig().getCallbackUrl(), ImageMaskResponse.class);
+                request.getCallbackConfig().getCallbackUrl(), "generateMaskFilesAsync", ImageMaskResponse.class);
     }
+
 
     /**
      * 图片遮罩抠图 - 同步模式
@@ -163,7 +216,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         validateSliceBloodDirection(request);
-        return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, ImageMaskResponse.class);
+        return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, "generateMaskFilesSync", ImageMaskResponse.class);
     }
 
 
@@ -224,7 +277,7 @@ public class AlgorithmCoreApiService {
         }
 
         return callAlgorithmAsync(nestFilesUrl, "", request,
-                request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
+                request.getCallbackConfig().getCallbackUrl(), "generateNestedFilesAsync", NestingResponse.class);
     }
 
     /**
@@ -251,7 +304,7 @@ public class AlgorithmCoreApiService {
         }
 
         return callAlgorithmSync(nestFilesUrl, "", request,
-                NestingResponse.class);
+                "generateNestedFilesSync", NestingResponse.class);
     }
 
 
@@ -282,7 +335,7 @@ public class AlgorithmCoreApiService {
         }
 
         return callAlgorithmAsync("http://craftstrid-nest-diczqdtwfj.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
-                request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
+                request.getCallbackConfig().getCallbackUrl(), "generateGridNestedFilesAsync", NestingResponse.class);
     }
 
     /**
@@ -312,7 +365,7 @@ public class AlgorithmCoreApiService {
         }
 
         return callAlgorithmAsync("http://craftstcal-nest-rvhsdyfyip.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
-                request.getCallbackConfig().getCallbackUrl(), NestingResponse.class);
+                request.getCallbackConfig().getCallbackUrl(), "generateVerticalNestedFilesAsync", NestingResponse.class);
     }
 
 
@@ -343,7 +396,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         return callAlgorithmAsync(generateFormeUrl, "", request,
-                request.getCallbackConfig().getCallbackUrl(), FormeGenerationResponse.class);
+                request.getCallbackConfig().getCallbackUrl(), "generateFormeAsync", FormeGenerationResponse.class);
     }
 
     public FormeGenerationResponse generateFormeAsync(String requestJson, String callbackUrl) {
@@ -355,7 +408,7 @@ public class AlgorithmCoreApiService {
         }
 
         return callAlgorithmAsync(generateFormeUrl, "", requestJson,
-                callbackUrl, FormeGenerationResponse.class);
+                callbackUrl, "generateFormeAsync", FormeGenerationResponse.class);
     }
 
     /**
@@ -381,7 +434,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("输出配置不能为空");
         }
         return callAlgorithmSync(generateFormeUrl, "", request,
-                FormeGenerationResponse.class);
+                "generateForme", FormeGenerationResponse.class);
     }
 
 
@@ -401,7 +454,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("SVG文件URL不能为空");
         }
 
-        return callAlgorithmSync("http://craftstonverter-zjjuwhyrfr.cn-hangzhou.fcapp.run", "/svg_to_plt", request, String.class);
+        return callAlgorithmSync("http://craftstonverter-zjjuwhyrfr.cn-hangzhou.fcapp.run", "/svg_to_plt", request, "convertSvgToPlt", String.class);
     }
 
     
