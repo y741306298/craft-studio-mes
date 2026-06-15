@@ -1,5 +1,6 @@
 package com.mes.application.command.delivery.vo;
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
@@ -34,6 +35,7 @@ public class DeliveryPkgPieceVO {
     private String processingFlow;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private OrderCustomer orderCustomer;
+    private OrgInfo orgInfo;
     private float score;
     private String remark;
 

@@ -283,6 +283,7 @@ public class AppDeliveryPkgService {
             OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
             if (orderInfo != null) {
                 vo.setOrderCustomer(orderInfo.getCustomer());
+                vo.setOrgInfo(orderInfo.getOrgInfo());
                 World world = worldRepository.loadWorld();
                 Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
                 String fullAddress = address.buildFullAddressString(world);
