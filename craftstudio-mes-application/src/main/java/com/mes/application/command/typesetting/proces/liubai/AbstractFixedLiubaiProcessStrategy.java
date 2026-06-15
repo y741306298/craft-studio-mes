@@ -420,10 +420,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 留白标记边框线宽缩放比例。
      *
-     * <p>默认保持历史线宽；具体规格策略可按工艺要求只放大线条本身，不改变边框位置或留白尺寸。</p>
+     * <p>外侧边线框、向内 5cm 的虚线框和贴着原始矩形的黑线框均在生成 SVG/PNG 时直接放大线宽 30%，
+     * 只改变线条宽度，不改变矩形位置或留白尺寸。</p>
      */
     protected double borderStrokeWidthScale() {
-        return 1D;
+        return 1.3D;
     }
 
     private float borderStrokeWidthPx() {

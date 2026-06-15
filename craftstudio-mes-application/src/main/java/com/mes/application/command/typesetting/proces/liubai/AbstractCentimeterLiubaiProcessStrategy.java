@@ -69,11 +69,6 @@ public abstract class AbstractCentimeterLiubaiProcessStrategy extends AbstractFi
     }
 
     @Override
-    protected double borderStrokeWidthScale() {
-        return 1.3D;
-    }
-
-    @Override
     protected double dashedInsetFromOuterBorderMm() {
         return expandCm > 5 ? 50D : 0D;
     }
