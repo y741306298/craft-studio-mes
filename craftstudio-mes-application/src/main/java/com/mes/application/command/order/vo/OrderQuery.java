@@ -16,5 +16,6 @@ public class OrderQuery {
     private Date endTime;
     private String customerName;
     private String customerPhone;
+    private String routeId;
     private PagedQuery pagedQuery;
 }

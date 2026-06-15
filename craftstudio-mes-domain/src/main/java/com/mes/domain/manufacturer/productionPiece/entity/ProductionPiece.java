@@ -21,6 +21,8 @@ public class ProductionPiece extends BaseEntity {
     private String orderItemId;
     private String carrierId;
     private String manufacturerId;
+    private String routeId;
+    private String routeNodeId;
     private String procedureFlowId;
     private String status;
     private Boolean isUrgent;

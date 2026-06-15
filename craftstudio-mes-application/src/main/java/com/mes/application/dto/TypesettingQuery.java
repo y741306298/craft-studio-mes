@@ -26,4 +26,5 @@ public class TypesettingQuery {
     private Date startTime;
     private Date endTime;
     private String sourceType;
+    private String routeId;
 }
