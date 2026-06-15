@@ -42,7 +42,7 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| items | array | 待打包零件列表（`DeliveryPkgPieceVO`） |
+| items | array | 待打包零件列表（`DeliveryPkgPieceVO`，包含 `routeId` 与 `routeNodeId`） |
 | materialList | array[string] | 从 `items[].materialConfig.materialSnapshot.name` 去重得到 |
 | sizeList | array[number] | 从 `items[].width` 去重得到 |
 | processList | array[string] | 从 `items[].procedureFlow.nodes[].nodeName` 去重得到 |
@@ -59,6 +59,8 @@
         "productionPieceId": "PP_1001",
         "orderItemId": "OI_2001",
         "orderId": "ORD_3001",
+        "routeId": "ROUTE_001",
+        "routeNodeId": "ROUTE_NODE_001",
         "quantity": 2,
         "pendingPkgQuantity": 2,
         "packedQuantity": 0,
