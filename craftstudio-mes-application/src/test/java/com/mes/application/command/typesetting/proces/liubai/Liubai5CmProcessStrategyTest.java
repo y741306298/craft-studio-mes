@@ -34,8 +34,8 @@ class Liubai5CmProcessStrategyTest {
 
         String uploadedSvg = ossTagUploadService.uploadedSvgText();
         assertTrue(uploadedSvg.contains("<g id=\"liubai-5cm-"));
-        assertTrue(uploadedSvg.contains("<path d=\"M-50 -50 H150 V130 H-50 Z\""));
-        assertTrue(uploadedSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
+        assertTrue(uploadedSvg.contains("<path d=\"M-50 -50 H150 V130 H-50 Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\"1.722\""));
+        assertTrue(uploadedSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.722\""));
         assertTrue(uploadedSvg.indexOf("liubai-5cm-") < uploadedSvg.indexOf("data-forme=\"true\""));
         assertEquals(200D, piece.getWidth());
         assertEquals(180D, piece.getHeight());
@@ -87,7 +87,7 @@ class Liubai5CmProcessStrategyTest {
 
         String tenCmSvg = tenCmOss.uploadedSvgText();
         assertTrue(tenCmSvg.contains("<path d=\"M-100 -100 H200 V180 H-100 Z\""));
-        assertTrue(tenCmSvg.contains("<path d=\"M-50 -50 H150 V130 H-50 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
+        assertTrue(tenCmSvg.contains("<path d=\"M-50 -50 H150 V130 H-50 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.722\" stroke-dasharray=\"6 4\""));
         assertTrue(tenCmSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
 
         CapturingOssTagUploadService fifteenCmOss = new CapturingOssTagUploadService();
@@ -98,7 +98,7 @@ class Liubai5CmProcessStrategyTest {
 
         String fifteenCmSvg = fifteenCmOss.uploadedSvgText();
         assertTrue(fifteenCmSvg.contains("<path d=\"M-150 -150 H250 V230 H-150 Z\""));
-        assertTrue(fifteenCmSvg.contains("<path d=\"M-100 -100 H200 V180 H-100 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.23\" stroke-dasharray=\"6 4\""));
+        assertTrue(fifteenCmSvg.contains("<path d=\"M-100 -100 H200 V180 H-100 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"1.722\" stroke-dasharray=\"6 4\""));
         assertTrue(fifteenCmSvg.contains("<path d=\"M0 0 H100 V80 H0 Z\" fill=\"none\" stroke=\"#808080\""));
     }
 
