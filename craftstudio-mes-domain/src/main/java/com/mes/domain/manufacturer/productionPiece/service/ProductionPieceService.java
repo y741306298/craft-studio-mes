@@ -6,6 +6,8 @@ import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +24,9 @@ public class ProductionPieceService {
 
     @Autowired
     private ProductionPieceRepository productionPieceRepository;
+
+    @Autowired
+    private OrderItemService orderItemService;
 
     /**
      * 根据多条件查询生产工件（支持分页）
@@ -40,6 +45,7 @@ public class ProductionPieceService {
             String materialName,
             String processingName,
             String orderItemId,
+            String routeId,
             Date startTime,
             Date endTime,
             int current,
@@ -73,8 +79,35 @@ public class ProductionPieceService {
         if (StringUtils.isNotBlank(orderItemId)) {
             filters.put("orderItemId", orderItemId);
         }
+        if (StringUtils.isNotBlank(routeId)) {
+            filters.put("routeId", routeId);
+        }
 
         return productionPieceRepository.filterList(current, size, filters);
+    }
+
+    public List<ProductionPiece> findProductionPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        return findProductionPiecesByConditions(
+                manufacturerId,
+                status,
+                materialName,
+                processingName,
+                orderItemId,
+                null,
+                startTime,
+                endTime,
+                current,
+                size
+        );
     }
 
     public List<ProductionPiece> findProductionPiecesByConditions(
@@ -92,6 +125,7 @@ public class ProductionPieceService {
                 materialName,
                 processingName,
                 null,
+                null,
                 startTime,
                 endTime,
                 current,
@@ -99,8 +133,8 @@ public class ProductionPieceService {
         );
     }
 
-    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {
-        return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width);
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width, String routeId) {
+        return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width, routeId);
     }
 
     /**
@@ -238,12 +272,33 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
         }
 
+        syncRouteBindingFromOrderItem(productionPiece);
+
         // 生成唯一的 productionPieceId
         if (StringUtils.isBlank(productionPiece.getProductionPieceId())) {
             productionPiece.setProductionPieceId(com.mes.domain.shared.utils.IdGenerator.generateId("PP"));
         }
 
         return productionPieceRepository.add(productionPiece);
+    }
+
+    private void syncRouteBindingFromOrderItem(ProductionPiece productionPiece) {
+        if (productionPiece == null || StringUtils.isBlank(productionPiece.getOrderItemId())) {
+            return;
+        }
+        if (StringUtils.isNotBlank(productionPiece.getRouteId()) && StringUtils.isNotBlank(productionPiece.getRouteNodeId())) {
+            return;
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
+        if (orderItem == null) {
+            return;
+        }
+        if (StringUtils.isBlank(productionPiece.getRouteId())) {
+            productionPiece.setRouteId(orderItem.getRouteId());
+        }
+        if (StringUtils.isBlank(productionPiece.getRouteNodeId())) {
+            productionPiece.setRouteNodeId(orderItem.getRouteNodeId());
+        }
     }
 
     /**
@@ -371,6 +426,8 @@ public class ProductionPieceService {
             if (StringUtils.isBlank(piece.getProductionPieceType())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
             }
+            syncRouteBindingFromOrderItem(piece);
+
             // 生成唯一的 productionPieceId
             if (StringUtils.isBlank(piece.getProductionPieceId())) {
                 piece.setProductionPieceId(com.mes.domain.shared.utils.IdGenerator.generateId("PP"));

@@ -27,5 +27,5 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      */
     long deleteByOrderItemId(String orderItemId);
 
-    java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width);
+    java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width, String routeId);
 }

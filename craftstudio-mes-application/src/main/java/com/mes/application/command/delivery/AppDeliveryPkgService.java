@@ -108,7 +108,8 @@ public class AppDeliveryPkgService {
                 manufacturerMetaId,
                 request.getMaterialName(),
                 request.getProcessName(),
-                request.getWidth());
+                request.getWidth(),
+                request.getRouteId());
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
