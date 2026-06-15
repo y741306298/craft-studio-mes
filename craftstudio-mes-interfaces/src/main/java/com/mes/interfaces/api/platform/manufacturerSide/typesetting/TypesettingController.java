@@ -15,6 +15,8 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.application.command.typesetting.vo.TypesettingPiecesQueryResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,9 @@ public class TypesettingController {
     @Autowired
     private AppTypesettingService appTypesettingService;
 
+    @Autowired
+    private OrderInfoService orderInfoService;
+
     Logger logger = Logger.getLogger(TypesettingController.class.getName());
 
     private static final java.util.Set<String> PREPROCESS_NODE_NAMES = new java.util.HashSet<>(Arrays.asList("预处理", "待排版", "排版中", "待打包", "已打包"));
@@ -58,7 +63,9 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult()));
+        TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult());
+        fillOrgInfo(response, request);
+        return ApiResponse.success(response);
     }
 
     /**
@@ -74,8 +81,10 @@ public class TypesettingController {
                 1L,
                 buildProcessingFlowList(items),
                 buildMaterialList(items),
-                buildSourceTypeList()
+                buildSourceTypeList(),
+                null
         );
+        fillOrgInfo(response, request);
         return ApiResponse.success(response);
     }
 
@@ -105,7 +114,9 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        return ApiResponse.success(buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult()));
+        TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, result.getPagedResult());
+        fillOrgInfo(response, query);
+        return ApiResponse.success(response);
     }
 
 
@@ -334,13 +345,24 @@ public class TypesettingController {
     }
 
 
+
+    private void fillOrgInfo(TypesettingAndProductionPiecesResponse response, TypesettingQuery request) {
+        if (response == null || request == null || StringUtils.isBlank(request.getOrderId())) {
+            return;
+        }
+        OrderInfo orderInfo = orderInfoService.findByOrderId(request.getOrderId());
+        if (orderInfo != null) {
+            response.setOrgInfo(orderInfo.getOrgInfo());
+        }
+    }
+
     private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
                                                                                                List<TypesettingProductionPieceVO> allItems,
                                                                                                PagedResult<TypesettingProductionPieceVO> pagedResult) {
         List<String> processingFlowList = buildProcessingFlowList(allItems);
         List<String> materialList = buildMaterialList(allItems);
         List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
-        return new TypesettingAndProductionPiecesResponse(items, pagedResult.total(), pagedResult.current(), processingFlowList, materialList, sourceType);
+        return new TypesettingAndProductionPiecesResponse(items, pagedResult.total(), pagedResult.current(), processingFlowList, materialList, sourceType, null);
     }
 
     private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
