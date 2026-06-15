@@ -21,9 +21,12 @@ import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
@@ -66,6 +69,7 @@ public class DeliveryPkgController {
     private final DeliveryRouteNodeRepository deliveryRouteNodeRepository;
     private final ProductionPieceService productionPieceService;
     private final OrderItemService orderItemService;
+    private final OrderInfoService orderInfoService;
     @Autowired
     private ImageToImageSearchServiceImp imageSearch;
 
@@ -83,7 +87,8 @@ public class DeliveryPkgController {
                 items,
                 appDeliveryPkgService.buildMaterialList(items),
                 appDeliveryPkgService.buildSizeList(items),
-                appDeliveryPkgService.buildProcessList(items)
+                appDeliveryPkgService.buildProcessList(items),
+                findOrgInfoByOrderId(request == null ? null : request.getOrderId())
         );
         return ApiResponse.success(response);
     }
@@ -99,9 +104,19 @@ public class DeliveryPkgController {
                 items,
                 appDeliveryPkgService.buildMaterialList(items),
                 appDeliveryPkgService.buildSizeList(items),
-                appDeliveryPkgService.buildProcessList(items)
+                appDeliveryPkgService.buildProcessList(items),
+                findOrgInfoByOrderId(request == null ? null : request.getOrderId())
         );
         return ApiResponse.success(response);
+    }
+
+
+    private OrgInfo findOrgInfoByOrderId(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            return null;
+        }
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        return orderInfo == null ? null : orderInfo.getOrgInfo();
     }
 
 
@@ -270,6 +285,7 @@ public class DeliveryPkgController {
         routeDesc = buildRouteDesc(deliveryPkg);
         result.setRouteDesc(routeDesc);
         result.setRemark(deliveryPkg.getRemarks());
+        result.setOrgInfo(deliveryPkg.getOrgInfo());
 
         return result;
     }
@@ -394,7 +410,8 @@ public class DeliveryPkgController {
                     pieceVOS,
                     appDeliveryPkgService.buildMaterialList(pieceVOS),
                     appDeliveryPkgService.buildSizeList(pieceVOS),
-                    appDeliveryPkgService.buildProcessList(pieceVOS)
+                    appDeliveryPkgService.buildProcessList(pieceVOS),
+                    null
             );
 
             System.out.println("Search completed, found " + pieceVOS.size() + " packaging-ready pieces");

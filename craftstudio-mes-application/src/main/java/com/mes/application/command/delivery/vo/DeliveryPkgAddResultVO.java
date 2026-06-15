@@ -1,5 +1,6 @@
 package com.mes.application.command.delivery.vo;
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import lombok.Data;
 
 @Data
@@ -18,6 +19,7 @@ public class DeliveryPkgAddResultVO {
     private String remark;
     private String width;
     private String height;
+    private OrgInfo orgInfo;
 
     @Data
     public static class QrCodeInfo {
