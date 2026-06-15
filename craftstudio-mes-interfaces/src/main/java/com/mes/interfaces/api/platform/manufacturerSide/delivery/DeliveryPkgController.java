@@ -19,6 +19,7 @@ import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -297,14 +298,20 @@ public class DeliveryPkgController {
 
     private String buildRouteDesc(DeliveryPkg deliveryPkg) {
         if (StringUtils.isBlank(deliveryPkg.getRouteId()) || StringUtils.isBlank(deliveryPkg.getRouteNodeId())) {
-            return "未自定义路线";
+            return "未定义路线";
         }
         DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
-        DeliveryRouteNode routeNode = deliveryRouteNodeRepository.findByRouteNodeId(deliveryPkg.getRouteNodeId());
-        if (deliveryRoute == null || routeNode == null) {
-            return "未自定义路线";
+        if (deliveryRoute == null) {
+            return "未定义路线";
         }
-        return deliveryRoute.getRouteName() + ":" + routeNode.getDistrictName() + "-" + routeNode.getDestDistrictName();
+        String destDistrictName = null;
+        for (RouteNode routeNode : deliveryRoute.getRouteNodes()) {
+            if (routeNode.getId().equals(deliveryPkg.getRouteNodeId())) {
+                destDistrictName = routeNode.getName();
+            }
+        }
+
+        return deliveryRoute.getRouteName() + "-" + destDistrictName;
     }
 
     @PostMapping("/validatePieces")
