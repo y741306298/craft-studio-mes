@@ -1624,7 +1624,21 @@ public class AppTypesettingService {
                 }
             }
         }
-        return StringUtils.isNotBlank(typesettingInfo.getTypesettingId()) ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
+        String typesettingId = normalizeMirrorTypesettingId(typesettingInfo.getTypesettingId());
+        return StringUtils.isNotBlank(typesettingId) ? typesettingId : typesettingInfo.getId();
+    }
+
+    /**
+     * 镜像印版与正面印版属于同一次排版业务，印版标签上的 typesettingId 保持原值。
+     */
+    private String normalizeMirrorTypesettingId(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return typesettingId;
+        }
+        String mirrorSuffix = "-Mirror";
+        return typesettingId.toLowerCase(Locale.ROOT).endsWith(mirrorSuffix.toLowerCase(Locale.ROOT))
+                ? typesettingId.substring(0, typesettingId.length() - mirrorSuffix.length())
+                : typesettingId;
     }
 
     /**
