@@ -434,6 +434,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return format(DEFAULT_BORDER_STROKE_WIDTH_SVG * borderStrokeWidthScale());
     }
 
+
     /**
      * 识别并上传紧跟留白之后的“粘边/穿钢丝绳/穿绳”合并标签。
      *
