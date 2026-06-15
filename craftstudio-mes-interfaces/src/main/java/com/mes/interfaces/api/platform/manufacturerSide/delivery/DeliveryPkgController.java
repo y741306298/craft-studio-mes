@@ -285,11 +285,20 @@ public class DeliveryPkgController {
         routeDesc = buildRouteDesc(deliveryPkg);
         result.setRouteDesc(routeDesc);
         result.setRemark(deliveryPkg.getRemarks());
-        result.setOrgInfo(deliveryPkg.getOrgInfo());
+        result.setOrgInfo(resolveOrgInfo(deliveryPkg));
 
         return result;
     }
 
+    private OrgInfo resolveOrgInfo(DeliveryPkg deliveryPkg) {
+        if (deliveryPkg == null) {
+            return null;
+        }
+        if (deliveryPkg.getOrgInfo() != null) {
+            return deliveryPkg.getOrgInfo();
+        }
+        return findOrgInfoByOrderId(deliveryPkg.getOrderId());
+    }
 
     private String buildPkgDetailUrl(String pkgId) {
         return UriComponentsBuilder
