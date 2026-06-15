@@ -283,6 +283,7 @@ public class AppDeliveryPkgService {
             OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
             if (orderInfo != null) {
                 vo.setOrderCustomer(orderInfo.getCustomer());
+                vo.setOrgInfo(orderInfo.getOrgInfo());
                 World world = worldRepository.loadWorld();
                 Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
                 String fullAddress = address.buildFullAddressString(world);
@@ -727,7 +728,11 @@ public class AppDeliveryPkgService {
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
         deliveryPkg.setRouteId(request.getRouteId());
         deliveryPkg.setRouteNodeId(request.getRouteNodeId());
-        deliveryPkg.setRemarks(buildDeliveryPkgRemarks(orderId, presetType, kuaidiNum));
+        OrderInfo orderInfo = StringUtils.isBlank(orderId) ? null : orderInfoService.findByOrderId(orderId);
+        if (orderInfo != null) {
+            deliveryPkg.setOrgInfo(orderInfo.getOrgInfo());
+        }
+        deliveryPkg.setRemarks(buildDeliveryPkgRemarks(orderId, presetType, kuaidiNum, request.getPieces(), orderInfo));
 
         List<com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem> pkgItems = new ArrayList<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
@@ -757,7 +762,8 @@ public class AppDeliveryPkgService {
     }
 
 
-    private String buildDeliveryPkgRemarks(String orderId, String presetType, String kuaidiNum) {
+    private String buildDeliveryPkgRemarks(String orderId, String presetType, String kuaidiNum,
+                                           List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces, OrderInfo orderInfo) {
         List<String> remarkParts = new ArrayList<>();
         if (StringUtils.isNotBlank(orderId)) {
             remarkParts.add("orderId:" + orderId);
@@ -766,13 +772,53 @@ public class AppDeliveryPkgService {
             remarkParts.add("kuaidiNum:" + (StringUtils.isBlank(kuaidiNum) ? "" : kuaidiNum));
         }
 
-        if (StringUtils.isNotBlank(orderId)) {
-            OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
-            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-                remarkParts.add(orderInfo.getRemark());
-            }
+        addProductionImageFileNames(remarkParts, pieces);
+
+        if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
+            orderInfo = orderInfoService.findByOrderId(orderId);
+        }
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+            remarkParts.add(orderInfo.getRemark());
         }
         return String.join("\n", remarkParts);
+    }
+
+
+
+    private void addProductionImageFileNames(List<String> remarkParts, List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces) {
+        if (remarkParts == null || pieces == null || pieces.isEmpty()) {
+            return;
+        }
+        List<String> imageFileNames = pieces.stream()
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgPieceVO::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .map(orderItemService::findByOrderItemId)
+                .filter(Objects::nonNull)
+                .map(OrderItem::getProductionImgFile)
+                .map(this::getImageFileName)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!imageFileNames.isEmpty()) {
+            remarkParts.add("productionImgFile:" + String.join(",", imageFileNames));
+        }
+    }
+
+
+    private String getImageFileName(Object imageFile) {
+        if (imageFile == null) {
+            return null;
+        }
+        try {
+            Object value = imageFile.getClass().getMethod("getName").invoke(imageFile);
+            return value == null ? null : String.valueOf(value);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     private static class DeliveryPkgPrintResult {

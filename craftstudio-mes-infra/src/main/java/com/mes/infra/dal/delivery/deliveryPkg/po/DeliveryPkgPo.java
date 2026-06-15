@@ -3,6 +3,7 @@ package com.mes.infra.dal.delivery.deliveryPkg.po;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.infra.base.BasePO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -56,6 +57,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
     private String manufacturerMetaId;
     private String routeId;
     private String routeNodeId;
+    private OrgInfo orgInfo;
 
     @Override
     public DeliveryPkg toDO() {
@@ -98,6 +100,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         deliveryPkg.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryPkg.setRouteId(this.routeId);
         deliveryPkg.setRouteNodeId(this.routeNodeId);
+        deliveryPkg.setOrgInfo(this.orgInfo);
 
         return deliveryPkg;
     }
@@ -144,6 +147,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
+        this.orgInfo = _do.getOrgInfo();
 
         return this;
     }
