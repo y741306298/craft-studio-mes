@@ -77,7 +77,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     }
 
     @Override
-    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width) {
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width, String routeId) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
@@ -92,6 +92,9 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         }
         if (width != null) {
             criteriaList.add(Criteria.where("width").is(width));
+        }
+        if (routeId != null && !routeId.isBlank()) {
+            criteriaList.add(Criteria.where("routeId").is(routeId));
         }
 
         Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));

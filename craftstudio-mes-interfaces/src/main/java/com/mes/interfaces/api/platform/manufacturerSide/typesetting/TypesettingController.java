@@ -87,6 +87,7 @@ public class TypesettingController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date startTime,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endTime,
             @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false) String routeId,
             @RequestParam(required = false, defaultValue = "1") Integer current,
             @RequestParam(required = false, defaultValue = "50") Integer size) {
         TypesettingQuery query = new TypesettingQuery();
@@ -96,6 +97,7 @@ public class TypesettingController {
         query.setStartTime(startTime);
         query.setEndTime(endTime);
         query.setSourceType(sourceType);
+        query.setRouteId(routeId);
         query.setCurrent(current);
         query.setSize(size);
         TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(query);

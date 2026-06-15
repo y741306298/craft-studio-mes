@@ -255,6 +255,7 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>();
         boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
         boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
+        boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
 
         if (!queryTypesettingOnly) {
             List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
@@ -263,6 +264,7 @@ public class AppTypesettingService {
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getOrderItemId(),
+                    query.getRouteId(),
                     query.getStartTime(),
                     query.getEndTime(),
                     1,
@@ -278,7 +280,7 @@ public class AppTypesettingService {
             }
         }
 
-        if (!queryPartOnly) {
+        if (!queryPartOnly && !queryProductionPiecesByRoute) {
             List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
                     query.getManufacturerMetaId(),
                     null,
@@ -390,6 +392,7 @@ public class AppTypesettingService {
                     query.getMaterialName(),
                     query.getProcessingName(),
                     orderItemId,
+                    query.getRouteId(),
                     query.getStartTime(),
                     query.getEndTime(),
                     1,
@@ -883,6 +886,7 @@ public class AppTypesettingService {
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getOrderItemId(),
+                query.getRouteId(),
                 query.getStartTime(),
                 query.getEndTime(),
                 1,

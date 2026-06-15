@@ -87,6 +87,7 @@ public class AppOrderService {
         String status = query.getStatus() != null ? query.getStatus().getCode() : null;
         String customerName = query.getCustomerName();
         String customerPhone = query.getCustomerPhone();
+        String routeId = query.getRouteId();
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
         var pagedQuery = query.getPagedQuery();
@@ -100,6 +101,9 @@ public class AppOrderService {
         }
         if (StringUtils.isNotBlank(status)) {
             filters.put("status", status);
+        }
+        if (StringUtils.isNotBlank(routeId)) {
+            filters.put("routeId", routeId);
         }
         if (startTime != null) {
             filters.put("createTime_gte", startTime);
