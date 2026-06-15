@@ -85,7 +85,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         String elementC = allCellsAreParts ? LEFT_ARROW_URL : null;
         String elementCC = allCellsAreParts ? LEFT_ARROW_URL : null;
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
-        String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
+        String typesettingId = normalizeMirrorTypesettingId(context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId());
         String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
         String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
@@ -129,6 +129,20 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         result.setOutputs(buildDefaultOutputs(supportMode(), context, elementB, elementBB));
         result.setUploadPath("printingplate/");
         return result;
+    }
+
+
+    /**
+     * 镜像印版与正面印版属于同一次排版业务，标签与 mark 上传目录继续使用原始 typesettingId。
+     */
+    private String normalizeMirrorTypesettingId(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return typesettingId;
+        }
+        String mirrorSuffix = "-Mirror";
+        return typesettingId.toLowerCase(Locale.ROOT).endsWith(mirrorSuffix.toLowerCase(Locale.ROOT))
+                ? typesettingId.substring(0, typesettingId.length() - mirrorSuffix.length())
+                : typesettingId;
     }
 
     private boolean allCellsAreProductionPieces(TypesettingInfo info) {
