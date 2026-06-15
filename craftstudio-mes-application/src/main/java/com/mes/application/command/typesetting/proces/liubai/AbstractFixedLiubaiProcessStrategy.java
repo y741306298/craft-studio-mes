@@ -326,7 +326,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         try {
             BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = image.createGraphics();
-            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics.setStroke(new BasicStroke(borderStrokeWidthPx()));
             graphics.setColor(Color.BLACK);
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
@@ -938,7 +938,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n"
+                + borderStrokeWidthSvg() + borderRenderingAttributes() + " fill-rule=\"evenodd\" />\n"
                 + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
@@ -1011,7 +1011,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         return "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
+                + borderStrokeWidthSvg() + borderRenderingAttributes() + " stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
     }
 
     private String buildInnerOriginalBorderPath(double originalWidth, double originalHeight) {
@@ -1019,7 +1019,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
-                + " H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n";
+                + " H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"" + borderStrokeWidthSvg() + borderRenderingAttributes() + " fill-rule=\"evenodd\" />\n";
     }
 
     /**

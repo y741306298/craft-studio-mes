@@ -804,7 +804,7 @@ public class AppDeliveryPkgService {
                 .distinct()
                 .collect(Collectors.toList());
         if (!imageFileNames.isEmpty()) {
-            remarkParts.add("productionImgFile:" + String.join(",", imageFileNames));
+            remarkParts.add("文件:" + String.join(",", imageFileNames));
         }
     }
 
