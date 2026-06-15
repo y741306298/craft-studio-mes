@@ -271,6 +271,12 @@ public class AppDeliveryPkgService {
             if (StringUtils.isBlank(vo.getOrderId())) {
                 vo.setOrderId(orderItem.getOrderId());
             }
+            if (StringUtils.isBlank(vo.getRouteId())) {
+                vo.setRouteId(orderItem.getRouteId());
+            }
+            if (StringUtils.isBlank(vo.getRouteNodeId())) {
+                vo.setRouteNodeId(orderItem.getRouteNodeId());
+            }
         }
 
         if (StringUtils.isNotBlank(vo.getOrderId())) {

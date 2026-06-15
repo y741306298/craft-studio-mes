@@ -17,6 +17,8 @@ public class DeliveryPkgPieceVO {
     private String productionPieceId;
     private String orderItemId;
     private String orderId;
+    private String routeId;
+    private String routeNodeId;
     private Integer quantity;
     private Integer pendingPkgQuantity;
     private Integer packedQuantity;
@@ -39,6 +41,8 @@ public class DeliveryPkgPieceVO {
         DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
         vo.setProductionPieceId(piece.getProductionPieceId());
         vo.setOrderItemId(piece.getOrderItemId());
+        vo.setRouteId(piece.getRouteId());
+        vo.setRouteNodeId(piece.getRouteNodeId());
         vo.setQuantity(piece.getQuantity());
         vo.setIsUrgent(piece.getIsUrgent());
         vo.setMaterialConfig(piece.getMaterialConfig());
