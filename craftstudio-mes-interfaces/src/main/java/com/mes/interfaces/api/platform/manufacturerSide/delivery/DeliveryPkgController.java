@@ -270,6 +270,7 @@ public class DeliveryPkgController {
         routeDesc = buildRouteDesc(deliveryPkg);
         result.setRouteDesc(routeDesc);
         result.setRemark(deliveryPkg.getRemarks());
+        result.setOrgInfo(deliveryPkg.getOrgInfo());
 
         return result;
     }
