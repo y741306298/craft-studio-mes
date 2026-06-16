@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
 import com.alibaba.fastjson.JSON;
+import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
@@ -8,6 +9,7 @@ import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
@@ -20,6 +22,7 @@ import com.mes.application.dto.resp.order.OrderItemResponse;
 import com.mes.application.dto.resp.order.OrderWithItemsResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -45,6 +48,9 @@ public class OrderController {
 
     @Autowired
     private AppOrderPreprocessingService appOrderPreprocessingService;
+
+    @Autowired
+    private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
 
     Logger logger = Logger.getLogger(OrderController.class.getName());
 
@@ -290,6 +296,27 @@ public class OrderController {
             
         } catch (Exception e) {
             System.err.println("处理图像蒙版回调失败：" + e.getMessage());
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 灰度图转 SVG 回调接口。
+     *
+     * @param response 算法服务返回的 SVG 对象名与订单项 ID
+     * @return 操作结果
+     */
+    @PostMapping("/callback/convert_gray_img_to_svg")
+    public ApiResponse<String> handleConvertGrayImgToSvgCallback(@RequestBody GrayImgToSvgResponse response) {
+        logger.info("========== handleConvertGrayImgToSvgCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleConvertGrayImgToSvgCallback 入参结束 ==========");
+        try {
+            OrderItem orderItem = appOrderPreprocessingService.handleConvertGrayImgToSvgCallback(response);
+            orderPreprocessTaskQueue.submit(List.of(orderItem));
+            return ApiResponse.success("回调处理成功");
+        } catch (Exception e) {
+            System.err.println("处理灰度图转SVG回调失败：" + e.getMessage());
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
         }
     }
