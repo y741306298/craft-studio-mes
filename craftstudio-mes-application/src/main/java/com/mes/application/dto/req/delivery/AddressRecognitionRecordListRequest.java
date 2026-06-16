@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AddressRecognitionRecordListRequest extends PagedApiRequest {
+    private String manufacturerMetaId;
     private String name;
     private String detailAddress;
 

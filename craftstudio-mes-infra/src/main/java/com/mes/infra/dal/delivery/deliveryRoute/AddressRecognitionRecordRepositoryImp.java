@@ -22,9 +22,10 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
     }
 
     @Override
-    public AddressRecognitionRecord findByAddress(String terminalRegionCode, String detailAddress) {
+    public AddressRecognitionRecord findByAddress(String manufacturerMetaId, String terminalRegionCode, String detailAddress) {
         Query query = new SoftDeleteQuery(
-                Criteria.where("address.terminalRegionCode").is(terminalRegionCode)
+                Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                        .and("address.terminalRegionCode").is(terminalRegionCode)
                         .and("address.detailAddress").is(detailAddress)
         );
         AddressRecognitionRecordPo po = mongoTemplate.findOne(query, poClass());
@@ -32,8 +33,8 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
     }
 
     @Override
-    public List<AddressRecognitionRecord> listByStatus(String status, String detailAddress, long current, int size) {
-        Query query = new SoftDeleteQuery(buildStatusCriteria(status, detailAddress));
+    public List<AddressRecognitionRecord> listByStatus(String status, String manufacturerMetaId, String detailAddress, long current, int size) {
+        Query query = new SoftDeleteQuery(buildStatusCriteria(status, manufacturerMetaId, detailAddress));
         query.with(Sort.by(Sort.Direction.DESC, "updateTime"));
         query.skip((current - 1) * size).limit(size);
         List<AddressRecognitionRecordPo> pos = mongoTemplate.find(query, poClass());
@@ -41,8 +42,8 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
     }
 
     @Override
-    public long totalByStatus(String status, String detailAddress) {
-        Query query = new SoftDeleteQuery(buildStatusCriteria(status, detailAddress));
+    public long totalByStatus(String status, String manufacturerMetaId, String detailAddress) {
+        Query query = new SoftDeleteQuery(buildStatusCriteria(status, manufacturerMetaId, detailAddress));
         return mongoTemplate.count(query, poClass());
     }
 
@@ -75,8 +76,9 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
         return po == null ? null : po.getOrder();
     }
 
-    private Criteria buildStatusCriteria(String status, String detailAddress) {
-        Criteria criteria = Criteria.where("status").is(status);
+    private Criteria buildStatusCriteria(String status, String manufacturerMetaId, String detailAddress) {
+        Criteria criteria = Criteria.where("status").is(status)
+                .and("manufacturerMetaId").is(manufacturerMetaId);
         addDetailAddressCriteria(criteria, detailAddress);
         return criteria;
     }

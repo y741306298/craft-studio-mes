@@ -589,6 +589,18 @@ public class OrderInfoService {
         }
     }
 
+    private String resolveManufacturerMetaId(List<OrderItem> orderItems) {
+        if (orderItems == null) {
+            return null;
+        }
+        for (OrderItem item : orderItems) {
+            if (item != null && StringUtils.isNotBlank(item.getManufacturerId())) {
+                return item.getManufacturerId();
+            }
+        }
+        return null;
+    }
+
     private void matchOrCreateAddressRecognitionRecord(OrderInfo orderInfo, List<OrderItem> orderItems) {
         if (orderInfo == null || orderInfo.getCustomer() == null || orderInfo.getCustomer().getAddress() == null) {
             return;
@@ -598,12 +610,19 @@ public class OrderInfoService {
             return;
         }
 
+        String manufacturerMetaId = resolveManufacturerMetaId(orderItems);
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return;
+        }
+
         AddressRecognitionRecord record = addressRecognitionRecordRepository.findByAddress(
+                manufacturerMetaId,
                 address.getTerminalRegionCode(),
                 address.getDetailAddress()
         );
         if (record == null) {
             record = new AddressRecognitionRecord();
+            record.setManufacturerMetaId(manufacturerMetaId);
             record.setAddress(address);
             fillAddressRecognitionOrderInfo(record, orderInfo);
             record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
@@ -613,12 +632,14 @@ public class OrderInfoService {
 
         if (AddressRecognitionRecordStatus.UNASSIGNED.equals(record.getStatus()) && StringUtils.isBlank(record.getOrderId())) {
             fillAddressRecognitionOrderInfo(record, orderInfo);
+            record.setManufacturerMetaId(manufacturerMetaId);
             addressRecognitionRecordRepository.update(record);
             return;
         }
 
         if (record.getOrgInfo() == null || record.getConsignee() == null) {
             fillAddressRecognitionOrderInfo(record, orderInfo);
+            record.setManufacturerMetaId(manufacturerMetaId);
             addressRecognitionRecordRepository.update(record);
         }
 

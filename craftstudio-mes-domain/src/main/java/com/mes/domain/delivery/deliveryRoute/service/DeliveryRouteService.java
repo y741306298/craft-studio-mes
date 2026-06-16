@@ -287,18 +287,24 @@ public class DeliveryRouteService {
     }
 
 
-    public List<AddressRecognitionRecord> listUnassignedAddressRecognitionRecords(String detailAddress, long current, int size) {
+    public List<AddressRecognitionRecord> listUnassignedAddressRecognitionRecords(String manufacturerMetaId, String detailAddress, long current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
+        }
         if (current <= 0) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "页码必须大于 0");
         }
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
-        return addressRecognitionRecordRepository.listByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), detailAddress, current, size);
+        return addressRecognitionRecordRepository.listByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), manufacturerMetaId, detailAddress, current, size);
     }
 
-    public long countUnassignedAddressRecognitionRecords(String detailAddress) {
-        return addressRecognitionRecordRepository.totalByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), detailAddress);
+    public long countUnassignedAddressRecognitionRecords(String manufacturerMetaId, String detailAddress) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
+        }
+        return addressRecognitionRecordRepository.totalByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), manufacturerMetaId, detailAddress);
     }
 
     public List<AddressRecognitionRecord> listAssignedAddressRecognitionRecords(String routeId, String nodeId, String detailAddress, long current, int size) {

@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document(collection = "addressRecognitionRecord")
 public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord> {
 
+    private String manufacturerMetaId;
     private Address address;
     private OrgInfo orgInfo;
     private AddressRecognitionConsignee consignee;
@@ -28,6 +29,7 @@ public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord>
     public AddressRecognitionRecord toDO() {
         AddressRecognitionRecord record = new AddressRecognitionRecord();
         copyBaseFieldsToDO(record);
+        record.setManufacturerMetaId(this.manufacturerMetaId);
         record.setAddress(this.address);
         record.setOrgInfo(this.orgInfo);
         record.setConsignee(this.consignee);
@@ -46,6 +48,7 @@ public class AddressRecognitionRecordPo extends BasePO<AddressRecognitionRecord>
         if (_do == null) {
             return null;
         }
+        this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.address = _do.getAddress();
         this.orgInfo = _do.getOrgInfo();
         this.consignee = _do.getConsignee();

@@ -193,7 +193,7 @@ public class DeliveryRouteController {
     public PagedApiResponse<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(
             @Valid @RequestBody AddressRecognitionRecordListRequest request) {
         PagedQuery query = request.toPagedQuery();
-        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getSearchName(), query);
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getManufacturerMetaId(), request.getSearchName(), query);
         return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 

@@ -124,18 +124,21 @@ public class AppDeliveryRouteService {
     }
 
 
-    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(String detailAddress, PagedQuery query) {
+    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(String manufacturerMetaId, String detailAddress, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
         if (query.getSize() <= 0 || query.getSize() > 100) {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("厂商 ID 不能为空");
+        }
 
         List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
-                detailAddress, query.getCurrent(), query.getSize()
+                manufacturerMetaId, detailAddress, query.getCurrent(), query.getSize()
         );
-        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(detailAddress);
+        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(manufacturerMetaId, detailAddress);
         World world = worldRepository.loadWorld();
         List<AddressRecognitionRecordResponse> responses = records.stream()
                 .map(record -> AddressRecognitionRecordResponse.from(record, world))

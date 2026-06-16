@@ -14,6 +14,7 @@ import java.util.Date;
 public class AddressRecognitionRecordResponse {
 
     private String id;
+    private String manufacturerMetaId;
     private Address address;
     private OrgInfo orgInfo;
     private AddressRecognitionConsignee consignee;
@@ -33,6 +34,7 @@ public class AddressRecognitionRecordResponse {
         }
         AddressRecognitionRecordResponse response = new AddressRecognitionRecordResponse();
         response.setId(record.getId());
+        response.setManufacturerMetaId(record.getManufacturerMetaId());
         response.setAddress(record.getAddress());
         response.setOrgInfo(record.getOrgInfo());
         response.setConsignee(record.getConsignee());
