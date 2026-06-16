@@ -16,6 +16,8 @@ import java.util.List;
 @Component
 public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
 
+    private static final String MARKED_NESTING_ID_PREFIX = "marked-nesting-";
+
     @Override
     public boolean matches(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         return hasDoubleSideMounting(productionPieces);
@@ -53,13 +55,29 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         }
     }
 
-    private ProductionPiece findPieceById(List<ProductionPiece> productionPieces, String pieceId) {
+    private ProductionPiece findPieceById(List<ProductionPiece> productionPieces, String elementId) {
+        String pieceId = normalizeElementPieceId(elementId);
         for (ProductionPiece piece : productionPieces) {
             if (piece != null && pieceId.equals(piece.getId())) {
                 return piece;
             }
         }
         return null;
+    }
+
+    /**
+     * 带 marks 的工件在排版请求中会使用 marked-nesting-{pieceId} 作为算法元素 ID，
+     * 避免回调解析 nestedSvg 时按外层和内层相同 ID 重复计数。
+     * 双面对裱镜像图仍需要按原始生产工件 ID 回填，因此这里统一还原。
+     */
+    private String normalizeElementPieceId(String elementId) {
+        if (StringUtils.isBlank(elementId)) {
+            return elementId;
+        }
+        if (elementId.startsWith(MARKED_NESTING_ID_PREFIX)) {
+            return elementId.substring(MARKED_NESTING_ID_PREFIX.length());
+        }
+        return elementId;
     }
 
     private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces) {
