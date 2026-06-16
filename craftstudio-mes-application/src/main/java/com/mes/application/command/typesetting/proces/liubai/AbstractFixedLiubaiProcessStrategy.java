@@ -195,7 +195,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
         updateMarks(piece, markPngUrl);
-        LiubaiTagAssets tagAssets = uploadLiubaiTagAssetsIfNecessary(context, productionPieceId, manufacturerMetaId);
+        LiubaiTagAssets tagAssets = uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId);
         updateTagMarks(piece, tagAssets);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String expandedSvg = buildExpandedSvg(originalSvg, pieceMongoId, markPngUrl, tagAssets, originalContentImg, originalWidth, originalHeight, margins);
@@ -436,13 +436,14 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
 
     /**
-     * 识别并上传紧跟留白之后的“粘边/穿钢丝绳/穿绳”合并标签。
+     * 识别并上传留白边缘文字标签。
      *
-     * <p>这些工艺只在留白之后生效，多个命中项会去重后按流程顺序拼接为同一段文字，
-     * 再分别生成一张横向 300DPI PNG 与一张竖向 300DPI PNG。</p>
+     * <p>紧跟留白之后的“粘边/穿钢丝绳/穿绳”多个命中项会去重后按流程顺序拼接，
+     * 并追加当前订单项 ID 后四位；即使没有命中上述工艺，也会单独用订单项 ID 后四位生成标签。</p>
+     * <p>标签会分别生成一张横向 300DPI PNG 与一张竖向 300DPI PNG。</p>
      */
-    private LiubaiTagAssets uploadLiubaiTagAssetsIfNecessary(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId) {
-        String tagText = resolveLiubaiTagText(context == null ? null : context.getProcedureFlow());
+    private LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId) {
+        String tagText = buildLiubaiTagTextWithOrderItemSuffix(context);
         if (StringUtils.isBlank(tagText)) {
             return null;
         }
@@ -452,6 +453,27 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String horizontalUrl = ossTagUploadService.uploadTagPng(productionPieceId, horizontal.bytes, uploadPath);
         String verticalUrl = ossTagUploadService.uploadTagPng(productionPieceId, vertical.bytes, uploadPath);
         return new LiubaiTagAssets(tagText, horizontalUrl, verticalUrl, horizontal.widthMm, horizontal.heightMm, vertical.widthMm, vertical.heightMm);
+    }
+
+    private String buildLiubaiTagTextWithOrderItemSuffix(LiubaiProcessContext context) {
+        String processTagText = resolveLiubaiTagText(context == null ? null : context.getProcedureFlow());
+        String orderItemSuffix = resolveOrderItemIdSuffix(context);
+        if (StringUtils.isBlank(processTagText)) {
+            return orderItemSuffix;
+        }
+        if (StringUtils.isBlank(orderItemSuffix)) {
+            return processTagText;
+        }
+        return processTagText + orderItemSuffix;
+    }
+
+    private String resolveOrderItemIdSuffix(LiubaiProcessContext context) {
+        if (context == null || context.getOrderItem() == null || StringUtils.isBlank(context.getOrderItem().getOrderItemId())) {
+            return "";
+        }
+        String orderItemId = context.getOrderItem().getOrderItemId().trim();
+        int startIndex = Math.max(0, orderItemId.length() - 4);
+        return orderItemId.substring(startIndex);
     }
 
     private String resolveLiubaiTagText(ProcedureFlow procedureFlow) {
