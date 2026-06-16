@@ -310,8 +310,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 创建透明底留白边框 PNG。
      *
-     * <p>所有固定留白都会生成外扩后画布的黑色边框和原始尺寸灰色边框；
-     * 大于 5cm 的规格还会按工艺要求从最外框向内 5cm 绘制一圈灰色虚线框。</p>
+     * <p>所有固定留白都会生成外扩后画布的黑色边框和原始尺寸黑色边框；
+     * 大于 5cm 的规格还会按工艺要求从最外框向内 5cm 绘制一圈黑色虚线框。</p>
      *
      * @param originalWidth 原始 SVG 宽度，单位 mm
      * @param originalHeight 原始 SVG 高度，单位 mm
@@ -350,7 +350,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         if (!shouldDrawInnerOriginalBorder()) {
             return;
         }
-        drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.GRAY, false);
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.BLACK, false);
     }
 
     private void drawDashedInsetBorderIfNecessary(Graphics2D graphics,
@@ -372,7 +372,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         if (innerWidthMm <= 0D || innerHeightMm <= 0D) {
             return;
         }
-        drawPhysicalBorder(graphics, imageWidth, imageHeight, leftInsetMm, topInsetMm, innerWidthMm, innerHeightMm, Color.GRAY, true);
+        drawPhysicalBorder(graphics, imageWidth, imageHeight, leftInsetMm, topInsetMm, innerWidthMm, innerHeightMm, Color.BLACK, true);
     }
 
     private double dashedInsetForMargin(double marginMm, double insetMm) {
@@ -1010,7 +1010,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         return "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\""
+                + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\""
                 + borderStrokeWidthSvg() + "\" stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
     }
 
@@ -1019,7 +1019,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
-                + " H0 Z\" fill=\"none\" stroke=\"#808080\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n";
+                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n";
     }
 
     /**
