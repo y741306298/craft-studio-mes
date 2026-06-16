@@ -11,6 +11,7 @@ import lombok.EqualsAndHashCode;
 @Data
 public class AddressRecognitionRecord extends BaseEntity {
 
+    private String manufacturerMetaId;
     private Address address;
     private OrgInfo orgInfo;
     private AddressRecognitionConsignee consignee;
