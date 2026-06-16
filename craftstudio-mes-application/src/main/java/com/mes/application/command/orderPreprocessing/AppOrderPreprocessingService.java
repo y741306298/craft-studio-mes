@@ -303,6 +303,20 @@ public class AppOrderPreprocessingService {
         return true;
     }
 
+    public List<OrderItem> submitMaskGrayImgToSvgIfNecessary(List<OrderItem> orderItems) {
+        List<OrderItem> readyOrderItems = new ArrayList<>();
+        if (orderItems == null || orderItems.isEmpty()) {
+            return readyOrderItems;
+        }
+        for (OrderItem orderItem : orderItems) {
+            boolean waitingForMaskSvg = submitMaskGrayImgToSvgIfNecessary(orderItem);
+            if (!waitingForMaskSvg) {
+                readyOrderItems.add(orderItem);
+            }
+        }
+        return readyOrderItems;
+    }
+
     private String resolveConvertGrayImgToSvgCallbackUrl() {
         if (StringUtils.isNotBlank(convertGrayImgToSvgApiUrl)) {
             return convertGrayImgToSvgApiUrl;
@@ -313,7 +327,7 @@ public class AppOrderPreprocessingService {
         return convertGrayImgToSvgApiUrl;
     }
 
-    public void handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
+    public OrderItem handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
         if (response == null || response.getData() == null) {
             throw new RuntimeException("灰度图转SVG回调响应不能为空");
         }
@@ -347,7 +361,7 @@ public class AppOrderPreprocessingService {
         filePreview.setRaw(svgUrl);
 
         orderItemService.updateOrderItem(orderItem);
-        preprocessOrder(List.of(orderItem));
+        return orderItem;
     }
 
     /**
