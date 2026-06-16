@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
 import com.alibaba.fastjson.JSON;
+import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
@@ -290,6 +291,26 @@ public class OrderController {
             
         } catch (Exception e) {
             System.err.println("处理图像蒙版回调失败：" + e.getMessage());
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 灰度图转 SVG 回调接口。
+     *
+     * @param response 算法服务返回的 SVG 对象名与订单项 ID
+     * @return 操作结果
+     */
+    @PostMapping("/callback/convert_gray_img_to_svg")
+    public ApiResponse<String> handleConvertGrayImgToSvgCallback(@RequestBody GrayImgToSvgResponse response) {
+        logger.info("========== handleConvertGrayImgToSvgCallback 入参开始 ==========");
+        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("========== handleConvertGrayImgToSvgCallback 入参结束 ==========");
+        try {
+            appOrderPreprocessingService.handleConvertGrayImgToSvgCallback(response);
+            return ApiResponse.success("回调处理成功");
+        } catch (Exception e) {
+            System.err.println("处理灰度图转SVG回调失败：" + e.getMessage());
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
         }
     }

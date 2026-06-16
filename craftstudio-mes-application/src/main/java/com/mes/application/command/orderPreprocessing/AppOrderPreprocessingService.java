@@ -2,7 +2,9 @@ package com.mes.application.command.orderPreprocessing;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.req.GrayImgToSvgRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
+import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.CallbackCustomValue;
@@ -141,6 +143,9 @@ public class AppOrderPreprocessingService {
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
 
+    @Value("${external.callbackApi.convert_gray_img_to_svg:}")
+    private String convertGrayImgToSvgApiUrl;
+
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}}")
     private String ossEndpoint;
 
@@ -263,6 +268,86 @@ public class AppOrderPreprocessingService {
         imageMaskRequest.setCallbackConfig(callbackConfig);
         // 步骤5：异步调用 generateMaskFilesAsync。
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+    }
+
+    public boolean submitMaskGrayImgToSvgIfNecessary(OrderItem orderItem) {
+        if (orderItem == null || orderItem.getMaskImgFile() == null) {
+            return false;
+        }
+
+        ImageFile maskImgFile = orderItem.getMaskImgFile();
+        String rawFile = maskImgFile.getRawFile();
+        if (StringUtils.isBlank(rawFile) || rawFile.toLowerCase().endsWith("svg")) {
+            return false;
+        }
+
+        GrayImgToSvgRequest request = new GrayImgToSvgRequest();
+        request.setGrayImgUrl(rawFile);
+
+        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+        UploadConfig uploadConfig = new UploadConfig();
+        String manufacturerMetaId = orderItem.getManufacturerId();
+        String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "grayimg/" : "grayimg/" + manufacturerMetaId + "/";
+        uploadConfig.setUploadPath(uploadPath);
+        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+        request.setUploadConfig(uploadConfig);
+
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(resolveConvertGrayImgToSvgCallbackUrl());
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        request.setCallbackConfig(callbackConfig);
+
+        algorithmCoreApiService.convertGrayImgToSvgAsync(request);
+        return true;
+    }
+
+    private String resolveConvertGrayImgToSvgCallbackUrl() {
+        if (StringUtils.isNotBlank(convertGrayImgToSvgApiUrl)) {
+            return convertGrayImgToSvgApiUrl;
+        }
+        if (StringUtils.isNotBlank(generateMaskFilesApiUrl)) {
+            return generateMaskFilesApiUrl.replace("/callback/generate_mask_files", "/callback/convert_gray_img_to_svg");
+        }
+        return convertGrayImgToSvgApiUrl;
+    }
+
+    public void handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
+        if (response == null || response.getData() == null) {
+            throw new RuntimeException("灰度图转SVG回调响应不能为空");
+        }
+        String orderItemId = response.getData().getId();
+        String svgObjectName = response.getData().getSvgObjectName();
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new RuntimeException("订单项ID不能为空");
+        }
+        if (StringUtils.isBlank(svgObjectName)) {
+            throw new RuntimeException("SVG对象名不能为空");
+        }
+
+        OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+        if (orderItem == null) {
+            throw new RuntimeException("订单项不存在：" + orderItemId);
+        }
+
+        ImageFile maskImgFile = orderItem.getMaskImgFile();
+        if (maskImgFile == null) {
+            maskImgFile = new ImageFile();
+            orderItem.setMaskImgFile(maskImgFile);
+        }
+
+        String svgUrl = completeOssUrl(svgObjectName);
+        maskImgFile.setRawFile(svgUrl);
+        FilePreview filePreview = maskImgFile.getFilePreview();
+        if (filePreview == null) {
+            filePreview = new FilePreview();
+            maskImgFile.setFilePreview(filePreview);
+        }
+        filePreview.setRaw(svgUrl);
+
+        orderItemService.updateOrderItem(orderItem);
+        preprocessOrder(List.of(orderItem));
     }
 
     /**
