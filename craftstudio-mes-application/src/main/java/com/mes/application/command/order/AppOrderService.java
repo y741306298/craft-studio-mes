@@ -4,6 +4,7 @@ import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
+import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.domain.auth.entity.ManufacturerUser;
@@ -64,6 +65,9 @@ public class AppOrderService {
 
     @Autowired
     private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
+
+    @Autowired
+    private AppOrderPreprocessingService appOrderPreprocessingService;
 
     /**
      * 根据多条件分页查询订单项列表，同时查询关联的订单
@@ -305,8 +309,15 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
+        List<OrderItem> readyToPreprocessOrderItems = new ArrayList<>();
+        for (OrderItem orderItem : orderItemsResult) {
+            boolean waitingForMaskSvg = appOrderPreprocessingService.submitMaskGrayImgToSvgIfNecessary(orderItem);
+            if (!waitingForMaskSvg) {
+                readyToPreprocessOrderItems.add(orderItem);
+            }
+        }
         // 入库成功后立即返回，预处理改为异步队列执行
-        orderPreprocessTaskQueue.submit(orderItemsResult);
+        orderPreprocessTaskQueue.submit(readyToPreprocessOrderItems);
         return orderInfo;
     }
 
