@@ -11,6 +11,7 @@ import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialCo
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.params.ProcessParam;
 import org.springframework.stereotype.Service;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -218,6 +219,7 @@ public class OrderPreprocessingService {
         try {
             ProcessParam processParam = source.getParam().toDO();
             MTOProductSpecDTO.ProcessParamDTO typedParam = MTOProductSpecDTO.ProcessParamDTO.fromDO(processParam);
+            copyFileParamMimeType(source.getParam(), typedParam);
             target.setParam(typedParam);
             return target;
         } catch (Exception ex) {
@@ -227,6 +229,52 @@ public class OrderPreprocessingService {
             } catch (Exception fallbackEx) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
                         "工艺参数对象转换失败: " + fallbackEx.getMessage());
+            }
+        }
+    }
+
+    /**
+     * file 类型的 ProcessParamDTO 在订单创建入库时会经历 DTO -> DO -> DTO 的转换。
+     * 当前共享模型中的 DO 可能不承载 mimeType，因此这里在转换后从原始请求 DTO
+     * 补回 mimeType，确保最终保存到 orderItem.procedureFlow.paramConfigs.param 中。
+     */
+    private void copyFileParamMimeType(Object sourceParam, Object targetParam) {
+        if (sourceParam == null || targetParam == null || !isFileProcessParam(sourceParam)) {
+            return;
+        }
+
+        Object mimeType = invokeGetter(sourceParam, "getMimeType");
+        if (mimeType == null) {
+            return;
+        }
+
+        invokeSetter(targetParam, "setMimeType", mimeType);
+    }
+
+    private boolean isFileProcessParam(Object param) {
+        Object type = invokeGetter(param, "getType");
+        return type != null && "file".equalsIgnoreCase(String.valueOf(type));
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        try {
+            Method method = target.getClass().getMethod(methodName);
+            return method.invoke(target);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void invokeSetter(Object target, String methodName, Object value) {
+        for (Method method : target.getClass().getMethods()) {
+            if (!methodName.equals(method.getName()) || method.getParameterCount() != 1) {
+                continue;
+            }
+            try {
+                method.invoke(target, value);
+                return;
+            } catch (Exception ignored) {
+                return;
             }
         }
     }
