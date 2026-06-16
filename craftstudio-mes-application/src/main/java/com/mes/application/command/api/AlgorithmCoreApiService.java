@@ -4,10 +4,12 @@ package com.mes.application.command.api;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.api.req.GrayImgToSvgRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.req.SvgToPltRequest;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
+import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
@@ -456,6 +458,35 @@ public class AlgorithmCoreApiService {
 
         return callAlgorithmSync("http://craftstonverter-zjjuwhyrfr.cn-hangzhou.fcapp.run", "/svg_to_plt", request, "convertSvgToPlt", String.class);
     }
+
+    /**
+     * 灰度图转SVG - 同步模式。
+     * 将灰度图转换为SVG，并按请求中的上传配置保存到OSS。
+     *
+     * @param request 灰度图转SVG请求参数
+     * @return SVG转换结果，包含上传后的SVG对象名及回调透传ID
+     */
+    public GrayImgToSvgResponse convertGrayImgToSvg(GrayImgToSvgRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getGrayImgUrl() == null || request.getGrayImgUrl().isEmpty()) {
+            throw new RuntimeException("灰度图URL不能为空");
+        }
+        if (request.getUploadConfig() == null) {
+            throw new RuntimeException("上传配置不能为空");
+        }
+        if (request.getUploadConfig().getOssConfig() == null) {
+            throw new RuntimeException("OSS上传配置不能为空");
+        }
+        if (request.getUploadConfig().getUploadPath() == null || request.getUploadConfig().getUploadPath().isEmpty()) {
+            throw new RuntimeException("SVG上传路径不能为空");
+        }
+
+        return callAlgorithmSync("http://test-crg-to-svg-pbprotvptv.cn-hangzhou.fcapp.run", "/convert_gray_img_to_svg", request,
+                "convertGrayImgToSvg", GrayImgToSvgResponse.class);
+    }
+
 
     
 }
