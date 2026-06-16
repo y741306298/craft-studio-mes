@@ -195,6 +195,37 @@ public class AlgorithmCoreApiService {
                 request.getCallbackConfig().getCallbackUrl(), "generateMaskFilesAsync", ImageMaskResponse.class);
     }
 
+    /**
+     * 灰度图转SVG - 异步模式。
+     * 将灰度图转换为SVG，并通过回调接口返回上传后的 SVG 对象名。
+     *
+     * @param request 灰度图转SVG请求参数，必须配置 callbackConfig
+     * @return 任务接受响应
+     */
+    public GrayImgToSvgResponse convertGrayImgToSvgAsync(GrayImgToSvgRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (request.getGrayImgUrl() == null || request.getGrayImgUrl().isEmpty()) {
+            throw new RuntimeException("灰度图URL不能为空");
+        }
+        if (request.getUploadConfig() == null) {
+            throw new RuntimeException("上传配置不能为空");
+        }
+        if (request.getUploadConfig().getOssConfig() == null) {
+            throw new RuntimeException("OSS上传配置不能为空");
+        }
+        if (request.getUploadConfig().getUploadPath() == null || request.getUploadConfig().getUploadPath().isEmpty()) {
+            throw new RuntimeException("SVG上传路径不能为空");
+        }
+        if (request.getCallbackConfig() == null || request.getCallbackConfig().getCallbackUrl() == null || request.getCallbackConfig().getCallbackUrl().isEmpty()) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
+        }
+
+        return callAlgorithmAsync("http://test-crg-to-svg-pbprotvptv.cn-hangzhou.fcapp.run", "/convert_gray_img_to_svg", request,
+                request.getCallbackConfig().getCallbackUrl(), "convertGrayImgToSvgAsync", GrayImgToSvgResponse.class);
+    }
+
 
     /**
      * 图片遮罩抠图 - 同步模式
