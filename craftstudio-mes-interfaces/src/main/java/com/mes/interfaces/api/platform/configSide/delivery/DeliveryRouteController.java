@@ -247,6 +247,18 @@ public class DeliveryRouteController {
         return ApiResponse.success("success");
     }
 
+    @PostMapping("/address-recognition/batch-change-bind")
+    public ApiResponse<String> batchChangeAddressRecognitionRecordBinding(
+            @Valid @RequestBody AddressRecognitionRecordBatchBindRequest request) {
+        appDeliveryRouteService.batchChangeAddressRecognitionRecordBinding(
+                request.getRecordIds(),
+                request.getRouteId(),
+                request.getNodeId(),
+                request.getOrder()
+        );
+        return ApiResponse.success("success");
+    }
+
     @DeleteMapping("/address-recognition/{recordId}")
     public ApiResponse<String> unbindAddressRecognitionRecord(@PathVariable String recordId) {
         appDeliveryRouteService.unbindAddressRecognitionRecord(recordId);
