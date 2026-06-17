@@ -39,7 +39,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         mirror.setTypesettingId(origin.getTypesettingId() + "-Mirror");
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
-        MaterialConfig mirrorMaterialConfig = buildMirrorMaterialConfig(origin.getProcedureFlow());
+        MaterialConfig mirrorMaterialConfig = buildMirrorMaterialConfig(origin.getProcedureFlow(), origin.getMaterialConfig());
         if (mirrorMaterialConfig != null) {
             mirror.setMaterialConfig(mirrorMaterialConfig);
             Object materialId = getFieldValue(mirrorMaterialConfig, "materialId");
@@ -50,7 +50,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         return mirror;
     }
 
-    private MaterialConfig buildMirrorMaterialConfig(ProcedureFlow procedureFlow) {
+    private MaterialConfig buildMirrorMaterialConfig(ProcedureFlow procedureFlow, MaterialConfig originMaterialConfig) {
         ProcedureFlowNode node = findDoubleSideMountingNode(procedureFlow);
         if (node == null || node.getParamConfigs() == null || node.getParamConfigs().isEmpty()) {
             return null;
@@ -72,6 +72,10 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         setFieldValue(materialConfig, "materialType", type);
         if (accessoryName != null) {
             setMaterialSnapshotName(materialConfig, accessoryName);
+        }
+        Object usageSize3D = getFieldValue(originMaterialConfig, "usageSize3D");
+        if (usageSize3D != null) {
+            setFieldValue(materialConfig, "usageSize3D", usageSize3D);
         }
         return materialConfig;
     }
