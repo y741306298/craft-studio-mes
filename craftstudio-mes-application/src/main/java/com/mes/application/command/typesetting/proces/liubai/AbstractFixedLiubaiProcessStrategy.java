@@ -195,7 +195,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
         updateMarks(piece, markPngUrl);
-        LiubaiTagAssets tagAssets = uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId);
+        LiubaiTagAssets tagAssets = shouldUploadLiubaiTagAssets()
+                ? uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId)
+                : null;
         updateTagMarks(piece, tagAssets);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String expandedSvg = buildExpandedSvg(originalSvg, pieceMongoId, markPngUrl, tagAssets, originalContentImg, originalWidth, originalHeight, margins);
@@ -248,6 +250,19 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      */
     protected double dashedInsetFromOuterBorderMm() {
         return 0D;
+    }
+
+
+    /**
+     * 是否需要为当前工艺额外生成留白边缘文字标签。
+     *
+     * <p>常规留白需要按订单项和后续工艺生成贴边标签；只复用外框处理能力、
+     * 不改变尺寸的工艺可以关闭该能力，避免产生额外 mark。</p>
+     *
+     * @return 需要生成边缘文字标签时返回 {@code true}
+     */
+    protected boolean shouldUploadLiubaiTagAssets() {
+        return true;
     }
 
     /**
@@ -729,8 +744,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <ul>
      *     <li>根节点宽高使用“原尺寸 + 四边外扩量”。</li>
      *     <li>viewBox 使用负 left/top 起点，让原 SVG 既有内容在视觉上落到留白区域内。</li>
-     *     <li>原 SVG 已有 {@code <g>} 时不重建、不包裹、不移动原有 g，只把留白矩形 g 插入为根节点首个子 g。</li>
-     *     <li>原 SVG 没有 {@code <g>} 时重构为根节点下的分组结构：留白 g 在第一位，原内容包装为印版 g。</li>
+     *     <li>原 SVG 已有 {@code <g>} 时不重建、不包裹、不移动原有 g，默认把留白矩形 g 插入为根节点首个子 g。</li>
+     *     <li>原 SVG 没有 {@code <g>} 时重构为根节点下的分组结构，默认留白 g 在第一位，原内容包装为印版 g。</li>
+     *     <li>只需同尺寸描边的工艺可重写插入顺序，让边框 g 追加到原内容之后，避免被原内容遮挡。</li>
      *     <li>留白矩形 g 的 id 格式为 liubai-{specName}-{productionPiece._id}，挂载对应 mark PNG 的 img、data-source-name、data-forme、data-rotation。</li>
      *     <li>留白矩形 g 内只放置外扩后的大矩形 path。</li>
      * </ul>
@@ -758,10 +774,13 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String markSourceName = sourceName(markPngUrl);
         String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
         String tagGroups = buildLiubaiTagGroups(pieceMongoId, tagAssets, originalWidth, originalHeight, margins);
+        String markGroups = liubaiGroup + tagGroups;
         if (!containsGroup(originalSvg)) {
-            return rebuildSvgWithLiubaiFirst(updatedSvg, pieceMongoId, originalContentImg, liubaiGroup + tagGroups);
+            return rebuildSvgWithLiubaiGroups(updatedSvg, pieceMongoId, originalContentImg, markGroups);
         }
-        return insertAfterRootOpenTag(updatedSvg, liubaiGroup + tagGroups);
+        return shouldInsertMarkGroupsBeforeOriginalContent()
+                ? insertAfterRootOpenTag(updatedSvg, markGroups)
+                : insertBeforeRootCloseTag(updatedSvg, markGroups);
     }
 
     private boolean containsGroup(String svg) {
@@ -776,7 +795,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return svg.substring(0, matcher.end()) + groupSvg + svg.substring(matcher.end());
     }
 
-    private String rebuildSvgWithLiubaiFirst(String updatedSvg, String pieceMongoId, String originalContentImg, String liubaiGroup) {
+    private String insertBeforeRootCloseTag(String svg, String groupSvg) {
+        int closeIndex = lastSvgCloseIndex(svg);
+        if (closeIndex < 0) {
+            return svg;
+        }
+        return svg.substring(0, closeIndex) + groupSvg + svg.substring(closeIndex);
+    }
+
+    private String rebuildSvgWithLiubaiGroups(String updatedSvg, String pieceMongoId, String originalContentImg, String liubaiGroup) {
         Matcher openMatcher = SVG_OPEN_PATTERN.matcher(updatedSvg);
         if (!openMatcher.find()) {
             return updatedSvg;
@@ -788,7 +815,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String prefix = updatedSvg.substring(0, openMatcher.end());
         String innerSvg = updatedSvg.substring(openMatcher.end(), closeIndex).trim();
         String suffix = updatedSvg.substring(closeIndex);
-        return prefix + liubaiGroup + buildOriginalContentGroup(pieceMongoId, originalContentImg, innerSvg) + suffix;
+        String originalContentGroup = buildOriginalContentGroup(pieceMongoId, originalContentImg, innerSvg);
+        return shouldInsertMarkGroupsBeforeOriginalContent()
+                ? prefix + liubaiGroup + originalContentGroup + suffix
+                : prefix + originalContentGroup + liubaiGroup + suffix;
     }
 
     private String buildOriginalContentGroup(String pieceMongoId, String originalContentImg, String innerSvg) {
@@ -946,6 +976,25 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
     }
 
+    /**
+     * mark 分组是否插入在原始内容之前。
+     *
+     * <p>固定尺寸留白默认保持历史行为，把外扩矩形放在原内容下方；
+     * 零外扩的描边工艺需要放到原内容之后，否则同尺寸边框会被原始矩形遮挡。</p>
+     */
+    protected boolean shouldInsertMarkGroupsBeforeOriginalContent() {
+        return true;
+    }
+
+    /**
+     * 留白外框 path 的填充属性。
+     *
+     * <p>固定尺寸留白默认保持历史半透明填充；只需要黑色描边的工艺可返回 {@code fill="none"}。</p>
+     */
+    protected String outerRectFillAttributes() {
+        return "fill=\"#d1495b\" fill-opacity=\"0.82\"";
+    }
+
     private String buildLiubaiGroup(String pieceMongoId,
                                     String markPngUrl,
                                     String markSourceName,
@@ -959,7 +1008,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" fill=\"#d1495b\" fill-opacity=\"0.82\" stroke=\"#111111\" stroke-width=\""
+                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"#111111\" stroke-width=\""
                 + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n"
                 + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)

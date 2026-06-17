@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
-import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -510,9 +509,17 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     }
 
     private BufferedImage rotateCenter180(BufferedImage source) {
-        AffineTransform transform = AffineTransform.getRotateInstance(Math.PI, source.getWidth() / 2.0D, source.getHeight() / 2.0D);
-        AffineTransformOp op = new AffineTransformOp(transform, AffineTransformOp.TYPE_BILINEAR);
-        return op.filter(source, null);
+        int width = source.getWidth();
+        int height = source.getHeight();
+        int imageType = source.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+        BufferedImage rotated = new BufferedImage(width, height, imageType);
+        Graphics2D g = rotated.createGraphics();
+        try {
+            g.drawImage(source, width, height, -width, -height, null);
+        } finally {
+            g.dispose();
+        }
+        return rotated;
     }
 
     private int mmToPx(int mm) {
