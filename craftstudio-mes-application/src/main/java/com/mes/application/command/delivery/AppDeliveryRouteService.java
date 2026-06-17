@@ -175,6 +175,10 @@ public class AppDeliveryRouteService {
         domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId, order);
     }
 
+    public void batchChangeAddressRecognitionRecordBinding(List<String> recordIds, String routeId, String nodeId, Integer order) {
+        domainDeliveryRouteService.bindAddressRecognitionRecords(recordIds, routeId, nodeId, order);
+    }
+
     public void unbindAddressRecognitionRecord(String recordId) {
         domainDeliveryRouteService.unbindAddressRecognitionRecord(recordId);
     }
