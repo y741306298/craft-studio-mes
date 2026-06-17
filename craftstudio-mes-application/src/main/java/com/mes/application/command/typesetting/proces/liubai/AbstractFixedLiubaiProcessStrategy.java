@@ -6,6 +6,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
@@ -22,6 +23,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -62,16 +64,6 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * 留白后附加工艺标签贴边边长，单位 mm。
      */
     private static final double LIUBAI_TAG_EDGE_SIZE_MM = 10D;
-
-    /**
-     * 留白后附加工艺标签距离最外矩形四角的偏移，单位 mm。
-     */
-    private static final double LIUBAI_TAG_CORNER_OFFSET_MM = 100D;
-
-    /**
-     * 留白后可合并为文字标签的工艺名，按该顺序从流程节点中识别。
-     */
-    private static final String[] LIUBAI_TAG_KEYWORDS = {"穿钢丝绳", "穿绳", "粘边"};
 
     /**
      * 毫米与英寸换算常量。
@@ -195,8 +187,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
         String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
         updateMarks(piece, markPngUrl);
+        double expandedWidth = originalWidth + margins.left + margins.right;
+        double expandedHeight = originalHeight + margins.top + margins.bottom;
         LiubaiTagAssets tagAssets = shouldUploadLiubaiTagAssets()
-                ? uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId)
+                ? uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId, expandedWidth, expandedHeight)
                 : null;
         updateTagMarks(piece, tagAssets);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
@@ -205,8 +199,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String uploadPath = "mask/" + manufacturerMetaId + "/" + context.getOrderItem().getOrderItemId() + "/liubai/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, expandedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
         updateMaskImageFile(piece, newMaskUrl);
-        piece.setWidth(originalWidth + margins.left + margins.right);
-        piece.setHeight(originalHeight + margins.top + margins.bottom);
+        piece.setWidth(expandedWidth);
+        piece.setHeight(expandedHeight);
     }
 
     /**
@@ -451,35 +445,51 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
 
     /**
-     * 识别并上传留白边缘文字标签。
+     * 生成并上传留白边缘文字标签。
      *
-     * <p>紧跟留白之后的“粘边/穿钢丝绳/穿绳”多个命中项会去重后按流程顺序拼接，
-     * 并追加当前订单项 ID 后四位；即使没有命中上述工艺，也会单独用订单项 ID 后四位生成标签。</p>
-     * <p>标签会分别生成一张横向 300DPI PNG 与一张竖向 300DPI PNG。</p>
+     * <p>标签内容由订单项 ID 后五位（元素 A）、生产图文件名（元素 B）和加工流程（元素 C）拼接而成。</p>
+     * <p>横向标签会按上下边长度从左往右截取，竖向标签会先按左右边长度截取横向文本后再旋转。</p>
      */
-    private LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId) {
-        String tagText = buildLiubaiTagTextWithOrderItemSuffix(context);
+    private LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId, double horizontalMaxWidthMm, double verticalMaxHeightMm) {
+        String tagText = buildLiubaiTagText(context);
         if (StringUtils.isBlank(tagText)) {
             return null;
         }
         LiubaiTagImage horizontal = createHorizontalLiubaiTagPng(tagText);
-        LiubaiTagImage vertical = createVerticalLiubaiTagPng(tagText, horizontal.image);
+        LiubaiTagImage croppedHorizontal = cropHorizontalLiubaiTagPng(horizontal, horizontalMaxWidthMm);
+        LiubaiTagImage vertical = createVerticalLiubaiTagPng(cropHorizontalLiubaiTagPng(horizontal, verticalMaxHeightMm).image);
         String uploadPath = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        String horizontalUrl = ossTagUploadService.uploadTagPng(productionPieceId, horizontal.bytes, uploadPath);
+        String horizontalUrl = ossTagUploadService.uploadTagPng(productionPieceId, croppedHorizontal.bytes, uploadPath);
         String verticalUrl = ossTagUploadService.uploadTagPng(productionPieceId, vertical.bytes, uploadPath);
-        return new LiubaiTagAssets(tagText, horizontalUrl, verticalUrl, horizontal.widthMm, horizontal.heightMm, vertical.widthMm, vertical.heightMm);
+        return new LiubaiTagAssets(tagText, horizontalUrl, verticalUrl, croppedHorizontal.widthMm, croppedHorizontal.heightMm, vertical.widthMm, vertical.heightMm);
     }
 
-    private String buildLiubaiTagTextWithOrderItemSuffix(LiubaiProcessContext context) {
-        String processTagText = resolveLiubaiTagText(context == null ? null : context.getProcedureFlow());
-        String orderItemSuffix = resolveOrderItemIdSuffix(context);
-        if (StringUtils.isBlank(processTagText)) {
-            return orderItemSuffix;
+    private String buildLiubaiTagText(LiubaiProcessContext context) {
+        OrderItem orderItem = context == null ? null : context.getOrderItem();
+        List<String> elements = new ArrayList<>();
+        addIfNotBlank(elements, resolveOrderItemIdSuffix(context));
+        addIfNotBlank(elements, resolveProductionImgFileName(orderItem));
+        addIfNotBlank(elements, orderItem == null ? null : orderItem.getProcessingFlow());
+        return String.join(" ", elements);
+    }
+
+    private void addIfNotBlank(List<String> values, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            values.add(value.trim());
         }
-        if (StringUtils.isBlank(orderItemSuffix)) {
-            return processTagText;
+    }
+
+    private String resolveProductionImgFileName(OrderItem orderItem) {
+        if (orderItem == null || orderItem.getProductionImgFile() == null) {
+            return "";
         }
-        return processTagText + orderItemSuffix;
+        try {
+            Method getter = orderItem.getProductionImgFile().getClass().getMethod("getName");
+            Object value = getter.invoke(orderItem.getProductionImgFile());
+            return value == null ? "" : value.toString();
+        } catch (ReflectiveOperationException ignored) {
+            return "";
+        }
     }
 
     private String resolveOrderItemIdSuffix(LiubaiProcessContext context) {
@@ -487,32 +497,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         String orderItemId = context.getOrderItem().getOrderItemId().trim();
-        int startIndex = Math.max(0, orderItemId.length() - 4);
+        int startIndex = Math.max(0, orderItemId.length() - 5);
         return orderItemId.substring(startIndex);
-    }
-
-    private String resolveLiubaiTagText(ProcedureFlow procedureFlow) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null || procedureFlow.getNodes().isEmpty()) {
-            return "";
-        }
-        boolean afterLiubai = false;
-        List<String> tags = new ArrayList<>();
-        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node == null || StringUtils.isBlank(node.getNodeName())) {
-                continue;
-            }
-            String nodeName = node.getNodeName();
-            if (!afterLiubai) {
-                afterLiubai = nodeName.contains("留白");
-                continue;
-            }
-            for (String keyword : LIUBAI_TAG_KEYWORDS) {
-                if (nodeName.contains(keyword) && !tags.contains(keyword)) {
-                    tags.add(keyword);
-                }
-            }
-        }
-        return String.join("", tags);
     }
 
     private LiubaiTagImage createHorizontalLiubaiTagPng(String text) {
@@ -535,7 +521,20 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, LIUBAI_TAG_EDGE_SIZE_MM);
     }
 
-    private LiubaiTagImage createVerticalLiubaiTagPng(String text, BufferedImage horizontalImage) {
+    private LiubaiTagImage cropHorizontalLiubaiTagPng(LiubaiTagImage image, double maxWidthMm) {
+        if (image == null || maxWidthMm <= 0D || image.widthMm <= maxWidthMm) {
+            return image;
+        }
+        int cropWidthPx = Math.max(1, Math.min(image.image.getWidth(), convertMmToPixels(maxWidthMm, LIUBAI_TAG_PNG_DPI)));
+        BufferedImage cropped = new BufferedImage(cropWidthPx, image.image.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = cropped.createGraphics();
+        clearAndConfigureTextGraphics(graphics, cropWidthPx, image.image.getHeight());
+        graphics.drawImage(image.image, 0, 0, cropWidthPx, image.image.getHeight(), 0, 0, cropWidthPx, image.image.getHeight(), null);
+        graphics.dispose();
+        return new LiubaiTagImage(toPng(cropped), cropped, cropWidthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, image.heightMm);
+    }
+
+    private LiubaiTagImage createVerticalLiubaiTagPng(BufferedImage horizontalImage) {
         BufferedImage rotated = rotateClockwise90(horizontalImage);
         return new LiubaiTagImage(toPng(rotated), rotated, LIUBAI_TAG_EDGE_SIZE_MM, rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
@@ -1028,14 +1027,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
         StringBuilder builder = new StringBuilder();
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "top-left", left + LIUBAI_TAG_CORNER_OFFSET_MM, top);
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "top-right", right - LIUBAI_TAG_CORNER_OFFSET_MM - tagAssets.horizontalWidthMm, top);
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "bottom-left", left + LIUBAI_TAG_CORNER_OFFSET_MM, bottom - tagAssets.horizontalHeightMm);
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "bottom-right", right - LIUBAI_TAG_CORNER_OFFSET_MM - tagAssets.horizontalWidthMm, bottom - tagAssets.horizontalHeightMm);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "left-top", left, top + LIUBAI_TAG_CORNER_OFFSET_MM);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "left-bottom", left, bottom - LIUBAI_TAG_CORNER_OFFSET_MM - tagAssets.verticalHeightMm);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "right-top", right - tagAssets.verticalWidthMm, top + LIUBAI_TAG_CORNER_OFFSET_MM);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "right-bottom", right - tagAssets.verticalWidthMm, bottom - LIUBAI_TAG_CORNER_OFFSET_MM - tagAssets.verticalHeightMm);
+        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "top", left, top);
+        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "bottom", left, bottom - tagAssets.horizontalHeightMm);
+        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "left", left, top);
+        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "right", right - tagAssets.verticalWidthMm, top);
         return builder.toString();
     }
 
