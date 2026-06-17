@@ -25,20 +25,55 @@ public class JinghuamianProcessStrategy extends AbstractFixedLiubaiProcessStrate
             return false;
         }
         ProcedureFlow procedureFlow = context.getProcedureFlow();
-        return !hasNode(procedureFlow, "异形切割") && matchesLiubaiValue(procedureFlow);
+        return !hasNode(procedureFlow, "异形切割") && containsJinghuamianProcedure(context);
     }
 
     @Override
     protected boolean matchesLiubaiValue(ProcedureFlow procedureFlow) {
+        return containsJinghuamianInProcedureFlow(procedureFlow);
+    }
+
+    private boolean containsJinghuamianProcedure(LiubaiProcessContext context) {
+        if (context == null) {
+            return false;
+        }
+        if (containsJinghuamianInProcedureFlow(context.getProcedureFlow())) {
+            return true;
+        }
+        if (context.getOrderItem() != null && containsJinghuamianText(context.getOrderItem().getProcessingFlow())) {
+            return true;
+        }
+        return context.getProductionPiece() != null && containsJinghuamianText(context.getProductionPiece().getProcessingFlow());
+    }
+
+    private boolean containsJinghuamianInProcedureFlow(ProcedureFlow procedureFlow) {
+        if (procedureFlow == null) {
+            return false;
+        }
+        if (containsJinghuamianText(procedureFlow.getProcedureFlowName())
+                || containsJinghuamianText(procedureFlow.getFlowDescription())) {
+            return true;
+        }
         if (procedureFlow.getNodes() == null) {
             return false;
         }
         for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node != null && StringUtils.isNotBlank(node.getNodeName()) && node.getNodeName().contains("净画面")) {
+            if (node == null) {
+                continue;
+            }
+            if (containsJinghuamianText(node.getNodeName())) {
+                return true;
+            }
+            if (node.getParamConfigs() != null && node.getParamConfigs().stream()
+                    .anyMatch(config -> config != null && containsJinghuamianText(String.valueOf(config)))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean containsJinghuamianText(String value) {
+        return StringUtils.isNotBlank(value) && value.contains("净画面");
     }
 
     @Override
