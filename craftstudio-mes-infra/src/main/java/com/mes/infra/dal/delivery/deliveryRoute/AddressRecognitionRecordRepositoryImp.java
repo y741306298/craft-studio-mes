@@ -47,6 +47,19 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
         return mongoTemplate.count(query, poClass());
     }
 
+
+    @Override
+    public List<AddressRecognitionRecord> listAssignedByRoute(String routeId, long current, int size) {
+        Query query = new SoftDeleteQuery(
+                Criteria.where("status").is(AddressRecognitionRecordStatus.ASSIGNED.getValue())
+                        .and("routeId").is(routeId)
+        );
+        query.with(Sort.by(Sort.Direction.DESC, "updateTime"));
+        query.skip((current - 1) * size).limit(size);
+        List<AddressRecognitionRecordPo> pos = mongoTemplate.find(query, poClass());
+        return pos.stream().map(AddressRecognitionRecordPo::toDO).toList();
+    }
+
     @Override
     public List<AddressRecognitionRecord> listAssignedByRouteNode(String routeId, String nodeId, String detailAddress, long current, int size) {
         Query query = new SoftDeleteQuery(buildAssignedRouteNodeCriteria(routeId, nodeId, detailAddress));

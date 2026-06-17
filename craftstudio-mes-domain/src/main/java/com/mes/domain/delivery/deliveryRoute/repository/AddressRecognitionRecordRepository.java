@@ -13,6 +13,8 @@ public interface AddressRecognitionRecordRepository extends BaseRepository<Addre
 
     long totalByStatus(String status, String manufacturerMetaId, String detailAddress);
 
+    List<AddressRecognitionRecord> listAssignedByRoute(String routeId, long current, int size);
+
     List<AddressRecognitionRecord> listAssignedByRouteNode(String routeId, String nodeId, String detailAddress, long current, int size);
 
     long totalAssignedByRouteNode(String routeId, String nodeId, String detailAddress);
