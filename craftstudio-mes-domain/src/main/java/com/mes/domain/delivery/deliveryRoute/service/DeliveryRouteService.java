@@ -11,6 +11,10 @@ import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecord
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
@@ -23,8 +27,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DeliveryRouteService {
@@ -41,6 +47,8 @@ public class DeliveryRouteService {
     private OrderInfoRepository orderInfoRepository;
     @Autowired
     private OrderItemRepository orderItemRepository;
+    @Autowired
+    private ProductionPieceRepository productionPieceRepository;
 
     /**
      * 根据路线名称查询配送路线（支持分页）
@@ -352,7 +360,7 @@ public class DeliveryRouteService {
         record.setOrder(resolveAddressRecognitionRecordOrder(routeId, nodeId, order));
         record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
         addressRecognitionRecordRepository.update(record);
-        syncOrderRouteBinding(record.getOrderId(), routeId, nodeId);
+        syncAddressRecognitionRouteBinding(record, routeId, nodeId);
     }
 
 
@@ -362,6 +370,55 @@ public class DeliveryRouteService {
         }
         Integer maxOrder = addressRecognitionRecordRepository.findMaxOrderByRouteNode(routeId, nodeId);
         return maxOrder == null ? 0 : maxOrder + 1;
+    }
+
+    private void syncAddressRecognitionRouteBinding(AddressRecognitionRecord record, String routeId, String nodeId) {
+        if (record == null) {
+            return;
+        }
+
+        Set<String> orderIds = new HashSet<>();
+        if (StringUtils.isNotBlank(record.getOrderId())) {
+            orderIds.add(record.getOrderId());
+        }
+        orderIds.addAll(listProductionOrderIdsByAddress(record));
+
+        for (String orderId : orderIds) {
+            syncOrderRouteBinding(orderId, routeId, nodeId);
+        }
+    }
+
+    private List<String> listProductionOrderIdsByAddress(AddressRecognitionRecord record) {
+        if (record == null || record.getAddress() == null
+                || StringUtils.isBlank(record.getAddress().getTerminalRegionCode())
+                || StringUtils.isBlank(record.getAddress().getDetailAddress())) {
+            return List.of();
+        }
+
+        Map<String, Object> orderFilters = new HashMap<>();
+        orderFilters.put("customer.address.terminalRegionCode", record.getAddress().getTerminalRegionCode());
+        orderFilters.put("customer.address.detailAddress", record.getAddress().getDetailAddress());
+        orderFilters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+
+        List<String> orderIds = new ArrayList<>();
+        long current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderInfo> orderInfos = orderInfoRepository.filterList(current, size, orderFilters);
+            if (orderInfos == null || orderInfos.isEmpty()) {
+                break;
+            }
+            for (OrderInfo orderInfo : orderInfos) {
+                if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getOrderId())) {
+                    orderIds.add(orderInfo.getOrderId());
+                }
+            }
+            if (orderInfos.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return orderIds;
     }
 
     private void syncOrderRouteBinding(String orderId, String routeId, String nodeId) {
@@ -389,8 +446,12 @@ public class DeliveryRouteService {
                 break;
             }
             for (OrderItem orderItem : orderItems) {
+                if (!shouldSyncOrderItemRouteBinding(orderItem)) {
+                    continue;
+                }
                 orderItem.setRouteId(routeId);
                 orderItem.setRouteNodeId(nodeId);
+                syncProductionPiecesRouteBinding(orderItem.getOrderItemId(), routeId, nodeId);
             }
             orderItemRepository.batchUpdate(orderItems);
             if (orderItems.size() < size) {
@@ -398,6 +459,53 @@ public class DeliveryRouteService {
             }
             current++;
         }
+    }
+
+    private boolean shouldSyncOrderItemRouteBinding(OrderItem orderItem) {
+        if (orderItem == null) {
+            return false;
+        }
+        return StringUtils.isNotBlank(orderItem.getRouteId())
+                || StringUtils.isNotBlank(orderItem.getRouteNodeId())
+                || OrderStatus.IN_PRODUCTION.equals(orderItem.getStatus());
+    }
+
+    private void syncProductionPiecesRouteBinding(String orderItemId, String routeId, String nodeId) {
+        if (StringUtils.isBlank(orderItemId)) {
+            return;
+        }
+
+        Map<String, Object> pieceFilters = new HashMap<>();
+        pieceFilters.put("orderItemId", orderItemId);
+        long current = 1;
+        int size = 100;
+        while (true) {
+            List<ProductionPiece> productionPieces = productionPieceRepository.filterList(current, size, pieceFilters);
+            if (productionPieces == null || productionPieces.isEmpty()) {
+                break;
+            }
+            List<ProductionPiece> productionPiecesToUpdate = new ArrayList<>();
+            for (ProductionPiece productionPiece : productionPieces) {
+                if (productionPiece == null || isFinalProductionPiece(productionPiece)) {
+                    continue;
+                }
+                productionPiece.setRouteId(routeId);
+                productionPiece.setRouteNodeId(nodeId);
+                productionPiecesToUpdate.add(productionPiece);
+            }
+            if (!productionPiecesToUpdate.isEmpty()) {
+                productionPieceRepository.batchUpdate(productionPiecesToUpdate);
+            }
+            if (productionPieces.size() < size) {
+                break;
+            }
+            current++;
+        }
+    }
+
+    private boolean isFinalProductionPiece(ProductionPiece productionPiece) {
+        ProductionPieceStatus status = ProductionPieceStatus.getByCode(productionPiece.getStatus());
+        return status != null && status.isFinalState();
     }
 
     public void unbindAddressRecognitionRecords(List<String> recordIds) {
