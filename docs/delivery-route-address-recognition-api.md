@@ -521,7 +521,36 @@ POST {basePath}/address-recognition/batch-bind
 }
 ```
 
-### 5.6 解绑地址识别记录
+### 5.6 批量变更地址识别记录绑定
+
+```http
+POST {basePath}/address-recognition/batch-change-bind
+```
+
+#### 请求体
+
+```json
+{
+  "recordIds": ["recordMongoId1", "recordMongoId2"],
+  "routeId": "ROUTE_002",
+  "nodeId": "2",
+  "order": 2
+}
+```
+
+#### 说明
+
+请求体与批量绑定一致，用于将多条已绑定或未绑定的地址识别记录批量改绑到新的路线/节点。实现复用批量绑定逻辑，因此同样会同步对应生产中订单、订单项和生产件的路线字段。
+
+#### 响应体
+
+```json
+{
+  "data": "success"
+}
+```
+
+### 5.7 解绑地址识别记录
 
 ```http
 DELETE {basePath}/address-recognition/{recordId}
