@@ -1608,23 +1608,13 @@ public class AppTypesettingService {
     }
 
     /**
-     * 提取元素 A（typesetting 来源标识）。
+     * 提取元素 A（typesettingId 标识）。
      *
-     * <p>优先读取 typesettingCells 中 sourceType=typesetting 的 sourceId；
-     * 兜底 typesettingId，再兜底当前记录 id。
+     * <p>confirmLayout / confirmPrint 生成 elementF 标签时始终使用当前排版记录的
+     * 完整 typesettingId（镜像印版保留 -Mirror 后缀），缺失时再兜底当前记录 id。
      */
     private String extractElementA(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo.getTypesettingCells() != null) {
-            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-                if (cell == null) {
-                    continue;
-                }
-                if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId())) {
-                    return cell.getSourceId();
-                }
-            }
-        }
-        String typesettingId = normalizeMirrorTypesettingId(typesettingInfo.getTypesettingId());
+        String typesettingId = typesettingInfo.getTypesettingId();
         return StringUtils.isNotBlank(typesettingId) ? typesettingId : typesettingInfo.getId();
     }
 
