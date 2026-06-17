@@ -4,6 +4,8 @@ import com.mes.application.dto.resp.delivery.AddressRecognitionRecordResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
+import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.application.dto.resp.delivery.DeliveryRouteNodeBindingMatchResponse;
@@ -25,6 +27,9 @@ public class AppDeliveryRouteService {
 
     @Autowired
     private DeliveryRouteRepository deliveryRouteRepository;
+
+    @Autowired
+    private DeliveryRouteNodeRepository deliveryRouteNodeRepository;
 
     @Autowired
     private WorldRepository worldRepository;
@@ -141,7 +146,7 @@ public class AppDeliveryRouteService {
         long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(manufacturerMetaId, detailAddress);
         World world = worldRepository.loadWorld();
         List<AddressRecognitionRecordResponse> responses = records.stream()
-                .map(record -> AddressRecognitionRecordResponse.from(record, world))
+                .map(record -> toAddressRecognitionRecordResponse(record, world))
                 .toList();
         return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
     }
@@ -162,9 +167,113 @@ public class AppDeliveryRouteService {
         long total = domainDeliveryRouteService.countAssignedAddressRecognitionRecords(routeId, nodeId, detailAddress);
         World world = worldRepository.loadWorld();
         List<AddressRecognitionRecordResponse> responses = records.stream()
-                .map(record -> AddressRecognitionRecordResponse.from(record, world))
+                .map(record -> toAddressRecognitionRecordResponse(record, world))
                 .toList();
         return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+    }
+
+    private AddressRecognitionRecordResponse toAddressRecognitionRecordResponse(AddressRecognitionRecord record, World world) {
+        AddressRecognitionRecordResponse response = AddressRecognitionRecordResponse.from(record, world);
+        if (response == null || record == null) {
+            return response;
+        }
+
+        if (StringUtils.isBlank(record.getRouteId())) {
+            fillMatchedRouteNodeInfo(response, record);
+            return response;
+        }
+
+        fillBoundRouteNodeInfo(response, record.getRouteId(), record.getNodeId());
+        return response;
+    }
+
+    private void fillMatchedRouteNodeInfo(AddressRecognitionRecordResponse response, AddressRecognitionRecord record) {
+        if (record.getAddress() == null
+                || StringUtils.isBlank(record.getManufacturerMetaId())
+                || StringUtils.isBlank(record.getAddress().getTerminalRegionCode())
+                || StringUtils.isBlank(record.getAddress().getDetailAddress())) {
+            return;
+        }
+
+        DeliveryRouteService.RouteNodeMatchResult matchResult = domainDeliveryRouteService.matchRouteNodeByAddress(
+                record.getManufacturerMetaId(),
+                record.getAddress().getTerminalRegionCode(),
+                record.getAddress().getDetailAddress()
+        );
+        if (matchResult == null || !matchResult.isMatched()) {
+            return;
+        }
+
+        DeliveryRoute route = matchResult.getDeliveryRoute();
+        DeliveryRouteNode node = matchResult.getDeliveryRouteNode();
+        if (route != null) {
+            response.setRouteId(route.getId());
+            response.setRouteName(route.getRouteName());
+        }
+        if (node != null) {
+            response.setNodeId(node.getId());
+            response.setNodeName(resolveDeliveryRouteNodeName(node));
+        }
+    }
+
+    private void fillBoundRouteNodeInfo(AddressRecognitionRecordResponse response, String routeId, String nodeId) {
+        DeliveryRoute route = findDeliveryRoute(routeId);
+        if (route != null) {
+            response.setRouteName(route.getRouteName());
+            response.setNodeName(resolveRouteNodeName(route, nodeId));
+        }
+        if (StringUtils.isBlank(response.getNodeName())) {
+            response.setNodeName(resolveDeliveryRouteNodeName(nodeId));
+        }
+    }
+
+    private DeliveryRoute findDeliveryRoute(String routeId) {
+        DeliveryRoute route = deliveryRouteRepository.findById(routeId);
+        if (route == null) {
+            route = deliveryRouteRepository.findByRouteId(routeId);
+        }
+        return route;
+    }
+
+    private String resolveRouteNodeName(DeliveryRoute route, String nodeId) {
+        if (route == null || route.getRouteNodes() == null || StringUtils.isBlank(nodeId)) {
+            return null;
+        }
+        for (RouteNode node : route.getRouteNodes()) {
+            if (node != null && nodeId.equals(node.getId())) {
+                return node.getName();
+            }
+        }
+        return null;
+    }
+
+    private String resolveDeliveryRouteNodeName(String nodeId) {
+        if (StringUtils.isBlank(nodeId)) {
+            return null;
+        }
+        DeliveryRouteNode node = deliveryRouteNodeRepository.findById(nodeId);
+        if (node == null) {
+            node = deliveryRouteNodeRepository.findByRouteNodeId(nodeId);
+        }
+        if (node == null) {
+            return null;
+        }
+        return resolveDeliveryRouteNodeName(node);
+    }
+
+    private String resolveDeliveryRouteNodeName(DeliveryRouteNode node) {
+        if (node == null) {
+            return null;
+        }
+        String startName = node.getStartFullRegionName();
+        String destName = node.getDestFullRegionName();
+        if (StringUtils.isBlank(destName) || destName.equals(startName)) {
+            return startName;
+        }
+        if (StringUtils.isBlank(startName)) {
+            return destName;
+        }
+        return startName + "-" + destName;
     }
 
     public void bindAddressRecognitionRecord(String recordId, String routeId, String nodeId, Integer order) {
