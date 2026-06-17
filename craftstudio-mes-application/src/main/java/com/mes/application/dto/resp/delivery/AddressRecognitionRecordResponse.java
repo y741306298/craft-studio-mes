@@ -21,7 +21,9 @@ public class AddressRecognitionRecordResponse {
     private String fullAddress;
     private String orderId;
     private String routeId;
+    private String routeName;
     private String nodeId;
+    private String nodeName;
     private AddressRecognitionRecordStatus status;
     private String statusName;
     private Integer order;

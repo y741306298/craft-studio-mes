@@ -6,7 +6,7 @@
 - **说明**:
   - 查询“待打包”零件列表。
   - 数据源侧先做 Mongo 条件查询：`procedureFlow.nodes` 中存在 `nodeName=待打包` 且 `pieceQuantity > 0` 的零件。
-  - 支持条件查询：`materialName`、`processName`、`width`。
+  - 支持条件查询：`materialName`、`processName`、`width`、`routeId`。
   - 在组装 `DeliveryPkgPieceVO` 后，再按 `customerPhone`、`startTime`、`endTime`、`carrierName` 做补充过滤。
   - 返回结果包含三个同级筛选集合：`materialList`、`sizeList`、`processList`。
 
@@ -22,6 +22,7 @@
 | materialName | string | 否 | 材料名（精确匹配 `materialConfig.materialSnapshot.name`） |
 | processName | string | 否 | 工序名（匹配 `procedureFlow.nodes.nodeName`） |
 | width | number | 否 | 零件宽度（匹配 `productionPiece.width`） |
+| routeId | string | 否 | 路线 ID（匹配待打包零件 `productionPiece.routeId`） |
 
 ### 请求示例
 
@@ -34,7 +35,8 @@
   "carrierName": "顺丰",
   "materialName": "白卡纸",
   "processName": "覆膜",
-  "width": 70.0
+  "width": 70.0,
+  "routeId": "ROUTE_001"
 }
 ```
 
@@ -174,7 +176,46 @@
 ## 2) 新增打包
 
 - **URL**: `POST /api/manufacturerSide/deliveryPkg/add`
-- **说明**: 创建包裹并返回打印所需信息，同步返回 `carrierId`、`carrierName` 与实际保存的 `presetType`；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。
+- **说明**: 创建包裹并返回打印所需信息，同步返回 `carrierId`、`carrierName` 与实际保存的 `presetType`；`deliveryPkgItems.previewUrl` 会保存自 `productionPiece.productImageFile.filePreview.preview`。请求中的 `routeId`、`routeNodeId` 会保存到包裹，并用于写入零件打包信息中的路线/节点标识。
+
+### 请求字段
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| pieces | array | 是 | 待打包零件及数量列表 |
+| pieces[].piece | object | 是 | 待打包零件对象，通常来自待打包零件查询接口返回的 `items[]` |
+| pieces[].quantity | number | 是 | 本次打包数量 |
+| deliveryManId | string | 否 | 寄件人/发货人 ID |
+| deliverySiidId | string | 否 | 电子面单账号 ID |
+| carrierId | string | 是 | 物流承运商 ID |
+| manufacturerMetaId | string | 是 | 工厂标识 |
+| routeId | string | 否 | 路线 ID；创建包裹时保存到 `deliveryPkg.routeId` |
+| routeNodeId | string | 否 | 路线节点 ID；创建包裹时保存到 `deliveryPkg.routeNodeId` |
+
+### 请求示例
+
+```json
+{
+  "manufacturerMetaId": "MFR_10001",
+  "carrierId": "SF",
+  "deliveryManId": "DM_001",
+  "deliverySiidId": "SIID_001",
+  "routeId": "ROUTE_001",
+  "routeNodeId": "ROUTE_NODE_001",
+  "pieces": [
+    {
+      "piece": {
+        "productionPieceId": "PP_1001",
+        "orderItemId": "OI_2001",
+        "orderId": "ORD_3001",
+        "routeId": "ROUTE_001",
+        "routeNodeId": "ROUTE_NODE_001"
+      },
+      "quantity": 2
+    }
+  ]
+}
+```
 
 ---
 

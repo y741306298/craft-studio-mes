@@ -189,11 +189,28 @@ public class DeliveryRouteController {
     }
 
 
+    @PostMapping("/address-recognition/list")
+    public PagedApiResponse<AddressRecognitionRecordResponse> listAddressRecognitionRecords(
+            @Valid @RequestBody AddressRecognitionRecordListRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listAddressRecognitionRecords(
+                request.getManufacturerMetaId(),
+                request.getRouteId(),
+                request.getNodeId(),
+                request.getStatus(),
+                request.getAssigned(),
+                request.getSearchName(),
+                query
+        );
+        return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
+    }
+
+
     @PostMapping("/address-recognition/unassigned/list")
     public PagedApiResponse<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(
             @Valid @RequestBody AddressRecognitionRecordListRequest request) {
         PagedQuery query = request.toPagedQuery();
-        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getManufacturerMetaId(), request.getSearchName(), query);
+        PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listUnassignedAddressRecognitionRecords(request.getManufacturerMetaId(), request.getRouteId(), request.getSearchName(), query);
         return PagedApiResponse.success((List<AddressRecognitionRecordResponse>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
@@ -203,6 +220,7 @@ public class DeliveryRouteController {
             @Valid @RequestBody AddressRecognitionRecordAssignedListRequest request) {
         PagedQuery query = request.toPagedQuery();
         PagedResult<AddressRecognitionRecordResponse> result = appDeliveryRouteService.listAssignedAddressRecognitionRecords(
+                request.getManufacturerMetaId(),
                 request.getRouteId(),
                 request.getNodeId(),
                 request.getSearchName(),

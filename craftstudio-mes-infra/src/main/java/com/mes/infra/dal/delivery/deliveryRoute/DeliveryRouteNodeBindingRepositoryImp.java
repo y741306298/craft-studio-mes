@@ -39,4 +39,12 @@ public class DeliveryRouteNodeBindingRepositoryImp extends BaseRepositoryImp<Del
         DeliveryRouteNodeBindingPo po = mongoTemplate.findOne(query, poClass());
         return po == null ? null : po.toDO();
     }
+
+    @Override
+    public List<DeliveryRouteNodeBinding> listByRouteNodeIds(List<String> routeNodeIds) {
+        Query query = new SoftDeleteQuery(Criteria.where("routeNodeId").in(routeNodeIds));
+        List<DeliveryRouteNodeBindingPo> pos = mongoTemplate.find(query, poClass());
+        return pos.stream().map(DeliveryRouteNodeBindingPo::toDO).toList();
+    }
+
 }
