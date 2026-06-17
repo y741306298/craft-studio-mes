@@ -17,6 +17,7 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -128,8 +129,19 @@ public class AppDeliveryRouteService {
         domainDeliveryRouteService.removeRouteNode(routeId, nodeId);
     }
 
+    public PagedResult<AddressRecognitionRecordResponse> listAddressRecognitionRecords(
+            String manufacturerMetaId, String routeId, String nodeId, String status, Boolean assigned, String detailAddress, PagedQuery query) {
+        boolean queryAssigned = Boolean.TRUE.equals(assigned)
+                || "ASSIGNED".equalsIgnoreCase(status)
+                || "已分配".equals(status);
+        if (queryAssigned) {
+            return listAssignedAddressRecognitionRecords(manufacturerMetaId, routeId, nodeId, detailAddress, query);
+        }
+        return listUnassignedAddressRecognitionRecords(manufacturerMetaId, routeId, detailAddress, query);
+    }
 
-    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(String manufacturerMetaId, String detailAddress, PagedQuery query) {
+
+    public PagedResult<AddressRecognitionRecordResponse> listUnassignedAddressRecognitionRecords(String manufacturerMetaId, String routeId, String detailAddress, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -140,20 +152,30 @@ public class AppDeliveryRouteService {
             throw new IllegalArgumentException("厂商 ID 不能为空");
         }
 
-        List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
-                manufacturerMetaId, detailAddress, query.getCurrent(), query.getSize()
-        );
-        long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(manufacturerMetaId, detailAddress);
         World world = worldRepository.loadWorld();
-        List<AddressRecognitionRecordResponse> responses = records.stream()
-                .map(record -> toAddressRecognitionRecordResponse(record, world))
-                .toList();
-        return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+        if (StringUtils.isBlank(routeId)) {
+            List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
+                    manufacturerMetaId, detailAddress, query.getCurrent(), query.getSize()
+            );
+            long total = domainDeliveryRouteService.countUnassignedAddressRecognitionRecords(manufacturerMetaId, detailAddress);
+            List<AddressRecognitionRecordResponse> responses = records.stream()
+                    .map(record -> toAddressRecognitionRecordResponse(record, world))
+                    .toList();
+            return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+        }
+
+        List<AddressRecognitionRecordResponse> matchedResponses = listMatchedUnassignedAddressRecognitionRecords(
+                manufacturerMetaId, routeId, detailAddress
+        );
+        long total = matchedResponses.size();
+        int fromIndex = (int) Math.min((query.getCurrent() - 1) * query.getSize(), total);
+        int toIndex = (int) Math.min(fromIndex + query.getSize(), total);
+        return new PagedResult<>(matchedResponses.subList(fromIndex, toIndex), total, query.getSize(), query.getCurrent());
     }
 
 
     public PagedResult<AddressRecognitionRecordResponse> listAssignedAddressRecognitionRecords(
-            String routeId, String nodeId, String detailAddress, PagedQuery query) {
+            String manufacturerMetaId, String routeId, String nodeId, String detailAddress, PagedQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("分页参数不能为空");
         }
@@ -161,15 +183,44 @@ public class AppDeliveryRouteService {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
 
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("厂商 ID 不能为空");
+        }
+
         List<AddressRecognitionRecord> records = domainDeliveryRouteService.listAssignedAddressRecognitionRecords(
-                routeId, nodeId, detailAddress, query.getCurrent(), query.getSize()
+                manufacturerMetaId, routeId, nodeId, detailAddress, query.getCurrent(), query.getSize()
         );
-        long total = domainDeliveryRouteService.countAssignedAddressRecognitionRecords(routeId, nodeId, detailAddress);
+        long total = domainDeliveryRouteService.countAssignedAddressRecognitionRecords(manufacturerMetaId, routeId, nodeId, detailAddress);
         World world = worldRepository.loadWorld();
         List<AddressRecognitionRecordResponse> responses = records.stream()
                 .map(record -> toAddressRecognitionRecordResponse(record, world))
                 .toList();
         return new PagedResult<>(responses, total, query.getSize(), query.getCurrent());
+    }
+
+    private List<AddressRecognitionRecordResponse> listMatchedUnassignedAddressRecognitionRecords(
+            String manufacturerMetaId, String routeId, String detailAddress) {
+        List<AddressRecognitionRecordResponse> matchedResponses = new ArrayList<>();
+        long current = 1;
+        int size = 100;
+        World world = worldRepository.loadWorld();
+        while (true) {
+            List<AddressRecognitionRecord> records = domainDeliveryRouteService.listUnassignedAddressRecognitionRecords(
+                    manufacturerMetaId, detailAddress, current, size
+            );
+            if (records.isEmpty()) {
+                break;
+            }
+            records.stream()
+                    .map(record -> toAddressRecognitionRecordResponse(record, world))
+                    .filter(response -> response != null && routeId.equals(response.getRouteId()))
+                    .forEach(matchedResponses::add);
+            if (records.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return matchedResponses;
     }
 
     private AddressRecognitionRecordResponse toAddressRecognitionRecordResponse(AddressRecognitionRecord record, World world) {

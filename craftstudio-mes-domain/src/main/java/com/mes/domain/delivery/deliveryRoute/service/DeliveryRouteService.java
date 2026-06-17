@@ -304,7 +304,7 @@ public class DeliveryRouteService {
             long current = 1;
             int size = 100;
             while (true) {
-                List<AddressRecognitionRecord> records = addressRecognitionRecordRepository.listAssignedByRouteNode(routeId, nodeId, null, current, size);
+                List<AddressRecognitionRecord> records = addressRecognitionRecordRepository.listAssignedByRouteNode(null, routeId, nodeId, null, current, size);
                 if (records == null || records.isEmpty()) {
                     break;
                 }
@@ -480,9 +480,9 @@ public class DeliveryRouteService {
         return addressRecognitionRecordRepository.totalByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), manufacturerMetaId, detailAddress);
     }
 
-    public List<AddressRecognitionRecord> listAssignedAddressRecognitionRecords(String routeId, String nodeId, String detailAddress, long current, int size) {
-        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
+    public List<AddressRecognitionRecord> listAssignedAddressRecognitionRecords(String manufacturerMetaId, String routeId, String nodeId, String detailAddress, long current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
         }
         if (current <= 0) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "页码必须大于 0");
@@ -490,14 +490,14 @@ public class DeliveryRouteService {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
-        return addressRecognitionRecordRepository.listAssignedByRouteNode(routeId, nodeId, detailAddress, current, size);
+        return addressRecognitionRecordRepository.listAssignedByRouteNode(manufacturerMetaId, routeId, nodeId, detailAddress, current, size);
     }
 
-    public long countAssignedAddressRecognitionRecords(String routeId, String nodeId, String detailAddress) {
-        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
+    public long countAssignedAddressRecognitionRecords(String manufacturerMetaId, String routeId, String nodeId, String detailAddress) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
         }
-        return addressRecognitionRecordRepository.totalAssignedByRouteNode(routeId, nodeId, detailAddress);
+        return addressRecognitionRecordRepository.totalAssignedByRouteNode(manufacturerMetaId, routeId, nodeId, detailAddress);
     }
 
     public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId, Integer order) {

@@ -9,6 +9,10 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class AddressRecognitionRecordListRequest extends PagedApiRequest {
     private String manufacturerMetaId;
+    private String routeId;
+    private String nodeId;
+    private String status;
+    private Boolean assigned;
     private String name;
     private String detailAddress;
 
