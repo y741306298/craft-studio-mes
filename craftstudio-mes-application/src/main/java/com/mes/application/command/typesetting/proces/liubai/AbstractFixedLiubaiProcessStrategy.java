@@ -66,6 +66,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private static final double LIUBAI_TAG_EDGE_SIZE_MM = 10D;
 
     /**
+     * 留白标签距离相邻边的安全距离，单位 mm。
+     */
+    private static final double LIUBAI_TAG_ADJACENT_EDGE_GAP_MM = 10D;
+
+    /**
      * 毫米与英寸换算常量。
      */
     private static final double MM_PER_INCH = 25.4D;
@@ -448,20 +453,31 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * 生成并上传留白边缘文字标签。
      *
      * <p>标签内容由订单项 ID 后五位（元素 A）、生产图文件名（元素 B）和加工流程（元素 C）拼接而成。</p>
-     * <p>横向标签会按上下边长度从左往右截取，竖向标签会先按左右边长度截取横向文本后再旋转。</p>
+     * <p>标签与相邻边保持 1cm 间距；横向标签会按上下边可用长度从左往右截取，竖向标签会先按左右边可用长度截取横向文本后再旋转。</p>
+     * <p>上边与右边标签朝向最外侧，避免文字方向朝向画面内部。</p>
      */
     private LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId, double horizontalMaxWidthMm, double verticalMaxHeightMm) {
         String tagText = buildLiubaiTagText(context);
         if (StringUtils.isBlank(tagText)) {
             return null;
         }
+        double horizontalAvailableWidthMm = availableLiubaiTagLength(horizontalMaxWidthMm);
+        double verticalAvailableHeightMm = availableLiubaiTagLength(verticalMaxHeightMm);
         LiubaiTagImage horizontal = createHorizontalLiubaiTagPng(tagText);
-        LiubaiTagImage croppedHorizontal = cropHorizontalLiubaiTagPng(horizontal, horizontalMaxWidthMm);
-        LiubaiTagImage vertical = createVerticalLiubaiTagPng(cropHorizontalLiubaiTagPng(horizontal, verticalMaxHeightMm).image);
+        LiubaiTagImage bottom = cropHorizontalLiubaiTagPng(horizontal, horizontalAvailableWidthMm);
+        LiubaiTagImage top = rotate180LiubaiTagPng(bottom);
+        LiubaiTagImage left = createVerticalLiubaiTagPng(cropHorizontalLiubaiTagPng(horizontal, verticalAvailableHeightMm).image);
+        LiubaiTagImage right = createOutwardRightLiubaiTagPng(cropHorizontalLiubaiTagPng(horizontal, verticalAvailableHeightMm).image);
         String uploadPath = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        String horizontalUrl = ossTagUploadService.uploadTagPng(productionPieceId, croppedHorizontal.bytes, uploadPath);
-        String verticalUrl = ossTagUploadService.uploadTagPng(productionPieceId, vertical.bytes, uploadPath);
-        return new LiubaiTagAssets(tagText, horizontalUrl, verticalUrl, croppedHorizontal.widthMm, croppedHorizontal.heightMm, vertical.widthMm, vertical.heightMm);
+        String topUrl = ossTagUploadService.uploadTagPng(productionPieceId, top.bytes, uploadPath);
+        String rightUrl = ossTagUploadService.uploadTagPng(productionPieceId, right.bytes, uploadPath);
+        String bottomUrl = ossTagUploadService.uploadTagPng(productionPieceId, bottom.bytes, uploadPath);
+        String leftUrl = ossTagUploadService.uploadTagPng(productionPieceId, left.bytes, uploadPath);
+        return new LiubaiTagAssets(tagText, topUrl, rightUrl, bottomUrl, leftUrl, top.widthMm, top.heightMm, right.widthMm, right.heightMm, bottom.widthMm, bottom.heightMm, left.widthMm, left.heightMm);
+    }
+
+    private double availableLiubaiTagLength(double edgeLengthMm) {
+        return Math.max(1D, edgeLengthMm - LIUBAI_TAG_ADJACENT_EDGE_GAP_MM * 2D);
     }
 
     private String buildLiubaiTagText(LiubaiProcessContext context) {
@@ -534,8 +550,18 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return new LiubaiTagImage(toPng(cropped), cropped, cropWidthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, image.heightMm);
     }
 
+    private LiubaiTagImage rotate180LiubaiTagPng(LiubaiTagImage image) {
+        BufferedImage rotated = rotate180(image.image);
+        return new LiubaiTagImage(toPng(rotated), rotated, image.widthMm, image.heightMm);
+    }
+
     private LiubaiTagImage createVerticalLiubaiTagPng(BufferedImage horizontalImage) {
         BufferedImage rotated = rotateClockwise90(horizontalImage);
+        return new LiubaiTagImage(toPng(rotated), rotated, LIUBAI_TAG_EDGE_SIZE_MM, rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
+    }
+
+    private LiubaiTagImage createOutwardRightLiubaiTagPng(BufferedImage horizontalImage) {
+        BufferedImage rotated = rotateCounterClockwise90(horizontalImage);
         return new LiubaiTagImage(toPng(rotated), rotated, LIUBAI_TAG_EDGE_SIZE_MM, rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
 
@@ -561,6 +587,26 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         for (int y = 0; y < src.getHeight(); y++) {
             for (int x = 0; x < src.getWidth(); x++) {
                 dst.setRGB(src.getHeight() - 1 - y, x, src.getRGB(x, y));
+            }
+        }
+        return dst;
+    }
+
+    private BufferedImage rotateCounterClockwise90(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getHeight(), src.getWidth(), BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < src.getHeight(); y++) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                dst.setRGB(y, src.getWidth() - 1 - x, src.getRGB(x, y));
+            }
+        }
+        return dst;
+    }
+
+    private BufferedImage rotate180(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < src.getHeight(); y++) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                dst.setRGB(src.getWidth() - 1 - x, src.getHeight() - 1 - y, src.getRGB(x, y));
             }
         }
         return dst;
@@ -1027,20 +1073,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
         StringBuilder builder = new StringBuilder();
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "top", left, top);
-        appendHorizontalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "bottom", left, bottom - tagAssets.horizontalHeightMm);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "left", left, top);
-        appendVerticalLiubaiTagGroup(builder, pieceMongoId, tagAssets, "right", right - tagAssets.verticalWidthMm, top);
+        double horizontalX = left + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
+        double verticalY = top + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
+        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
+        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
+        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
+        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
         return builder.toString();
     }
 
-    private void appendHorizontalLiubaiTagGroup(StringBuilder builder, String pieceMongoId, LiubaiTagAssets tagAssets, String suffix, double x, double y) {
-        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", suffix, tagAssets.horizontalUrl, tagAssets.horizontalWidthMm, tagAssets.horizontalHeightMm, x, y);
-    }
-
-    private void appendVerticalLiubaiTagGroup(StringBuilder builder, String pieceMongoId, LiubaiTagAssets tagAssets, String suffix, double x, double y) {
-        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", suffix, tagAssets.verticalUrl, tagAssets.verticalWidthMm, tagAssets.verticalHeightMm, x, y);
-    }
 
     private void appendLiubaiTagGroup(StringBuilder builder,
                                       String pieceMongoId,
@@ -1196,8 +1237,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             marks = new LinkedHashMap<>();
             piece.setMarks(marks);
         }
-        marks.put("liubai-tag-horizontal", tagAssets.horizontalUrl);
-        marks.put("liubai-tag-vertical", tagAssets.verticalUrl);
+        marks.put("liubai-tag-top", tagAssets.topUrl);
+        marks.put("liubai-tag-right", tagAssets.rightUrl);
+        marks.put("liubai-tag-bottom", tagAssets.bottomUrl);
+        marks.put("liubai-tag-left", tagAssets.leftUrl);
     }
 
     private static class LiubaiTagImage {
@@ -1216,21 +1259,35 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
     private static class LiubaiTagAssets {
         private final String text;
-        private final String horizontalUrl;
-        private final String verticalUrl;
-        private final double horizontalWidthMm;
-        private final double horizontalHeightMm;
-        private final double verticalWidthMm;
-        private final double verticalHeightMm;
+        private final String topUrl;
+        private final String rightUrl;
+        private final String bottomUrl;
+        private final String leftUrl;
+        private final double topWidthMm;
+        private final double topHeightMm;
+        private final double rightWidthMm;
+        private final double rightHeightMm;
+        private final double bottomWidthMm;
+        private final double bottomHeightMm;
+        private final double leftWidthMm;
+        private final double leftHeightMm;
 
-        private LiubaiTagAssets(String text, String horizontalUrl, String verticalUrl, double horizontalWidthMm, double horizontalHeightMm, double verticalWidthMm, double verticalHeightMm) {
+        private LiubaiTagAssets(String text, String topUrl, String rightUrl, String bottomUrl, String leftUrl,
+                                double topWidthMm, double topHeightMm, double rightWidthMm, double rightHeightMm,
+                                double bottomWidthMm, double bottomHeightMm, double leftWidthMm, double leftHeightMm) {
             this.text = text;
-            this.horizontalUrl = horizontalUrl;
-            this.verticalUrl = verticalUrl;
-            this.horizontalWidthMm = horizontalWidthMm;
-            this.horizontalHeightMm = horizontalHeightMm;
-            this.verticalWidthMm = verticalWidthMm;
-            this.verticalHeightMm = verticalHeightMm;
+            this.topUrl = topUrl;
+            this.rightUrl = rightUrl;
+            this.bottomUrl = bottomUrl;
+            this.leftUrl = leftUrl;
+            this.topWidthMm = topWidthMm;
+            this.topHeightMm = topHeightMm;
+            this.rightWidthMm = rightWidthMm;
+            this.rightHeightMm = rightHeightMm;
+            this.bottomWidthMm = bottomWidthMm;
+            this.bottomHeightMm = bottomHeightMm;
+            this.leftWidthMm = leftWidthMm;
+            this.leftHeightMm = leftHeightMm;
         }
     }
 
