@@ -47,9 +47,13 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
         return mongoTemplate.count(query, poClass());
     }
 
+
     @Override
-    public List<AddressRecognitionRecord> listAssignedByRouteNode(String routeId, String nodeId, String detailAddress, long current, int size) {
-        Query query = new SoftDeleteQuery(buildAssignedRouteNodeCriteria(routeId, nodeId, detailAddress));
+    public List<AddressRecognitionRecord> listAssignedByRoute(String routeId, long current, int size) {
+        Query query = new SoftDeleteQuery(
+                Criteria.where("status").is(AddressRecognitionRecordStatus.ASSIGNED.getValue())
+                        .and("routeId").is(routeId)
+        );
         query.with(Sort.by(Sort.Direction.DESC, "updateTime"));
         query.skip((current - 1) * size).limit(size);
         List<AddressRecognitionRecordPo> pos = mongoTemplate.find(query, poClass());
@@ -57,8 +61,17 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
     }
 
     @Override
-    public long totalAssignedByRouteNode(String routeId, String nodeId, String detailAddress) {
-        Query query = new SoftDeleteQuery(buildAssignedRouteNodeCriteria(routeId, nodeId, detailAddress));
+    public List<AddressRecognitionRecord> listAssignedByRouteNode(String manufacturerMetaId, String routeId, String nodeId, String detailAddress, long current, int size) {
+        Query query = new SoftDeleteQuery(buildAssignedRouteNodeCriteria(manufacturerMetaId, routeId, nodeId, detailAddress));
+        query.with(Sort.by(Sort.Direction.DESC, "updateTime"));
+        query.skip((current - 1) * size).limit(size);
+        List<AddressRecognitionRecordPo> pos = mongoTemplate.find(query, poClass());
+        return pos.stream().map(AddressRecognitionRecordPo::toDO).toList();
+    }
+
+    @Override
+    public long totalAssignedByRouteNode(String manufacturerMetaId, String routeId, String nodeId, String detailAddress) {
+        Query query = new SoftDeleteQuery(buildAssignedRouteNodeCriteria(manufacturerMetaId, routeId, nodeId, detailAddress));
         return mongoTemplate.count(query, poClass());
     }
 
@@ -83,10 +96,17 @@ public class AddressRecognitionRecordRepositoryImp extends BaseRepositoryImp<Add
         return criteria;
     }
 
-    private Criteria buildAssignedRouteNodeCriteria(String routeId, String nodeId, String detailAddress) {
-        Criteria criteria = Criteria.where("status").is(AddressRecognitionRecordStatus.ASSIGNED.getValue())
-                .and("routeId").is(routeId)
-                .and("nodeId").is(nodeId);
+    private Criteria buildAssignedRouteNodeCriteria(String manufacturerMetaId, String routeId, String nodeId, String detailAddress) {
+        Criteria criteria = Criteria.where("status").is(AddressRecognitionRecordStatus.ASSIGNED.getValue());
+        if (manufacturerMetaId != null && !manufacturerMetaId.trim().isEmpty()) {
+            criteria.and("manufacturerMetaId").is(manufacturerMetaId);
+        }
+        if (routeId != null && !routeId.trim().isEmpty()) {
+            criteria.and("routeId").is(routeId);
+        }
+        if (nodeId != null && !nodeId.trim().isEmpty()) {
+            criteria.and("nodeId").is(nodeId);
+        }
         addDetailAddressCriteria(criteria, detailAddress);
         return criteria;
     }

@@ -10,4 +10,6 @@ public interface DeliveryRouteNodeBindingRepository extends BaseRepository<Deliv
     List<DeliveryRouteNodeBinding> listByManufacturerAndTerminalRegion(String manufacturerMetaId, String terminalRegionCode);
 
     DeliveryRouteNodeBinding findByManufacturerAndAddress(String manufacturerMetaId, String terminalRegionCode, String detailAddress);
+
+    List<DeliveryRouteNodeBinding> listByRouteNodeIds(List<String> routeNodeIds);
 }

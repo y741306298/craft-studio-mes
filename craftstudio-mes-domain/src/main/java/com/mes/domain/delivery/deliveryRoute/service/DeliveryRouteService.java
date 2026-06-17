@@ -141,16 +141,26 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
+        List<String> removedSimpleNodeIds = List.of();
         if (deliveryRoute.getRouteNodes() != null) {
+            removedSimpleNodeIds = resolveRemovedSimpleRouteNodeIds(deliveryRoute.getId(), deliveryRoute.getRouteNodes());
             prepareRouteNodes(deliveryRoute.getRouteNodes());
         }
         List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
+        List<String> removedNodeIds = new ArrayList<>(removedSimpleNodeIds);
+        for (String removedRouteNodeId : resolveRemovedRouteNodeIds(deliveryRoute.getId(), routeNodes)) {
+            addIfNotBlank(removedNodeIds, removedRouteNodeId);
+        }
+        assertNoInProductionOrderBinding(deliveryRoute.getId(), removedNodeIds, "存在生产中的订单绑定了被减少的路线节点，不能删除节点");
+
         deliveryRoute.setDeliveryRouteNodes(null);
         deliveryRouteRepository.update(deliveryRoute);
         if (routeNodes != null) {
             deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
             saveRouteNodes(deliveryRoute.getId(), routeNodes);
         }
+        unbindAddressesByRouteNodes(deliveryRoute.getId(), removedNodeIds);
+        deleteRouteNodeBindings(removedNodeIds);
     }
 
     /**
@@ -163,8 +173,159 @@ public class DeliveryRouteService {
         
         DeliveryRoute deliveryRoute = deliveryRouteRepository.findById(id);
         if (deliveryRoute != null) {
+            List<DeliveryRouteNode> routeNodes = deliveryRouteNodeRepository.listByRouteId(deliveryRoute.getId());
+            List<String> routeNodeIds = collectRouteNodeIdentifiers(routeNodes);
+            assertNoInProductionOrderBinding(deliveryRoute.getId(), null, "存在生产中的订单绑定了该路线，不能删除路线");
             deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
             deliveryRouteRepository.delete(deliveryRoute);
+            unbindAddressesByRoute(deliveryRoute.getId());
+            deleteRouteNodeBindings(routeNodeIds);
+        }
+    }
+
+    private List<String> resolveRemovedSimpleRouteNodeIds(String routeId, List<RouteNode> newNodes) {
+        DeliveryRoute existingRoute = deliveryRouteRepository.findById(routeId);
+        if (existingRoute == null || existingRoute.getRouteNodes() == null || existingRoute.getRouteNodes().isEmpty()) {
+            return List.of();
+        }
+        Set<String> retainedNodeIds = new HashSet<>();
+        if (newNodes != null) {
+            for (RouteNode node : newNodes) {
+                if (node != null && StringUtils.isNotBlank(node.getId())) {
+                    retainedNodeIds.add(node.getId());
+                }
+            }
+        }
+        List<String> removedNodeIds = new ArrayList<>();
+        for (RouteNode node : existingRoute.getRouteNodes()) {
+            if (node != null && StringUtils.isNotBlank(node.getId()) && !retainedNodeIds.contains(node.getId())) {
+                removedNodeIds.add(node.getId());
+            }
+        }
+        return removedNodeIds;
+    }
+
+    private List<String> resolveRemovedRouteNodeIds(String routeId, List<DeliveryRouteNode> newNodes) {
+        if (newNodes == null) {
+            return List.of();
+        }
+        List<DeliveryRouteNode> existingNodes = deliveryRouteNodeRepository.listByRouteId(routeId);
+        if (existingNodes == null || existingNodes.isEmpty()) {
+            return List.of();
+        }
+        Set<String> retainedNodeIds = new HashSet<>();
+        for (DeliveryRouteNode node : newNodes) {
+            if (node == null) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(node.getId())) {
+                retainedNodeIds.add(node.getId());
+            }
+            if (StringUtils.isNotBlank(node.getRouteNodeId())) {
+                retainedNodeIds.add(node.getRouteNodeId());
+            }
+        }
+        List<String> removedNodeIds = new ArrayList<>();
+        for (DeliveryRouteNode node : existingNodes) {
+            if (node == null) {
+                continue;
+            }
+            boolean retained = StringUtils.isNotBlank(node.getId()) && retainedNodeIds.contains(node.getId())
+                    || StringUtils.isNotBlank(node.getRouteNodeId()) && retainedNodeIds.contains(node.getRouteNodeId());
+            if (!retained) {
+                addIfNotBlank(removedNodeIds, node.getId());
+                addIfNotBlank(removedNodeIds, node.getRouteNodeId());
+            }
+        }
+        return removedNodeIds;
+    }
+
+    private List<String> collectRouteNodeIdentifiers(List<DeliveryRouteNode> routeNodes) {
+        List<String> routeNodeIds = new ArrayList<>();
+        if (routeNodes == null) {
+            return routeNodeIds;
+        }
+        for (DeliveryRouteNode node : routeNodes) {
+            if (node == null) {
+                continue;
+            }
+            addIfNotBlank(routeNodeIds, node.getId());
+            addIfNotBlank(routeNodeIds, node.getRouteNodeId());
+        }
+        return routeNodeIds;
+    }
+
+    private void addIfNotBlank(List<String> values, String value) {
+        if (StringUtils.isNotBlank(value) && !values.contains(value)) {
+            values.add(value);
+        }
+    }
+
+    private void assertNoInProductionOrderBinding(String routeId, List<String> nodeIds, String message) {
+        if (hasInProductionOrderBinding(orderInfoRepository, routeId, nodeIds)
+                || hasInProductionOrderBinding(orderItemRepository, routeId, nodeIds)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, message);
+        }
+    }
+
+    private boolean hasInProductionOrderBinding(com.mes.domain.base.repository.BaseRepository<?> repository, String routeId, List<String> nodeIds) {
+        if (nodeIds != null && nodeIds.isEmpty()) {
+            return false;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+        filters.put("routeId", routeId);
+        if (nodeIds != null && !nodeIds.isEmpty()) {
+            filters.put("routeNodeId_in", nodeIds);
+        }
+        return repository.filterTotal(filters) > 0;
+    }
+
+    private void unbindAddressesByRoute(String routeId) {
+        long current = 1;
+        int size = 100;
+        while (true) {
+            List<AddressRecognitionRecord> records = addressRecognitionRecordRepository.listAssignedByRoute(routeId, current, size);
+            if (records == null || records.isEmpty()) {
+                break;
+            }
+            records.forEach(this::unbindAddressRecognitionRecord);
+            if (records.size() < size) {
+                break;
+            }
+        }
+    }
+
+    private void unbindAddressesByRouteNodes(String routeId, List<String> nodeIds) {
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            return;
+        }
+        for (String nodeId : nodeIds) {
+            long current = 1;
+            int size = 100;
+            while (true) {
+                List<AddressRecognitionRecord> records = addressRecognitionRecordRepository.listAssignedByRouteNode(null, routeId, nodeId, null, current, size);
+                if (records == null || records.isEmpty()) {
+                    break;
+                }
+                records.forEach(this::unbindAddressRecognitionRecord);
+                if (records.size() < size) {
+                    break;
+                }
+            }
+        }
+    }
+
+    private void deleteRouteNodeBindings(List<String> routeNodeIds) {
+        if (routeNodeIds == null || routeNodeIds.isEmpty()) {
+            return;
+        }
+        List<DeliveryRouteNodeBinding> bindings = deliveryRouteNodeBindingRepository.listByRouteNodeIds(routeNodeIds);
+        if (bindings == null || bindings.isEmpty()) {
+            return;
+        }
+        for (DeliveryRouteNodeBinding binding : bindings) {
+            deliveryRouteNodeBindingRepository.delete(binding);
         }
     }
 
@@ -280,8 +441,12 @@ public class DeliveryRouteService {
             if (removedNode == null) {
                 return;
             }
+            List<String> removedNodeIds = collectRouteNodeIdentifiers(List.of(removedNode));
+            assertNoInProductionOrderBinding(routeId, removedNodeIds, "存在生产中的订单绑定了该路线节点，不能删除节点");
             nodes.removeIf(node -> nodeId.equals(node.getId()));
             deliveryRouteNodeRepository.delete(removedNode);
+            unbindAddressesByRouteNodes(routeId, removedNodeIds);
+            deleteRouteNodeBindings(removedNodeIds);
 
             int order = 0;
             for (DeliveryRouteNode node : nodes) {
@@ -315,9 +480,9 @@ public class DeliveryRouteService {
         return addressRecognitionRecordRepository.totalByStatus(AddressRecognitionRecordStatus.UNASSIGNED.getValue(), manufacturerMetaId, detailAddress);
     }
 
-    public List<AddressRecognitionRecord> listAssignedAddressRecognitionRecords(String routeId, String nodeId, String detailAddress, long current, int size) {
-        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
+    public List<AddressRecognitionRecord> listAssignedAddressRecognitionRecords(String manufacturerMetaId, String routeId, String nodeId, String detailAddress, long current, int size) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
         }
         if (current <= 0) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "页码必须大于 0");
@@ -325,14 +490,14 @@ public class DeliveryRouteService {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
-        return addressRecognitionRecordRepository.listAssignedByRouteNode(routeId, nodeId, detailAddress, current, size);
+        return addressRecognitionRecordRepository.listAssignedByRouteNode(manufacturerMetaId, routeId, nodeId, detailAddress, current, size);
     }
 
-    public long countAssignedAddressRecognitionRecords(String routeId, String nodeId, String detailAddress) {
-        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
+    public long countAssignedAddressRecognitionRecords(String manufacturerMetaId, String routeId, String nodeId, String detailAddress) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId不能为空");
         }
-        return addressRecognitionRecordRepository.totalAssignedByRouteNode(routeId, nodeId, detailAddress);
+        return addressRecognitionRecordRepository.totalAssignedByRouteNode(manufacturerMetaId, routeId, nodeId, detailAddress);
     }
 
     public void bindAddressRecognitionRecords(List<String> recordIds, String routeId, String nodeId, Integer order) {
@@ -534,7 +699,23 @@ public class DeliveryRouteService {
         record.setOrder(null);
         record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
         addressRecognitionRecordRepository.update(record);
-        clearOrderRouteBinding(record.getOrderId());
+        clearAddressRecognitionRouteBinding(record);
+    }
+
+    private void clearAddressRecognitionRouteBinding(AddressRecognitionRecord record) {
+        if (record == null) {
+            return;
+        }
+
+        Set<String> orderIds = new HashSet<>();
+        if (StringUtils.isNotBlank(record.getOrderId())) {
+            orderIds.add(record.getOrderId());
+        }
+        orderIds.addAll(listProductionOrderIdsByAddress(record));
+
+        for (String orderId : orderIds) {
+            clearOrderRouteBinding(orderId);
+        }
     }
 
     private void clearOrderRouteBinding(String orderId) {
@@ -564,6 +745,7 @@ public class DeliveryRouteService {
             for (OrderItem orderItem : orderItems) {
                 orderItem.setRouteId(null);
                 orderItem.setRouteNodeId(null);
+                clearProductionPiecesRouteBinding(orderItem.getOrderItemId());
             }
             orderItemRepository.batchUpdate(orderItems);
             if (orderItems.size() < size) {
@@ -571,6 +753,10 @@ public class DeliveryRouteService {
             }
             current++;
         }
+    }
+
+    private void clearProductionPiecesRouteBinding(String orderItemId) {
+        syncProductionPiecesRouteBinding(orderItemId, null, null);
     }
 
     public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {
