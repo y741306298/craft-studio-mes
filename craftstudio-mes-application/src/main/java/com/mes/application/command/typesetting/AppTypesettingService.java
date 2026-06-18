@@ -636,7 +636,7 @@ public class AppTypesettingService {
     }
 
     private List<TypesettingLayoutSpecVO> listLayoutSpecsByMaterialId(String materialId, String rmfId) {
-        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMapByMaterialId(materialId, rmfId);
+        Map<String, MaterialDevelopedSizeResponse> developedSizeMap = findDevelopedSizeMapByMaterialIdOrEmpty(materialId, rmfId);
         if (CollectionUtils.isEmpty(developedSizeMap)) {
             return List.of(DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC);
         }
@@ -656,6 +656,23 @@ public class AppTypesettingService {
             return List.of(DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC);
         }
         return new ArrayList<>(layoutSpecMap.values());
+    }
+
+    private Map<String, MaterialDevelopedSizeResponse> findDevelopedSizeMapByMaterialIdOrEmpty(String materialId, String rmfId) {
+        try {
+            return productCoreApiService.findDevelopedSizeMapByMaterialId(materialId, rmfId);
+        } catch (RuntimeException e) {
+            if (isDevelopedSizeNotFoundException(e)) {
+                log.warn("材料展开尺寸不存在，使用默认排版规格，materialId={}, rmfId={}", materialId, rmfId, e);
+                return Collections.emptyMap();
+            }
+            throw e;
+        }
+    }
+
+    private boolean isDevelopedSizeNotFoundException(RuntimeException e) {
+        String message = e.getMessage();
+        return message != null && message.contains("获取材料展开尺寸失败") && message.contains("不存在");
     }
 
     /**
