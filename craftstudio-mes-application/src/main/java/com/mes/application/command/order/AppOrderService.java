@@ -177,6 +177,7 @@ public class AppOrderService {
             if (orderInfo != null) {
                 orderWithItemsVO.setCustomer(orderInfo.getCustomer());
                 orderWithItemsVO.setRemark(orderInfo.getRemark());
+                orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
             }
             result.add(orderWithItemsVO);
         }
