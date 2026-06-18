@@ -452,7 +452,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 生成并上传留白边缘文字标签。
      *
-     * <p>标签内容由订单项 ID 后五位（元素 A）、生产图文件名（元素 B）和加工流程（元素 C）拼接而成。</p>
+     * <p>标签内容由订单项 ID 后五位（元素 A）、生产图文件名（元素 B）、mtoProduct.materialConfig.usageSize3D 宽高尺寸和加工流程（元素 C）拼接而成。</p>
      * <p>标签与相邻边保持 1cm 间距；横向标签会按上下边可用长度从左往右截取，竖向标签会先按左右边可用长度截取横向文本后再旋转。</p>
      * <p>上边与右边标签朝向最外侧，避免文字方向朝向画面内部。</p>
      */
@@ -485,6 +485,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         List<String> elements = new ArrayList<>();
         addIfNotBlank(elements, resolveOrderItemIdSuffix(context));
         addIfNotBlank(elements, resolveProductionImgFileName(orderItem));
+        addIfNotBlank(elements, resolveMtoProductUsageSizeText(orderItem));
         addIfNotBlank(elements, orderItem == null ? null : orderItem.getProcessingFlow());
         return String.join(" ", elements);
     }
@@ -492,6 +493,40 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private void addIfNotBlank(List<String> values, String value) {
         if (StringUtils.isNotBlank(value)) {
             values.add(value.trim());
+        }
+    }
+
+    private String resolveMtoProductUsageSizeText(OrderItem orderItem) {
+        Object mtoProduct = orderItem == null ? null : orderItem.getMtoProduct();
+        Object materialConfig = invokeGetter(mtoProduct, "getMaterialConfig");
+        Object usageSize3D = invokeGetter(materialConfig, "getUsageSize3D");
+        Number width = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
+        Number height = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
+        if (width == null || height == null) {
+            return "";
+        }
+        return format(width.doubleValue()) + "*" + format(height.doubleValue());
+    }
+
+    private Number invokeNumberGetter(Object target, String... methodNames) {
+        for (String methodName : methodNames) {
+            Object value = invokeGetter(target, methodName);
+            if (value instanceof Number) {
+                return (Number) value;
+            }
+        }
+        return null;
+    }
+
+    private Object invokeGetter(Object target, String methodName) {
+        if (target == null || StringUtils.isBlank(methodName)) {
+            return null;
+        }
+        try {
+            Method getter = target.getClass().getMethod(methodName);
+            return getter.invoke(target);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
         }
     }
 
