@@ -125,6 +125,8 @@ public class AppTypesettingService {
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM = 28;
+    private static final TypesettingLayoutSpecVO DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC =
+            new TypesettingLayoutSpecVO("1200*50000", 1200, 50000);
     private static final List<TypesettingLayoutSpecVO> DEFAULT_LAYOUT_SPECS = List.of(
             new TypesettingLayoutSpecVO("900*2400", 900, 2400),
             new TypesettingLayoutSpecVO("1050*2400", 1050, 2400),
@@ -636,7 +638,7 @@ public class AppTypesettingService {
     private List<TypesettingLayoutSpecVO> listLayoutSpecsByMaterialId(String materialId, String rmfId) {
         Map<String, MaterialDevelopedSizeResponse> developedSizeMap = productCoreApiService.findDevelopedSizeMapByMaterialId(materialId, rmfId);
         if (CollectionUtils.isEmpty(developedSizeMap)) {
-            return Collections.emptyList();
+            return List.of(DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC);
         }
 
         Map<String, TypesettingLayoutSpecVO> layoutSpecMap = new LinkedHashMap<>();
@@ -650,6 +652,9 @@ public class AppTypesettingService {
             layoutSpecMap.putIfAbsent(name, new TypesettingLayoutSpecVO(name, width, height));
         }
 
+        if (layoutSpecMap.isEmpty()) {
+            return List.of(DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC);
+        }
         return new ArrayList<>(layoutSpecMap.values());
     }
 
@@ -1608,23 +1613,13 @@ public class AppTypesettingService {
     }
 
     /**
-     * 提取元素 A（typesetting 来源标识）。
+     * 提取元素 A（typesettingId 标识）。
      *
-     * <p>优先读取 typesettingCells 中 sourceType=typesetting 的 sourceId；
-     * 兜底 typesettingId，再兜底当前记录 id。
+     * <p>confirmLayout / confirmPrint 生成 elementF 标签时始终使用当前排版记录的
+     * 完整 typesettingId（镜像印版保留 -Mirror 后缀），缺失时再兜底当前记录 id。
      */
     private String extractElementA(TypesettingInfo typesettingInfo) {
-        if (typesettingInfo.getTypesettingCells() != null) {
-            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
-                if (cell == null) {
-                    continue;
-                }
-                if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId())) {
-                    return cell.getSourceId();
-                }
-            }
-        }
-        String typesettingId = normalizeMirrorTypesettingId(typesettingInfo.getTypesettingId());
+        String typesettingId = typesettingInfo.getTypesettingId();
         return StringUtils.isNotBlank(typesettingId) ? typesettingId : typesettingInfo.getId();
     }
 
