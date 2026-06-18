@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
+import java.util.regex.Pattern;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -215,10 +216,11 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                               .setLte(value);
             } else if (key.endsWith("_like")) {
                 String fieldName = key.substring(0, key.length() - 5);
+                String escapedValue = Pattern.quote(String.valueOf(value));
                 if (criteria == null) {
-                    criteria = Criteria.where(fieldName).regex(String.valueOf(value), "i");
+                    criteria = Criteria.where(fieldName).regex(escapedValue, "i");
                 } else {
-                    criteria.and(fieldName).regex(String.valueOf(value), "i");
+                    criteria.and(fieldName).regex(escapedValue, "i");
                 }
             } else if (key.endsWith("_in")) {
                 String fieldName = key.substring(0, key.length() - 3);
