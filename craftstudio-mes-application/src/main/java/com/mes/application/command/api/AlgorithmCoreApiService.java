@@ -45,6 +45,9 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.generateFormeUrl}")
     private String generateFormeUrl;
 
+    @Value("${external.api.generateGridNestedFilesUrl}")
+    private String generateGridNestedFilesUrl;
+
     /**
      * 同步调用算法服务
      * 请求发起方需一直等处理结束才释放连接
@@ -367,7 +370,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://craftstrid-nest-diczqdtwfj.cn-hangzhou.fcapp.run", "/generate_nested_files", request,
+        return callAlgorithmAsync(generateGridNestedFilesUrl, "", request,
                 request.getCallbackConfig().getCallbackUrl(), "generateGridNestedFilesAsync", NestingResponse.class);
     }
 

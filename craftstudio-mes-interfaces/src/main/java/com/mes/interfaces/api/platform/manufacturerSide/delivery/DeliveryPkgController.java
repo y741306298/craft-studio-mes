@@ -325,7 +325,7 @@ public class DeliveryPkgController {
         if (StringUtils.isBlank(deliveryPkg.getRouteId()) || StringUtils.isBlank(deliveryPkg.getRouteNodeId())) {
             return "未定义路线";
         }
-        DeliveryRoute deliveryRoute = deliveryRouteService.findByRouteId(deliveryPkg.getRouteId());
+        DeliveryRoute deliveryRoute = deliveryRouteService.findById(deliveryPkg.getRouteId());
         if (deliveryRoute == null) {
             return "未定义路线";
         }
