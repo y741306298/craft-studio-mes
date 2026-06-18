@@ -497,35 +497,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private String resolveMaterialUsageSizeText(OrderItem orderItem) {
-        Object usageSize3D = orderItem == null || orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
-        Number width = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
-        Number height = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
+        if (orderItem == null || orderItem.getMaterial() == null || orderItem.getMaterial().getUsageSize3D() == null) {
+            return "";
+        }
+        var usageSize3D = orderItem.getMaterial().getUsageSize3D();
+        Number width = usageSize3D.getWidth();
+        Number height = usageSize3D.getHeight();
         if (width == null || height == null) {
             return "";
         }
         return format(width.doubleValue()) + "*" + format(height.doubleValue());
-    }
-
-    private Number invokeNumberGetter(Object target, String... methodNames) {
-        for (String methodName : methodNames) {
-            Object value = invokeGetter(target, methodName);
-            if (value instanceof Number) {
-                return (Number) value;
-            }
-        }
-        return null;
-    }
-
-    private Object invokeGetter(Object target, String methodName) {
-        if (target == null || StringUtils.isBlank(methodName)) {
-            return null;
-        }
-        try {
-            Method getter = target.getClass().getMethod(methodName);
-            return getter.invoke(target);
-        } catch (ReflectiveOperationException ignored) {
-            return null;
-        }
     }
 
     private String resolveProductionImgFileName(OrderItem orderItem) {
