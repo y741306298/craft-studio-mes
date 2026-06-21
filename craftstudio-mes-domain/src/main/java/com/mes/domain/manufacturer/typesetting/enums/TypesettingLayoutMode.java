@@ -38,6 +38,37 @@ public enum TypesettingLayoutMode {
             2,
             true
     ),
+
+    /**
+     * 矩形排版（plt二维码）-圆形定位点：
+     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
+     */
+    RECT_TYPESETTING_PLT_QR_CIRCLE(
+            "rect_typesetting_plt_qr_circle",
+            "矩形排版（plt二维码）-圆形定位点",
+            "rect_typesetting",
+            true, true, true,
+            "plt_qr",
+            "xxx",
+            "circle",
+            0,
+            true
+    ),
+    /**
+     * 矩形排版（plt二维码）-十字定位点：
+     * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
+     */
+    RECT_TYPESETTING_PLT_QR_CROSS(
+            "rect_typesetting_plt_qr_cross",
+            "矩形排版（plt二维码）-十字定位点",
+            "rect_typesetting",
+            true, true, true,
+            "plt_qr",
+            "xxx",
+            "cross",
+            0,
+            true
+    ),
     /**
      * 双面对裱排版模式：
      * 需要 json/svg，不需要 plt；标签使用左右箭头，不生成二维码。

@@ -1108,6 +1108,9 @@ public class AppTypesettingService {
             case "vertical_typesetting":
                 nestingResponse = algorithmCoreApiService.generateVerticalNestedFilesAsync(nestingRequest);
                 break;
+            case "rect_typesetting":
+                nestingResponse = algorithmCoreApiService.generateRectNestedFilesAsync(nestingRequest);
+                break;
             default:
                 nestingResponse = algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
                 break;
@@ -2544,6 +2547,8 @@ public class AppTypesettingService {
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
                 || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS == layoutMode
+                || TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CIRCLE == layoutMode
+                || TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CROSS == layoutMode
                 || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode
                 || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CROSS == layoutMode;
     }
@@ -3847,6 +3852,8 @@ public class AppTypesettingService {
     private boolean isPrintingPlateLayoutMode(TypesettingLayoutMode layoutMode) {
         return layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS
+                || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CIRCLE
+                || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CROSS
                 || layoutMode == TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CROSS;
     }
