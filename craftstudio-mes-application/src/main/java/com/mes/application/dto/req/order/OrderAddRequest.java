@@ -5,6 +5,8 @@ import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -20,19 +22,42 @@ public class OrderAddRequest {
     private ConsigneeRequest consignee;
     private OrgInfo orgInfo;
     private Long id;
+    private String key;
+    private Date createTime;
+    private Date updateTime;
     private String state;
     private String note;
     private String platformCode;
+    private Long orgId;
+    private Long userId;
+    private String externalOrderId;
+    private String paymentState;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
+    private ManufacturerInfoRequest manufacturerInfo;
+    private OrderPriceInfo price;
 
 
     public OrderInfo toOrderInfo() {
         OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setId(key);
+        orderInfo.setCreateTime(createTime);
+        orderInfo.setUpdateTime(updateTime);
         orderInfo.setOrderId(String.valueOf(id));
         orderInfo.setCustomer(consignee.toOrderCustomer());
         orderInfo.setOrgInfo(orgInfo);
         orderInfo.setDeliveryAddress(consignee.getDetailAddress());
         orderInfo.setRemark(note);
         orderInfo.setPlatformCode(platformCode);
+        orderInfo.setPrice(price);
+        orderInfo.setOrgId(orgId);
+        orderInfo.setUserId(userId);
+        orderInfo.setExternalOrderId(externalOrderId);
+        orderInfo.setPaymentState(paymentState);
+        orderInfo.setLogisticsCarrierInfo(logisticsCarrierInfo);
+        if (manufacturerInfo != null) {
+            orderInfo.setManufacturerId(manufacturerInfo.getId());
+            orderInfo.setManufacturerName(manufacturerInfo.getName());
+        }
         orderInfo.setStatus(OrderStatus.PENDING);
         orderInfo.setExpectedDeliveryDate(new Date());
         return orderInfo;
@@ -42,14 +67,27 @@ public class OrderAddRequest {
         List<OrderItem> orderItems = new ArrayList<OrderItem>();
         for (OrderItemRequest orderItemRequest : this.orderItems) {
             OrderItem orderItem = new OrderItem();
+            orderItem.setId(orderItemRequest.getKey());
+            orderItem.setCreateTime(orderItemRequest.getCreateTime());
+            orderItem.setUpdateTime(orderItemRequest.getUpdateTime());
             orderItem.setOrderItemId(String.valueOf(orderItemRequest.getId()));
             orderItem.setMtoProduct(orderItemRequest.getMtoProductSpec());
-            orderItem.setManufacturerId(orderItemRequest.getSpecifyRmfInfo().getRmfId());
+            OrderItemRequest.SpecifyRmfInfo specifyRmfInfo = orderItemRequest.getSpecifyRmfInfo();
+            if (specifyRmfInfo == null && manufacturerInfo != null) {
+                specifyRmfInfo = new OrderItemRequest.SpecifyRmfInfo();
+                specifyRmfInfo.setRmfId(manufacturerInfo.getId());
+                specifyRmfInfo.setRmfName(manufacturerInfo.getName());
+            }
+            orderItem.setManufacturerId(specifyRmfInfo == null ? null : specifyRmfInfo.getRmfId());
             orderItem.setQuantity(orderItemRequest.getCount());
             orderItem.setStatus(OrderStatus.PENDING);
             orderItem.setIsUrgent(false);
-            orderItem.setLogisticsCarrierInfo(orderItemRequest.getLogisticsCarrierInfo());
-            orderItem.setKuaidiWay(orderItemRequest.getLogisticsCarrierInfo().getCarrierId());
+            LogisticsCarrierInfo itemLogisticsCarrierInfo = orderItemRequest.getLogisticsCarrierInfo() != null
+                    ? orderItemRequest.getLogisticsCarrierInfo()
+                    : logisticsCarrierInfo;
+            orderItem.setLogisticsCarrierInfo(itemLogisticsCarrierInfo);
+            orderItem.setKuaidiWay(itemLogisticsCarrierInfo == null ? null : itemLogisticsCarrierInfo.getCarrierId());
+            orderItem.setPrice(orderItemRequest.getPrice());
             orderItems.add(orderItem);
         }
         return orderItems;

@@ -162,14 +162,19 @@ public class OrderController {
      * @return 操作结果
      */
     @PostMapping("/add")
-    public ApiResponse<String> addOrderWithItems(@Valid @RequestBody OrderAddRequest request) {
+    public ApiResponse<String> addOrderWithItems(@RequestBody String requestBody) {
         logger.info("========== addOrderWithItems 入参开始 ==========");
-        logger.info("request: " + JSON.toJSONString(request));
+        logger.info("request: " + requestBody);
         logger.info("========== addOrderWithItems 入参结束 ==========");
 
-        // 调用应用服务添加订单
-        appOrderService.addOrderWithItems(request);
-        
+        if (JSON.isValidArray(requestBody)) {
+            List<OrderAddRequest> requests = JSON.parseArray(requestBody, OrderAddRequest.class);
+            appOrderService.addOrdersWithItems(requests);
+        } else {
+            OrderAddRequest request = JSON.parseObject(requestBody, OrderAddRequest.class);
+            appOrderService.addOrderWithItems(request);
+        }
+
         return ApiResponse.success("success");
     }
 

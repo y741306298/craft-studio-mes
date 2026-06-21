@@ -323,6 +323,22 @@ public class AppOrderService {
     }
 
     /**
+     * 批量添加订单及订单项。
+     *
+     * @return 添加后的订单信息列表
+     */
+    public List<OrderInfo> addOrdersWithItems(List<OrderAddRequest> requests) {
+        List<OrderInfo> orderInfos = new ArrayList<>();
+        if (requests == null) {
+            return orderInfos;
+        }
+        for (OrderAddRequest request : requests) {
+            orderInfos.add(addOrderWithItems(request));
+        }
+        return orderInfos;
+    }
+
+    /**
      * 重新处理订单项：删除该订单项已生成的所有生产工件，并重新提交预处理任务。
      *
      * @param orderItemId 订单项业务 ID
