@@ -7,6 +7,7 @@ import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
+import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -27,5 +28,13 @@ public class OrderInfo extends BaseEntity {
     private String routeId;
     private String routeNodeId;
     private OrgInfo orgInfo;
+    private OrderPriceInfo price;
+    private Long orgId;
+    private Long userId;
+    private String externalOrderId;
+    private String paymentState;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
+    private String manufacturerId;
+    private String manufacturerName;
 
 }

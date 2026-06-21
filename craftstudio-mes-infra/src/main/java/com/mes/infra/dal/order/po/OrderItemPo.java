@@ -4,6 +4,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.mes.infra.base.BasePO;
@@ -36,6 +37,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String kuaidiNum;
     private String routeId;
     private String routeNodeId;
+    private OrderItemPriceInfo price;
 
     @Override
     public OrderItem toDO() {
@@ -65,6 +67,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setKuaidiNum(this.kuaidiNum);
         orderItem.setRouteId(this.routeId);
         orderItem.setRouteNodeId(this.routeNodeId);
+        orderItem.setPrice(this.price);
 
         return orderItem;
     }
@@ -90,6 +93,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.kuaidiNum = _do.getKuaidiNum();
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
+        this.price = _do.getPrice();
         return this;
     }
 }

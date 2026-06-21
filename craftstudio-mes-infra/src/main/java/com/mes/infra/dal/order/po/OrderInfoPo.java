@@ -5,6 +5,7 @@ import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
+import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.mes.infra.base.BasePO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -24,6 +25,14 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private String routeId;
     private String routeNodeId;
     private OrgInfo orgInfo;
+    private OrderPriceInfo price;
+    private Long orgId;
+    private Long userId;
+    private String externalOrderId;
+    private String paymentState;
+    private LogisticsCarrierInfo logisticsCarrierInfo;
+    private String manufacturerId;
+    private String manufacturerName;
 
     @Override
     public OrderInfo toDO() {
@@ -40,6 +49,14 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setRouteId(this.routeId);
         orderInfo.setRouteNodeId(this.routeNodeId);
         orderInfo.setOrgInfo(this.orgInfo);
+        orderInfo.setPrice(this.price);
+        orderInfo.setOrgId(this.orgId);
+        orderInfo.setUserId(this.userId);
+        orderInfo.setExternalOrderId(this.externalOrderId);
+        orderInfo.setPaymentState(this.paymentState);
+        orderInfo.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
+        orderInfo.setManufacturerId(this.manufacturerId);
+        orderInfo.setManufacturerName(this.manufacturerName);
         if (this.status != null) {
             orderInfo.setStatus(OrderStatus.getByCode(this.status));
         }
@@ -57,6 +74,14 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
         this.orgInfo = _do.getOrgInfo();
+        this.price = _do.getPrice();
+        this.orgId = _do.getOrgId();
+        this.userId = _do.getUserId();
+        this.externalOrderId = _do.getExternalOrderId();
+        this.paymentState = _do.getPaymentState();
+        this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
+        this.manufacturerId = _do.getManufacturerId();
+        this.manufacturerName = _do.getManufacturerName();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }
