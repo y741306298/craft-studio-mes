@@ -158,7 +158,6 @@ public class OrderController {
 
     /**
      * 新增订单及订单项
-     * @param request 新增请求参数
      * @return 操作结果
      */
     @PostMapping("/add")
