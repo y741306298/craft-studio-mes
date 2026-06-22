@@ -517,15 +517,27 @@ public class OrderInfoService {
      * @return 添加后的订单信息
      */
     public List<OrderItem> addOrderWithItems(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         matchOrCreateAddressRecognitionRecord(orderInfo, orderItems);
 
         // 为每个订单项生成唯一的 orderItemId 并完善 procedureFlow 数据
+        List<OrderItem> itemsToAdd = new ArrayList<>();
+        Set<String> newItemKeys = new HashSet<>();
         for (OrderItem item : orderItems) {
+            if (item == null) {
+                continue;
+            }
             if (StringUtils.isBlank(item.getOrderItemId())) {
                 String orderItemId = IdGenerator.generateOrderItemId();
                 item.setOrderItemId(orderItemId);
             }
             item.setOrderId(orderInfo.getOrderId());
+            if (isDuplicateOrderItem(orderInfo, item, newItemKeys)) {
+                continue;
+            }
 
             // 从 mtoProduct 中获取 processFlow 并转换为 procedureFlow
             String processFlow = "";
@@ -564,16 +576,62 @@ public class OrderInfoService {
                 item.setMaterial(materialConfigFromMTOProduct);
             }
             item.setProcessingFlow(processFlow);
+            itemsToAdd.add(item);
+        }
+
+        if (itemsToAdd.isEmpty()) {
+            return new ArrayList<>();
         }
 
         // 先添加订单主表
-        OrderInfo savedOrder = orderInfoRepository.add(orderInfo);
+        if (!existsOrder(orderInfo)) {
+            orderInfoRepository.add(orderInfo);
+        }
 
         // 批量添加订单项，并获取带有ID的结果
-        Collection<OrderItem> savedOrderItemsCollection = orderItemRepository.batchAdd(orderItems);
+        Collection<OrderItem> savedOrderItemsCollection = orderItemRepository.batchAdd(itemsToAdd);
         List<OrderItem> orderItemsResult = new ArrayList<>(savedOrderItemsCollection);
 
         return orderItemsResult;
+    }
+
+    private boolean isDuplicateOrderItem(OrderInfo orderInfo, OrderItem item, Set<String> newItemKeys) {
+        String orderId = item.getOrderId();
+        String orderItemId = item.getOrderItemId();
+        String manufacturerMetaId = resolveOrderItemManufacturerMetaId(orderInfo, item);
+        if (StringUtils.isBlank(orderId) || StringUtils.isBlank(orderItemId) || StringUtils.isBlank(manufacturerMetaId)) {
+            return false;
+        }
+
+        String itemKey = orderId + "|" + orderItemId + "|" + manufacturerMetaId;
+        if (!newItemKeys.add(itemKey)) {
+            return true;
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orderId", orderId);
+        filters.put("orderItemId", orderItemId);
+        filters.put("manufacturerId", manufacturerMetaId);
+        return orderItemRepository.filterTotal(filters) > 0;
+    }
+
+    private String resolveOrderItemManufacturerMetaId(OrderInfo orderInfo, OrderItem item) {
+        if (item != null && StringUtils.isNotBlank(item.getManufacturerId())) {
+            return item.getManufacturerId();
+        }
+        return orderInfo != null ? orderInfo.getManufacturerId() : null;
+    }
+
+    private boolean existsOrder(OrderInfo orderInfo) {
+        if (orderInfo == null || StringUtils.isBlank(orderInfo.getOrderId())) {
+            return false;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orderId", orderInfo.getOrderId());
+        if (StringUtils.isNotBlank(orderInfo.getManufacturerId())) {
+            filters.put("manufacturerId", orderInfo.getManufacturerId());
+        }
+        return orderInfoRepository.filterTotal(filters) > 0;
     }
 
 
