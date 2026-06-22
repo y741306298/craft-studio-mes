@@ -6,7 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -20,29 +20,60 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
-@ConditionalOnProperty(prefix = "mes.request-log", name = "enabled", havingValue = "true")
 public class RequestParameterLoggingFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RequestParameterLoggingFilter.class);
     private static final int REQUEST_CACHE_LIMIT = 1024 * 1024;
+    private static final String TYPESETTING_CALLBACK_PATH = "/api/manufacturerSide/typesetting/callback/";
+
+    @Value("${mes.request-log.enabled:false}")
+    private boolean requestLogEnabled;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !requestLogEnabled && !isTypesettingCallbackRequest(request);
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         ContentCachingRequestWrapper wrappedRequest = request instanceof ContentCachingRequestWrapper
                 ? (ContentCachingRequestWrapper) request
                 : new ContentCachingRequestWrapper(request, REQUEST_CACHE_LIMIT);
-
-        filterChain.doFilter(wrappedRequest, response);
-
+        Exception filterException = null;
         try {
-            log.info("HTTP请求入参 => method={}, uri={}, query={}, params={}, body={}",
-                    wrappedRequest.getMethod(),
-                    wrappedRequest.getRequestURI(),
-                    wrappedRequest.getQueryString(),
-                    buildParamLog(wrappedRequest.getParameterMap()),
-                    buildBodyLog(wrappedRequest));
+            filterChain.doFilter(wrappedRequest, response);
+        } catch (ServletException | IOException | RuntimeException ex) {
+            filterException = ex;
+            throw ex;
+        } finally {
+            logRequest(wrappedRequest, response, filterException);
+        }
+    }
+
+    private boolean isTypesettingCallbackRequest(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        return requestUri != null && requestUri.startsWith(TYPESETTING_CALLBACK_PATH);
+    }
+
+    private void logRequest(ContentCachingRequestWrapper request,
+                            HttpServletResponse response,
+                            Exception filterException) {
+        try {
+            String logPrefix = isTypesettingCallbackRequest(request) ? "排版callback原始请求" : "HTTP请求入参";
+            log.info("{} => method={}, uri={}, query={}, status={}, contentType={}, remoteAddr={}, params={}, body={}, exception={}",
+                    logPrefix,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    request.getQueryString(),
+                    response.getStatus(),
+                    request.getContentType(),
+                    request.getRemoteAddr(),
+                    buildParamLog(request.getParameterMap()),
+                    buildBodyLog(request),
+                    filterException == null ? "" : filterException.getMessage());
         } catch (Exception e) {
-            log.warn("记录HTTP请求入参日志失败: method={}, uri={}", wrappedRequest.getMethod(), wrappedRequest.getRequestURI(), e);
+            log.warn("记录HTTP请求入参日志失败: method={}, uri={}", request.getMethod(), request.getRequestURI(), e);
         }
     }
 
