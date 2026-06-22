@@ -3,6 +3,7 @@ package com.mes.application.dto.req.delivery;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 public class DeliveryPkgScopedRequest {
@@ -17,5 +18,6 @@ public class DeliveryPkgScopedRequest {
     private String carrierName;
     private String materialName;
     private String processName;
+    private List<String> processNames;
     private Double width;
 }

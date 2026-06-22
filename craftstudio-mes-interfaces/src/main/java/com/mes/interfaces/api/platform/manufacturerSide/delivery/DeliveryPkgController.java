@@ -81,7 +81,7 @@ public class DeliveryPkgController {
      * 查询待打包零件全量列表
      */
     @PostMapping("/list")
-    public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPieces(@RequestBody DeliveryPkgRequest request) {
+    public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPiecesByPkg(@RequestBody DeliveryPkgRequest request) {
         List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                 items,

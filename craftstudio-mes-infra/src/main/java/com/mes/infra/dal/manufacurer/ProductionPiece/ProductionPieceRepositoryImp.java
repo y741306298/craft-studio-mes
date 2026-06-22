@@ -77,7 +77,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     }
 
     @Override
-    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width, String routeId) {
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<String> processNames, Double width, String routeId) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
@@ -87,8 +87,13 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         if (materialName != null && !materialName.isBlank()) {
             criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName));
         }
-        if (processName != null && !processName.isBlank()) {
-            criteriaList.add(Criteria.where("procedureFlow.nodes.nodeName").is(processName));
+        List<String> normalizedProcessNames = processNames == null ? List.of() : processNames.stream()
+                .filter(processName -> processName != null && !processName.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (!normalizedProcessNames.isEmpty()) {
+            criteriaList.add(Criteria.where("procedureFlow.nodes.nodeName").all(normalizedProcessNames));
         }
         if (width != null) {
             criteriaList.add(Criteria.where("width").is(width));
