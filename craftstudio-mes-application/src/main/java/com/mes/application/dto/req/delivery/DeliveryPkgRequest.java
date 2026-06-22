@@ -11,6 +11,7 @@ public class DeliveryPkgRequest {
 
     private List<ProductionPiece> productionPieces;
     private String orderId;
+    private String orderItemId;
     private String carrierId;//快递id
     private String deliveryManId;
     private String deliverySiidId;
