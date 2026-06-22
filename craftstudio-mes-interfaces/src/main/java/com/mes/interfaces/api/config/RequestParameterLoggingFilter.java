@@ -1,7 +1,10 @@
 package com.mes.interfaces.api.config;
 
+import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -9,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 
 import java.io.IOException;
@@ -20,7 +22,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
-public class RequestParameterLoggingFilter extends OncePerRequestFilter {
+public class RequestParameterLoggingFilter implements Filter {
 
     private static final Logger log = LoggerFactory.getLogger(RequestParameterLoggingFilter.class);
     private static final int REQUEST_CACHE_LIMIT = 1024 * 1024;
@@ -30,16 +32,20 @@ public class RequestParameterLoggingFilter extends OncePerRequestFilter {
     private boolean requestLogEnabled;
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !requestLogEnabled && !isTypesettingCallbackRequest(request);
-    }
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
+            throws IOException, ServletException {
+        if (!(request instanceof HttpServletRequest httpRequest) || !(response instanceof HttpServletResponse httpResponse)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if (!requestLogEnabled && !isTypesettingCallbackRequest(httpRequest)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
-        ContentCachingRequestWrapper wrappedRequest = request instanceof ContentCachingRequestWrapper
-                ? (ContentCachingRequestWrapper) request
-                : new ContentCachingRequestWrapper(request, REQUEST_CACHE_LIMIT);
+        ContentCachingRequestWrapper wrappedRequest = httpRequest instanceof ContentCachingRequestWrapper
+                ? (ContentCachingRequestWrapper) httpRequest
+                : new ContentCachingRequestWrapper(httpRequest, REQUEST_CACHE_LIMIT);
         Exception filterException = null;
         try {
             filterChain.doFilter(wrappedRequest, response);
@@ -47,7 +53,7 @@ public class RequestParameterLoggingFilter extends OncePerRequestFilter {
             filterException = ex;
             throw ex;
         } finally {
-            logRequest(wrappedRequest, response, filterException);
+            logRequest(wrappedRequest, httpResponse, filterException);
         }
     }
 
