@@ -24,6 +24,7 @@ public class DeliveryPkgRequest {
     private String carrierName;
     private String materialName;
     private String processName;
+    private List<String> processNames;
     private Double width;
     private String routeId;
 

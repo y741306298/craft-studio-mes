@@ -107,7 +107,7 @@ public class AppDeliveryPkgService {
         List<ProductionPiece> productionPieces = productionPieceService.listPendingPackagingPiecesByConditions(
                 manufacturerMetaId,
                 request.getMaterialName(),
-                request.getProcessName(),
+                resolveProcessNames(request.getProcessNames(), request.getProcessName()),
                 request.getWidth(),
                 request.getRouteId());
 
@@ -210,7 +210,7 @@ public class AppDeliveryPkgService {
                 request.getManufacturerMetaId(),
                 null,
                 request.getMaterialName(),
-                request.getProcessName(),
+                null,
                 orderItemId,
                 null,
                 null,
@@ -234,7 +234,35 @@ public class AppDeliveryPkgService {
         boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
         boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
         boolean matchWidth = request.getWidth() == null || Objects.equals(item.getWidth(), request.getWidth());
-        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth;
+        boolean matchProcesses = matchesAllProcessNames(item, resolveProcessNames(request.getProcessNames(), request.getProcessName()));
+        return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth && matchProcesses;
+    }
+
+    private List<String> resolveProcessNames(List<String> processNames, String processName) {
+        List<String> resolved = processNames == null ? new ArrayList<>() : processNames.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toList());
+        if (resolved.isEmpty() && StringUtils.isNotBlank(processName)) {
+            resolved.add(processName.trim());
+        }
+        return resolved;
+    }
+
+    private boolean matchesAllProcessNames(DeliveryPkgPieceVO item, List<String> processNames) {
+        if (processNames == null || processNames.isEmpty()) {
+            return true;
+        }
+        if (item == null || item.getProcedureFlow() == null || item.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        java.util.Set<String> itemProcessNames = item.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        return itemProcessNames.containsAll(processNames);
     }
 
 

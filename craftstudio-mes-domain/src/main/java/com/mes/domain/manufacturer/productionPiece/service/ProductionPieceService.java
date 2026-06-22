@@ -133,8 +133,8 @@ public class ProductionPieceService {
         );
     }
 
-    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, String processName, Double width, String routeId) {
-        return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processName, width, routeId);
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<String> processNames, Double width, String routeId) {
+        return productionPieceRepository.listPendingPackagingPiecesByConditions(manufacturerId, materialName, processNames, width, routeId);
     }
 
     /**
