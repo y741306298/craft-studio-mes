@@ -2,8 +2,8 @@ package com.mes.application.command.productionPiece;
 
 import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceRequest;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
@@ -142,6 +142,7 @@ public class AppProductionPieceService {
 
         int currentPieceQuantity = piece.getQuantity() == null ? 0 : piece.getQuantity();
         piece.setQuantity(currentPieceQuantity + increaseQuantity);
+        piece.setIsUrgent(true);
 
         domainProductionPieceService.updateProductionPieceByProductionPieceId(productionPieceId, piece);
         return piece;
@@ -165,4 +166,5 @@ public class AppProductionPieceService {
                 .filter(Objects::nonNull)
                 .toList();
     }
+
 }

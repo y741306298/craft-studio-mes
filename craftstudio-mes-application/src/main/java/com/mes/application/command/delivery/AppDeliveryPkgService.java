@@ -122,6 +122,8 @@ public class AppDeliveryPkgService {
         return items.stream().filter(item -> {
             boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
                     || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
+            boolean matchOrderItemId = StringUtils.isBlank(request.getOrderItemId())
+                    || (StringUtils.isNotBlank(item.getOrderItemId()) && item.getOrderItemId().contains(request.getOrderItemId()));
             boolean matchCustomerName = StringUtils.isBlank(request.getCustomerName())
                     || (item.getOrderCustomer() != null && StringUtils.isNotBlank(item.getOrderCustomer().getCustomerName())
                     && item.getOrderCustomer().getCustomerName().contains(request.getCustomerName()));
@@ -133,7 +135,7 @@ public class AppDeliveryPkgService {
                     && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
-            return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
+            return matchOrderId && matchOrderItemId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
         }).sorted(Comparator
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
@@ -696,8 +698,16 @@ public class AppDeliveryPkgService {
             }
 
             for (ProductionPiece piece : orderItemPieces) {
+                boolean changed = false;
                 if (!TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
                     piece.setStatus(TypesettingStatus.COMPLETED.getCode());
+                    changed = true;
+                }
+                if (Boolean.TRUE.equals(piece.getIsUrgent())) {
+                    piece.setIsUrgent(false);
+                    changed = true;
+                }
+                if (changed) {
                     productionPieceService.updateProductionPiece(piece);
                 }
             }
@@ -709,9 +719,19 @@ public class AppDeliveryPkgService {
             }
 
             OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
-            if (orderItem != null && orderItem.getStatus() != OrderStatus.PACKAGED) {
-                orderItem.setStatus(OrderStatus.PACKAGED);
-                orderItemService.updateOrderItem(orderItem);
+            if (orderItem != null) {
+                boolean changed = false;
+                if (orderItem.getStatus() != OrderStatus.PACKAGED) {
+                    orderItem.setStatus(OrderStatus.PACKAGED);
+                    changed = true;
+                }
+                if (Boolean.TRUE.equals(orderItem.getIsUrgent())) {
+                    orderItem.setIsUrgent(false);
+                    changed = true;
+                }
+                if (changed) {
+                    orderItemService.updateOrderItem(orderItem);
+                }
             }
         }
     }
