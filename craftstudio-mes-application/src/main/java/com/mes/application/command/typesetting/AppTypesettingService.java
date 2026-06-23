@@ -3728,7 +3728,7 @@ public class AppTypesettingService {
                 String sourceId = entry.getKey();
                 TypesettingProductionPieceVO matchedCell = null;
                 for (TypesettingProductionPieceVO cell : sourceCells) {
-                    if (cell != null && sourceId.equals(cell.getId())) {
+                    if (matchesSourceCellId(sourceId, cell)) {
                         matchedCell = cell;
                         break;
                     }
@@ -3756,6 +3756,31 @@ public class AppTypesettingService {
                 }
             }
         }
+    }
+
+    /**
+     * 判断 nestedSvg 中解析到的元素 ID 是否对应本次缓存的来源 cell。
+     *
+     * <p>带 marks 的生产工件提交给算法时，外层元素 ID 会被改写为
+     * {@code marked-nesting-{productionPieceId}}，避免和预处理 SVG 内部原始 ID 重复。
+     * callback 解析 nestedSvg 回填 cells 时需要把该特殊 ID 还原成原来源 cell，否则生成的印版会丢失
+     * typesettingCells。</p>
+     */
+    private boolean matchesSourceCellId(String nestedElementId, TypesettingProductionPieceVO cell) {
+        if (StringUtils.isBlank(nestedElementId) || cell == null) {
+            return false;
+        }
+        if (Objects.equals(nestedElementId, cell.getId())
+                || Objects.equals(nestedElementId, cell.getSourceId())) {
+            return true;
+        }
+        String markedPrefix = "marked-nesting-";
+        if (nestedElementId.startsWith(markedPrefix)) {
+            String originalId = nestedElementId.substring(markedPrefix.length());
+            return Objects.equals(originalId, cell.getId())
+                    || Objects.equals(originalId, cell.getSourceId());
+        }
+        return false;
     }
 
     private Path downloadNestedSvgToTempFile(String nestedSvg) {
