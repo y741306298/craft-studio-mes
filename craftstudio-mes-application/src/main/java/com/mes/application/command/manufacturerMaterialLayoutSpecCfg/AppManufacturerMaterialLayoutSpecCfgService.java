@@ -53,6 +53,12 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
         return cfgService.findById(id);
     }
 
+    /**
+     * 校验工厂绑定配置。
+     * <p>
+     * 该配置只保存工厂和材料排版规格的关联关系，具体材料快照、尺寸和阶梯数据由
+     * MaterialLayoutSpec 维护，因此这里需要额外校验 materialLayoutSpecId 指向的规格存在。
+     */
     private void validate(ManufacturerMaterialLayoutSpecCfg cfg) {
         if (cfg == null) {
             throw new IllegalArgumentException("工厂材料排版规格配置不能为空");

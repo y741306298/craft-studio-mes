@@ -52,6 +52,12 @@ public class AppMaterialLayoutSpecService {
         return materialLayoutSpecService.findById(id);
     }
 
+    /**
+     * 校验材料排版规格。
+     * <p>
+     * 材料规格是公共配置，重点保证 materialId 存在，以及 1m 到 10m 的阶梯配置完整，
+     * 避免排版计算时因为某个长度区间缺失内缩值而无法匹配规则。
+     */
     private void validate(MaterialLayoutSpec spec) {
         if (spec == null) {
             throw new IllegalArgumentException("材料排版规格不能为空");
@@ -62,6 +68,7 @@ public class AppMaterialLayoutSpecService {
         if (spec.getInsetSteps() == null || spec.getInsetSteps().isEmpty()) {
             throw new IllegalArgumentException("阶梯数据不能为空");
         }
+        // 只接受 1m 到 10m 的阶梯上限，并按 maxLengthMeter 去重统计。
         long validStepCount = spec.getInsetSteps().stream()
                 .filter(Objects::nonNull)
                 .map(MaterialLayoutSpecStep::getMaxLengthMeter)
