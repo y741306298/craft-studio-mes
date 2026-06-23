@@ -18,6 +18,8 @@ import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.proces.buckle.FourCornerBuckleProcessService;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
+import com.mes.application.command.typesetting.proces.material.MaterialProcessContext;
+import com.mes.application.command.typesetting.proces.material.MaterialProcessService;
 import com.mes.application.command.typesetting.proces.splice.SuperWidthSpliceProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -125,6 +127,12 @@ public class AppOrderPreprocessingService {
      */
     @Autowired
     private LiubaiProcessService liubaiProcessService;
+
+    /**
+     * 特殊材料预处理服务。
+     */
+    @Autowired
+    private MaterialProcessService materialProcessService;
 
     /**
      * 打扣预处理服务。
@@ -1058,15 +1066,41 @@ public class AppOrderPreprocessingService {
      * @param skipBloodEdges 是否根据 piece.blood 跳过出血边外扩；直接路线传 false，callback 路线传 true
      */
     public void applyLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
-        if (liubaiProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+        if (orderItem == null || procedureFlow == null || piece == null) {
             return;
         }
-        LiubaiProcessContext context = new LiubaiProcessContext();
+        if (liubaiProcessService != null) {
+            LiubaiProcessContext context = new LiubaiProcessContext();
+            context.setOrderItem(orderItem);
+            context.setProcedureFlow(procedureFlow);
+            context.setProductionPiece(piece);
+            context.setSkipBloodEdges(skipBloodEdges);
+            liubaiProcessService.process(context);
+        }
+        applyMaterialProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
+    }
+
+    /**
+     * 执行订单预处理阶段的特殊材料处理。
+     *
+     * <p>特殊材料策略复用留白外扩与打标能力，但由材料名称触发，当前用于“3P布/软膜”这类
+     * 需要默认四周留白 1cm 的材料。</p>
+     *
+     * @param orderItem 当前订单项，用于策略读取材料名称、上传路径、业务 ID 与工艺上下文
+     * @param procedureFlow 已解析工艺流程，用于排除异形切割和显式留白工艺
+     * @param piece 当前生产工件，策略会回写 maskImageFile、marks 与宽高
+     * @param skipBloodEdges 是否根据 piece.blood 跳过出血边外扩；直接路线传 false，callback 路线传 true
+     */
+    public void applyMaterialProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
+        if (materialProcessService == null || orderItem == null || procedureFlow == null || piece == null) {
+            return;
+        }
+        MaterialProcessContext context = new MaterialProcessContext();
         context.setOrderItem(orderItem);
         context.setProcedureFlow(procedureFlow);
         context.setProductionPiece(piece);
         context.setSkipBloodEdges(skipBloodEdges);
-        liubaiProcessService.process(context);
+        materialProcessService.process(context);
     }
 
 
