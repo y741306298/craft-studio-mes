@@ -83,7 +83,7 @@ public class OrderPreprocessTaskQueue {
 
     private void handleTask(OrderPreprocessTask task) {
         try {
-            List<OrderItem> readyOrderItems = appOrderPreprocessingService.submitMaskGrayImgToSvgIfNecessary(task.getOrderItems());
+            List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(task.getOrderItems());
             appOrderPreprocessingService.preprocessOrder(readyOrderItems);
         } catch (Exception ex) {
             int nextRetry = task.getRetryCount() + 1;
