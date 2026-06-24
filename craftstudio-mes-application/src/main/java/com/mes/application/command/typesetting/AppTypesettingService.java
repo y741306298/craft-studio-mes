@@ -1070,16 +1070,9 @@ public class AppTypesettingService {
         if (CollectionUtils.isEmpty(lockKeys) || StringUtils.isBlank(token)) {
             return;
         }
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            List<String> keysToRelease = new ArrayList<>(lockKeys);
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    releaseOperationLocksImmediately(keysToRelease, token);
-                }
-            });
-            return;
-        }
+        // 当前 MongoDB 部署为 standalone，不支持 Spring Mongo 事务；这里不注册事务同步，
+        // 避免触发 “Transaction numbers are only allowed on a replica set member or mongos”。
+        // 方法内数据库写入完成后再进入 finally 释放锁，仍可保证同一来源/同一排版记录的并发请求串行执行。
         releaseOperationLocksImmediately(lockKeys, token);
     }
 
