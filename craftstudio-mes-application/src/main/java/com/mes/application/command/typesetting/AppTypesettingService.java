@@ -116,6 +116,8 @@ import java.util.Comparator;
 public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
+    private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
+    private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
@@ -1004,10 +1006,114 @@ public class AppTypesettingService {
     }
 
     /**
+     * 并发备注：
+     * toLayout 会扣减来源零件的“待排版”数量或来源印版的剩余数量。
+     * 同一个来源对象同一时间只允许一个请求进入，避免两个人同时排版同一个零件/印版导致重复扣减或重复提交算法任务。
+     */
+    private List<String> buildToLayoutOperationLockKeys(LayoutConfirmRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getTypesettingCells())) {
+            return Collections.emptyList();
+        }
+        return request.getTypesettingCells().stream()
+                .filter(Objects::nonNull)
+                .filter(cell -> !Integer.valueOf(0).equals(cell.getQuantity()))
+                .filter(cell -> StringUtils.isNotBlank(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId()))
+                .map(cell -> TYPESETTING_OPERATION_LOCK_PREFIX + "toLayout:" + cell.getSourceType() + ":" + cell.getSourceId())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 并发备注：
+     * confirmLayout 与 confirmPrint 都会把同一条排版记录从“待确认”推进到后续生成印版任务，
+     * 因此二者使用同一个 confirm 锁，避免一个人确认排版、另一个人确认打印时重复确认同一条记录。
+     */
+    private String buildConfirmLayoutOperationLockKey(String id) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    }
+
+    private String buildConfirmPrintOperationLockKey(String id) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    }
+
+    private String acquireOperationLocks(List<String> lockKeys, String failureMessage) {
+        if (CollectionUtils.isEmpty(lockKeys)) {
+            return null;
+        }
+        String token = UUID.randomUUID().toString();
+        List<String> acquiredKeys = new ArrayList<>();
+        try {
+            for (String lockKey : lockKeys) {
+                Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                        lockKey,
+                        token,
+                        TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES,
+                        TimeUnit.MINUTES
+                );
+                if (!Boolean.TRUE.equals(acquired)) {
+                    throw new IllegalStateException(failureMessage);
+                }
+                acquiredKeys.add(lockKey);
+            }
+            return token;
+        } catch (RuntimeException ex) {
+            releaseOperationLocks(acquiredKeys, token);
+            throw ex;
+        }
+    }
+
+    private void releaseOperationLocks(List<String> lockKeys, String token) {
+        if (CollectionUtils.isEmpty(lockKeys) || StringUtils.isBlank(token)) {
+            return;
+        }
+        // 当前 MongoDB 部署为 standalone，不支持 Spring Mongo 事务；这里不注册事务同步，
+        // 避免触发 “Transaction numbers are only allowed on a replica set member or mongos”。
+        // 方法内数据库写入完成后再进入 finally 释放锁，仍可保证同一来源/同一排版记录的并发请求串行执行。
+        releaseOperationLocksImmediately(lockKeys, token);
+    }
+
+    private void releaseOperationLocksImmediately(List<String> lockKeys, String token) {
+        DefaultRedisScript<Long> releaseScript = new DefaultRedisScript<>();
+        releaseScript.setResultType(Long.class);
+        releaseScript.setScriptText(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                        "return redis.call('del', KEYS[1]) " +
+                        "else return 0 end"
+        );
+        for (String lockKey : lockKeys) {
+            try {
+                redisTemplate.execute(releaseScript, Collections.singletonList(lockKey), token);
+            } catch (Exception ex) {
+                log.warn("释放排版操作锁失败，lockKey={}", lockKey, ex);
+            }
+        }
+    }
+
+    private void ensureTypesettingStatus(TypesettingInfo typesettingInfo, TypesettingStatus expectedStatus, String message) {
+        if (typesettingInfo == null || expectedStatus == null) {
+            return;
+        }
+        if (!expectedStatus.getCode().equals(typesettingInfo.getStatus())) {
+            throw new IllegalStateException(message + "，当前状态：" + typesettingInfo.getStatus());
+        }
+    }
+
+    /**
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
      * @return 排版结果
      */
     public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
+        List<String> operationLockKeys = buildToLayoutOperationLockKeys(request);
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版对象正在处理中，请稍后重试");
+        try {
+            return doToLayout(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
         List<ProductionPiece> productionPieces = new ArrayList<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
@@ -1057,13 +1163,9 @@ public class AppTypesettingService {
 
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
-            List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
-            for (ProcedureFlowNode node : nodes) {
-                if (node.getNodeName().equals("排版")) {
-                    if (node.getPieceQuantity() < quantity){
-                        return LayoutConfirmResult.failed(productionPiece.getProductionPieceId()+"可排版数量不足");
-                    }
-                }
+            int pendingQuantity = getPendingTypesettingQuantity(productionPiece);
+            if (quantity != null && pendingQuantity < quantity) {
+                return LayoutConfirmResult.failed(productionPiece.getProductionPieceId() + "可排版数量不足");
             }
         }
 
@@ -1155,7 +1257,7 @@ public class AppTypesettingService {
                         quantity
                 );
             } catch (Exception e) {
-                System.err.println("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage());
+                throw new IllegalStateException("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage(), e);
             }
         }
         for (TypesettingInfo info : typesettingInfos) {
@@ -1351,10 +1453,24 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
         }
+        List<String> operationLockKeys = Collections.singletonList(buildConfirmLayoutOperationLockKey(request.getId()));
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认中，请勿重复确认");
+        try {
+            return doConfirmLayout(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private LayoutConfirmResult doConfirmLayout(TypesettingInfo request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
+        }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
+        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
         validateNoSecondaryTypesettingCells(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
@@ -2358,6 +2474,19 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
         }
+        List<String> operationLockKeys = Collections.singletonList(buildConfirmPrintOperationLockKey(request.getId()));
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认打印中，请勿重复确认");
+        try {
+            return doConfirmPrint(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private ConfirmPrintResult doConfirmPrint(ConfirmPrintRequest request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new RuntimeException("排版ID不能为空");
+        }
         if (StringUtils.isBlank(request.getDeviceCode())) {
             throw new RuntimeException("设备编号不能为空");
         }
@@ -2365,6 +2494,7 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new RuntimeException("排版信息不存在：" + request.getId());
         }
+        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
