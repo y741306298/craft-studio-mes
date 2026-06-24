@@ -63,6 +63,10 @@ public class TypesettingInfo extends BaseEntity {
      */
     private String layoutMode;
     /**
+     * 排版方式描述，仅用于接口返回展示，不替代 layoutMode 编码。
+     */
+    private String description;
+    /**
      * 排版大类：shaped_typesetting（异形排版）/ grid_typesetting（网格排版）
      */
     private String layoutCategory;
