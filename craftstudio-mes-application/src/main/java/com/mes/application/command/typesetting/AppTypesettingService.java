@@ -775,6 +775,7 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
         fillTypesettingSourceCellPreviewUrls(pagedTypesettingInfos);
+        replaceLayoutModeWithDescription(pagedTypesettingInfos);
 
         long total = allTypesettingInfos.size();
 
@@ -872,7 +873,23 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
+        replaceLayoutModeWithDescription(result);
         return result;
+    }
+
+    /**
+     * 将待确认列表响应中的排版方式编码转换为对应的业务描述，避免直接向前端返回 layoutMode 编码。
+     */
+    private void replaceLayoutModeWithDescription(List<TypesettingInfo> typesettingInfos) {
+        if (typesettingInfos == null || typesettingInfos.isEmpty()) {
+            return;
+        }
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getLayoutMode())) {
+                continue;
+            }
+            typesettingInfo.setLayoutMode(TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode()).getDescription());
+        }
     }
 
     /**
