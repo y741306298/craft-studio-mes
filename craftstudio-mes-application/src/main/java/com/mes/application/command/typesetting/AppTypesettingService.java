@@ -780,7 +780,7 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
         fillTypesettingSourceCellPreviewUrls(pagedTypesettingInfos);
-        replaceLayoutModeWithDescription(pagedTypesettingInfos);
+        fillLayoutModeDescription(pagedTypesettingInfos);
 
         long total = allTypesettingInfos.size();
 
@@ -878,14 +878,14 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
-        replaceLayoutModeWithDescription(result);
+        fillLayoutModeDescription(result);
         return result;
     }
 
     /**
-     * 将待确认列表响应中的排版方式编码转换为对应的业务描述，避免直接向前端返回 layoutMode 编码。
+     * 为待确认列表响应补充排版方式业务描述，同时保留 layoutMode 编码。
      */
-    private void replaceLayoutModeWithDescription(List<TypesettingInfo> typesettingInfos) {
+    private void fillLayoutModeDescription(List<TypesettingInfo> typesettingInfos) {
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             return;
         }
@@ -893,7 +893,7 @@ public class AppTypesettingService {
             if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getLayoutMode())) {
                 continue;
             }
-            typesettingInfo.setLayoutMode(TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode()).getDescription());
+            typesettingInfo.setDescription(TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode()).getDescription());
         }
     }
 
