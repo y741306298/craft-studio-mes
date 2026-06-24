@@ -1106,7 +1106,6 @@ public class AppTypesettingService {
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
      * @return 排版结果
      */
-    @Transactional(rollbackFor = Exception.class)
     public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
         List<String> operationLockKeys = buildToLayoutOperationLockKeys(request);
         String operationLockToken = acquireOperationLocks(operationLockKeys, "排版对象正在处理中，请稍后重试");
@@ -1453,7 +1452,6 @@ public class AppTypesettingService {
      *
      * <p>说明：plt 二维码模式依赖 manufacturerMetaId 生成队列码与二维码。
      */
-    @Transactional(rollbackFor = Exception.class)
     public LayoutConfirmResult confirmLayout(TypesettingInfo request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
@@ -2475,7 +2473,6 @@ public class AppTypesettingService {
      * @param request 确认打印请求（排版ID、可选layoutMode、deviceCode）
      * @return 操作结果
      */
-    @Transactional(rollbackFor = Exception.class)
     public ConfirmPrintResult confirmPrint(ConfirmPrintRequest request) {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
@@ -2589,7 +2586,6 @@ public class AppTypesettingService {
                 .noneMatch(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()));
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public LayoutConfirmResult batchConfirmLayout(BatchConfirmLayoutRequest request) {
         if (request == null || request.getTypesettingInfos() == null || request.getTypesettingInfos().isEmpty()) {
             throw new IllegalArgumentException("批量确认排版参数不能为空");
@@ -2603,7 +2599,6 @@ public class AppTypesettingService {
         return ok;
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public ConfirmPrintResult batchConfirmPrint(BatchConfirmPrintRequest request) {
         if (request == null || request.getRequests() == null || request.getRequests().isEmpty()) {
             throw new RuntimeException("批量确认打印参数不能为空");

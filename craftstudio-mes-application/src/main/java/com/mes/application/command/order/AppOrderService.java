@@ -363,7 +363,6 @@ public class AppOrderService {
      * 将指定订单项的待生产数量转入目标工厂，并保留每个原订单项维度的转出记录。
      * request.targetId 使用目标工厂 manufacturerUser.account，再由账号关联 manufacturerMetaId。
      */
-    @Transactional
     public ApiResponse<String> transferOrder(OrderTransferRequest request) {
         if (request == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单参数不能为空");
