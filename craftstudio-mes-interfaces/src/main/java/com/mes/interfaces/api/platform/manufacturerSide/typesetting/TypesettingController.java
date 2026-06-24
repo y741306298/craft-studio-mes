@@ -165,7 +165,6 @@ public class TypesettingController {
         if (!result.isSuccess()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
-
         return ApiResponse.success(result);
     }
 
