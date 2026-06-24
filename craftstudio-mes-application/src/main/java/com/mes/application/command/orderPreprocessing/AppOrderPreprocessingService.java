@@ -297,6 +297,14 @@ public class AppOrderPreprocessingService {
         uploadConfig.setOssConfig(objectStorageTempAuthConfig);
         request.setUploadConfig(uploadConfig);
 
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(resolveConvertGrayImgToSvgCallbackUrl());
+        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+        callbackCustomValue.setId(orderItem.getOrderItemId());
+        callbackCustomValue.setOrderItemId(orderItem.getOrderItemId());
+        callbackConfig.setCallbackCustomValue(callbackCustomValue);
+        request.setCallbackConfig(callbackConfig);
+
         GrayImgToSvgResponse response = algorithmCoreApiService.convertGrayImgToSvg(request);
         applyGrayImgToSvgResult(orderItem, response);
     }
@@ -311,6 +319,13 @@ public class AppOrderPreprocessingService {
             readyOrderItems.add(orderItem);
         }
         return readyOrderItems;
+    }
+
+    private String resolveConvertGrayImgToSvgCallbackUrl() {
+        if (StringUtils.isBlank(generateMaskFilesApiUrl)) {
+            return generateMaskFilesApiUrl;
+        }
+        return generateMaskFilesApiUrl.replace("/callback/generate_mask_files", "/callback/convert_gray_img_to_svg");
     }
 
     public OrderItem handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
