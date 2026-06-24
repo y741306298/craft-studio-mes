@@ -276,37 +276,42 @@ public class AppOrderPreprocessingService {
     }
 
     public void convertMaskGrayImgToSvgIfNecessary(OrderItem orderItem) {
-        if (orderItem == null || orderItem.getMaskImgFile() == null) {
-            return;
+        try {
+            if (orderItem == null || orderItem.getMaskImgFile() == null) {
+                return;
+            }
+
+            ImageFile maskImgFile = orderItem.getMaskImgFile();
+            String rawFile = maskImgFile.getRawFile();
+            if (StringUtils.isBlank(rawFile) || rawFile.toLowerCase().endsWith("svg")) {
+                return;
+            }
+
+            GrayImgToSvgRequest request = new GrayImgToSvgRequest();
+            request.setGrayImgUrl(rawFile);
+
+            ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
+            UploadConfig uploadConfig = new UploadConfig();
+            String manufacturerMetaId = orderItem.getManufacturerId();
+            String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "grayimg/" : "grayimg/" + manufacturerMetaId + "/";
+            uploadConfig.setUploadPath(uploadPath);
+            uploadConfig.setOssConfig(objectStorageTempAuthConfig);
+            request.setUploadConfig(uploadConfig);
+
+            CallbackConfig callbackConfig = new CallbackConfig();
+            callbackConfig.setCallbackUrl(resolveConvertGrayImgToSvgCallbackUrl());
+            CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
+            callbackCustomValue.setId(orderItem.getOrderItemId());
+            callbackCustomValue.setOrderItemId(orderItem.getOrderItemId());
+            callbackConfig.setCallbackCustomValue(callbackCustomValue);
+            request.setCallbackConfig(callbackConfig);
+
+            GrayImgToSvgResponse response = algorithmCoreApiService.convertGrayImgToSvg(request);
+            applyGrayImgToSvgResult(orderItem, response);
+        }catch (Exception e) {
+            e.printStackTrace();
         }
 
-        ImageFile maskImgFile = orderItem.getMaskImgFile();
-        String rawFile = maskImgFile.getRawFile();
-        if (StringUtils.isBlank(rawFile) || rawFile.toLowerCase().endsWith("svg")) {
-            return;
-        }
-
-        GrayImgToSvgRequest request = new GrayImgToSvgRequest();
-        request.setGrayImgUrl(rawFile);
-
-        ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId());
-        UploadConfig uploadConfig = new UploadConfig();
-        String manufacturerMetaId = orderItem.getManufacturerId();
-        String uploadPath = StringUtils.isBlank(manufacturerMetaId) ? "grayimg/" : "grayimg/" + manufacturerMetaId + "/";
-        uploadConfig.setUploadPath(uploadPath);
-        uploadConfig.setOssConfig(objectStorageTempAuthConfig);
-        request.setUploadConfig(uploadConfig);
-
-        CallbackConfig callbackConfig = new CallbackConfig();
-        callbackConfig.setCallbackUrl(resolveConvertGrayImgToSvgCallbackUrl());
-        CallbackCustomValue callbackCustomValue = new CallbackCustomValue();
-        callbackCustomValue.setId(orderItem.getOrderItemId());
-        callbackCustomValue.setOrderItemId(orderItem.getOrderItemId());
-        callbackConfig.setCallbackCustomValue(callbackCustomValue);
-        request.setCallbackConfig(callbackConfig);
-
-        GrayImgToSvgResponse response = algorithmCoreApiService.convertGrayImgToSvg(request);
-        applyGrayImgToSvgResult(orderItem, response);
     }
 
     public List<OrderItem> convertMaskGrayImgToSvgIfNecessary(List<OrderItem> orderItems) {
