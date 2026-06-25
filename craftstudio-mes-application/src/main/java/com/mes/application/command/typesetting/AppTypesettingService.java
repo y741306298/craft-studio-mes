@@ -1736,14 +1736,14 @@ public class AppTypesettingService {
         if (origin == null) {
             return null;
         }
-        if (StringUtils.isNotBlank(origin.getId())) {
-            TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingId(origin.getId() + "-Mirror");
+        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
+            TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingId(origin.getTypesettingId() + "-Mirror");
             if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
                 return mirror;
             }
         }
-        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
-            return domainTypesettingService.findTypesettingByTypesettingId(origin.getTypesettingId() + "-Mirror");
+        if (StringUtils.isNotBlank(origin.getId())) {
+            return domainTypesettingService.findTypesettingByTypesettingId(origin.getId() + "-Mirror");
         }
         return null;
     }
@@ -3357,7 +3357,7 @@ public class AppTypesettingService {
                 continue;
             }
 
-            TypesettingInfo mirrorTypesetting = pairedMirrorTypesetting;
+            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
             if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
                 continue;
             }

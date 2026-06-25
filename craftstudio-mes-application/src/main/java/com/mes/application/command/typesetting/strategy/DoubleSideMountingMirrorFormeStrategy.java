@@ -51,7 +51,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
     }
 
     private String buildMirrorTypesettingId(TypesettingInfo origin) {
-        String baseId = StringUtils.isNotBlank(origin.getId()) ? origin.getId() : origin.getTypesettingId();
+        String baseId = StringUtils.isNotBlank(origin.getTypesettingId()) ? origin.getTypesettingId() : origin.getId();
         return baseId + "-Mirror";
     }
 
