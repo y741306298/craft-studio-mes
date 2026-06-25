@@ -3306,15 +3306,28 @@ public class AppTypesettingService {
         List<String> releasedPieceIds = new ArrayList<>();
         List<String> errorMessages = new ArrayList<>();
         List<String> deletedLayoutIds = new ArrayList<>();
+        Set<String> deletedLayoutIdSet = new LinkedHashSet<>();
 
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId)) {
+                continue;
+            }
+            if (deletedLayoutIdSet.contains(typesettingId)) {
                 continue;
             }
             TypesettingInfo info = domainTypesettingService.findById(typesettingId);
             if (info == null || StringUtils.isBlank(info.getId())) {
                 errorMessages.add("排版记录不存在: " + typesettingId);
                 continue;
+            }
+            TypesettingInfo pairedMirrorTypesetting = findReleaseLayoutMirrorPair(info);
+            if (pairedMirrorTypesetting != null && StringUtils.isNotBlank(pairedMirrorTypesetting.getId())) {
+                boolean pairedLayoutCanRelease = (pairedMirrorTypesetting.getLeaveQuantity() != null && pairedMirrorTypesetting.getLeaveQuantity() != 0)
+                        && TypesettingStatus.PENDING.getCode().equals(pairedMirrorTypesetting.getStatus());
+                if (!pairedLayoutCanRelease) {
+                    errorMessages.add("排版记录 " + info.getId() + " 的正面或反面文件已经被使用，无法释放");
+                    continue;
+                }
             }
 
             List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
@@ -3337,18 +3350,20 @@ public class AppTypesettingService {
             try {
                 domainTypesettingService.deleteTypesetting(info.getId());
                 deletedLayoutIds.add(info.getId());
+                deletedLayoutIdSet.add(info.getId());
             } catch (Exception e) {
                 errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
                 continue;
             }
 
-            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
+            TypesettingInfo mirrorTypesetting = pairedMirrorTypesetting;
             if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
                 continue;
             }
             try {
                 domainTypesettingService.deleteTypesetting(mirrorTypesetting.getId());
                 deletedLayoutIds.add(mirrorTypesetting.getId());
+                deletedLayoutIdSet.add(mirrorTypesetting.getId());
             } catch (Exception e) {
                 errorMessages.add("删除镜像排版记录失败(" + mirrorTypesetting.getId() + "): " + e.getMessage());
             }
@@ -3407,6 +3422,38 @@ public class AppTypesettingService {
         result.setReleasedPieceIds(releasedPieceIds);
         result.setDeletedLayoutIds(deletedLayoutIds);
         return result;
+    }
+
+    private TypesettingInfo findReleaseLayoutMirrorPair(TypesettingInfo info) {
+        if (info == null || StringUtils.isBlank(info.getTypesettingId())) {
+            return null;
+        }
+        String typesettingId = info.getTypesettingId();
+        if (typesettingId.endsWith("-Mirror")) {
+            String frontTypesettingId = typesettingId.substring(0, typesettingId.length() - "-Mirror".length());
+            return findExactTypesettingByTypesettingIdAndTemplateCode(frontTypesettingId, info.getTemplateCode(), info.getId());
+        }
+        String mirrorTypesettingId = typesettingId + "-Mirror";
+        return findExactTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, info.getTemplateCode(), info.getId());
+    }
+
+    private TypesettingInfo findExactTypesettingByTypesettingIdAndTemplateCode(String typesettingId,
+                                                                               String templateCode,
+                                                                               String excludedRecordId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
+        List<TypesettingInfo> candidates = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != null)
+                .filter(candidate -> !Objects.equals(candidate.getId(), excludedRecordId))
+                .filter(candidate -> Objects.equals(candidate.getTypesettingId(), typesettingId))
+                .filter(candidate -> StringUtils.isBlank(templateCode) || Objects.equals(candidate.getTemplateCode(), templateCode))
+                .findFirst()
+                .orElse(null);
     }
 
     /**
