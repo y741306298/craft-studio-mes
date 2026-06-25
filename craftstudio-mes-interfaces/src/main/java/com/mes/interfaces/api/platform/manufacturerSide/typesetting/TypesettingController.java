@@ -271,6 +271,9 @@ public class TypesettingController {
         }
         
         ReleaseLayoutResult result = appTypesettingService.releaseLayout(request.getIdList());
+        if (result != null && !result.isSuccess()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, result.getMessage());
+        }
         
         return ApiResponse.success(result);
     }
