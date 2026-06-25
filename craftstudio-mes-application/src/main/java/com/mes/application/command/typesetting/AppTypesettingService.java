@@ -2685,12 +2685,12 @@ public class AppTypesettingService {
                 typesettingInfo.setLeaveQuantity(1);
                 Set<String> visitedTypesettingKeys = new HashSet<>();
                 Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage, false);
+                collectProductionPieceUsageForQuantityTransfer(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
                 int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (!repeatedPrintCallback && (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror"))) {
+                if (!repeatedPrintCallback && !isMirrorTypesettingInfo(typesettingInfo)) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
@@ -2749,11 +2749,31 @@ public class AppTypesettingService {
         return deviceCfgs.get(0);
     }
 
+
+    private void collectProductionPieceUsageForQuantityTransfer(TypesettingInfo typesettingInfo,
+                                                                 int multiplier,
+                                                                 Set<String> visitedTypesettingKeys,
+                                                                 Map<String, Integer> productionPieceUsage) {
+        collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, isMirrorTypesettingInfo(typesettingInfo));
+    }
+
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
                                              int multiplier,
                                              Set<String> visitedTypesettingKeys,
                                              Map<String, Integer> productionPieceUsage) {
         collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, false);
+    }
+
+
+    private boolean isMirrorTypesettingInfo(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        return isMirrorTypesettingId(typesettingInfo.getTypesettingId()) || isMirrorTypesettingId(typesettingInfo.getId());
+    }
+
+    private boolean isMirrorTypesettingId(String typesettingId) {
+        return StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror");
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
@@ -2792,12 +2812,11 @@ public class AppTypesettingService {
             if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
                 continue;
             }
-            boolean nestedMirrorBranch = mirrorBranch || (StringUtils.isNotBlank(nestedInfo.getTypesettingId())
-                    && nestedInfo.getTypesettingId().endsWith("-Mirror"));
+            boolean nestedMirrorBranch = mirrorBranch || isMirrorTypesettingInfo(nestedInfo);
             collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, nestedMirrorBranch);
 
             // 需要查看对应 -Mirror 印版，但其 productionPiece 用量不参与扣减统计
-            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().endsWith("-Mirror")) {
+            if (!isMirrorTypesettingInfo(nestedInfo)) {
                 TypesettingInfo mirrorNestedInfo = findMirrorTypesettingInfo(nestedInfo);
                 if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
                     collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, true);
@@ -3342,7 +3361,9 @@ public class AppTypesettingService {
                 }
                 int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
                 if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    if (!isMirrorTypesettingInfo(info)) {
+                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    }
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
                     typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                 }
