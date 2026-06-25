@@ -1510,7 +1510,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -1723,18 +1723,74 @@ public class AppTypesettingService {
                 .orElse(null);
     }
 
+
+    private String resolveMirrorFormeBusinessId(TypesettingInfo mirrorTypesettingInfo, String originBusinessId) {
+        if (mirrorTypesettingInfo != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getTypesettingId())) {
+            return mirrorTypesettingInfo.getTypesettingId() + buildMirrorTemplateSuffix(mirrorTypesettingInfo.getTemplateCode());
+        }
+        return originBusinessId + "-Mirror";
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfo(TypesettingInfo origin) {
+        if (origin == null) {
+            return null;
+        }
+        for (String mirrorTypesettingId : buildMirrorTypesettingIdCandidates(origin)) {
+            TypesettingInfo mirror = findMirrorTypesettingInfoByTemplate(mirrorTypesettingId, origin.getTemplateCode());
+            if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+                return mirror;
+            }
+        }
+        return null;
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfoByTemplate(String mirrorTypesettingId, String templateCode) {
+        TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, templateCode);
+        if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+            return mirror;
+        }
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingId);
+        }
+        return null;
+    }
+
+    private List<String> buildMirrorTypesettingIdCandidates(TypesettingInfo origin) {
+        List<String> candidates = new ArrayList<>();
+        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
+            candidates.add(origin.getTypesettingId() + "-Mirror");
+        }
+        if (StringUtils.isNotBlank(origin.getId())) {
+            candidates.add(origin.getId() + "-Mirror");
+        }
+        return candidates.stream().filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+    }
+
+    private String buildMirrorTemplateSuffix(String templateCode) {
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return "";
+        }
+        return "-" + templateCode.replaceAll("[^A-Za-z0-9_-]", "_");
+    }
+
     private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
         if (mirrorTypesettingInfo == null || StringUtils.isBlank(mirrorTypesettingInfo.getTypesettingId())) {
             return;
         }
-        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                mirrorTypesettingInfo.getTypesettingId(),
+                mirrorTypesettingInfo.getTemplateCode()
+        );
         if (existing == null) {
             mirrorTypesettingInfo.setId(null);
             TypesettingInfo created = domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
             if (created != null && StringUtils.isNotBlank(created.getId())) {
                 mirrorTypesettingInfo.setId(created.getId());
             } else {
-                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                        mirrorTypesettingInfo.getTypesettingId(),
+                        mirrorTypesettingInfo.getTemplateCode()
+                );
                 if (persisted != null && StringUtils.isNotBlank(persisted.getId())) {
                     mirrorTypesettingInfo.setId(persisted.getId());
                 }
@@ -2530,7 +2586,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -2660,12 +2716,12 @@ public class AppTypesettingService {
                 typesettingInfo.setLeaveQuantity(1);
                 Set<String> visitedTypesettingKeys = new HashSet<>();
                 Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage, false);
+                collectProductionPieceUsageForQuantityTransfer(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
                 int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (!repeatedPrintCallback && (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror"))) {
+                if (!repeatedPrintCallback && !isMirrorTypesettingInfo(typesettingInfo)) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
@@ -2724,11 +2780,31 @@ public class AppTypesettingService {
         return deviceCfgs.get(0);
     }
 
+
+    private void collectProductionPieceUsageForQuantityTransfer(TypesettingInfo typesettingInfo,
+                                                                 int multiplier,
+                                                                 Set<String> visitedTypesettingKeys,
+                                                                 Map<String, Integer> productionPieceUsage) {
+        collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, isMirrorTypesettingInfo(typesettingInfo));
+    }
+
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
                                              int multiplier,
                                              Set<String> visitedTypesettingKeys,
                                              Map<String, Integer> productionPieceUsage) {
         collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, false);
+    }
+
+
+    private boolean isMirrorTypesettingInfo(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        return isMirrorTypesettingId(typesettingInfo.getTypesettingId()) || isMirrorTypesettingId(typesettingInfo.getId());
+    }
+
+    private boolean isMirrorTypesettingId(String typesettingId) {
+        return StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror");
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
@@ -2767,14 +2843,12 @@ public class AppTypesettingService {
             if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
                 continue;
             }
-            boolean nestedMirrorBranch = mirrorBranch || (StringUtils.isNotBlank(nestedInfo.getTypesettingId())
-                    && nestedInfo.getTypesettingId().endsWith("-Mirror"));
+            boolean nestedMirrorBranch = mirrorBranch || isMirrorTypesettingInfo(nestedInfo);
             collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, nestedMirrorBranch);
 
             // 需要查看对应 -Mirror 印版，但其 productionPiece 用量不参与扣减统计
-            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().endsWith("-Mirror")) {
-                TypesettingInfo mirrorNestedInfo = domainTypesettingService
-                        .findTypesettingByTypesettingId(nestedInfo.getTypesettingId() + "-Mirror");
+            if (!isMirrorTypesettingInfo(nestedInfo)) {
+                TypesettingInfo mirrorNestedInfo = findMirrorTypesettingInfo(nestedInfo);
                 if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
                     collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, true);
                 }
@@ -3305,7 +3379,9 @@ public class AppTypesettingService {
                 }
                 int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
                 if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    if (!isMirrorTypesettingInfo(info)) {
+                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    }
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
                     typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                 }
@@ -3319,10 +3395,7 @@ public class AppTypesettingService {
                 continue;
             }
 
-            if (StringUtils.isBlank(info.getTypesettingId())) {
-                continue;
-            }
-            TypesettingInfo mirrorTypesetting = domainTypesettingService.findTypesettingByTypesettingId(info.getTypesettingId() + "-Mirror");
+            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
             if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
                 continue;
             }
