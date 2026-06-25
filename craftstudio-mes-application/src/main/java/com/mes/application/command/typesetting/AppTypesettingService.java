@@ -3873,27 +3873,29 @@ public class AppTypesettingService {
             }
 
             List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
-            List<TypesettingSourceCell> usedCells = new ArrayList<>();
+            Set<String> markedSourceCellKeys = resolveMarkedSourceCellKeys(sourceIdCountMap.keySet(), sourceCells);
+            Map<String, TypesettingSourceCell> usedCellMap = new LinkedHashMap<>();
             for (Map.Entry<String, Integer> entry : sourceIdCountMap.entrySet()) {
                 String sourceId = entry.getKey();
-                TypesettingProductionPieceVO matchedCell = null;
-                for (TypesettingProductionPieceVO cell : sourceCells) {
-                    if (matchesSourceCellId(sourceId, cell)) {
-                        matchedCell = cell;
-                        break;
-                    }
-                }
+                TypesettingProductionPieceVO matchedCell = findMatchedSourceCell(sourceId, sourceCells);
                 if (matchedCell == null || StringUtils.isBlank(matchedCell.getSourceType()) || StringUtils.isBlank(matchedCell.getSourceId())) {
                     continue;
                 }
-                TypesettingSourceCell usedCell = new TypesettingSourceCell();
-                usedCell.setSourceType(matchedCell.getSourceType());
-                usedCell.setSourceId(matchedCell.getSourceId());
-                usedCell.setOrderItemId(matchedCell.getOrderItemId());
-                usedCell.setQuantity(entry.getValue());
-                usedCells.add(usedCell);
+                String sourceCellKey = buildSourceCellKey(matchedCell);
+                if (markedSourceCellKeys.contains(sourceCellKey) && !isMarkedNestingElementId(sourceId)) {
+                    continue;
+                }
+                TypesettingSourceCell usedCell = usedCellMap.computeIfAbsent(sourceCellKey, key -> {
+                    TypesettingSourceCell newCell = new TypesettingSourceCell();
+                    newCell.setSourceType(matchedCell.getSourceType());
+                    newCell.setSourceId(matchedCell.getSourceId());
+                    newCell.setOrderItemId(matchedCell.getOrderItemId());
+                    newCell.setQuantity(0);
+                    return newCell;
+                });
+                usedCell.setQuantity((usedCell.getQuantity() == null ? 0 : usedCell.getQuantity()) + entry.getValue());
             }
-            return usedCells;
+            return new ArrayList<>(usedCellMap.values());
         } catch (Exception e) {
             System.err.println("解析 nestedSvg 失败: " + nestedSvgUrl + ", error=" + e.getMessage());
             return Collections.emptyList();
@@ -3906,6 +3908,49 @@ public class AppTypesettingService {
                 }
             }
         }
+    }
+
+    private Set<String> resolveMarkedSourceCellKeys(Set<String> nestedElementIds, List<TypesettingProductionPieceVO> sourceCells) {
+        if (nestedElementIds == null || nestedElementIds.isEmpty() || sourceCells == null || sourceCells.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> markedSourceCellKeys = new HashSet<>();
+        for (String nestedElementId : nestedElementIds) {
+            if (!isMarkedNestingElementId(nestedElementId)) {
+                continue;
+            }
+            TypesettingProductionPieceVO matchedCell = findMatchedSourceCell(nestedElementId, sourceCells);
+            if (matchedCell != null) {
+                markedSourceCellKeys.add(buildSourceCellKey(matchedCell));
+            }
+        }
+        return markedSourceCellKeys;
+    }
+
+    private TypesettingProductionPieceVO findMatchedSourceCell(String nestedElementId, List<TypesettingProductionPieceVO> sourceCells) {
+        if (StringUtils.isBlank(nestedElementId) || sourceCells == null || sourceCells.isEmpty()) {
+            return null;
+        }
+        for (TypesettingProductionPieceVO cell : sourceCells) {
+            if (matchesSourceCellId(nestedElementId, cell)) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    private String buildSourceCellKey(TypesettingProductionPieceVO cell) {
+        if (cell == null) {
+            return "";
+        }
+        return String.join("|",
+                StringUtils.isBlank(cell.getSourceType()) ? "" : cell.getSourceType(),
+                StringUtils.isBlank(cell.getSourceId()) ? "" : cell.getSourceId(),
+                StringUtils.isBlank(cell.getOrderItemId()) ? "" : cell.getOrderItemId());
+    }
+
+    private boolean isMarkedNestingElementId(String nestedElementId) {
+        return StringUtils.isNotBlank(nestedElementId) && nestedElementId.startsWith("marked-nesting-");
     }
 
     /**
@@ -3925,7 +3970,7 @@ public class AppTypesettingService {
             return true;
         }
         String markedPrefix = "marked-nesting-";
-        if (nestedElementId.startsWith(markedPrefix)) {
+        if (isMarkedNestingElementId(nestedElementId)) {
             String originalId = nestedElementId.substring(markedPrefix.length());
             return Objects.equals(originalId, cell.getId())
                     || Objects.equals(originalId, cell.getSourceId());
