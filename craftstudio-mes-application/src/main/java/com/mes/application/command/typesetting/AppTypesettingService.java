@@ -1510,7 +1510,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -1721,6 +1721,30 @@ public class AppTypesettingService {
                 .findFirst()
                 .map(strategy -> strategy.buildMirrorTypesettingInfo(origin))
                 .orElse(null);
+    }
+
+
+    private String resolveMirrorFormeBusinessId(TypesettingInfo mirrorTypesettingInfo, String originBusinessId) {
+        if (mirrorTypesettingInfo != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getTypesettingId())) {
+            return mirrorTypesettingInfo.getTypesettingId();
+        }
+        return originBusinessId + "-Mirror";
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfo(TypesettingInfo origin) {
+        if (origin == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(origin.getId())) {
+            TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingId(origin.getId() + "-Mirror");
+            if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+                return mirror;
+            }
+        }
+        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
+            return domainTypesettingService.findTypesettingByTypesettingId(origin.getTypesettingId() + "-Mirror");
+        }
+        return null;
     }
 
     private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
@@ -2530,7 +2554,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -2773,8 +2797,7 @@ public class AppTypesettingService {
 
             // 需要查看对应 -Mirror 印版，但其 productionPiece 用量不参与扣减统计
             if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().endsWith("-Mirror")) {
-                TypesettingInfo mirrorNestedInfo = domainTypesettingService
-                        .findTypesettingByTypesettingId(nestedInfo.getTypesettingId() + "-Mirror");
+                TypesettingInfo mirrorNestedInfo = findMirrorTypesettingInfo(nestedInfo);
                 if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
                     collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, true);
                 }
@@ -3319,10 +3342,7 @@ public class AppTypesettingService {
                 continue;
             }
 
-            if (StringUtils.isBlank(info.getTypesettingId())) {
-                continue;
-            }
-            TypesettingInfo mirrorTypesetting = domainTypesettingService.findTypesettingByTypesettingId(info.getTypesettingId() + "-Mirror");
+            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
             if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
                 continue;
             }
