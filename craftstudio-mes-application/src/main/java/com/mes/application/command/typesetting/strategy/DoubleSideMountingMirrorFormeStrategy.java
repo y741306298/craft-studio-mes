@@ -36,7 +36,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         }
         TypesettingInfo mirror = JSON.parseObject(JSON.toJSONString(origin), TypesettingInfo.class);
         mirror.setId(null);
-        mirror.setTypesettingId(origin.getTypesettingId() + "-Mirror");
+        mirror.setTypesettingId(buildMirrorTypesettingId(origin));
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
         MaterialConfig mirrorMaterialConfig = buildMirrorMaterialConfig(origin.getProcedureFlow(), origin.getMaterialConfig());
@@ -48,6 +48,11 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
             }
         }
         return mirror;
+    }
+
+    private String buildMirrorTypesettingId(TypesettingInfo origin) {
+        String baseId = StringUtils.isNotBlank(origin.getTypesettingId()) ? origin.getTypesettingId() : origin.getId();
+        return baseId + "-Mirror";
     }
 
     private MaterialConfig buildMirrorMaterialConfig(ProcedureFlow procedureFlow, MaterialConfig originMaterialConfig) {
