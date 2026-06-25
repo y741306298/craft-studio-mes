@@ -2885,6 +2885,7 @@ public class AppTypesettingService {
         LinkedHashSet<String> markSet = new LinkedHashSet<>();
         if (typesettingElement != null) {
             appendRawFile(jsonSet, typesettingElement.getJson());
+            appendFormeSvgImgFiles(imageSet, typesettingElement.getFormeSvg());
         }
         collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
@@ -2988,6 +2989,57 @@ public class AppTypesettingService {
         if (StringUtils.isNotBlank(fileUrl)) {
             container.add(fileUrl);
         }
+    }
+
+    private void appendFormeSvgImgFiles(Set<String> imageSet, String formeSvg) {
+        if (imageSet == null || StringUtils.isBlank(formeSvg)) {
+            return;
+        }
+        try {
+            String svgContent = readFormeSvgContent(formeSvg);
+            if (StringUtils.isBlank(svgContent)) {
+                return;
+            }
+            Matcher imgTagMatcher = Pattern.compile("<img\\b[^>]*>", Pattern.CASE_INSENSITIVE).matcher(svgContent);
+            while (imgTagMatcher.find()) {
+                String imgTag = imgTagMatcher.group();
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "src"));
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "href"));
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "xlink:href"));
+            }
+        } catch (Exception ex) {
+            log.warn("读取 formeSvg 中 img 标签失败, formeSvg={}, error={}", formeSvg, ex.getMessage());
+        }
+    }
+
+    private String readFormeSvgContent(String formeSvg) {
+        String completeUrl = buildCompleteOssUrl(formeSvg);
+        if (StringUtils.isNotBlank(completeUrl) && (completeUrl.startsWith("http://") || completeUrl.startsWith("https://"))) {
+            return restTemplate.getForObject(URI.create(completeUrl), String.class);
+        }
+        Path localPath = Path.of(formeSvg);
+        if (Files.exists(localPath)) {
+            return Files.readString(localPath, StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    private String extractImgTagAttribute(String imgTag, String attributeName) {
+        if (StringUtils.isBlank(imgTag) || StringUtils.isBlank(attributeName)) {
+            return null;
+        }
+        Matcher attributeMatcher = Pattern.compile("(?i)(?<![\\w:-])" + Pattern.quote(attributeName)
+                + "\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s>]+))").matcher(imgTag);
+        if (!attributeMatcher.find()) {
+            return null;
+        }
+        if (attributeMatcher.group(2) != null) {
+            return attributeMatcher.group(2);
+        }
+        if (attributeMatcher.group(3) != null) {
+            return attributeMatcher.group(3);
+        }
+        return attributeMatcher.group(4);
     }
 
     private void appendMarkFiles(Set<String> container, String markFileUrl) {
