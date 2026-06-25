@@ -1727,7 +1727,7 @@ public class AppTypesettingService {
 
     private String resolveMirrorFormeBusinessId(TypesettingInfo mirrorTypesettingInfo, String originBusinessId) {
         if (mirrorTypesettingInfo != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getTypesettingId())) {
-            return mirrorTypesettingInfo.getTypesettingId();
+            return mirrorTypesettingInfo.getTypesettingId() + buildMirrorTemplateSuffix(mirrorTypesettingInfo.getTemplateCode());
         }
         return originBusinessId + "-Mirror";
     }
@@ -1736,30 +1736,62 @@ public class AppTypesettingService {
         if (origin == null) {
             return null;
         }
-        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
-            TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingId(origin.getTypesettingId() + "-Mirror");
+        for (String mirrorTypesettingId : buildMirrorTypesettingIdCandidates(origin)) {
+            TypesettingInfo mirror = findMirrorTypesettingInfoByTemplate(mirrorTypesettingId, origin.getTemplateCode());
             if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
                 return mirror;
             }
         }
-        if (StringUtils.isNotBlank(origin.getId())) {
-            return domainTypesettingService.findTypesettingByTypesettingId(origin.getId() + "-Mirror");
+        return null;
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfoByTemplate(String mirrorTypesettingId, String templateCode) {
+        TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, templateCode);
+        if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+            return mirror;
+        }
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingId);
         }
         return null;
+    }
+
+    private List<String> buildMirrorTypesettingIdCandidates(TypesettingInfo origin) {
+        List<String> candidates = new ArrayList<>();
+        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
+            candidates.add(origin.getTypesettingId() + "-Mirror");
+        }
+        if (StringUtils.isNotBlank(origin.getId())) {
+            candidates.add(origin.getId() + "-Mirror");
+        }
+        return candidates.stream().filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+    }
+
+    private String buildMirrorTemplateSuffix(String templateCode) {
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return "";
+        }
+        return "-" + templateCode.replaceAll("[^A-Za-z0-9_-]", "_");
     }
 
     private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
         if (mirrorTypesettingInfo == null || StringUtils.isBlank(mirrorTypesettingInfo.getTypesettingId())) {
             return;
         }
-        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                mirrorTypesettingInfo.getTypesettingId(),
+                mirrorTypesettingInfo.getTemplateCode()
+        );
         if (existing == null) {
             mirrorTypesettingInfo.setId(null);
             TypesettingInfo created = domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
             if (created != null && StringUtils.isNotBlank(created.getId())) {
                 mirrorTypesettingInfo.setId(created.getId());
             } else {
-                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                        mirrorTypesettingInfo.getTypesettingId(),
+                        mirrorTypesettingInfo.getTemplateCode()
+                );
                 if (persisted != null && StringUtils.isNotBlank(persisted.getId())) {
                     mirrorTypesettingInfo.setId(persisted.getId());
                 }
