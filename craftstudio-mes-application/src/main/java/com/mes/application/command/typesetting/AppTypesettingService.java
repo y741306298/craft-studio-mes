@@ -96,6 +96,7 @@ import org.springframework.web.client.RestTemplate;
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -3035,7 +3036,7 @@ public class AppTypesettingService {
         }
     }
 
-    private String readFormeSvgContent(String formeSvg) {
+    private String readFormeSvgContent(String formeSvg) throws IOException {
         String completeUrl = buildCompleteOssUrl(formeSvg);
         if (StringUtils.isNotBlank(completeUrl) && (completeUrl.startsWith("http://") || completeUrl.startsWith("https://"))) {
             return restTemplate.getForObject(URI.create(completeUrl), String.class);
