@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMeta;
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.auth.AppLoginService;
 import com.mes.application.command.device.AppDeviceService;
@@ -204,7 +205,7 @@ public class ManufacturerDeviceCfgController {
     @PostMapping("/factory/task/claim")
     public ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> claimFactoryDownloadTasks(
             @Valid @RequestBody ManufacturerFactoryDownloadTaskRequest request) {
-        logger.info("接收到轮询领取任务，入参为"+ JSON.toJSONString(request));
+        logger.info("接收到轮询领取任务，入参为"+ JsonLogUtil.toJSONString(request));
         List<TypesettingDownloadTaskData> tasks;
         try {
             tasks = appDeviceCfgService.listDownloadTasksByDeviceCfg(
@@ -236,7 +237,7 @@ public class ManufacturerDeviceCfgController {
 
         ApiResponse<List<ManufacturerFactoryDownloadTaskResp>> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
-        logger.info("轮询领取任务结束，出参为"+ JSON.toJSONString(apiResponse));
+        logger.info("轮询领取任务结束，出参为"+ JsonLogUtil.toJSONString(apiResponse));
         return apiResponse;
     }
 }

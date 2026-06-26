@@ -21,7 +21,9 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
 
     @Override
     public boolean matches(LiubaiProcessContext context) {
-        if (context == null || context.getProcedureFlow() == null || context.getOrderItem() == null) {
+        if (!(context instanceof MaterialProcessContext)
+                || context.getProcedureFlow() == null
+                || context.getOrderItem() == null) {
             return false;
         }
         ProcedureFlow procedureFlow = context.getProcedureFlow();

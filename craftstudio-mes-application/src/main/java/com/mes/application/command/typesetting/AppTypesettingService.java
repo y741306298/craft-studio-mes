@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -87,12 +88,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -116,6 +121,8 @@ import java.util.Comparator;
 public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
+    private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
+    private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
@@ -775,6 +782,7 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
         fillTypesettingSourceCellPreviewUrls(pagedTypesettingInfos);
+        fillLayoutModeDescription(pagedTypesettingInfos);
 
         long total = allTypesettingInfos.size();
 
@@ -872,7 +880,23 @@ public class AppTypesettingService {
             typesettingInfo.getElement().setWidth(ceilBigDecimal(typesettingInfo.getElement().getWidth()));
             typesettingInfo.getElement().setHeight(ceilBigDecimal(typesettingInfo.getElement().getHeight()));
         }
+        fillLayoutModeDescription(result);
         return result;
+    }
+
+    /**
+     * 为待确认列表响应补充排版方式业务描述，同时保留 layoutMode 编码。
+     */
+    private void fillLayoutModeDescription(List<TypesettingInfo> typesettingInfos) {
+        if (typesettingInfos == null || typesettingInfos.isEmpty()) {
+            return;
+        }
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getLayoutMode())) {
+                continue;
+            }
+            typesettingInfo.setDescription(TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode()).getDescription());
+        }
     }
 
     /**
@@ -987,10 +1011,114 @@ public class AppTypesettingService {
     }
 
     /**
+     * 并发备注：
+     * toLayout 会扣减来源零件的“待排版”数量或来源印版的剩余数量。
+     * 同一个来源对象同一时间只允许一个请求进入，避免两个人同时排版同一个零件/印版导致重复扣减或重复提交算法任务。
+     */
+    private List<String> buildToLayoutOperationLockKeys(LayoutConfirmRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getTypesettingCells())) {
+            return Collections.emptyList();
+        }
+        return request.getTypesettingCells().stream()
+                .filter(Objects::nonNull)
+                .filter(cell -> !Integer.valueOf(0).equals(cell.getQuantity()))
+                .filter(cell -> StringUtils.isNotBlank(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId()))
+                .map(cell -> TYPESETTING_OPERATION_LOCK_PREFIX + "toLayout:" + cell.getSourceType() + ":" + cell.getSourceId())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 并发备注：
+     * confirmLayout 与 confirmPrint 都会把同一条排版记录从“待确认”推进到后续生成印版任务，
+     * 因此二者使用同一个 confirm 锁，避免一个人确认排版、另一个人确认打印时重复确认同一条记录。
+     */
+    private String buildConfirmLayoutOperationLockKey(String id) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    }
+
+    private String buildConfirmPrintOperationLockKey(String id) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    }
+
+    private String acquireOperationLocks(List<String> lockKeys, String failureMessage) {
+        if (CollectionUtils.isEmpty(lockKeys)) {
+            return null;
+        }
+        String token = UUID.randomUUID().toString();
+        List<String> acquiredKeys = new ArrayList<>();
+        try {
+            for (String lockKey : lockKeys) {
+                Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                        lockKey,
+                        token,
+                        TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES,
+                        TimeUnit.MINUTES
+                );
+                if (!Boolean.TRUE.equals(acquired)) {
+                    throw new IllegalStateException(failureMessage);
+                }
+                acquiredKeys.add(lockKey);
+            }
+            return token;
+        } catch (RuntimeException ex) {
+            releaseOperationLocks(acquiredKeys, token);
+            throw ex;
+        }
+    }
+
+    private void releaseOperationLocks(List<String> lockKeys, String token) {
+        if (CollectionUtils.isEmpty(lockKeys) || StringUtils.isBlank(token)) {
+            return;
+        }
+        // 当前 MongoDB 部署为 standalone，不支持 Spring Mongo 事务；这里不注册事务同步，
+        // 避免触发 “Transaction numbers are only allowed on a replica set member or mongos”。
+        // 方法内数据库写入完成后再进入 finally 释放锁，仍可保证同一来源/同一排版记录的并发请求串行执行。
+        releaseOperationLocksImmediately(lockKeys, token);
+    }
+
+    private void releaseOperationLocksImmediately(List<String> lockKeys, String token) {
+        DefaultRedisScript<Long> releaseScript = new DefaultRedisScript<>();
+        releaseScript.setResultType(Long.class);
+        releaseScript.setScriptText(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                        "return redis.call('del', KEYS[1]) " +
+                        "else return 0 end"
+        );
+        for (String lockKey : lockKeys) {
+            try {
+                redisTemplate.execute(releaseScript, Collections.singletonList(lockKey), token);
+            } catch (Exception ex) {
+                log.warn("释放排版操作锁失败，lockKey={}", lockKey, ex);
+            }
+        }
+    }
+
+    private void ensureTypesettingStatus(TypesettingInfo typesettingInfo, TypesettingStatus expectedStatus, String message) {
+        if (typesettingInfo == null || expectedStatus == null) {
+            return;
+        }
+        if (!expectedStatus.getCode().equals(typesettingInfo.getStatus())) {
+            throw new IllegalStateException(message + "，当前状态：" + typesettingInfo.getStatus());
+        }
+    }
+
+    /**
      * 确认排版：校验材料和工艺，调用 API 生成排版结果，并更新生产工件状态
      * @return 排版结果
      */
     public LayoutConfirmResult toLayout(LayoutConfirmRequest request) {
+        List<String> operationLockKeys = buildToLayoutOperationLockKeys(request);
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版对象正在处理中，请稍后重试");
+        try {
+            return doToLayout(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
         List<ProductionPiece> productionPieces = new ArrayList<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
@@ -1040,13 +1168,9 @@ public class AppTypesettingService {
 
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
-            List<ProcedureFlowNode> nodes = productionPiece.getProcedureFlow().getNodes();
-            for (ProcedureFlowNode node : nodes) {
-                if (node.getNodeName().equals("排版")) {
-                    if (node.getPieceQuantity() < quantity){
-                        return LayoutConfirmResult.failed(productionPiece.getProductionPieceId()+"可排版数量不足");
-                    }
-                }
+            int pendingQuantity = getPendingTypesettingQuantity(productionPiece);
+            if (quantity != null && pendingQuantity < quantity) {
+                return LayoutConfirmResult.failed(productionPiece.getProductionPieceId() + "可排版数量不足");
             }
         }
 
@@ -1138,7 +1262,7 @@ public class AppTypesettingService {
                         quantity
                 );
             } catch (Exception e) {
-                System.err.println("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage());
+                throw new IllegalStateException("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage(), e);
             }
         }
         for (TypesettingInfo info : typesettingInfos) {
@@ -1334,10 +1458,24 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
         }
+        List<String> operationLockKeys = Collections.singletonList(buildConfirmLayoutOperationLockKey(request.getId()));
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认中，请勿重复确认");
+        try {
+            return doConfirmLayout(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private LayoutConfirmResult doConfirmLayout(TypesettingInfo request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
+        }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(request.getId());
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
+        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
         validateNoSecondaryTypesettingCells(typesettingInfo);
 
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
@@ -1374,7 +1512,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -1587,18 +1725,74 @@ public class AppTypesettingService {
                 .orElse(null);
     }
 
+
+    private String resolveMirrorFormeBusinessId(TypesettingInfo mirrorTypesettingInfo, String originBusinessId) {
+        if (mirrorTypesettingInfo != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getTypesettingId())) {
+            return mirrorTypesettingInfo.getTypesettingId() + buildMirrorTemplateSuffix(mirrorTypesettingInfo.getTemplateCode());
+        }
+        return originBusinessId + "-Mirror";
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfo(TypesettingInfo origin) {
+        if (origin == null) {
+            return null;
+        }
+        for (String mirrorTypesettingId : buildMirrorTypesettingIdCandidates(origin)) {
+            TypesettingInfo mirror = findMirrorTypesettingInfoByTemplate(mirrorTypesettingId, origin.getTemplateCode());
+            if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+                return mirror;
+            }
+        }
+        return null;
+    }
+
+    private TypesettingInfo findMirrorTypesettingInfoByTemplate(String mirrorTypesettingId, String templateCode) {
+        TypesettingInfo mirror = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, templateCode);
+        if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
+            return mirror;
+        }
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingId);
+        }
+        return null;
+    }
+
+    private List<String> buildMirrorTypesettingIdCandidates(TypesettingInfo origin) {
+        List<String> candidates = new ArrayList<>();
+        if (StringUtils.isNotBlank(origin.getTypesettingId())) {
+            candidates.add(origin.getTypesettingId() + "-Mirror");
+        }
+        if (StringUtils.isNotBlank(origin.getId())) {
+            candidates.add(origin.getId() + "-Mirror");
+        }
+        return candidates.stream().filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+    }
+
+    private String buildMirrorTemplateSuffix(String templateCode) {
+        if (StringUtils.isBlank(templateCode) || "1/1".equals(templateCode)) {
+            return "";
+        }
+        return "-" + templateCode.replaceAll("[^A-Za-z0-9_-]", "_");
+    }
+
     private void ensureMirrorTypesettingExists(TypesettingInfo mirrorTypesettingInfo) {
         if (mirrorTypesettingInfo == null || StringUtils.isBlank(mirrorTypesettingInfo.getTypesettingId())) {
             return;
         }
-        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+        TypesettingInfo existing = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                mirrorTypesettingInfo.getTypesettingId(),
+                mirrorTypesettingInfo.getTemplateCode()
+        );
         if (existing == null) {
             mirrorTypesettingInfo.setId(null);
             TypesettingInfo created = domainTypesettingService.addTypesetting(mirrorTypesettingInfo);
             if (created != null && StringUtils.isNotBlank(created.getId())) {
                 mirrorTypesettingInfo.setId(created.getId());
             } else {
-                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingId(mirrorTypesettingInfo.getTypesettingId());
+                TypesettingInfo persisted = domainTypesettingService.findTypesettingByTypesettingIdAndTemplateCode(
+                        mirrorTypesettingInfo.getTypesettingId(),
+                        mirrorTypesettingInfo.getTemplateCode()
+                );
                 if (persisted != null && StringUtils.isNotBlank(persisted.getId())) {
                     mirrorTypesettingInfo.setId(persisted.getId());
                 }
@@ -2341,6 +2535,19 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
         }
+        List<String> operationLockKeys = Collections.singletonList(buildConfirmPrintOperationLockKey(request.getId()));
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认打印中，请勿重复确认");
+        try {
+            return doConfirmPrint(request);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private ConfirmPrintResult doConfirmPrint(ConfirmPrintRequest request) {
+        if (request == null || StringUtils.isBlank(request.getId())) {
+            throw new RuntimeException("排版ID不能为空");
+        }
         if (StringUtils.isBlank(request.getDeviceCode())) {
             throw new RuntimeException("设备编号不能为空");
         }
@@ -2348,6 +2555,7 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new RuntimeException("排版信息不存在：" + request.getId());
         }
+        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
         if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
         }
@@ -2380,7 +2588,7 @@ public class AppTypesettingService {
             FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
                     mirrorTypesettingInfo,
                     TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    businessId + "-mirror"
+                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
             );
             mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
             // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
@@ -2499,10 +2707,10 @@ public class AppTypesettingService {
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
-        log.info("开始进行打印印版回调参数remark,{}", JSON.toJSONString(remark));
+        log.info("开始进行打印印版回调参数remark,{}", JsonLogUtil.toJSONString(remark));
         try {
             if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
-                log.info("开始进行打印印版回调参数,{}", JSON.toJSONString(typesettingInfo));
+                log.info("开始进行打印印版回调参数,{}", buildTypesettingInfoLogSummary(typesettingInfo));
                 String deviceCode = remark.substring("FORME_OP:PRINT:".length());
                 boolean repeatedPrintCallback = TypesettingStatus.PRINTING.getCode().equals(typesettingInfo.getStatus());
                 typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
@@ -2510,12 +2718,12 @@ public class AppTypesettingService {
                 typesettingInfo.setLeaveQuantity(1);
                 Set<String> visitedTypesettingKeys = new HashSet<>();
                 Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
-                collectProductionPieceUsage(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage, false);
+                collectProductionPieceUsageForQuantityTransfer(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
                 int plateUseCount = typesettingInfo.getLeaveQuantity() != null && typesettingInfo.getLeaveQuantity() > 0
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (!repeatedPrintCallback && (callbackTypesettingId == null || !callbackTypesettingId.endsWith("-Mirror"))) {
+                if (!repeatedPrintCallback && !isMirrorTypesettingInfo(typesettingInfo)) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
@@ -2542,6 +2750,23 @@ public class AppTypesettingService {
             log.error("处理打印印版回调异常", e);
         }
 
+    }
+
+    private String buildTypesettingInfoLogSummary(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return "null";
+        }
+        return "id=" + typesettingInfo.getId()
+                + ", typesettingId=" + typesettingInfo.getTypesettingId()
+                + ", status=" + typesettingInfo.getStatus()
+                + ", remark=" + typesettingInfo.getRemark()
+                + ", manufacturerMetaId=" + typesettingInfo.getManufacturerMetaId()
+                + ", layoutMode=" + typesettingInfo.getLayoutMode()
+                + ", templateCode=" + typesettingInfo.getTemplateCode()
+                + ", cells=" + (typesettingInfo.getTypesettingCells() == null ? 0 : typesettingInfo.getTypesettingCells().size())
+                + ", procedureNodes=" + (typesettingInfo.getProcedureFlow() == null
+                || typesettingInfo.getProcedureFlow().getNodes() == null ? 0 : typesettingInfo.getProcedureFlow().getNodes().size())
+                + ", marks=" + (typesettingInfo.getMarks() == null ? 0 : typesettingInfo.getMarks().size());
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
@@ -2574,11 +2799,31 @@ public class AppTypesettingService {
         return deviceCfgs.get(0);
     }
 
+
+    private void collectProductionPieceUsageForQuantityTransfer(TypesettingInfo typesettingInfo,
+                                                                 int multiplier,
+                                                                 Set<String> visitedTypesettingKeys,
+                                                                 Map<String, Integer> productionPieceUsage) {
+        collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, isMirrorTypesettingInfo(typesettingInfo));
+    }
+
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
                                              int multiplier,
                                              Set<String> visitedTypesettingKeys,
                                              Map<String, Integer> productionPieceUsage) {
         collectProductionPieceUsage(typesettingInfo, multiplier, visitedTypesettingKeys, productionPieceUsage, false);
+    }
+
+
+    private boolean isMirrorTypesettingInfo(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        return isMirrorTypesettingId(typesettingInfo.getTypesettingId()) || isMirrorTypesettingId(typesettingInfo.getId());
+    }
+
+    private boolean isMirrorTypesettingId(String typesettingId) {
+        return StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror");
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
@@ -2617,14 +2862,12 @@ public class AppTypesettingService {
             if (nestedInfo == null || StringUtils.isBlank(nestedInfo.getId())) {
                 continue;
             }
-            boolean nestedMirrorBranch = mirrorBranch || (StringUtils.isNotBlank(nestedInfo.getTypesettingId())
-                    && nestedInfo.getTypesettingId().endsWith("-Mirror"));
+            boolean nestedMirrorBranch = mirrorBranch || isMirrorTypesettingInfo(nestedInfo);
             collectProductionPieceUsage(nestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, nestedMirrorBranch);
 
             // 需要查看对应 -Mirror 印版，但其 productionPiece 用量不参与扣减统计
-            if (StringUtils.isNotBlank(nestedInfo.getTypesettingId()) && !nestedInfo.getTypesettingId().endsWith("-Mirror")) {
-                TypesettingInfo mirrorNestedInfo = domainTypesettingService
-                        .findTypesettingByTypesettingId(nestedInfo.getTypesettingId() + "-Mirror");
+            if (!isMirrorTypesettingInfo(nestedInfo)) {
+                TypesettingInfo mirrorNestedInfo = findMirrorTypesettingInfo(nestedInfo);
                 if (mirrorNestedInfo != null && StringUtils.isNotBlank(mirrorNestedInfo.getId())) {
                     collectProductionPieceUsage(mirrorNestedInfo, currentMultiplier, visitedTypesettingKeys, productionPieceUsage, true);
                 }
@@ -2735,6 +2978,7 @@ public class AppTypesettingService {
         LinkedHashSet<String> markSet = new LinkedHashSet<>();
         if (typesettingElement != null) {
             appendRawFile(jsonSet, typesettingElement.getJson());
+            appendFormeSvgImgFiles(imageSet, typesettingElement.getFormeSvg());
         }
         collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
@@ -2838,6 +3082,57 @@ public class AppTypesettingService {
         if (StringUtils.isNotBlank(fileUrl)) {
             container.add(fileUrl);
         }
+    }
+
+    private void appendFormeSvgImgFiles(Set<String> imageSet, String formeSvg) {
+        if (imageSet == null || StringUtils.isBlank(formeSvg)) {
+            return;
+        }
+        try {
+            String svgContent = readFormeSvgContent(formeSvg);
+            if (StringUtils.isBlank(svgContent)) {
+                return;
+            }
+            Matcher imgTagMatcher = Pattern.compile("<img\\b[^>]*>", Pattern.CASE_INSENSITIVE).matcher(svgContent);
+            while (imgTagMatcher.find()) {
+                String imgTag = imgTagMatcher.group();
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "src"));
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "href"));
+                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "xlink:href"));
+            }
+        } catch (Exception ex) {
+            log.warn("读取 formeSvg 中 img 标签失败, formeSvg={}, error={}", formeSvg, ex.getMessage());
+        }
+    }
+
+    private String readFormeSvgContent(String formeSvg) throws IOException {
+        String completeUrl = buildCompleteOssUrl(formeSvg);
+        if (StringUtils.isNotBlank(completeUrl) && (completeUrl.startsWith("http://") || completeUrl.startsWith("https://"))) {
+            return restTemplate.getForObject(URI.create(completeUrl), String.class);
+        }
+        Path localPath = Path.of(formeSvg);
+        if (Files.exists(localPath)) {
+            return Files.readString(localPath, StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    private String extractImgTagAttribute(String imgTag, String attributeName) {
+        if (StringUtils.isBlank(imgTag) || StringUtils.isBlank(attributeName)) {
+            return null;
+        }
+        Matcher attributeMatcher = Pattern.compile("(?i)(?<![\\w:-])" + Pattern.quote(attributeName)
+                + "\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s>]+))").matcher(imgTag);
+        if (!attributeMatcher.find()) {
+            return null;
+        }
+        if (attributeMatcher.group(2) != null) {
+            return attributeMatcher.group(2);
+        }
+        if (attributeMatcher.group(3) != null) {
+            return attributeMatcher.group(3);
+        }
+        return attributeMatcher.group(4);
     }
 
     private void appendMarkFiles(Set<String> container, String markFileUrl) {
@@ -3081,15 +3376,28 @@ public class AppTypesettingService {
         List<String> releasedPieceIds = new ArrayList<>();
         List<String> errorMessages = new ArrayList<>();
         List<String> deletedLayoutIds = new ArrayList<>();
+        Set<String> deletedLayoutIdSet = new LinkedHashSet<>();
 
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId)) {
+                continue;
+            }
+            if (deletedLayoutIdSet.contains(typesettingId)) {
                 continue;
             }
             TypesettingInfo info = domainTypesettingService.findById(typesettingId);
             if (info == null || StringUtils.isBlank(info.getId())) {
                 errorMessages.add("排版记录不存在: " + typesettingId);
                 continue;
+            }
+            TypesettingInfo pairedMirrorTypesetting = findReleaseLayoutMirrorPair(info);
+            if (pairedMirrorTypesetting != null && StringUtils.isNotBlank(pairedMirrorTypesetting.getId())) {
+                boolean pairedLayoutCanRelease = (pairedMirrorTypesetting.getLeaveQuantity() != null && pairedMirrorTypesetting.getLeaveQuantity() != 0)
+                        && TypesettingStatus.PENDING.getCode().equals(pairedMirrorTypesetting.getStatus());
+                if (!pairedLayoutCanRelease) {
+                    errorMessages.add("排版记录 " + info.getId() + " 的正面或反面文件已经被使用，无法释放");
+                    continue;
+                }
             }
 
             List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
@@ -3103,7 +3411,9 @@ public class AppTypesettingService {
                 }
                 int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
                 if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    if (!isMirrorTypesettingInfo(info)) {
+                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    }
                 } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
                     typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                 }
@@ -3112,21 +3422,20 @@ public class AppTypesettingService {
             try {
                 domainTypesettingService.deleteTypesetting(info.getId());
                 deletedLayoutIds.add(info.getId());
+                deletedLayoutIdSet.add(info.getId());
             } catch (Exception e) {
                 errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
                 continue;
             }
 
-            if (StringUtils.isBlank(info.getTypesettingId())) {
-                continue;
-            }
-            TypesettingInfo mirrorTypesetting = domainTypesettingService.findTypesettingByTypesettingId(info.getTypesettingId() + "-Mirror");
+            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
             if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
                 continue;
             }
             try {
                 domainTypesettingService.deleteTypesetting(mirrorTypesetting.getId());
                 deletedLayoutIds.add(mirrorTypesetting.getId());
+                deletedLayoutIdSet.add(mirrorTypesetting.getId());
             } catch (Exception e) {
                 errorMessages.add("删除镜像排版记录失败(" + mirrorTypesetting.getId() + "): " + e.getMessage());
             }
@@ -3185,6 +3494,38 @@ public class AppTypesettingService {
         result.setReleasedPieceIds(releasedPieceIds);
         result.setDeletedLayoutIds(deletedLayoutIds);
         return result;
+    }
+
+    private TypesettingInfo findReleaseLayoutMirrorPair(TypesettingInfo info) {
+        if (info == null || StringUtils.isBlank(info.getTypesettingId())) {
+            return null;
+        }
+        String typesettingId = info.getTypesettingId();
+        if (typesettingId.endsWith("-Mirror")) {
+            String frontTypesettingId = typesettingId.substring(0, typesettingId.length() - "-Mirror".length());
+            return findExactTypesettingByTypesettingIdAndTemplateCode(frontTypesettingId, info.getTemplateCode(), info.getId());
+        }
+        String mirrorTypesettingId = typesettingId + "-Mirror";
+        return findExactTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, info.getTemplateCode(), info.getId());
+    }
+
+    private TypesettingInfo findExactTypesettingByTypesettingIdAndTemplateCode(String typesettingId,
+                                                                               String templateCode,
+                                                                               String excludedRecordId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
+        List<TypesettingInfo> candidates = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != null)
+                .filter(candidate -> !Objects.equals(candidate.getId(), excludedRecordId))
+                .filter(candidate -> Objects.equals(candidate.getTypesettingId(), typesettingId))
+                .filter(candidate -> StringUtils.isBlank(templateCode) || Objects.equals(candidate.getTemplateCode(), templateCode))
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -3723,27 +4064,29 @@ public class AppTypesettingService {
             }
 
             List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
-            List<TypesettingSourceCell> usedCells = new ArrayList<>();
+            Set<String> markedSourceCellKeys = resolveMarkedSourceCellKeys(sourceIdCountMap.keySet(), sourceCells);
+            Map<String, TypesettingSourceCell> usedCellMap = new LinkedHashMap<>();
             for (Map.Entry<String, Integer> entry : sourceIdCountMap.entrySet()) {
                 String sourceId = entry.getKey();
-                TypesettingProductionPieceVO matchedCell = null;
-                for (TypesettingProductionPieceVO cell : sourceCells) {
-                    if (cell != null && sourceId.equals(cell.getId())) {
-                        matchedCell = cell;
-                        break;
-                    }
-                }
+                TypesettingProductionPieceVO matchedCell = findMatchedSourceCell(sourceId, sourceCells);
                 if (matchedCell == null || StringUtils.isBlank(matchedCell.getSourceType()) || StringUtils.isBlank(matchedCell.getSourceId())) {
                     continue;
                 }
-                TypesettingSourceCell usedCell = new TypesettingSourceCell();
-                usedCell.setSourceType(matchedCell.getSourceType());
-                usedCell.setSourceId(matchedCell.getSourceId());
-                usedCell.setOrderItemId(matchedCell.getOrderItemId());
-                usedCell.setQuantity(entry.getValue());
-                usedCells.add(usedCell);
+                String sourceCellKey = buildSourceCellKey(matchedCell);
+                if (markedSourceCellKeys.contains(sourceCellKey) && !isMarkedNestingElementId(sourceId)) {
+                    continue;
+                }
+                TypesettingSourceCell usedCell = usedCellMap.computeIfAbsent(sourceCellKey, key -> {
+                    TypesettingSourceCell newCell = new TypesettingSourceCell();
+                    newCell.setSourceType(matchedCell.getSourceType());
+                    newCell.setSourceId(matchedCell.getSourceId());
+                    newCell.setOrderItemId(matchedCell.getOrderItemId());
+                    newCell.setQuantity(0);
+                    return newCell;
+                });
+                usedCell.setQuantity((usedCell.getQuantity() == null ? 0 : usedCell.getQuantity()) + entry.getValue());
             }
-            return usedCells;
+            return new ArrayList<>(usedCellMap.values());
         } catch (Exception e) {
             System.err.println("解析 nestedSvg 失败: " + nestedSvgUrl + ", error=" + e.getMessage());
             return Collections.emptyList();
@@ -3756,6 +4099,74 @@ public class AppTypesettingService {
                 }
             }
         }
+    }
+
+    private Set<String> resolveMarkedSourceCellKeys(Set<String> nestedElementIds, List<TypesettingProductionPieceVO> sourceCells) {
+        if (nestedElementIds == null || nestedElementIds.isEmpty() || sourceCells == null || sourceCells.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> markedSourceCellKeys = new HashSet<>();
+        for (String nestedElementId : nestedElementIds) {
+            if (!isMarkedNestingElementId(nestedElementId)) {
+                continue;
+            }
+            TypesettingProductionPieceVO matchedCell = findMatchedSourceCell(nestedElementId, sourceCells);
+            if (matchedCell != null) {
+                markedSourceCellKeys.add(buildSourceCellKey(matchedCell));
+            }
+        }
+        return markedSourceCellKeys;
+    }
+
+    private TypesettingProductionPieceVO findMatchedSourceCell(String nestedElementId, List<TypesettingProductionPieceVO> sourceCells) {
+        if (StringUtils.isBlank(nestedElementId) || sourceCells == null || sourceCells.isEmpty()) {
+            return null;
+        }
+        for (TypesettingProductionPieceVO cell : sourceCells) {
+            if (matchesSourceCellId(nestedElementId, cell)) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
+    private String buildSourceCellKey(TypesettingProductionPieceVO cell) {
+        if (cell == null) {
+            return "";
+        }
+        return String.join("|",
+                StringUtils.isBlank(cell.getSourceType()) ? "" : cell.getSourceType(),
+                StringUtils.isBlank(cell.getSourceId()) ? "" : cell.getSourceId(),
+                StringUtils.isBlank(cell.getOrderItemId()) ? "" : cell.getOrderItemId());
+    }
+
+    private boolean isMarkedNestingElementId(String nestedElementId) {
+        return StringUtils.isNotBlank(nestedElementId) && nestedElementId.startsWith("marked-nesting-");
+    }
+
+    /**
+     * 判断 nestedSvg 中解析到的元素 ID 是否对应本次缓存的来源 cell。
+     *
+     * <p>带 marks 的生产工件提交给算法时，外层元素 ID 会被改写为
+     * {@code marked-nesting-{productionPieceId}}，避免和预处理 SVG 内部原始 ID 重复。
+     * callback 解析 nestedSvg 回填 cells 时需要把该特殊 ID 还原成原来源 cell，否则生成的印版会丢失
+     * typesettingCells。</p>
+     */
+    private boolean matchesSourceCellId(String nestedElementId, TypesettingProductionPieceVO cell) {
+        if (StringUtils.isBlank(nestedElementId) || cell == null) {
+            return false;
+        }
+        if (Objects.equals(nestedElementId, cell.getId())
+                || Objects.equals(nestedElementId, cell.getSourceId())) {
+            return true;
+        }
+        String markedPrefix = "marked-nesting-";
+        if (isMarkedNestingElementId(nestedElementId)) {
+            String originalId = nestedElementId.substring(markedPrefix.length());
+            return Objects.equals(originalId, cell.getId())
+                    || Objects.equals(originalId, cell.getSourceId());
+        }
+        return false;
     }
 
     private Path downloadNestedSvgToTempFile(String nestedSvg) {

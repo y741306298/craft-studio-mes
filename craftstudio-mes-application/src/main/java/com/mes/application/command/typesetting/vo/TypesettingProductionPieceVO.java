@@ -7,6 +7,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 
@@ -98,6 +99,11 @@ public class TypesettingProductionPieceVO {
     private String layoutMode;
 
     /**
+     * 排版方式描述
+     */
+    private String description;
+
+    /**
      * 排版记录物料编码
      */
     private List<String> materialConfigs;
@@ -181,12 +187,23 @@ public class TypesettingProductionPieceVO {
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
+        vo.setDescription(resolveLayoutModeDescription(info));
         if (info.getElement() != null) {
             vo.setWidth(toCentimeters(info.getElement().getWidth().doubleValue()));
             vo.setHeight(toCentimeters(info.getElement().getHeight().doubleValue()));
         }
         vo.setCreateTime(info.getCreateTime());
         return vo;
+    }
+
+    private static String resolveLayoutModeDescription(TypesettingInfo info) {
+        if (info.getDescription() != null) {
+            return info.getDescription();
+        }
+        if (info.getLayoutMode() == null || info.getLayoutMode().trim().isEmpty()) {
+            return null;
+        }
+        return TypesettingLayoutMode.fromCode(info.getLayoutMode()).getDescription();
     }
 
     private static Double toCentimeters(Double millimeters) {

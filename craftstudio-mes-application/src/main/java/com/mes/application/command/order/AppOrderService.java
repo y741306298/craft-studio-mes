@@ -309,14 +309,9 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
-        List<OrderItem> readyToPreprocessOrderItems = new ArrayList<>();
-        for (OrderItem orderItem : orderItemsResult) {
-            boolean waitingForMaskSvg = appOrderPreprocessingService.submitMaskGrayImgToSvgIfNecessary(orderItem);
-            if (!waitingForMaskSvg) {
-                readyToPreprocessOrderItems.add(orderItem);
-            }
-        }
-        // 入库成功后立即返回，预处理改为异步队列执行
+        // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
+        List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
+        // 入库和必要的灰度图转 SVG 成功后立即返回，后续预处理改为异步队列执行
         orderPreprocessTaskQueue.submit(readyToPreprocessOrderItems);
         return orderInfo;
     }
@@ -368,7 +363,6 @@ public class AppOrderService {
      * 将指定订单项的待生产数量转入目标工厂，并保留每个原订单项维度的转出记录。
      * request.targetId 使用目标工厂 manufacturerUser.account，再由账号关联 manufacturerMetaId。
      */
-    @Transactional
     public ApiResponse<String> transferOrder(OrderTransferRequest request) {
         if (request == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单参数不能为空");

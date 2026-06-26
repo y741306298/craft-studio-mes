@@ -180,6 +180,25 @@ public class TypesettingService {
     }
 
     /**
+     * 根据排版文件 ID 与模板编号精确查询排版信息。
+     */
+    public TypesettingInfo findTypesettingByTypesettingIdAndTemplateCode(String typesettingId, String templateCode) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("typesettingId", typesettingId);
+        if (StringUtils.isNotBlank(templateCode)) {
+            filters.put("templateCode", templateCode);
+        }
+        List<TypesettingInfo> typesettingInfos = typesettingRepository.filterList(1, 1, filters);
+        if (typesettingInfos != null && !typesettingInfos.isEmpty()) {
+            return typesettingInfos.get(0);
+        }
+        return null;
+    }
+
+    /**
      * 根据排版文件 ID 查询排版信息列表
      * @param typesettingId 排版文件 ID
      * @return 排版信息列表
