@@ -1475,64 +1475,68 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
-        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
-        validateNoSecondaryTypesettingCells(typesettingInfo);
+        try {
+            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
+            validateNoSecondaryTypesettingCells(typesettingInfo);
 
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
-                StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
-        );
-        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
-        }
-        if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-            throw new IllegalArgumentException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
-        }
-        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
-        }
-        typesettingInfo.setLayoutMode(layoutMode.getCode());
-        typesettingInfo.applyLayoutModeConfig();
-
-        String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-        FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-        mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        String formeRequestJson = JSON.toJSONString(formeRequest);
-        log.info("formeRequest========:{}", formeRequestJson);
-        algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
-
-        String formeOpRemark = "FORME_OP:LAYOUT";
-        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
-        if (mirrorTypesettingInfo != null) {
-            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
-                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
-            }
-            mirrorTypesettingInfo.setRemark(formeOpRemark);
-            mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-            FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
-                    mirrorTypesettingInfo,
-                    TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
+                    StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
             );
-            mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
-            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
-            mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
-            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
-            String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
-            log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
-            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
+            if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+                throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
+            }
+            if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+                throw new IllegalArgumentException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+            }
+            typesettingInfo.setLayoutMode(layoutMode.getCode());
+            typesettingInfo.applyLayoutModeConfig();
+
+            String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
+            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            String formeRequestJson = JSON.toJSONString(formeRequest);
+            log.info("formeRequest========:{}", formeRequestJson);
+            algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
+
+            String formeOpRemark = "FORME_OP:LAYOUT";
+            TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+            if (mirrorTypesettingInfo != null) {
+                if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                    mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+                }
+                mirrorTypesettingInfo.setRemark(formeOpRemark);
+                mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+                ensureMirrorTypesettingExists(mirrorTypesettingInfo);
+                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                        mirrorTypesettingInfo,
+                        TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                        resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
+                );
+                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+                // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+                mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
+                domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
+                String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
+                log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
+                algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
+            }
+
+            // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setRemark(formeOpRemark);
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+
+            LayoutConfirmResult result = new LayoutConfirmResult();
+            result.setSuccess(true);
+            result.setMessage("确认排版任务已提交，等待回调");
+            return result;
+        } catch (Exception e) {
+            String failureReason = "确认排版处理失败：" + resolveExceptionMessage(e);
+            log.error(failureReason, e);
+            markTypesettingFailed(typesettingInfo, failureReason);
+            return LayoutConfirmResult.failed(failureReason);
         }
-
-        // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
-        typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-        typesettingInfo.setRemark(formeOpRemark);
-        mergeExistingMarksBeforeUpdate(typesettingInfo);
-        domainTypesettingService.updateTypesetting(typesettingInfo);
-
-        LayoutConfirmResult result = new LayoutConfirmResult();
-        result.setSuccess(true);
-        result.setMessage("确认排版任务已提交，等待回调");
-        return result;
     }
 
     /**
@@ -2555,66 +2559,76 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new RuntimeException("排版信息不存在：" + request.getId());
         }
-        ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
-        if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-            throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
-        }
-        validateConfirmPrintForDoubleSideMirror(typesettingInfo);
-
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
-                StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
-        );
-        if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-            throw new RuntimeException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
-        }
-        typesettingInfo.setLayoutMode(layoutMode.getCode());
-        typesettingInfo.applyLayoutModeConfig();
-
-        String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-        FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-        mergeAnchorPointMarks(typesettingInfo, formeRequest);
-        String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
-        TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
-        if (mirrorTypesettingInfo != null) {
-            if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
-                mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+        try {
+            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
+            if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+                throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
             }
-            mirrorTypesettingInfo.setRemark(formeOpRemark);
-            mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
-            mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-            ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
-            mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
-            ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-            FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
-                    mirrorTypesettingInfo,
-                    TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
-                    resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
+            validateConfirmPrintForDoubleSideMirror(typesettingInfo);
+
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
+                    StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
             );
-            mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
-            // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
-            mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
-            domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
-            String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
-            log.info("formeRequest-print-mirror========:{}", mirrorFormeRequestJson);
-            algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
+            if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
+                throw new RuntimeException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+            }
+            typesettingInfo.setLayoutMode(layoutMode.getCode());
+            typesettingInfo.applyLayoutModeConfig();
+
+            String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
+            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
+            TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+            if (mirrorTypesettingInfo != null) {
+                if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
+                    mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
+                }
+                mirrorTypesettingInfo.setRemark(formeOpRemark);
+                mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
+                mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+                ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+                mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
+                ensureMirrorTypesettingExists(mirrorTypesettingInfo);
+                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                        mirrorTypesettingInfo,
+                        TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                        resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
+                );
+                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
+                // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+                mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
+                domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
+                String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
+                log.info("formeRequest-print-mirror========:{}", mirrorFormeRequestJson);
+                algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
+            }
+
+            ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setRemark(formeOpRemark);
+            typesettingInfo.setDeviceCode(request.getDeviceCode());
+            typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+
+            String formeRequestJson = JSON.toJSONString(formeRequest);
+            log.info("formeRequest-print========:{}", formeRequestJson);
+            algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
+
+            ConfirmPrintResult result = new ConfirmPrintResult();
+            result.setSuccess(true);
+            result.setMessage("确认打印任务已提交，等待回调");
+            return result;
+        } catch (Exception e) {
+            String failureReason = "确认打印处理失败：" + resolveExceptionMessage(e);
+            log.error(failureReason, e);
+            markTypesettingFailed(typesettingInfo, failureReason);
+            ConfirmPrintResult result = new ConfirmPrintResult();
+            result.setSuccess(false);
+            result.setMessage(failureReason);
+            return result;
         }
-
-        ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
-        typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-        typesettingInfo.setRemark(formeOpRemark);
-        typesettingInfo.setDeviceCode(request.getDeviceCode());
-        typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
-        mergeExistingMarksBeforeUpdate(typesettingInfo);
-        domainTypesettingService.updateTypesetting(typesettingInfo);
-
-        String formeRequestJson = JSON.toJSONString(formeRequest);
-        log.info("formeRequest-print========:{}", formeRequestJson);
-        algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
-
-        ConfirmPrintResult result = new ConfirmPrintResult();
-        result.setSuccess(true);
-        result.setMessage("确认打印任务已提交，等待回调");
-        return result;
     }
 
     private void validateConfirmPrintForDoubleSideMirror(TypesettingInfo typesettingInfo) {
@@ -2688,27 +2702,25 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             return;
         }
-        if (!"success".equalsIgnoreCase(response.getStatus())) {
-            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
-            typesettingInfo.setRemark(StringUtils.isNotBlank(response.getError()) ? response.getError() : "印版异步生成失败");
-            mergeExistingMarksBeforeUpdate(typesettingInfo);
-            domainTypesettingService.updateTypesetting(typesettingInfo);
-            return;
-        }
-        applyFormeGenerationResult(typesettingInfo, response.getResult());
-        if (StringUtils.isBlank(typesettingInfo.getTemplateCode())) {
-            typesettingInfo.setTemplateCode(buildTemplateCode(1, 1));
-        }
-        String remark = typesettingInfo.getRemark();
-        if ("FORME_OP:LAYOUT".equals(remark)) {
-            typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
-            typesettingInfo.setRemark(null);
-            mergeExistingMarksBeforeUpdate(typesettingInfo);
-            domainTypesettingService.updateTypesetting(typesettingInfo);
-            return;
-        }
-        log.info("开始进行打印印版回调参数remark,{}", JsonLogUtil.toJSONString(remark));
         try {
+            if (!"success".equalsIgnoreCase(response.getStatus())) {
+                markTypesettingFailed(typesettingInfo,
+                        StringUtils.isNotBlank(response.getError()) ? response.getError() : "印版异步生成失败");
+                return;
+            }
+            applyFormeGenerationResult(typesettingInfo, response.getResult());
+            if (StringUtils.isBlank(typesettingInfo.getTemplateCode())) {
+                typesettingInfo.setTemplateCode(buildTemplateCode(1, 1));
+            }
+            String remark = typesettingInfo.getRemark();
+            if ("FORME_OP:LAYOUT".equals(remark)) {
+                typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
+                typesettingInfo.setRemark(null);
+                mergeExistingMarksBeforeUpdate(typesettingInfo);
+                domainTypesettingService.updateTypesetting(typesettingInfo);
+                return;
+            }
+            log.info("开始进行打印印版回调参数remark,{}", JsonLogUtil.toJSONString(remark));
             if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
                 log.info("开始进行打印印版回调参数,{}", buildTypesettingInfoLogSummary(typesettingInfo));
                 String deviceCode = remark.substring("FORME_OP:PRINT:".length());
@@ -2748,6 +2760,7 @@ public class AppTypesettingService {
             }
         }catch (Exception e) {
             log.error("处理打印印版回调异常", e);
+            markTypesettingFailed(typesettingInfo, "打印印版回调处理异常：" + resolveExceptionMessage(e));
         }
 
     }
@@ -2767,6 +2780,32 @@ public class AppTypesettingService {
                 + ", procedureNodes=" + (typesettingInfo.getProcedureFlow() == null
                 || typesettingInfo.getProcedureFlow().getNodes() == null ? 0 : typesettingInfo.getProcedureFlow().getNodes().size())
                 + ", marks=" + (typesettingInfo.getMarks() == null ? 0 : typesettingInfo.getMarks().size());
+    }
+
+    private void markTypesettingFailed(TypesettingInfo typesettingInfo, String reason) {
+        if (typesettingInfo == null) {
+            return;
+        }
+        typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
+        typesettingInfo.setRemark(StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
+        mergeExistingMarksBeforeUpdate(typesettingInfo);
+        domainTypesettingService.updateTypesetting(typesettingInfo);
+    }
+
+    private void markTypesettingsFailed(Collection<TypesettingInfo> typesettingInfos, String reason) {
+        if (typesettingInfos == null || typesettingInfos.isEmpty()) {
+            return;
+        }
+        for (TypesettingInfo typesettingInfo : typesettingInfos) {
+            markTypesettingFailed(typesettingInfo, reason);
+        }
+    }
+
+    private String resolveExceptionMessage(Exception e) {
+        if (e == null) {
+            return "未知错误";
+        }
+        return StringUtils.isNotBlank(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
@@ -3657,65 +3696,69 @@ public class AppTypesettingService {
         }
 
         TypesettingInfo baseTypesettingInfo = typesettingInfos.get(0);
-        if ("success".equals(response.getStatus())) {
-            List<NestingResponse.Result> results = response.getResults();
-            if (results == null || results.isEmpty()) {
-                throw new RuntimeException("排版回调成功但未返回结果");
-            }
-            // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
-            int total = results.size();
-            for (int i = 0; i < total; i++) {
-                NestingResponse.Result callbackResult = results.get(i);
-                String templateCode = buildTemplateCode(i + 1, total);
-                TypesettingElement element = new TypesettingElement();
-                element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
-                String nestedMirrorSvg = StringUtils.isNotBlank(callbackResult.getNestedMirrorSvg())
-                        ? callbackResult.getNestedMirrorSvg()
-                        : callbackResult.getMirrorNestedSvg();
-                if (StringUtils.isNotBlank(nestedMirrorSvg)) {
-                    element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
+        try {
+            if ("success".equals(response.getStatus())) {
+                List<NestingResponse.Result> results = response.getResults();
+                if (results == null || results.isEmpty()) {
+                    throw new RuntimeException("排版回调成功但未返回结果");
                 }
-                element.setUtilization(callbackResult.getUtilization());
-                if (callbackResult.getContainerSize() != null) {
-                    element.setWidth(callbackResult.getContainerSize().getWidth());
-                    element.setHeight(callbackResult.getContainerSize().getHeight());
-                } else if (callbackResult.getWidth() != null || callbackResult.getHeight() != null) {
-                    element.setWidth(callbackResult.getWidth());
-                    element.setHeight(callbackResult.getHeight());
-                }
-                if (callbackResult.getGridLines() != null) {
-                    element.setGridLines(new TypesettingElement.GridLines(
-                            callbackResult.getGridLines().getXs(),
-                            callbackResult.getGridLines().getYs()
-                    ));
-                }
-                if (i == 0) {
-                    baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
-                    baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
+                // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
+                int total = results.size();
+                for (int i = 0; i < total; i++) {
+                    NestingResponse.Result callbackResult = results.get(i);
+                    String templateCode = buildTemplateCode(i + 1, total);
+                    TypesettingElement element = new TypesettingElement();
+                    element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
+                    String nestedMirrorSvg = StringUtils.isNotBlank(callbackResult.getNestedMirrorSvg())
+                            ? callbackResult.getNestedMirrorSvg()
+                            : callbackResult.getMirrorNestedSvg();
+                    if (StringUtils.isNotBlank(nestedMirrorSvg)) {
+                        element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
+                    }
+                    element.setUtilization(callbackResult.getUtilization());
+                    if (callbackResult.getContainerSize() != null) {
+                        element.setWidth(callbackResult.getContainerSize().getWidth());
+                        element.setHeight(callbackResult.getContainerSize().getHeight());
+                    } else if (callbackResult.getWidth() != null || callbackResult.getHeight() != null) {
+                        element.setWidth(callbackResult.getWidth());
+                        element.setHeight(callbackResult.getHeight());
+                    }
+                    if (callbackResult.getGridLines() != null) {
+                        element.setGridLines(new TypesettingElement.GridLines(
+                                callbackResult.getGridLines().getXs(),
+                                callbackResult.getGridLines().getYs()
+                        ));
+                    }
+                    if (i == 0) {
+                        baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+                        baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
+                        List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                        baseTypesettingInfo.setTypesettingCells(usedCells);
+                        baseTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                        baseTypesettingInfo.setTemplateCode(templateCode);
+                        domainTypesettingService.updateTypesetting(baseTypesettingInfo);
+                        continue;
+                    }
+                    TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
+                    newTypesettingInfo.setId(null);
+                    newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
+                    newTypesettingInfo.setElement(element);
                     List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
-                    baseTypesettingInfo.setTypesettingCells(usedCells);
-                    baseTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
-                    baseTypesettingInfo.setTemplateCode(templateCode);
-                    domainTypesettingService.updateTypesetting(baseTypesettingInfo);
-                    continue;
+                    newTypesettingInfo.setTypesettingCells(usedCells);
+                    newTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                    newTypesettingInfo.setTemplateCode(templateCode);
+                    newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
+                    domainTypesettingService.addTypesetting(newTypesettingInfo);
                 }
-                TypesettingInfo newTypesettingInfo = cloneForCallback(baseTypesettingInfo);
-                newTypesettingInfo.setId(null);
-                newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
-                newTypesettingInfo.setElement(element);
-                List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
-                newTypesettingInfo.setTypesettingCells(usedCells);
-                newTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
-                newTypesettingInfo.setTemplateCode(templateCode);
-                newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
-                domainTypesettingService.addTypesetting(newTypesettingInfo);
+            } else {
+                markTypesettingsFailed(typesettingInfos,
+                        StringUtils.isNotBlank(response.getError()) ? response.getError() : "排版异步生成失败");
             }
-        } else {
-            for (TypesettingInfo typesettingInfo : typesettingInfos) {
-                typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
-                typesettingInfo.setRemark(response.getError());
-                domainTypesettingService.updateTypesetting(typesettingInfo);
-            }
+        } catch (Exception e) {
+            String failureReason = "排版回调处理异常：" + resolveExceptionMessage(e);
+            log.error(failureReason, e);
+            markTypesettingsFailed(typesettingInfos, failureReason);
+            throw new RuntimeException(failureReason, e);
         }
     }
 

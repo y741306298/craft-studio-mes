@@ -12,7 +12,7 @@ public enum TypesettingStatus {
     PRINTING("待打印", "printing"),
     PRINTING_IN_PROGRESS("打印中", "printing_in_progress"),
     COMPLETED("已完成", "completed"),
-    FAILED("排版失败", "failed");       // 已下达
+    FAILED("处理失败", "failed");       // 已下达
 
     private final String description;
     private final String code;
