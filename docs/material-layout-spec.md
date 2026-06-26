@@ -46,7 +46,7 @@
 
 Controller：`MaterialLayoutSpecController`
 
-基础路径：`/api/configSide/materialLayoutSpec`
+基础路径：`/api/configSide/materialLayoutSpec`，工厂侧同样提供 `/api/manufacturerSide/materialLayoutSpec`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Controller：`MaterialLayoutSpecController`
 
 Controller：`ManufacturerMaterialLayoutSpecCfgController`
 
-基础路径：`/api/configSide/manufacturerMaterialLayoutSpecCfg`
+基础路径：`/api/configSide/manufacturerMaterialLayoutSpecCfg`，工厂侧同样提供 `/api/manufacturerSide/manufacturerMaterialLayoutSpecCfg`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
