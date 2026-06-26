@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -2706,7 +2707,7 @@ public class AppTypesettingService {
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
-        log.info("开始进行打印印版回调参数remark,{}", JSON.toJSONString(remark));
+        log.info("开始进行打印印版回调参数remark,{}", JsonLogUtil.toJSONString(remark));
         try {
             if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
                 log.info("开始进行打印印版回调参数,{}", buildTypesettingInfoLogSummary(typesettingInfo));

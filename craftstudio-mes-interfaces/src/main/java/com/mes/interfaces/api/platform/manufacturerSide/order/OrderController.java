@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.order;
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
@@ -280,7 +281,7 @@ public class OrderController {
     @PostMapping("/callback/generate_mask_files")
     public ApiResponse<String> handleGenerateMaskFilesCallback(@RequestBody ImageMaskResponse response) {
         logger.info("========== handleGenerateMaskFilesCallback 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
         logger.info("========== handleGenerateMaskFilesCallback 入参结束 ==========");
         try {
             // 从 response 中获取回调 ID，新版格式为 orderItemId#preprocessRequestId。
@@ -313,7 +314,7 @@ public class OrderController {
     @PostMapping("/callback/convert_gray_img_to_svg")
     public ApiResponse<String> handleConvertGrayImgToSvgCallback(@RequestBody GrayImgToSvgResponse response) {
         logger.info("========== handleConvertGrayImgToSvgCallback 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
         logger.info("========== handleConvertGrayImgToSvgCallback 入参结束 ==========");
         try {
             OrderItem orderItem = appOrderPreprocessingService.handleConvertGrayImgToSvgCallback(response);

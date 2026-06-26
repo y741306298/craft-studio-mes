@@ -1,5 +1,6 @@
 package com.mes.application.command.api;
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.api.req.ConfigLogisticsRequest;
 import com.mes.application.command.api.req.ConfigMTSProductSpecRequest;
@@ -677,7 +678,7 @@ public class ProductCoreApiService {
                     entity,
                     (Class<ApiResponse<String>>) (Class<?>) ApiResponse.class
             );
-            logger.info("registerManufacturer response ======"+ JSON.toJSONString( response));
+            logger.info("registerManufacturer response ======"+ JsonLogUtil.toJSONString(response));
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 return response.getBody().getData();
             } else {
