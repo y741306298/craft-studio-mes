@@ -1,4 +1,4 @@
-package com.mes.interfaces.api.platform.configSide.manufacturerMaterialLayoutSpecCfg;
+package com.mes.interfaces.api.platform.manufacturerSide.manufacturerMaterialLayoutSpecCfg;
 
 import com.mes.application.command.manufacturerMaterialLayoutSpecCfg.AppManufacturerMaterialLayoutSpecCfgService;
 import com.mes.application.dto.req.manufacturerMaterialLayoutSpecCfg.ManufacturerMaterialLayoutSpecCfgDetailRequest;
@@ -23,8 +23,8 @@ import java.util.List;
  * 因此步进配置跟随 manufacturerMetaId + materialId 保存，而不是先配到材料再绑定工厂。
  */
 @RestController
-@RequestMapping("/api/configSide/manufacturerMaterialLayoutSpecCfg")
-public class ManufacturerMaterialLayoutSpecCfgController {
+@RequestMapping("/api/manufacturerSide/manufacturerMaterialLayoutSpecCfg")
+public class ManufacturerSideManufacturerMaterialLayoutSpecCfgController {
 
     @Autowired
     private AppManufacturerMaterialLayoutSpecCfgService appCfgService;

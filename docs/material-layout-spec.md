@@ -46,7 +46,7 @@
 
 Controller：`MaterialLayoutSpecController`
 
-基础路径：`/api/configSide/materialLayoutSpec`
+基础路径：`/api/configSide/materialLayoutSpec`，工厂侧同样提供 `/api/manufacturerSide/materialLayoutSpec`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -77,12 +77,12 @@ Controller：`MaterialLayoutSpecController`
 
 Controller：`ManufacturerMaterialLayoutSpecCfgController`
 
-基础路径：`/api/configSide/manufacturerMaterialLayoutSpecCfg`
+基础路径：`/api/configSide/manufacturerMaterialLayoutSpecCfg`，工厂侧同样提供 `/api/manufacturerSide/manufacturerMaterialLayoutSpecCfg`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/list` | 分页查询工厂材料步进配置，支持按 `manufacturerMetaId`、`materialId` 筛选。 |
-| `GET` | `/{id}` | 查询工厂材料步进配置详情。 |
+| `POST` | `/detail` | 按请求体中的可配置材料 `materialId` 和工厂 `manufacturerMetaId` 查询工厂材料步进配置详情。 |
 | `POST` | `/add` | 新增工厂材料步进配置。 |
 | `POST` | `/edit` | 编辑工厂材料步进配置。 |
 | `GET` / `DELETE` | `/delete/{id}` | 删除工厂材料步进配置。 |
