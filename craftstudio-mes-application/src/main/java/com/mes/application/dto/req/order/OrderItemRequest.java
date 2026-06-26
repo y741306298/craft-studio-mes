@@ -15,6 +15,7 @@ public class OrderItemRequest {
     private Date createTime;
     private Date updateTime;
     private String state;
+    private MTOProductSpecDTO productSpec;
     private MTOProductSpecDTO mtoProductSpec;
     private Integer count;
     private LogisticsCarrierInfo logisticsCarrierInfo;

@@ -7,6 +7,7 @@ import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -71,7 +72,9 @@ public class OrderAddRequest {
             orderItem.setCreateTime(orderItemRequest.getCreateTime());
             orderItem.setUpdateTime(orderItemRequest.getUpdateTime());
             orderItem.setOrderItemId(String.valueOf(orderItemRequest.getId()));
-            orderItem.setMtoProduct(orderItemRequest.getMtoProductSpec());
+            MTOProductSpecDTO productSpec = orderItemRequest.getProductSpec();
+            if (productSpec == null) productSpec = orderItemRequest.getMtoProductSpec();
+            orderItem.setMtoProduct(productSpec);
             OrderItemRequest.SpecifyRmfInfo specifyRmfInfo = orderItemRequest.getSpecifyRmfInfo();
             if (specifyRmfInfo == null && manufacturerInfo != null) {
                 specifyRmfInfo = new OrderItemRequest.SpecifyRmfInfo();
