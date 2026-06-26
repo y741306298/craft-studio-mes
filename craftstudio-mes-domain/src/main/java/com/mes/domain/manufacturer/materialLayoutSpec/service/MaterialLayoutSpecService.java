@@ -33,11 +33,19 @@ public class MaterialLayoutSpecService {
     }
 
     public List<MaterialLayoutSpec> list(String materialId, String materialName, long current, int size) {
-        return materialLayoutSpecRepository.filterList(current, size, buildFilters(materialId, materialName));
+        Map<String, Object> filters = buildFilters(materialId, materialName);
+        if (filters.isEmpty()) {
+            return materialLayoutSpecRepository.list(current, size);
+        }
+        return materialLayoutSpecRepository.filterList(current, size, filters);
     }
 
     public long total(String materialId, String materialName) {
-        return materialLayoutSpecRepository.filterTotal(buildFilters(materialId, materialName));
+        Map<String, Object> filters = buildFilters(materialId, materialName);
+        if (filters.isEmpty()) {
+            return materialLayoutSpecRepository.total();
+        }
+        return materialLayoutSpecRepository.filterTotal(filters);
     }
 
     private Map<String, Object> buildFilters(String materialId, String materialName) {
