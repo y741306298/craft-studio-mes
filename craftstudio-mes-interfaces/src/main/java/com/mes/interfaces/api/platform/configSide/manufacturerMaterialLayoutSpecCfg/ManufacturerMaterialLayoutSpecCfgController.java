@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.configSide.manufacturerMaterialLayoutSpecCfg;
 
 import com.mes.application.command.manufacturerMaterialLayoutSpecCfg.AppManufacturerMaterialLayoutSpecCfgService;
+import com.mes.application.dto.req.manufacturerMaterialLayoutSpecCfg.ManufacturerMaterialLayoutSpecCfgDetailRequest;
 import com.mes.application.dto.req.manufacturerMaterialLayoutSpecCfg.ManufacturerMaterialLayoutSpecCfgListRequest;
 import com.mes.application.dto.req.manufacturerMaterialLayoutSpecCfg.ManufacturerMaterialLayoutSpecCfgRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
@@ -49,16 +50,15 @@ public class ManufacturerMaterialLayoutSpecCfgController {
     /**
      * 按材料 ID 和工厂 ID 查询工厂材料步进配置详情。
      *
-     * @param materialId material_layout_spec 中的材料 ID
-     * @param manufacturerMetaId 工厂元数据 ID
+     * @param request 查询条件，包含 material_layout_spec 中的材料 ID 和工厂元数据 ID
      * @return 工厂材料步进配置详情
      */
-    @GetMapping("/{materialId}")
+    @PostMapping("/detail")
     public ApiResponse<ManufacturerMaterialLayoutSpecCfgResponse> detail(
-            @PathVariable String materialId,
-            @RequestParam String manufacturerMetaId) {
+            @Valid @RequestBody ManufacturerMaterialLayoutSpecCfgDetailRequest request) {
         return ApiResponse.success(ManufacturerMaterialLayoutSpecCfgResponse.from(
-                appCfgService.findByManufacturerMetaIdAndMaterialId(manufacturerMetaId, materialId)));
+                appCfgService.findByManufacturerMetaIdAndMaterialId(
+                        request.getManufacturerMetaId(), request.getMaterialId())));
     }
 
     /**
