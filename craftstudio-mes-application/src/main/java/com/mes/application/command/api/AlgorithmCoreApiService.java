@@ -1,6 +1,7 @@
 package com.mes.application.command.api;
 
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
@@ -77,7 +78,7 @@ public class AlgorithmCoreApiService {
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
-            log.info("AlgorithmCoreApiService request start: mode=sync, url={}, apiPath={}, requestBody={}", url, apiPath, JSON.toJSONString(requestBody));
+            log.info("AlgorithmCoreApiService request start: mode=sync, url={}, apiPath={}, requestBody={}", url, apiPath, JsonLogUtil.toJSONString(requestBody));
             saveCallRecord("sync", url, apiPath, requestBody, type);
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);
@@ -122,7 +123,7 @@ public class AlgorithmCoreApiService {
             headers.set("X-Fc-Invocation-Type", "Async");
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);
-            log.info("AlgorithmCoreApiService request start: mode=async, url={}, apiPath={}, callbackUrl={}, requestBody={}", url, apiPath, callbackUrl, JSON.toJSONString(requestBody));
+            log.info("AlgorithmCoreApiService request start: mode=async, url={}, apiPath={}, callbackUrl={}, requestBody={}", url, apiPath, callbackUrl, JsonLogUtil.toJSONString(requestBody));
             saveCallRecord("async", url, apiPath, requestBody, type);
 
             ResponseEntity<T> response = restTemplate.postForEntity(url, requestEntity, responseType);

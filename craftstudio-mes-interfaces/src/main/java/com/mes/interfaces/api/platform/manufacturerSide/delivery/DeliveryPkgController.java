@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
@@ -236,7 +237,7 @@ public class DeliveryPkgController {
     @PostMapping("/add")
     public ApiResponse<DeliveryPkgAddResultVO> addPkg(@RequestBody DeliveryPkgAddRequest request) {
         log.info("========== addPkg 入参开始 ==========");
-        log.info("response: " + JSON.toJSONString(request));
+        log.info("response: " + JsonLogUtil.toJSONString(request));
         log.info("========== addPkg 入参结束 ==========");
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
         return ApiResponse.success(buildAddResult(deliveryPkg));

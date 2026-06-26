@@ -1,5 +1,6 @@
 package com.mes.interfaces.api.platform.manufacturerSide.typesetting;
 
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.typesetting.AppTypesettingService;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
@@ -208,7 +209,7 @@ public class TypesettingController {
     @PostMapping("/confirmPrint")
     public ApiResponse<ConfirmPrintResult> confirmPrint(@Valid @RequestBody ConfirmPrintRequest request) {
         logger.info("========== confirmPrint 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(request));
+        logger.info("response: " + JsonLogUtil.toJSONString(request));
         logger.info("========== confirmPrint 入参结束 ==========");
         if (request.getId() == null || request.getId().isBlank()) {
             ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
@@ -317,7 +318,7 @@ public class TypesettingController {
     @PostMapping("/callback/generate_nested_files")
     public ApiResponse<String> handleGenerateNestedFilesCallback(@RequestBody NestingResponse response) {
         logger.info("========== handleGenerateNestedFilesCallback 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
         logger.info("========== handleGenerateNestedFilesCallback 入参结束 ==========");
         appTypesettingService.handleNestingCallback(response);
         return ApiResponse.success("回调处理成功");
@@ -329,7 +330,7 @@ public class TypesettingController {
     @PostMapping("/callback/generate_grid_nested_files")
     public ApiResponse<String> handleGenerateGridNestedFilesCallback(@RequestBody NestingResponse response) {
         logger.info("========== handleGenerateNestedFilesCallback 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
         logger.info("========== handleGenerateNestedFilesCallback 入参结束 ==========");
         appTypesettingService.handleNestingCallback(response);
         return ApiResponse.success("回调处理成功");
@@ -341,7 +342,7 @@ public class TypesettingController {
     @PostMapping("/callback/generate_forme")
     public ApiResponse<String> handleGenerateFormeCallback(@RequestBody FormeGenerationResponse response) {
         logger.info("========== handleGenerateFormeCallback 入参开始 ==========");
-        logger.info("response: " + JSON.toJSONString(response));
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
         logger.info("========== handleGenerateFormeCallback 入参结束 ==========");
         appTypesettingService.handleGenerateFormeCallback(response);
         return ApiResponse.success("回调处理成功");

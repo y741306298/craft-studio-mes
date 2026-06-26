@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -2706,10 +2707,10 @@ public class AppTypesettingService {
             domainTypesettingService.updateTypesetting(typesettingInfo);
             return;
         }
-        log.info("开始进行打印印版回调参数remark,{}", JSON.toJSONString(remark));
+        log.info("开始进行打印印版回调参数remark,{}", JsonLogUtil.toJSONString(remark));
         try {
             if (remark != null && remark.startsWith("FORME_OP:PRINT:")) {
-                log.info("开始进行打印印版回调参数,{}", JSON.toJSONString(typesettingInfo));
+                log.info("开始进行打印印版回调参数,{}", buildTypesettingInfoLogSummary(typesettingInfo));
                 String deviceCode = remark.substring("FORME_OP:PRINT:".length());
                 boolean repeatedPrintCallback = TypesettingStatus.PRINTING.getCode().equals(typesettingInfo.getStatus());
                 typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
@@ -2749,6 +2750,23 @@ public class AppTypesettingService {
             log.error("处理打印印版回调异常", e);
         }
 
+    }
+
+    private String buildTypesettingInfoLogSummary(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null) {
+            return "null";
+        }
+        return "id=" + typesettingInfo.getId()
+                + ", typesettingId=" + typesettingInfo.getTypesettingId()
+                + ", status=" + typesettingInfo.getStatus()
+                + ", remark=" + typesettingInfo.getRemark()
+                + ", manufacturerMetaId=" + typesettingInfo.getManufacturerMetaId()
+                + ", layoutMode=" + typesettingInfo.getLayoutMode()
+                + ", templateCode=" + typesettingInfo.getTemplateCode()
+                + ", cells=" + (typesettingInfo.getTypesettingCells() == null ? 0 : typesettingInfo.getTypesettingCells().size())
+                + ", procedureNodes=" + (typesettingInfo.getProcedureFlow() == null
+                || typesettingInfo.getProcedureFlow().getNodes() == null ? 0 : typesettingInfo.getProcedureFlow().getNodes().size())
+                + ", marks=" + (typesettingInfo.getMarks() == null ? 0 : typesettingInfo.getMarks().size());
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
