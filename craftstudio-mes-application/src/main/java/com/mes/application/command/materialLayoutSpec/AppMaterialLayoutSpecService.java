@@ -1,7 +1,6 @@
 package com.mes.application.command.materialLayoutSpec;
 
 import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpec;
-import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpecStep;
 import com.mes.domain.manufacturer.materialLayoutSpec.service.MaterialLayoutSpecService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -10,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Objects;
 
 @Service
 public class AppMaterialLayoutSpecService {
@@ -53,10 +51,10 @@ public class AppMaterialLayoutSpecService {
     }
 
     /**
-     * 校验材料排版规格。
+     * 校验可配置材料。
      * <p>
-     * 材料规格是公共配置，重点保证 materialId 存在，以及 1m 到 10m 的阶梯配置完整，
-     * 避免排版计算时因为某个长度区间缺失内缩值而无法匹配规则。
+     * 这里仅维护工厂角色可以选择的材料清单，阶梯内缩值不属于材料公共配置，
+     * 而是在工厂选中材料后保存到 ManufacturerMaterialLayoutSpecCfg。
      */
     private void validate(MaterialLayoutSpec spec) {
         if (spec == null) {
@@ -64,19 +62,6 @@ public class AppMaterialLayoutSpecService {
         }
         if (StringUtils.isBlank(spec.getMaterialId())) {
             throw new IllegalArgumentException("materialId不能为空");
-        }
-        if (spec.getInsetSteps() == null || spec.getInsetSteps().isEmpty()) {
-            throw new IllegalArgumentException("阶梯数据不能为空");
-        }
-        // 只接受 1m 到 10m 的阶梯上限，并按 maxLengthMeter 去重统计。
-        long validStepCount = spec.getInsetSteps().stream()
-                .filter(Objects::nonNull)
-                .map(MaterialLayoutSpecStep::getMaxLengthMeter)
-                .filter(meter -> meter != null && meter >= 1 && meter <= 10)
-                .distinct()
-                .count();
-        if (validStepCount != 10) {
-            throw new IllegalArgumentException("阶梯数据必须包含1m到10m的内缩配置");
         }
     }
 }

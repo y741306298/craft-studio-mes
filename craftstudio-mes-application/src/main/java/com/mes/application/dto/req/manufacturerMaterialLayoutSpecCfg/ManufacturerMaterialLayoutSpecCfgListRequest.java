@@ -8,5 +8,5 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class ManufacturerMaterialLayoutSpecCfgListRequest extends PagedApiRequest {
     private String manufacturerMetaId;
-    private String materialLayoutSpecId;
+    private String materialId;
 }

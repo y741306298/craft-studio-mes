@@ -32,21 +32,21 @@ public class ManufacturerMaterialLayoutSpecCfgService {
         return repository.findById(id);
     }
 
-    public List<ManufacturerMaterialLayoutSpecCfg> list(String manufacturerMetaId, String materialLayoutSpecId, long current, int size) {
-        return repository.filterList(current, size, buildFilters(manufacturerMetaId, materialLayoutSpecId));
+    public List<ManufacturerMaterialLayoutSpecCfg> list(String manufacturerMetaId, String materialId, long current, int size) {
+        return repository.filterList(current, size, buildFilters(manufacturerMetaId, materialId));
     }
 
-    public long total(String manufacturerMetaId, String materialLayoutSpecId) {
-        return repository.filterTotal(buildFilters(manufacturerMetaId, materialLayoutSpecId));
+    public long total(String manufacturerMetaId, String materialId) {
+        return repository.filterTotal(buildFilters(manufacturerMetaId, materialId));
     }
 
-    private Map<String, Object> buildFilters(String manufacturerMetaId, String materialLayoutSpecId) {
+    private Map<String, Object> buildFilters(String manufacturerMetaId, String materialId) {
         Map<String, Object> filters = new HashMap<>();
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
             filters.put("manufacturerMetaId", manufacturerMetaId);
         }
-        if (StringUtils.isNotBlank(materialLayoutSpecId)) {
-            filters.put("materialLayoutSpecId", materialLayoutSpecId);
+        if (StringUtils.isNotBlank(materialId)) {
+            filters.put("materialId", materialId);
         }
         return filters;
     }

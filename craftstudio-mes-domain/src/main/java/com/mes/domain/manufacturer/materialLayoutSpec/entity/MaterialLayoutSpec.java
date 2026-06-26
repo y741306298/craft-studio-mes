@@ -6,13 +6,13 @@ import com.piliofpala.craftstudio.shared.domain.graphics.vo.Size3D;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.util.List;
-
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class MaterialLayoutSpec extends BaseEntity {
     /**
-     * 材料 ID，参考 orderItem.material.materialId。
+     * 可配置材料 ID，参考 orderItem.material.materialId。
+     * <p>
+     * 该配置只声明“哪些材料可以被工厂角色选择后配置步进信息”，不保存工厂侧步进内缩规则。
      */
     private String materialId;
 
@@ -25,9 +25,4 @@ public class MaterialLayoutSpec extends BaseEntity {
      * 材料使用尺寸，参考 orderItem.material.usageSize3D。
      */
     private Size3D usageSize3D;
-
-    /**
-     * 1m 到 10m 的阶梯内缩数据。
-     */
-    private List<MaterialLayoutSpecStep> insetSteps;
 }

@@ -1,13 +1,11 @@
 package com.mes.application.dto.resp.materialLayoutSpec;
 
 import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpec;
-import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpecStep;
 import com.mes.domain.order.orderInfo.vo.MaterialConfig;
 import com.piliofpala.craftstudio.shared.domain.graphics.vo.Size3D;
 import lombok.Data;
 
 import java.util.Date;
-import java.util.List;
 
 @Data
 public class MaterialLayoutSpecResponse {
@@ -17,7 +15,6 @@ public class MaterialLayoutSpecResponse {
     private String materialId;
     private MaterialConfig.MaterialSnapshot materialSnapshot;
     private Size3D usageSize3D;
-    private List<MaterialLayoutSpecStep> insetSteps;
 
     public static MaterialLayoutSpecResponse from(MaterialLayoutSpec spec) {
         if (spec == null) {
@@ -30,7 +27,6 @@ public class MaterialLayoutSpecResponse {
         response.setMaterialId(spec.getMaterialId());
         response.setMaterialSnapshot(spec.getMaterialSnapshot());
         response.setUsageSize3D(spec.getUsageSize3D());
-        response.setInsetSteps(spec.getInsetSteps());
         return response;
     }
 }

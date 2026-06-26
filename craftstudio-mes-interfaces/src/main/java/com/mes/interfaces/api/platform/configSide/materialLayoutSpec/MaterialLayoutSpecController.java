@@ -16,11 +16,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 材料排版规格配置 Controller。
+ * 可配置材料 Controller。
  * <p>
- * 该接口只维护“材料维度”的公共排版规格，不直接保存 manufacturerMetaId。
- * 工厂很多、材料较少时，材料规格只需要配置一次；工厂侧通过
- * {@code ManufacturerMaterialLayoutSpecCfgController} 绑定到这里的规格即可复用。
+ * 该接口只维护“哪些材料可以由工厂角色选择后配置排版步进信息”。
+ * 1m 到 10m 的阶梯内缩值不保存在这里，而是跟随具体工厂的
+ * {@code ManufacturerMaterialLayoutSpecCfgController} 配置保存。
  */
 @RestController
 @RequestMapping("/api/configSide/materialLayoutSpec")
@@ -30,10 +30,10 @@ public class MaterialLayoutSpecController {
     private AppMaterialLayoutSpecService appMaterialLayoutSpecService;
 
     /**
-     * 分页查询材料排版规格。
+     * 分页查询可配置材料。
      *
      * @param request 分页与筛选条件，支持 materialId、materialName
-     * @return 材料排版规格分页结果
+     * @return 可配置材料分页结果
      */
     @PostMapping("/list")
     public PagedApiResponse<MaterialLayoutSpecResponse> list(@Valid @RequestBody MaterialLayoutSpecListRequest request) {
@@ -47,10 +47,10 @@ public class MaterialLayoutSpecController {
     }
 
     /**
-     * 查询材料排版规格详情。
+     * 查询可配置材料详情。
      *
-     * @param id 材料排版规格 ID
-     * @return 材料排版规格详情
+     * @param id 可配置材料配置 ID
+     * @return 可配置材料详情
      */
     @GetMapping("/{id}")
     public ApiResponse<MaterialLayoutSpecResponse> detail(@PathVariable String id) {
@@ -58,13 +58,12 @@ public class MaterialLayoutSpecController {
     }
 
     /**
-     * 新增材料排版规格。
+     * 新增可配置材料。
      * <p>
-     * insetSteps 必须包含 1m 到 10m 的完整阶梯内缩配置，单位为厘米。
-     * materialSnapshot 与 usageSize3D 参考 orderItem.material 中的同名配置，便于后续排版计算复用。
+     * materialSnapshot 与 usageSize3D 参考 orderItem.material 中的同名配置，供工厂角色选择材料时带出默认材料信息。
      *
      * @param request 新增请求
-     * @return 新增后的材料排版规格
+     * @return 新增后的可配置材料
      */
     @PostMapping("/add")
     public ApiResponse<MaterialLayoutSpecResponse> add(@Valid @RequestBody MaterialLayoutSpecRequest request) {
@@ -73,9 +72,9 @@ public class MaterialLayoutSpecController {
     }
 
     /**
-     * 编辑材料排版规格。
+     * 编辑可配置材料。
      * <p>
-     * 编辑时保留原始 ID 和创建时间，只更新材料、尺寸与阶梯内缩配置。
+     * 编辑时保留原始 ID 和创建时间，只更新材料、快照和尺寸信息。
      *
      * @param request 编辑请求，id 必填
      * @return 操作结果
@@ -84,7 +83,7 @@ public class MaterialLayoutSpecController {
     public ApiResponse<String> edit(@Valid @RequestBody MaterialLayoutSpecRequest request) {
         MaterialLayoutSpec existing = appMaterialLayoutSpecService.findById(request.getId());
         if (existing == null) {
-            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "材料排版规格配置不存在");
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "可配置材料不存在");
         }
         MaterialLayoutSpec spec = request.toDomainEntity();
         spec.setId(existing.getId());
@@ -94,11 +93,11 @@ public class MaterialLayoutSpecController {
     }
 
     /**
-     * 删除材料排版规格。
+     * 删除可配置材料。
      * <p>
      * 兼容当前配置侧已有的 GET 删除调用，同时补充 DELETE 方法，方便后续前端按 REST 语义调用。
      *
-     * @param id 材料排版规格 ID
+     * @param id 可配置材料配置 ID
      * @return 操作结果
      */
     @RequestMapping(value = "/delete/{id}", method = {RequestMethod.GET, RequestMethod.DELETE})
