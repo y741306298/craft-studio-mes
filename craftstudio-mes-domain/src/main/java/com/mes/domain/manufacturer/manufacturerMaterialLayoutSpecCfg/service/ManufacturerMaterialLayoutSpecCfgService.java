@@ -32,6 +32,11 @@ public class ManufacturerMaterialLayoutSpecCfgService {
         return repository.findById(id);
     }
 
+    public ManufacturerMaterialLayoutSpecCfg findByManufacturerMetaIdAndMaterialId(String manufacturerMetaId, String materialId) {
+        List<ManufacturerMaterialLayoutSpecCfg> cfgList = repository.filterList(1, 1, buildRequiredFilters(manufacturerMetaId, materialId));
+        return cfgList.isEmpty() ? null : cfgList.get(0);
+    }
+
     public List<ManufacturerMaterialLayoutSpecCfg> list(String manufacturerMetaId, String materialId, long current, int size) {
         return repository.filterList(current, size, buildFilters(manufacturerMetaId, materialId));
     }
@@ -48,6 +53,13 @@ public class ManufacturerMaterialLayoutSpecCfgService {
         if (StringUtils.isNotBlank(materialId)) {
             filters.put("materialId", materialId);
         }
+        return filters;
+    }
+
+    private Map<String, Object> buildRequiredFilters(String manufacturerMetaId, String materialId) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaId", manufacturerMetaId);
+        filters.put("materialId", materialId);
         return filters;
     }
 }

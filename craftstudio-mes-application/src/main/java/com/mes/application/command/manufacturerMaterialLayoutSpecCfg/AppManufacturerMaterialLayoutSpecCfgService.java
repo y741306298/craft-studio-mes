@@ -58,6 +58,16 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
         return cfgService.findById(id);
     }
 
+    public ManufacturerMaterialLayoutSpecCfg findByManufacturerMetaIdAndMaterialId(String manufacturerMetaId, String materialId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId不能为空");
+        }
+        if (StringUtils.isBlank(materialId)) {
+            throw new IllegalArgumentException("materialId不能为空");
+        }
+        return cfgService.findByManufacturerMetaIdAndMaterialId(manufacturerMetaId, materialId);
+    }
+
     /**
      * 校验工厂材料步进配置。
      * <p>

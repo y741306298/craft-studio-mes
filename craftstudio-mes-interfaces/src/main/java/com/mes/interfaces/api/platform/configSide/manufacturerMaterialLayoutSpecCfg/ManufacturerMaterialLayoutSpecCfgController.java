@@ -47,14 +47,18 @@ public class ManufacturerMaterialLayoutSpecCfgController {
     }
 
     /**
-     * 查询工厂材料步进配置详情。
+     * 按材料 ID 和工厂 ID 查询工厂材料步进配置详情。
      *
-     * @param id 工厂材料步进配置 ID
+     * @param materialId material_layout_spec 中的材料 ID
+     * @param manufacturerMetaId 工厂元数据 ID
      * @return 工厂材料步进配置详情
      */
-    @GetMapping("/{id}")
-    public ApiResponse<ManufacturerMaterialLayoutSpecCfgResponse> detail(@PathVariable String id) {
-        return ApiResponse.success(ManufacturerMaterialLayoutSpecCfgResponse.from(appCfgService.findById(id)));
+    @GetMapping("/{materialId}")
+    public ApiResponse<ManufacturerMaterialLayoutSpecCfgResponse> detail(
+            @PathVariable String materialId,
+            @RequestParam String manufacturerMetaId) {
+        return ApiResponse.success(ManufacturerMaterialLayoutSpecCfgResponse.from(
+                appCfgService.findByManufacturerMetaIdAndMaterialId(manufacturerMetaId, materialId)));
     }
 
     /**
