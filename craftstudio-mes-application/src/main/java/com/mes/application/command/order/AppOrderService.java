@@ -508,6 +508,48 @@ public class AppOrderService {
         return new PagedResult<>(items, total, size, current);
     }
 
+
+    /**
+     * 修复历史转单记录。
+     * 将历史记录中保存为 manufacturerUser.account 的 targetId 转换为对应 manufacturerMetaId。
+     *
+     * @return 修复结果
+     */
+    public ApiResponse<String> repairTransferRecordTargetIds() {
+        List<OrderTransferRecord> records = orderTransferRecordService.findAllTransferRecords();
+        int updatedCount = 0;
+        int skippedCount = 0;
+        Map<String, String> accountManufacturerMetaIdCache = new HashMap<>();
+        List<OrderTransferRecord> recordsToUpdate = new ArrayList<>();
+
+        for (OrderTransferRecord record : records) {
+            if (record == null || StringUtils.isBlank(record.getTargetId())) {
+                skippedCount++;
+                continue;
+            }
+
+            String targetId = record.getTargetId();
+            String manufacturerMetaId = accountManufacturerMetaIdCache.get(targetId);
+            if (!accountManufacturerMetaIdCache.containsKey(targetId)) {
+                ManufacturerUser manufacturerUser = findUniqueManufacturerUserByAccount(targetId);
+                manufacturerMetaId = manufacturerUser == null ? null : manufacturerUser.getManufacturerMetaId();
+                accountManufacturerMetaIdCache.put(targetId, manufacturerMetaId);
+            }
+
+            if (StringUtils.isBlank(manufacturerMetaId) || Objects.equals(targetId, manufacturerMetaId)) {
+                skippedCount++;
+                continue;
+            }
+
+            record.setTargetId(manufacturerMetaId);
+            recordsToUpdate.add(record);
+            updatedCount++;
+        }
+
+        orderTransferRecordService.batchUpdate(recordsToUpdate);
+        return ApiResponse.success("修复完成，更新记录数：" + updatedCount + "，跳过记录数：" + skippedCount);
+    }
+
     /**
      * 取消订单。
      * 根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
@@ -633,7 +675,7 @@ public class AppOrderService {
         record.setOrderId(request.getOrderId());
         record.setSourceId(request.getManufacturerMetaId());
         record.setSourceName(sourceManufacturerMeta == null ? null : sourceManufacturerMeta.getName());
-        record.setTargetId(request.getTargetId());
+        record.setTargetId(targetManufacturerMeta == null ? null : targetManufacturerMeta.getManufacturerMetaId());
         record.setTargetName(targetManufacturerMeta == null ? null : targetManufacturerMeta.getName());
         record.setOrderItemId(sourceOrderItem.getOrderItemId());
         record.setPreviewUrl(extractPreviewUrl(sourceOrderItem.getProductionImgFile()));

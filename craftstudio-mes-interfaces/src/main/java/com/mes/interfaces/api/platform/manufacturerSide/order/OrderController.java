@@ -241,6 +241,17 @@ public class OrderController {
         return PagedApiResponse.success((List<OrderTransferRecord>) result.items(), query.getCurrent(), query.getSize(), result.total());
     }
 
+
+    /**
+     * 修复历史转单记录 targetId。
+     * 将历史记录中保存的 manufacturerUser.account 转换为 manufacturerMetaId。
+     * @return 修复结果
+     */
+    @PostMapping("/transfer/record/target-id/repair")
+    public ApiResponse<String> repairTransferRecordTargetIds() {
+        return appOrderService.repairTransferRecordTargetIds();
+    }
+
     /**
      * 取消订单
      * @param request 取消订单请求参数
