@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,11 +33,33 @@ public class TypesettingPrintTaskService {
         return taskList.isEmpty() ? null : taskList.get(0);
     }
 
+    public TypesettingPrintTask findByTypesettingCode(String typesettingCode) {
+        if (StringUtils.isBlank(typesettingCode)) {
+            return null;
+        }
+        Map<String, Object> filters = Collections.singletonMap("typesettingCode", typesettingCode);
+        List<TypesettingPrintTask> taskList = typesettingPrintTaskRepository.filterList(1, 1, filters);
+        return taskList.isEmpty() ? null : taskList.get(0);
+    }
+
+    public TypesettingPrintTask findByTypesettingInfoIdAndCode(String typesettingInfoId, String typesettingCode) {
+        if (StringUtils.isBlank(typesettingInfoId) || StringUtils.isBlank(typesettingCode)) {
+            return null;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("typesettingInfoId", typesettingInfoId);
+        filters.put("typesettingCode", typesettingCode);
+        List<TypesettingPrintTask> taskList = typesettingPrintTaskRepository.filterList(1, 1, filters);
+        return taskList.isEmpty() ? null : taskList.get(0);
+    }
+
     public void saveOrUpdate(TypesettingPrintTask task) {
         if (task == null || StringUtils.isBlank(task.getTypesettingInfoId())) {
             throw new IllegalArgumentException("打印任务不能为空，且必须包含 typesettingInfoId");
         }
-        TypesettingPrintTask exist = findByTypesettingInfoId(task.getTypesettingInfoId());
+        TypesettingPrintTask exist = StringUtils.isNotBlank(task.getTypesettingCode())
+                ? findByTypesettingInfoIdAndCode(task.getTypesettingInfoId(), task.getTypesettingCode())
+                : findByTypesettingInfoId(task.getTypesettingInfoId());
         if (exist == null) {
             typesettingPrintTaskRepository.add(task);
             return;
