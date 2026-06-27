@@ -2728,6 +2728,7 @@ public class AppTypesettingService {
                 typesettingInfo.setStatus(TypesettingStatus.PRINTING.getCode());
                 typesettingInfo.setDeviceCode(deviceCode);
                 typesettingInfo.setLeaveQuantity(1);
+                boolean skipQuantityTransferForMirror = hasMirrorTypesettingInQuantityTransferPath(typesettingInfo, new HashSet<>());
                 Set<String> visitedTypesettingKeys = new HashSet<>();
                 Map<String, Integer> productionPieceUsage = new LinkedHashMap<>();
                 collectProductionPieceUsageForQuantityTransfer(typesettingInfo, 1, visitedTypesettingKeys, productionPieceUsage);
@@ -2735,7 +2736,7 @@ public class AppTypesettingService {
                         ? typesettingInfo.getLeaveQuantity() : 1;
                 String callbackTypesettingId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                         ? typesettingInfo.getTypesettingId() : typesettingInfo.getId();
-                if (!repeatedPrintCallback && !isMirrorTypesettingInfo(typesettingInfo)) {
+                if (!repeatedPrintCallback && !skipQuantityTransferForMirror) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
                 Set<String> productionPieceIds = productionPieceUsage.keySet();
@@ -2863,6 +2864,42 @@ public class AppTypesettingService {
 
     private boolean isMirrorTypesettingId(String typesettingId) {
         return StringUtils.isNotBlank(typesettingId) && typesettingId.endsWith("-Mirror");
+    }
+
+    private boolean hasMirrorTypesettingInQuantityTransferPath(TypesettingInfo typesettingInfo,
+                                                              Set<String> visitedTypesettingKeys) {
+        if (typesettingInfo == null) {
+            return false;
+        }
+        if (isMirrorTypesettingInfo(typesettingInfo)) {
+            return true;
+        }
+        if (StringUtils.isBlank(typesettingInfo.getId()) || typesettingInfo.getTypesettingCells() == null) {
+            return false;
+        }
+        String currentKey = "id:" + typesettingInfo.getId();
+        if (visitedTypesettingKeys.contains(currentKey)) {
+            return false;
+        }
+        visitedTypesettingKeys.add(currentKey);
+        try {
+            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+                if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
+                        || StringUtils.isBlank(cell.getSourceId())) {
+                    continue;
+                }
+                if (isMirrorTypesettingId(cell.getSourceId())) {
+                    return true;
+                }
+                TypesettingInfo nestedInfo = domainTypesettingService.findById(cell.getSourceId());
+                if (hasMirrorTypesettingInQuantityTransferPath(nestedInfo, visitedTypesettingKeys)) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            visitedTypesettingKeys.remove(currentKey);
+        }
     }
 
     private void collectProductionPieceUsage(TypesettingInfo typesettingInfo,
