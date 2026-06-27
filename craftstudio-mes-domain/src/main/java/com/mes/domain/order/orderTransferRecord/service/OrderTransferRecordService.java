@@ -26,6 +26,21 @@ public class OrderTransferRecordService {
         return orderTransferRecordRepository.batchAdd(records);
     }
 
+    public void batchUpdate(List<OrderTransferRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        orderTransferRecordRepository.batchUpdate(records);
+    }
+
+    public List<OrderTransferRecord> findAllTransferRecords() {
+        long total = orderTransferRecordRepository.total();
+        if (total <= 0) {
+            return List.of();
+        }
+        return orderTransferRecordRepository.list(1, Math.toIntExact(total));
+    }
+
     public List<OrderTransferRecord> findTransferInRecords(String targetId, int current, int size) {
         return findByManufacturerField("targetId", targetId, current, size);
     }
