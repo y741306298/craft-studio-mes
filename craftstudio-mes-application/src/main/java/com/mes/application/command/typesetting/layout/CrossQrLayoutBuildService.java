@@ -43,8 +43,8 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
     private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
-    private static final int TOP_ANCHOR_RIGHT_MM = 80;
-    private static final int BOTTOM_ANCHOR_LEFT_MM = 80;
+    private static final int TOP_ANCHOR_RIGHT_MM = 40;
+    private static final int BOTTOM_ANCHOR_LEFT_MM = 40;
     private static final int BOTTOM_ANCHOR_RIGHT_MM = 40;
     private static final int NESTED_HEIGHT_EXPAND_THRESHOLD_MM = 2400;
     private static final int SIDE_EXPAND_MM = 6;
@@ -143,7 +143,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
         result.setMarks(marks);
 
-        // 4) 在上/下 margin 区域插入 4 个十字定位点（左右各 30mm）
+        // 4) 在上/下 margin 区域插入 4 个十字定位点（左右各 70mm）
         int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
         int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
