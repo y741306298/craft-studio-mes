@@ -73,6 +73,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         }
 
         MaterialConfig materialConfig = new MaterialConfig();
+        preserveOriginalMaterial(materialConfig, originMaterialConfig);
         setFieldValue(materialConfig, "materialId", accessoryId);
         setFieldValue(materialConfig, "materialType", type);
         if (accessoryName != null) {
@@ -83,6 +84,15 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
             setFieldValue(materialConfig, "usageSize3D", usageSize3D);
         }
         return materialConfig;
+    }
+
+    private void preserveOriginalMaterial(MaterialConfig mirrorMaterialConfig, MaterialConfig originMaterialConfig) {
+        if (mirrorMaterialConfig == null || originMaterialConfig == null) {
+            return;
+        }
+        setFieldValue(mirrorMaterialConfig, "oriName", getFieldValue(getFieldValue(originMaterialConfig, "materialSnapshot"), "name"));
+        setFieldValue(mirrorMaterialConfig, "oriMaterialId", getFieldValue(originMaterialConfig, "materialId"));
+        setFieldValue(mirrorMaterialConfig, "oriMaterialType", getFieldValue(originMaterialConfig, "materialType"));
     }
 
     private ProcedureFlowNode findDoubleSideMountingNode(ProcedureFlow procedureFlow) {
