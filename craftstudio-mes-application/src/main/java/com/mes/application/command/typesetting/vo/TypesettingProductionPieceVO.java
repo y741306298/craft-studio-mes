@@ -49,6 +49,21 @@ public class TypesettingProductionPieceVO {
     private MaterialConfig materialConfig;
 
     /**
+     * Mirror plate original material name before materialConfig is replaced by accessory material.
+     */
+    private String oriName;
+
+    /**
+     * Mirror plate original material id before materialConfig is replaced by accessory material.
+     */
+    private String oriMaterialId;
+
+    /**
+     * Mirror plate original material type before materialConfig is replaced by accessory material.
+     */
+    private String oriMaterialType;
+
+    /**
      * 工艺流程
      */
     private String processingFlow;
@@ -179,6 +194,9 @@ public class TypesettingProductionPieceVO {
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
         vo.setMaterialConfig(info.getMaterialConfig());
+        vo.setOriName(info.getOriName());
+        vo.setOriMaterialId(info.getOriMaterialId());
+        vo.setOriMaterialType(info.getOriMaterialType());
         vo.setProcessingFlow(info.getProcessingFlow());
         vo.setProcedureFlow(info.getProcedureFlow());
         vo.setPreviewUrl(info.getElement().getFormeSvg());
@@ -233,6 +251,9 @@ public class TypesettingProductionPieceVO {
         info.setQuantity(this.quantity);
         info.setLeaveQuantity(this.leaveQuantity);
         info.setMaterialConfig(this.materialConfig);
+        info.setOriName(this.oriName);
+        info.setOriMaterialId(this.oriMaterialId);
+        info.setOriMaterialType(this.oriMaterialType);
         info.setMaterialConfigs(this.materialConfigs == null ? new ArrayList<>() : this.materialConfigs);
         info.setProcessingFlow(this.processingFlow);
         info.setStatus(this.status);

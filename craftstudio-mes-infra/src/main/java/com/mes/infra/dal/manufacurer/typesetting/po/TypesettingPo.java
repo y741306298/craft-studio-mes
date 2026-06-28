@@ -21,6 +21,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private String typesettingId;
     private TypesettingElement element;
     private MaterialConfig materialConfig;
+    private String oriName;
+    private String oriMaterialId;
+    private String oriMaterialType;
     private List<String> materialConfigs;
     private String processingFlow;
     private String status;
@@ -54,6 +57,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setTypesettingId(this.typesettingId);
         typesettingInfo.setElement(this.element);
         typesettingInfo.setMaterialConfig(this.materialConfig);
+        typesettingInfo.setOriName(this.oriName);
+        typesettingInfo.setOriMaterialId(this.oriMaterialId);
+        typesettingInfo.setOriMaterialType(this.oriMaterialType);
         typesettingInfo.setMaterialConfigs(this.materialConfigs);
         typesettingInfo.setProcessingFlow(this.processingFlow);
         typesettingInfo.setStatus(this.status);
@@ -85,6 +91,9 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.typesettingId = _do.getTypesettingId();
         this.element = _do.getElement();
         this.materialConfig = _do.getMaterialConfig();
+        this.oriName = _do.getOriName();
+        this.oriMaterialId = _do.getOriMaterialId();
+        this.oriMaterialType = _do.getOriMaterialType();
         this.materialConfigs = _do.getMaterialConfigs();
         this.processingFlow = _do.getProcessingFlow();
         this.status = _do.getStatus();

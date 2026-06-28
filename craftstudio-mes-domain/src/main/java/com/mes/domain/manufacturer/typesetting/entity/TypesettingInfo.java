@@ -27,6 +27,18 @@ public class TypesettingInfo extends BaseEntity {
      */
     private TypesettingElement element;
     private MaterialConfig materialConfig;
+    /**
+     * Mirror plate original material name before materialConfig is replaced by accessory material.
+     */
+    private String oriName;
+    /**
+     * Mirror plate original material id before materialConfig is replaced by accessory material.
+     */
+    private String oriMaterialId;
+    /**
+     * Mirror plate original material type before materialConfig is replaced by accessory material.
+     */
+    private String oriMaterialType;
     private List<String> materialConfigs;
     private String processingFlow;
     private String status;
