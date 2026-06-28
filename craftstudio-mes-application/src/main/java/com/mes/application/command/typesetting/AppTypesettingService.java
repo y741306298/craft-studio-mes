@@ -544,7 +544,7 @@ public class AppTypesettingService {
     private String resolveSameMaterialId(List<TypesettingProductionPieceVO> typesettingCells) {
         String materialId = null;
         for (TypesettingProductionPieceVO cell : typesettingCells) {
-            String currentMaterialId = getMaterialId(cell);
+            String currentMaterialId = getLayoutSpecMaterialId(cell);
             if (StringUtils.isBlank(currentMaterialId)) {
                 throw new IllegalArgumentException("材料ID不能为空");
             }
@@ -559,12 +559,46 @@ public class AppTypesettingService {
         return materialId;
     }
 
-    private String getMaterialId(TypesettingProductionPieceVO cell) {
+    private String getLayoutSpecMaterialId(TypesettingProductionPieceVO cell) {
         if (cell == null || cell.getMaterialConfig() == null) {
             return null;
         }
-        String materialId = cell.getMaterialConfig().getMaterialId();
-        return materialId == null ? null : materialId.trim();
+        if (isMirrorTypesettingCell(cell)) {
+            String oriMaterialId = normalizeToNull(getMaterialConfigField(cell.getMaterialConfig(), "oriMaterialId"));
+            if (StringUtils.isNotBlank(oriMaterialId)) {
+                return oriMaterialId;
+            }
+        }
+        return normalizeToNull(cell.getMaterialConfig().getMaterialId());
+    }
+
+    private boolean isMirrorTypesettingCell(TypesettingProductionPieceVO cell) {
+        if (cell == null || !TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+            return false;
+        }
+        return isMirrorTypesettingId(cell.getGroupId())
+                || isMirrorTypesettingId(cell.getId())
+                || isMirrorTypesettingId(cell.getSourceId());
+    }
+
+    private String normalizeToNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private Object getMaterialConfigField(MaterialConfig materialConfig, String fieldName) {
+        if (materialConfig == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        try {
+            return materialConfig.getClass().getMethod(getterName).invoke(materialConfig);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String resolveRequestManufacturerMetaId(LayoutConfirmRequest request) {
@@ -3618,14 +3652,17 @@ public class AppTypesettingService {
         if (firstMaterial == null) {
             return "第一个零件的材料为空";
         }
-        String firstMaterialId = firstMaterial.getMaterialId();
+        String firstMaterialName = getMaterialName(firstMaterial);
+        if (StringUtils.isBlank(firstMaterialName)) {
+            return "第一个零件的材料名称为空";
+        }
         for (int i = 1; i < productionPieces.size(); i++) {
             MaterialConfig material = productionPieces.get(i).getMaterialConfig();
             if (material == null) {
                 return "零件 " + productionPieces.get(i).getProductionPieceId() + " 的材料为空";
             }
-            String materialId = material.getMaterialId();
-            if (!firstMaterialId.equals(materialId)) {
+            String materialName = getMaterialName(material);
+            if (!Objects.equals(firstMaterialName, materialName)) {
                 return "材料不一致：零件 " + productionPieces.get(0).getProductionPieceId() +
                         " 的材料为 " + firstMaterial.getMaterialSnapshot().getName() +
                         "，零件 " + productionPieces.get(i).getProductionPieceId() +
@@ -3634,6 +3671,18 @@ public class AppTypesettingService {
         }
 
         return "PASS";
+    }
+
+    private String getMaterialName(MaterialConfig material) {
+        if (material == null || material.getMaterialSnapshot() == null) {
+            return null;
+        }
+        String name = material.getMaterialSnapshot().getName();
+        if (name == null) {
+            return null;
+        }
+        name = name.trim();
+        return name.isEmpty() ? null : name;
     }
 
     /**
