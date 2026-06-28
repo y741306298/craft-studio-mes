@@ -39,6 +39,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         mirror.setTypesettingId(buildMirrorTypesettingId(origin));
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
+        preserveOriginalMaterial(mirror, origin.getMaterialConfig());
         MaterialConfig mirrorMaterialConfig = buildMirrorMaterialConfig(origin.getProcedureFlow(), origin.getMaterialConfig());
         if (mirrorMaterialConfig != null) {
             mirror.setMaterialConfig(mirrorMaterialConfig);
@@ -93,6 +94,19 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         setFieldValue(mirrorMaterialConfig, "oriName", getFieldValue(getFieldValue(originMaterialConfig, "materialSnapshot"), "name"));
         setFieldValue(mirrorMaterialConfig, "oriMaterialId", getFieldValue(originMaterialConfig, "materialId"));
         setFieldValue(mirrorMaterialConfig, "oriMaterialType", getFieldValue(originMaterialConfig, "materialType"));
+    }
+
+    private void preserveOriginalMaterial(TypesettingInfo mirror, MaterialConfig originMaterialConfig) {
+        if (mirror == null || originMaterialConfig == null) {
+            return;
+        }
+        mirror.setOriName(toStringOrNull(getFieldValue(getFieldValue(originMaterialConfig, "materialSnapshot"), "name")));
+        mirror.setOriMaterialId(toStringOrNull(getFieldValue(originMaterialConfig, "materialId")));
+        mirror.setOriMaterialType(toStringOrNull(getFieldValue(originMaterialConfig, "materialType")));
+    }
+
+    private String toStringOrNull(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private ProcedureFlowNode findDoubleSideMountingNode(ProcedureFlow procedureFlow) {

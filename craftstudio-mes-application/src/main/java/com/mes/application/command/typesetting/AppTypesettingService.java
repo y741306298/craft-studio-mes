@@ -564,7 +564,10 @@ public class AppTypesettingService {
             return null;
         }
         if (isMirrorTypesettingCell(cell)) {
-            String oriMaterialId = normalizeToNull(getMaterialConfigField(cell.getMaterialConfig(), "oriMaterialId"));
+            String oriMaterialId = normalizeToNull(cell.getOriMaterialId());
+            if (StringUtils.isBlank(oriMaterialId)) {
+                oriMaterialId = normalizeToNull(getMaterialConfigField(cell.getMaterialConfig(), "oriMaterialId"));
+            }
             if (StringUtils.isNotBlank(oriMaterialId)) {
                 return oriMaterialId;
             }
