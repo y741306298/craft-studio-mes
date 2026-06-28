@@ -564,12 +564,12 @@ public class AppTypesettingService {
             return null;
         }
         if (isMirrorTypesettingCell(cell)) {
-            String oriMaterialId = trimToNull(getMaterialConfigField(cell.getMaterialConfig(), "oriMaterialId"));
+            String oriMaterialId = normalizeToNull(getMaterialConfigField(cell.getMaterialConfig(), "oriMaterialId"));
             if (StringUtils.isNotBlank(oriMaterialId)) {
                 return oriMaterialId;
             }
         }
-        return trimToNull(cell.getMaterialConfig().getMaterialId());
+        return normalizeToNull(cell.getMaterialConfig().getMaterialId());
     }
 
     private boolean isMirrorTypesettingCell(TypesettingProductionPieceVO cell) {
@@ -581,11 +581,12 @@ public class AppTypesettingService {
                 || isMirrorTypesettingId(cell.getSourceId());
     }
 
-    private String trimToNull(Object value) {
+    private String normalizeToNull(Object value) {
         if (value == null) {
             return null;
         }
-        return StringUtils.trimToNull(String.valueOf(value));
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
     }
 
     private Object getMaterialConfigField(MaterialConfig materialConfig, String fieldName) {
@@ -3673,9 +3674,15 @@ public class AppTypesettingService {
     }
 
     private String getMaterialName(MaterialConfig material) {
-        return material == null || material.getMaterialSnapshot() == null
-                ? null
-                : StringUtils.trimToNull(material.getMaterialSnapshot().getName());
+        if (material == null || material.getMaterialSnapshot() == null) {
+            return null;
+        }
+        String name = material.getMaterialSnapshot().getName();
+        if (name == null) {
+            return null;
+        }
+        name = name.trim();
+        return name.isEmpty() ? null : name;
     }
 
     /**
