@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.proces.material;
 
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.manufacturerMaterialLayoutSpecCfg.service.ManufacturerMaterialLayoutSpecCfgService;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -15,8 +16,10 @@ import org.springframework.web.client.RestTemplate;
 public class SpecialMaterial1CmProcessStrategy extends AbstractMaterialProcessStrategy {
     private static final int SPECIAL_MATERIAL_EXPAND_CM = 1;
 
-    public SpecialMaterial1CmProcessStrategy(RestTemplate restTemplate, OssTagUploadService ossTagUploadService) {
-        super(SPECIAL_MATERIAL_EXPAND_CM, restTemplate, ossTagUploadService);
+    public SpecialMaterial1CmProcessStrategy(RestTemplate restTemplate,
+                                             OssTagUploadService ossTagUploadService,
+                                             ManufacturerMaterialLayoutSpecCfgService layoutSpecCfgService) {
+        super(SPECIAL_MATERIAL_EXPAND_CM, restTemplate, ossTagUploadService, layoutSpecCfgService);
     }
 
     @Override
