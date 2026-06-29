@@ -95,13 +95,13 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         if (width <= 0D || height <= 0D) {
             return;
         }
-        BigDecimal widthInsetCm = resolveInsetCm(cfg.getInsetSteps(), width);
-        BigDecimal heightInsetCm = resolveInsetCm(cfg.getInsetSteps(), height);
-        if (widthInsetCm == null && heightInsetCm == null) {
+        Double widthInsetMm = resolveInsetMm(cfg.getInsetSteps(), width);
+        Double heightInsetMm = resolveInsetMm(cfg.getInsetSteps(), height);
+        if (widthInsetMm == null && heightInsetMm == null) {
             return;
         }
-        double newWidth = Math.max(0D, width - cmToMm(widthInsetCm));
-        double newHeight = Math.max(0D, height - cmToMm(heightInsetCm));
+        double newWidth = Math.max(0D, width - nullToZero(widthInsetMm));
+        double newHeight = Math.max(0D, height - nullToZero(heightInsetMm));
         String updatedSvg = updateRootSize(svg, newWidth, newHeight);
         String manufacturerMetaId = piece.getManufacturerId();
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
@@ -109,22 +109,42 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/material-layout-inset/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, updatedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
         updateMaskImageFile(piece, newMaskUrl);
-        piece.setWidth(newWidth);
-        piece.setHeight(newHeight);
     }
 
-    private BigDecimal resolveInsetCm(List<MaterialLayoutSpecStep> steps, double lengthMm) {
+    private Double resolveInsetMm(List<MaterialLayoutSpecStep> steps, double lengthMm) {
         double lengthMeter = lengthMm / 1000D;
-        return steps.stream()
+        List<MaterialLayoutSpecStep> sortedSteps = steps.stream()
                 .filter(step -> step != null && step.getMaxLengthMeter() != null && step.getInsetCm() != null)
-                .filter(step -> BigDecimal.valueOf(step.getMaxLengthMeter()).compareTo(BigDecimal.valueOf(lengthMeter)) >= 0)
-                .min(Comparator.comparing(MaterialLayoutSpecStep::getMaxLengthMeter))
-                .map(MaterialLayoutSpecStep::getInsetCm)
-                .orElse(null);
+                .sorted(Comparator.comparing(MaterialLayoutSpecStep::getMaxLengthMeter))
+                .toList();
+        MaterialLayoutSpecStep previousStep = null;
+        for (MaterialLayoutSpecStep currentStep : sortedSteps) {
+            if (BigDecimal.valueOf(currentStep.getMaxLengthMeter()).compareTo(BigDecimal.valueOf(lengthMeter)) >= 0) {
+                BigDecimal insetCm = interpolateInsetCm(previousStep, currentStep, lengthMeter);
+                return cmToMm(insetCm);
+            }
+            previousStep = currentStep;
+        }
+        return null;
+    }
+
+    private BigDecimal interpolateInsetCm(MaterialLayoutSpecStep previousStep, MaterialLayoutSpecStep currentStep, double lengthMeter) {
+        if (previousStep == null
+                || currentStep.getMaxLengthMeter().equals(previousStep.getMaxLengthMeter())) {
+            return currentStep.getInsetCm();
+        }
+        double stepLengthRange = currentStep.getMaxLengthMeter() - previousStep.getMaxLengthMeter();
+        double lengthOffset = lengthMeter - previousStep.getMaxLengthMeter();
+        BigDecimal insetRange = currentStep.getInsetCm().subtract(previousStep.getInsetCm());
+        return previousStep.getInsetCm().add(insetRange.multiply(BigDecimal.valueOf(lengthOffset / stepLengthRange)));
     }
 
     private double cmToMm(BigDecimal insetCm) {
         return insetCm == null ? 0D : insetCm.multiply(BigDecimal.TEN).doubleValue();
+    }
+
+    private double nullToZero(Double value) {
+        return value == null ? 0D : value;
     }
 
     private String resolveSvg(String svgRef) {
