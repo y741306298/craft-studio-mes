@@ -3,10 +3,23 @@ package com.mes.application.command.typesetting.proces.material;
 import com.mes.application.command.typesetting.proces.liubai.AbstractCentimeterLiubaiProcessStrategy;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.manufacturer.manufacturerMaterialLayoutSpecCfg.entity.ManufacturerMaterialLayoutSpecCfg;
+import com.mes.domain.manufacturer.manufacturerMaterialLayoutSpecCfg.service.ManufacturerMaterialLayoutSpecCfgService;
+import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpecStep;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 特殊材料工艺策略基类。
@@ -15,8 +28,22 @@ import org.springframework.web.client.RestTemplate;
  * mask SVG 重构/续写、四边标签生成和生产工件宽高回写流程。</p>
  */
 public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
-    protected AbstractMaterialProcessStrategy(int expandCm, RestTemplate restTemplate, OssTagUploadService ossTagUploadService) {
+    private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
+
+    private final RestTemplate restTemplate;
+    private final OssTagUploadService ossTagUploadService;
+    private final ManufacturerMaterialLayoutSpecCfgService layoutSpecCfgService;
+
+    protected AbstractMaterialProcessStrategy(int expandCm,
+                                              RestTemplate restTemplate,
+                                              OssTagUploadService ossTagUploadService,
+                                              ManufacturerMaterialLayoutSpecCfgService layoutSpecCfgService) {
         super(expandCm, restTemplate, ossTagUploadService);
+        this.restTemplate = restTemplate;
+        this.ossTagUploadService = ossTagUploadService;
+        this.layoutSpecCfgService = layoutSpecCfgService;
     }
 
     @Override
@@ -33,11 +60,138 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
     }
 
     @Override
+    public void process(LiubaiProcessContext context) {
+        super.process(context);
+        applyMaterialLayoutInset(context);
+    }
+
+    @Override
     protected boolean matchesLiubaiValue(ProcedureFlow procedureFlow) {
         return true;
     }
 
     protected abstract boolean matchesMaterialName(String materialName);
+
+    private void applyMaterialLayoutInset(LiubaiProcessContext context) {
+        ProductionPiece piece = context == null ? null : context.getProductionPiece();
+        OrderItem orderItem = context == null ? null : context.getOrderItem();
+        if (piece == null || piece.getMaskImageFile() == null || StringUtils.isBlank(piece.getMaskImageFile().getRawFile())
+                || orderItem == null || orderItem.getMaterial() == null || StringUtils.isBlank(orderItem.getMaterial().getMaterialId())
+                || StringUtils.isBlank(piece.getManufacturerId())) {
+            return;
+        }
+        ManufacturerMaterialLayoutSpecCfg cfg = layoutSpecCfgService.findByManufacturerMetaIdAndMaterialId(
+                piece.getManufacturerId(), orderItem.getMaterial().getMaterialId());
+        if (cfg == null || cfg.getInsetSteps() == null || cfg.getInsetSteps().isEmpty()) {
+            return;
+        }
+        String currentMaskUrl = piece.getMaskImageFile().getRawFile();
+        String svg = resolveSvg(currentMaskUrl);
+        if (StringUtils.isBlank(svg)) {
+            return;
+        }
+        double width = resolveDimension(svg, SVG_WIDTH_PATTERN, piece.getWidth());
+        double height = resolveDimension(svg, SVG_HEIGHT_PATTERN, piece.getHeight());
+        if (width <= 0D || height <= 0D) {
+            return;
+        }
+        BigDecimal widthInsetCm = resolveInsetCm(cfg.getInsetSteps(), width);
+        BigDecimal heightInsetCm = resolveInsetCm(cfg.getInsetSteps(), height);
+        if (widthInsetCm == null && heightInsetCm == null) {
+            return;
+        }
+        double newWidth = Math.max(0D, width - cmToMm(widthInsetCm));
+        double newHeight = Math.max(0D, height - cmToMm(heightInsetCm));
+        String updatedSvg = updateRootSize(svg, newWidth, newHeight);
+        String manufacturerMetaId = piece.getManufacturerId();
+        String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
+        String orderItemId = StringUtils.isNotBlank(orderItem.getOrderItemId()) ? orderItem.getOrderItemId() : "unknown";
+        String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/material-layout-inset/";
+        String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, updatedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
+        updateMaskImageFile(piece, newMaskUrl);
+        piece.setWidth(newWidth);
+        piece.setHeight(newHeight);
+    }
+
+    private BigDecimal resolveInsetCm(List<MaterialLayoutSpecStep> steps, double lengthMm) {
+        double lengthMeter = lengthMm / 1000D;
+        return steps.stream()
+                .filter(step -> step != null && step.getMaxLengthMeter() != null && step.getInsetCm() != null)
+                .filter(step -> BigDecimal.valueOf(step.getMaxLengthMeter()).compareTo(BigDecimal.valueOf(lengthMeter)) >= 0)
+                .min(Comparator.comparing(MaterialLayoutSpecStep::getMaxLengthMeter))
+                .map(MaterialLayoutSpecStep::getInsetCm)
+                .orElse(null);
+    }
+
+    private double cmToMm(BigDecimal insetCm) {
+        return insetCm == null ? 0D : insetCm.multiply(BigDecimal.TEN).doubleValue();
+    }
+
+    private String resolveSvg(String svgRef) {
+        String trimmed = svgRef.trim();
+        if (trimmed.startsWith("<svg") || trimmed.startsWith("<?xml")) {
+            return trimmed;
+        }
+        return restTemplate.getForObject(trimmed, String.class);
+    }
+
+    private double resolveDimension(String svg, Pattern pattern, Double fallback) {
+        Matcher matcher = pattern.matcher(svg);
+        if (matcher.find()) {
+            return Double.parseDouble(matcher.group(1));
+        }
+        return fallback == null ? 0D : fallback;
+    }
+
+    private String updateRootSize(String svg, double width, double height) {
+        Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
+        if (!matcher.find()) {
+            return svg;
+        }
+        String openTag = matcher.group();
+        String updatedOpenTag = upsertSvgAttribute(openTag, "width", format(width));
+        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "height", format(height));
+        return svg.substring(0, matcher.start()) + updatedOpenTag + svg.substring(matcher.end());
+    }
+
+    private String upsertSvgAttribute(String tag, String name, String value) {
+        Pattern attributePattern = Pattern.compile("\\s" + Pattern.quote(name) + "\\s*=\\s*([\"']).*?\\1", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = attributePattern.matcher(tag);
+        String attribute = " " + name + "=\"" + escapeAttr(value) + "\"";
+        if (matcher.find()) {
+            return matcher.replaceFirst(Matcher.quoteReplacement(attribute));
+        }
+        int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
+        return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
+    private String format(double value) {
+        BigDecimal decimal = BigDecimal.valueOf(value).stripTrailingZeros();
+        return decimal.compareTo(BigDecimal.ZERO) == 0 ? "0" : decimal.toPlainString();
+    }
+
+    private String escapeAttr(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
+        ImageFile maskFile = piece.getMaskImageFile();
+        maskFile.setRawFile(maskUrl);
+        FilePreview preview = maskFile.getFilePreview();
+        if (preview == null) {
+            preview = new FilePreview();
+            maskFile.setFilePreview(preview);
+        }
+        preview.setRaw(maskUrl);
+        preview.setPreview(maskUrl);
+        preview.setThumbnail(maskUrl);
+    }
 
     private String resolveMaterialName(OrderItem orderItem) {
         if (orderItem == null || orderItem.getMaterial() == null || orderItem.getMaterial().getMaterialSnapshot() == null) {
