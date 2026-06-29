@@ -3,6 +3,7 @@ package com.mes.application.command.typesetting.proces.liubai;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -13,12 +14,13 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * “包边”工艺策略。
  *
  * <p>命中工艺流中的“包边”节点后，不改变原 mask 尺寸，复用留白 SVG 重构/续写能力，
- * 将“包边”之后的下一个工艺名称按黑、白、黄三色生成 300dpi 标签并贴到原 SVG 四条边上。</p>
+ * 将“包边”节点参数中的配件名称按 CMYK（青、品红、黄、黑）四色生成 300dpi 标签并贴到原 SVG 四条边上。</p>
  */
 @Service
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -33,12 +35,12 @@ public class BaobianProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
             return false;
         }
         ProcedureFlow procedureFlow = context.getProcedureFlow();
-        return !hasNode(procedureFlow, "异形切割") && findBaobianNextNodeName(procedureFlow) != null;
+        return !hasNode(procedureFlow, "异形切割") && findBaobianAccessoryName(procedureFlow) != null;
     }
 
     @Override
     protected boolean matchesLiubaiValue(ProcedureFlow procedureFlow) {
-        return findBaobianNextNodeName(procedureFlow) != null;
+        return findBaobianAccessoryName(procedureFlow) != null;
     }
 
     @Override
@@ -76,34 +78,57 @@ public class BaobianProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         if (context == null) {
             return "";
         }
-        String nextNodeName = findBaobianNextNodeName(context.getProcedureFlow());
-        return StringUtils.isBlank(nextNodeName) ? "" : nextNodeName;
+        String accessoryName = findBaobianAccessoryName(context.getProcedureFlow());
+        return StringUtils.isBlank(accessoryName) ? "" : accessoryName;
     }
 
     @Override
     protected List<Color> liubaiTagTextColors() {
-        return List.of(Color.BLACK, Color.WHITE, Color.YELLOW);
+        return List.of(Color.CYAN, Color.MAGENTA, Color.YELLOW, Color.BLACK);
     }
 
-    private String findBaobianNextNodeName(ProcedureFlow procedureFlow) {
+    private String findBaobianAccessoryName(ProcedureFlow procedureFlow) {
+        ProcedureFlowNode baobianNode = findBaobianNode(procedureFlow);
+        if (baobianNode == null || baobianNode.getParamConfigs() == null) {
+            return null;
+        }
+        for (MTOProductSpecDTO.ProcessParamConfigDTO config : baobianNode.getParamConfigs()) {
+            Object param = extractFieldValue(config, "param");
+            Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+            Object accessoryName = extractFieldValue(accessorySnapshot, "name");
+            if (accessoryName != null && StringUtils.isNotBlank(String.valueOf(accessoryName))) {
+                return String.valueOf(accessoryName).trim();
+            }
+        }
+        return null;
+    }
+
+    private ProcedureFlowNode findBaobianNode(ProcedureFlow procedureFlow) {
         if (procedureFlow == null || procedureFlow.getNodes() == null || procedureFlow.getNodes().isEmpty()) {
             return null;
         }
         List<ProcedureFlowNode> nodes = orderedNodes(procedureFlow.getNodes());
-        for (int index = 0; index < nodes.size(); index++) {
-            ProcedureFlowNode node = nodes.get(index);
-            if (node == null || StringUtils.isBlank(node.getNodeName()) || !node.getNodeName().contains("包边")) {
-                continue;
+        for (ProcedureFlowNode node : nodes) {
+            if (node != null && StringUtils.isNotBlank(node.getNodeName()) && node.getNodeName().contains("包边")) {
+                return node;
             }
-            for (int nextIndex = index + 1; nextIndex < nodes.size(); nextIndex++) {
-                ProcedureFlowNode nextNode = nodes.get(nextIndex);
-                if (nextNode != null && StringUtils.isNotBlank(nextNode.getNodeName())) {
-                    return nextNode.getNodeName().trim();
-                }
-            }
-            return null;
         }
         return null;
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        try {
+            return target.getClass().getMethod(getterName).invoke(target);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     private List<ProcedureFlowNode> orderedNodes(List<ProcedureFlowNode> nodes) {
