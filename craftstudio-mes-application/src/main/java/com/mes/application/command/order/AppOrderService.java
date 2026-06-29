@@ -592,6 +592,8 @@ public class AppOrderService {
 
         for (OrderItem orderItem : orderItems) {
             orderItem.setStatus(OrderStatus.RETURNED);
+            // 刷新预处理请求 ID，使取消前已发出的异步算法回调在返回时被识别为过期并丢弃。
+            orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
             domainOrderItemService.updateOrderItem(orderItem);
             for (ProductionPiece productionPiece : piecesByOrderItemId.getOrDefault(orderItem.getOrderItemId(), new ArrayList<>())) {
                 productionPieceService.deleteProductionPiece(productionPiece.getId());
