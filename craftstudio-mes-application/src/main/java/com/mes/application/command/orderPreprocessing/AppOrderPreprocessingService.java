@@ -634,6 +634,10 @@ public class AppOrderPreprocessingService {
         try {
             OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
             if (orderItem != null) {
+                if (isReturnedOrderItem(orderItem) || isReturnedOrder(orderItem.getOrderId())) {
+                    System.out.println("订单项已退单，跳过更新生产中状态，订单项ID：" + orderItemId);
+                    return;
+                }
                 orderItem.setStatus(OrderStatus.IN_PRODUCTION);
                 orderItemService.updateOrderItem(orderItem);
             }
@@ -737,6 +741,18 @@ public class AppOrderPreprocessingService {
         return Objects.equals(callbackPreprocessRequestId, currentPreprocessRequestId);
     }
 
+    private boolean isReturnedOrderItem(OrderItem orderItem) {
+        return orderItem != null && OrderStatus.RETURNED.equals(orderItem.getStatus());
+    }
+
+    private boolean isReturnedOrder(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            return false;
+        }
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        return orderInfo != null && OrderStatus.RETURNED.equals(orderInfo.getStatus());
+    }
+
     private record CallbackIdentity(String orderItemId, String preprocessRequestId) {
     }
 
@@ -766,6 +782,10 @@ public class AppOrderPreprocessingService {
             OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
             if (orderItem == null) {
                 throw new RuntimeException("订单项不存在：" + orderItemId);
+            }
+            if (isReturnedOrderItem(orderItem) || isReturnedOrder(orderItem.getOrderId())) {
+                System.out.println("丢弃已退单订单项图像蒙版回调，订单项ID：" + orderItemId);
+                return;
             }
             if (!isCurrentPreprocessCallback(orderItem, callbackIdentity.preprocessRequestId())) {
                 System.out.println("丢弃过期图像蒙版回调，订单项ID：" + orderItemId
@@ -909,6 +929,11 @@ public class AppOrderPreprocessingService {
                                 mirrorConfig.setBlood(mirrorBlood);
                             }
                             piece.setMirrorConfigs(List.of(mirrorConfig));
+                        }
+                        OrderItem latestOrderItem = orderItemService.findByOrderItemId(orderItemId);
+                        if (isReturnedOrderItem(latestOrderItem) || isReturnedOrder(latestOrderItem == null ? null : latestOrderItem.getOrderId())) {
+                            System.out.println("订单项处理期间已退单，停止生成生产零件，订单项ID：" + orderItemId);
+                            return;
                         }
                         productionPieceService.addProductionPiece(piece);
                         indexProductionPieceImage(piece);
