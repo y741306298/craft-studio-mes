@@ -480,7 +480,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return Math.max(1D, edgeLengthMm - LIUBAI_TAG_ADJACENT_EDGE_GAP_MM * 2D);
     }
 
-    private String buildLiubaiTagText(LiubaiProcessContext context) {
+    protected String buildLiubaiTagText(LiubaiProcessContext context) {
         OrderItem orderItem = context == null ? null : context.getOrderItem();
         List<String> elements = new ArrayList<>();
         addIfNotBlank(elements, resolveOrderItemIdSuffix(context));
@@ -537,18 +537,31 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         Font font = new Font("SansSerif", Font.BOLD, fontSize);
         FontMetrics metrics = fontMetrics(font);
         int paddingPx = Math.max(4, convertMmToPixels(1D, LIUBAI_TAG_PNG_DPI));
-        int widthPx = Math.max(1, metrics.stringWidth(text) + paddingPx * 2);
+        List<Color> colors = liubaiTagTextColors();
+        if (colors == null || colors.isEmpty()) {
+            colors = List.of(Color.BLACK);
+        }
+        int segmentGapPx = Math.max(paddingPx, convertMmToPixels(2D, LIUBAI_TAG_PNG_DPI));
+        int textWidthPx = metrics.stringWidth(text);
+        int widthPx = Math.max(1, textWidthPx * colors.size() + segmentGapPx * Math.max(0, colors.size() - 1) + paddingPx * 2);
         BufferedImage image = new BufferedImage(widthPx, heightPx, BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         clearAndConfigureTextGraphics(graphics, widthPx, heightPx);
         graphics.setFont(font);
-        graphics.setColor(Color.BLACK);
         FontMetrics imageMetrics = graphics.getFontMetrics();
-        int x = Math.max(0, (widthPx - imageMetrics.stringWidth(text)) / 2);
+        int x = paddingPx;
         int y = Math.max(imageMetrics.getAscent(), Math.min(heightPx - 1, (heightPx + imageMetrics.getAscent() - imageMetrics.getDescent()) / 2));
-        graphics.drawString(text, x, y);
+        for (Color color : colors) {
+            graphics.setColor(color == null ? Color.BLACK : color);
+            graphics.drawString(text, x, y);
+            x += textWidthPx + segmentGapPx;
+        }
         graphics.dispose();
         return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, LIUBAI_TAG_EDGE_SIZE_MM);
+    }
+
+    protected List<Color> liubaiTagTextColors() {
+        return List.of(Color.BLACK);
     }
 
     private LiubaiTagImage cropHorizontalLiubaiTagPng(LiubaiTagImage image, double maxWidthMm) {
