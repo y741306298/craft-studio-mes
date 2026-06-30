@@ -14,9 +14,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -50,6 +52,55 @@ public class ProductionPieceService {
             Date endTime,
             int current,
             int size) {
+        ProcessingFlowCondition condition = null;
+        if (StringUtils.isNotBlank(processingName)) {
+            condition = new ProcessingFlowCondition();
+            condition.setProcessName(processingName);
+        }
+        return findProductionPiecesByProcessingConditions(manufacturerId, status, materialName,
+                condition == null ? null : java.util.List.of(condition), orderItemId, routeId, startTime, endTime, current, size);
+    }
+
+    public List<ProductionPiece> findProductionPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            String orderItemId,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        return findProductionPiecesByConditions(
+                manufacturerId, status, materialName, processingName, orderItemId, null, startTime, endTime, current, size
+        );
+    }
+
+    public List<ProductionPiece> findProductionPiecesByConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            String processingName,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
+        return findProductionPiecesByConditions(
+                manufacturerId, status, materialName, processingName, null, null, startTime, endTime, current, size
+        );
+    }
+
+    public List<ProductionPiece> findProductionPiecesByProcessingConditions(
+            String manufacturerId,
+            String status,
+            String materialName,
+            List<ProcessingFlowCondition> processingName,
+            String orderItemId,
+            String routeId,
+            Date startTime,
+            Date endTime,
+            int current,
+            int size) {
 
 
         if (current < 1) {
@@ -73,8 +124,22 @@ public class ProductionPieceService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-        if (StringUtils.isNotBlank(processingName)) {
-            filters.put("procedureFlow.nodes.nodeName", processingName);
+        if (processingName != null && !processingName.isEmpty()) {
+            List<Map<String, Object>> processingFilters = processingName.stream()
+                    .filter(Objects::nonNull)
+                    .filter(condition -> StringUtils.isNotBlank(condition.getProcessName()))
+                    .map(condition -> {
+                        Map<String, Object> nodeFilter = new HashMap<String, Object>();
+                        nodeFilter.put("nodeName", condition.getProcessName());
+                        if (StringUtils.isNotBlank(condition.getAccessoryName())) {
+                            nodeFilter.put("paramConfigs.param.accessorySnapshot.name", condition.getAccessoryName());
+                        }
+                        return nodeFilter;
+                    })
+                    .collect(Collectors.toList());
+            if (!processingFilters.isEmpty()) {
+                filters.put("procedureFlow.nodes_elemMatchAll", processingFilters);
+            }
         }
         if (StringUtils.isNotBlank(orderItemId)) {
             filters.put("orderItemId", orderItemId);
@@ -86,17 +151,17 @@ public class ProductionPieceService {
         return productionPieceRepository.filterList(current, size, filters);
     }
 
-    public List<ProductionPiece> findProductionPiecesByConditions(
+    public List<ProductionPiece> findProductionPiecesByProcessingConditions(
             String manufacturerId,
             String status,
             String materialName,
-            String processingName,
+            List<ProcessingFlowCondition> processingName,
             String orderItemId,
             Date startTime,
             Date endTime,
             int current,
             int size) {
-        return findProductionPiecesByConditions(
+        return findProductionPiecesByProcessingConditions(
                 manufacturerId,
                 status,
                 materialName,
@@ -110,16 +175,16 @@ public class ProductionPieceService {
         );
     }
 
-    public List<ProductionPiece> findProductionPiecesByConditions(
+    public List<ProductionPiece> findProductionPiecesByProcessingConditions(
             String manufacturerId,
             String status,
             String materialName,
-            String processingName,
+            List<ProcessingFlowCondition> processingName,
             Date startTime,
             Date endTime,
             int current,
             int size) {
-        return findProductionPiecesByConditions(
+        return findProductionPiecesByProcessingConditions(
                 manufacturerId,
                 status,
                 materialName,

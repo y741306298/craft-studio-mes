@@ -222,6 +222,16 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 } else {
                     criteria.and(fieldName).regex(escapedValue, "i");
                 }
+            } else if (key.endsWith("_elemMatchAll")) {
+                String fieldName = key.substring(0, key.length() - "_elemMatchAll".length());
+                Criteria elemMatchAllCriteria = buildElemMatchAllCriteria(fieldName, value);
+                if (elemMatchAllCriteria != null) {
+                    if (criteria == null) {
+                        criteria = elemMatchAllCriteria;
+                    } else {
+                        criteria.andOperator(elemMatchAllCriteria);
+                    }
+                }
             } else if (key.endsWith("_in")) {
                 String fieldName = key.substring(0, key.length() - 3);
                 if (criteria == null) {
@@ -262,6 +272,35 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "查询条件不能为空！");
         }
         return criteria;
+    }
+
+    private Criteria buildElemMatchAllCriteria(String fieldName, Object value) {
+        if (!(value instanceof Collection<?> conditions) || conditions.isEmpty()) {
+            return null;
+        }
+        List<Criteria> elemMatchCriteriaList = new ArrayList<>();
+        for (Object condition : conditions) {
+            if (!(condition instanceof Map<?, ?> conditionMap) || conditionMap.isEmpty()) {
+                continue;
+            }
+            Criteria elemCriteria = null;
+            for (Map.Entry<?, ?> entry : conditionMap.entrySet()) {
+                String nestedFieldName = String.valueOf(entry.getKey());
+                Object nestedValue = entry.getValue();
+                if (elemCriteria == null) {
+                    elemCriteria = Criteria.where(nestedFieldName).is(nestedValue);
+                } else {
+                    elemCriteria.and(nestedFieldName).is(nestedValue);
+                }
+            }
+            if (elemCriteria != null) {
+                elemMatchCriteriaList.add(Criteria.where(fieldName).elemMatch(elemCriteria));
+            }
+        }
+        if (elemMatchCriteriaList.isEmpty()) {
+            return null;
+        }
+        return new Criteria().andOperator(elemMatchCriteriaList.toArray(new Criteria[0]));
     }
 
     private static class RangeCondition {

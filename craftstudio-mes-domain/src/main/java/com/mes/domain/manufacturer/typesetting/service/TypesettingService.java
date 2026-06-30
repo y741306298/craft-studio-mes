@@ -1,5 +1,6 @@
 package com.mes.domain.manufacturer.typesetting.service;
 
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
@@ -32,10 +33,54 @@ public class TypesettingService {
             String status,
             String materialName,
             String processingName,
+            Date startTime,
+            Date endTime,
+            String deviceCode,
+            int current,
+            int size) {
+        ProcessingFlowCondition condition = null;
+        if (StringUtils.isNotBlank(processingName)) {
+            condition = new ProcessingFlowCondition();
+            condition.setProcessName(processingName);
+        }
+        return findTypesettingByProcessingConditions(manufacturerMetaId, status, materialName,
+                condition == null ? null : java.util.List.of(condition), startTime, endTime, deviceCode, current, size);
+    }
+
+    public List<TypesettingInfo> findTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
+            String processingName,
             String deviceCode,
             int current,
             int size) {
         return findTypesettingByConditions(
+                manufacturerMetaId, status, materialName, processingName, null, null, deviceCode, current, size
+        );
+    }
+
+    public List<TypesettingInfo> findTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
+            String processingName,
+            int current,
+            int size) {
+        return findTypesettingByConditions(
+                manufacturerMetaId, status, materialName, processingName, null, null, null, current, size
+        );
+    }
+
+    public List<TypesettingInfo> findTypesettingByProcessingConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
+            List<ProcessingFlowCondition> processingName,
+            String deviceCode,
+            int current,
+            int size) {
+        return findTypesettingByProcessingConditions(
                 manufacturerMetaId,
                 status,
                 materialName,
@@ -48,11 +93,11 @@ public class TypesettingService {
         );
     }
 
-    public List<TypesettingInfo> findTypesettingByConditions(
+    public List<TypesettingInfo> findTypesettingByProcessingConditions(
             String manufacturerMetaId,
             String status,
             String materialName,
-            String processingName,
+            List<ProcessingFlowCondition> processingName,
             Date startTime,
             Date endTime,
             String deviceCode,
@@ -76,8 +121,22 @@ public class TypesettingService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-        if (StringUtils.isNotBlank(processingName)) {
-            filters.put("procedureFlow.nodes.nodeName", processingName);
+        if (processingName != null && !processingName.isEmpty()) {
+            List<Map<String, Object>> processingFilters = processingName.stream()
+                    .filter(Objects::nonNull)
+                    .filter(condition -> StringUtils.isNotBlank(condition.getProcessName()))
+                    .map(condition -> {
+                        Map<String, Object> nodeFilter = new HashMap<String, Object>();
+                        nodeFilter.put("nodeName", condition.getProcessName());
+                        if (StringUtils.isNotBlank(condition.getAccessoryName())) {
+                            nodeFilter.put("paramConfigs.param.accessorySnapshot.name", condition.getAccessoryName());
+                        }
+                        return nodeFilter;
+                    })
+                    .collect(Collectors.toList());
+            if (!processingFilters.isEmpty()) {
+                filters.put("procedureFlow.nodes_elemMatchAll", processingFilters);
+            }
         }
         
         List<TypesettingInfo> allItems = typesettingRepository.filterList(current, size, filters);
@@ -85,14 +144,14 @@ public class TypesettingService {
     }
 
     
-    public List<TypesettingInfo> findTypesettingByConditions(
+    public List<TypesettingInfo> findTypesettingByProcessingConditions(
             String manufacturerMetaId,
             String status,
             String materialName,
-            String processingName,
+            List<ProcessingFlowCondition> processingName,
             int current,
             int size) {
-        return findTypesettingByConditions(manufacturerMetaId, status, materialName, processingName, null, null, null, current, size);
+        return findTypesettingByProcessingConditions(manufacturerMetaId, status, materialName, processingName, null, null, null, current, size);
     }
 
     /**

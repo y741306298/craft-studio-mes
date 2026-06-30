@@ -1,11 +1,13 @@
 package com.mes.application.dto;
 
 import com.mes.application.command.typesetting.enums.TypesettingQueryType;
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 public class TypesettingQuery {
@@ -15,7 +17,7 @@ public class TypesettingQuery {
     private String queryType;
     private String status;
     private String materialName;
-    private String processingName;
+    private List<ProcessingFlowCondition> processingName;
     private String typesettingId;
     private String orderId;
     private String orderItemId;
