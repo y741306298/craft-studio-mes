@@ -17,13 +17,21 @@ public class TypesettingAndProductionPiecesResponse {
 
     private Long current;
 
-    private List<String> processingFlowList;
+    private List<ProcessingFlowOption> processingFlowList;
 
     private List<String> materialList;
 
     private List<SourceTypeOption> sourceType;
 
     private OrgInfo orgInfo;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProcessingFlowOption {
+        private String processName;
+        private String accessoryName;
+    }
 
     @Data
     @NoArgsConstructor

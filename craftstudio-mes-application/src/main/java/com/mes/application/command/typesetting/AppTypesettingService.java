@@ -267,7 +267,7 @@ public class AppTypesettingService {
         boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
 
         if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByProcessingConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
@@ -290,7 +290,7 @@ public class AppTypesettingService {
         }
 
         if (!queryPartOnly && !queryProductionPiecesByRoute) {
-            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
@@ -359,7 +359,7 @@ public class AppTypesettingService {
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItemsByTypesettingId(TypesettingQuery query) {
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
                 query.getManufacturerMetaId(),
                 null,
                 query.getMaterialName(),
@@ -395,7 +395,7 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(orderItemId)) {
                 continue;
             }
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByConditions(
+            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByProcessingConditions(
                     query.getManufacturerMetaId(),
                     null,
                     query.getMaterialName(),
@@ -963,7 +963,7 @@ public class AppTypesettingService {
      */
     private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
         // 不走分页查询：先按 manufacturerId 查询符合基础条件的全部零件，再在内存中过滤“待排版数量>0”
-        List<ProductionPiece> parts = productionPieceService.findProductionPiecesByConditions(
+        List<ProductionPiece> parts = productionPieceService.findProductionPiecesByProcessingConditions(
                 query.getManufacturerMetaId(),
                 ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
                 query.getMaterialName(),
@@ -1003,7 +1003,7 @@ public class AppTypesettingService {
      */
     private List<TypesettingProductionPieceVO> queryTypesettingOnly(TypesettingQuery query) {
         // 不走分页查询：先查全量排版记录，再在内存中过滤 leaveQuantity > 0
-        List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByConditions(
+        List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByProcessingConditions(
                 query.getManufacturerMetaId(),
                 query.getStatus(),
                 query.getMaterialName(),

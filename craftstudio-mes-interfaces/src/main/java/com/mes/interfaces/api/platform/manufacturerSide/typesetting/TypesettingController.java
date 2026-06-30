@@ -11,6 +11,7 @@ import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -29,8 +30,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -104,7 +105,11 @@ public class TypesettingController {
         TypesettingQuery query = new TypesettingQuery();
         query.setManufacturerMetaId(manufacturerMetaId);
         query.setMaterialName(materialName);
-        query.setProcessingName(processingName);
+        if (StringUtils.isNotBlank(processingName)) {
+            ProcessingFlowCondition condition = new ProcessingFlowCondition();
+            condition.setProcessName(processingName);
+            query.setProcessingName(List.of(condition));
+        }
         query.setStartTime(startTime);
         query.setEndTime(endTime);
         query.setSourceType(sourceType);
@@ -363,13 +368,13 @@ public class TypesettingController {
     private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
                                                                                                List<TypesettingProductionPieceVO> allItems,
                                                                                                PagedResult<TypesettingProductionPieceVO> pagedResult) {
-        List<String> processingFlowList = buildProcessingFlowList(allItems);
+        List<TypesettingAndProductionPiecesResponse.ProcessingFlowOption> processingFlowList = buildProcessingFlowList(allItems);
         List<String> materialList = buildMaterialList(allItems);
         List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
         return new TypesettingAndProductionPiecesResponse(items, pagedResult.total(), pagedResult.current(), processingFlowList, materialList, sourceType, null);
     }
 
-    private List<String> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
+    private List<TypesettingAndProductionPiecesResponse.ProcessingFlowOption> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {
         return items.stream()
                 .filter(Objects::nonNull)
                 .map(TypesettingProductionPieceVO::getProcedureFlow)
@@ -378,12 +383,50 @@ public class TypesettingController {
                 .filter(Objects::nonNull)
                 .flatMap(List::stream)
                 .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .filter(Objects::nonNull)
-                .filter(nodeName -> !nodeName.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .collect(Collectors.toList());
+                .map(node -> new TypesettingAndProductionPiecesResponse.ProcessingFlowOption(
+                        node.getNodeName(),
+                        extractAccessoryName(node)
+                ))
+                .filter(option -> StringUtils.isNotBlank(option.getProcessName()))
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(
+                                option -> option.getProcessName() + "\u0000" + (option.getAccessoryName() == null ? "" : option.getAccessoryName()),
+                                option -> option,
+                                (left, right) -> left,
+                                java.util.LinkedHashMap::new
+                        ),
+                        map -> new ArrayList<>(map.values())
+                ));
+    }
+
+    private String extractAccessoryName(ProcedureFlowNode node) {
+        if (node == null || node.getParamConfigs() == null) {
+            return null;
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = extractFieldValue(config, "param");
+            Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+            Object name = extractFieldValue(accessorySnapshot, "name");
+            if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
+                return String.valueOf(name);
+            }
+        }
+        return null;
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        try {
+            String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+            return target.getClass().getMethod(getterName).invoke(target);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     private List<String> buildMaterialList(List<TypesettingProductionPieceVO> items) {
