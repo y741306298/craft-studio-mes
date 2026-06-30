@@ -48,6 +48,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private String routeSvg;
     private Double width;
     private Double height;
+    private Double trueWidth;
+    private Double trueHeight;
     private Blood blood;
     private String group;
     private Integer seq;
@@ -92,6 +94,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         }
         piece.setWidth(this.width);
         piece.setHeight(this.height);
+        piece.setTrueWidth(this.trueWidth);
+        piece.setTrueHeight(this.trueHeight);
         piece.setBlood(this.blood);
         piece.setGroup(this.group);
         piece.setSeq(this.seq);
@@ -138,6 +142,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         }
         this.width = _do.getWidth();
         this.height = _do.getHeight();
+        this.trueWidth = _do.getTrueWidth();
+        this.trueHeight = _do.getTrueHeight();
         this.blood = _do.getBlood();
         this.group = _do.getGroup();
         this.seq = _do.getSeq();

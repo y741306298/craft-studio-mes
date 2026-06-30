@@ -109,6 +109,8 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/material-layout-inset/";
         String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, updatedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
         updateMaskImageFile(piece, newMaskUrl);
+        piece.setTrueWidth(newWidth);
+        piece.setTrueHeight(newHeight);
     }
 
     private Double resolveInsetMm(List<MaterialLayoutSpecStep> steps, double lengthMm) {

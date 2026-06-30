@@ -168,8 +168,8 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setSourceId(piece.getId());
         typesettingProductionPieceVO.setId(piece.getId());
         typesettingProductionPieceVO.setTemplateCode(piece.getTemplateCode());
-        typesettingProductionPieceVO.setWidth(toCentimeters(piece.getWidth()));
-        typesettingProductionPieceVO.setHeight(toCentimeters(piece.getHeight()));
+        typesettingProductionPieceVO.setWidth(toCentimeters(resolveDisplayWidth(piece)));
+        typesettingProductionPieceVO.setHeight(toCentimeters(resolveDisplayHeight(piece)));
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setIsUrgent(piece.getIsUrgent());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
@@ -222,6 +222,14 @@ public class TypesettingProductionPieceVO {
             return null;
         }
         return TypesettingLayoutMode.fromCode(info.getLayoutMode()).getDescription();
+    }
+
+    private static Double resolveDisplayWidth(ProductionPiece piece) {
+        return piece.getTrueWidth() == null ? piece.getWidth() : piece.getTrueWidth();
+    }
+
+    private static Double resolveDisplayHeight(ProductionPiece piece) {
+        return piece.getTrueHeight() == null ? piece.getHeight() : piece.getTrueHeight();
     }
 
     private static Double toCentimeters(Double millimeters) {

@@ -46,6 +46,8 @@ public class ProductionPiece extends BaseEntity {
     private Map<String, String> marks;
     private Double width;
     private Double height;
+    private Double trueWidth;
+    private Double trueHeight;
     private Blood blood;
     private String group;
     private Integer seq;
