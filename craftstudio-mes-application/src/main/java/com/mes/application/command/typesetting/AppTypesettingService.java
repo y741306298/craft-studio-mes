@@ -2682,8 +2682,7 @@ public class AppTypesettingService {
 
     private boolean containsDoubleSideMirrorKeyword(String processingFlow) {
         return StringUtils.isNotBlank(processingFlow)
-                && (processingFlow.contains(ProcedureFlowNodeMatcher.DOUBLE_SIDE_MOUNTING_KEYWORD)
-                || processingFlow.contains(ProcedureFlowNodeMatcher.COVER_DOUBLE_SIDE_KEYWORD));
+                && ProcedureFlowNodeMatcher.containsDoubleSideMountingKeyword(processingFlow);
     }
 
     private boolean isAllPartCompositionTypesetting(TypesettingInfo typesettingInfo) {

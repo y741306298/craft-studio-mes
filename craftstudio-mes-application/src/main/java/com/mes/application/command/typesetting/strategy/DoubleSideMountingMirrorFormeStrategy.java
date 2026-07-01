@@ -115,8 +115,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         }
         return procedureFlow.getNodes().stream()
                 .filter(node -> node != null && StringUtils.isNotBlank(node.getNodeName()))
-                .filter(node -> node.getNodeName().contains(ProcedureFlowNodeMatcher.DOUBLE_SIDE_MOUNTING_KEYWORD)
-                        || node.getNodeName().contains(ProcedureFlowNodeMatcher.COVER_DOUBLE_SIDE_KEYWORD))
+                .filter(node -> ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName()))
                 .findFirst()
                 .orElse(null);
     }
