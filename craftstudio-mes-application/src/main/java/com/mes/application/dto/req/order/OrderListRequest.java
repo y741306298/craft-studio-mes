@@ -15,4 +15,5 @@ public class OrderListRequest extends PagedApiRequest {
     private String createDateStart;
     private String createDateEnd;
     private String routeId;
+    private String orgName;
 }

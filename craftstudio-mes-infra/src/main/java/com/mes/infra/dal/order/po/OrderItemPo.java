@@ -1,5 +1,6 @@
 package com.mes.infra.dal.order.po;
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -38,6 +39,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String routeId;
     private String routeNodeId;
     private OrderItemPriceInfo price;
+    private OrgInfo orgInfo;
 
     @Override
     public OrderItem toDO() {
@@ -68,6 +70,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setRouteId(this.routeId);
         orderItem.setRouteNodeId(this.routeNodeId);
         orderItem.setPrice(this.price);
+        orderItem.setOrgInfo(this.orgInfo);
 
         return orderItem;
     }
@@ -94,6 +97,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
         this.price = _do.getPrice();
+        this.orgInfo = _do.getOrgInfo();
         return this;
     }
 }

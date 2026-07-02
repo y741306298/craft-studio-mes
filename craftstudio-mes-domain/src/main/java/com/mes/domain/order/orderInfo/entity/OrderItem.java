@@ -1,6 +1,7 @@
 package com.mes.domain.order.orderInfo.entity;
 
 import com.mes.domain.base.BaseEntity;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.enums.OrderStatus;
@@ -42,5 +43,6 @@ public class OrderItem extends BaseEntity {
     private String routeNodeId;
     private List<ProductionPiece> productionPieces;
     private OrderItemPriceInfo price;
+    private OrgInfo orgInfo;
 
 }

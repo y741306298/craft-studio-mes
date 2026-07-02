@@ -478,8 +478,11 @@ public class AppOrderPreprocessingService {
         piece.setProcessingFlow(processingFlow);
 
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
-        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-            piece.setRemark(orderInfo.getRemark());
+        if (orderInfo != null) {
+            piece.setOrgInfo(orderInfo.getOrgInfo());
+            if (StringUtils.isNotBlank(orderInfo.getRemark())) {
+                piece.setRemark(orderInfo.getRemark());
+            }
         }
 
         // 无拼接/异形切割路线：按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
@@ -893,8 +896,11 @@ public class AppOrderPreprocessingService {
                         piece.setProcessingFlow(processingFlow);
 
                         OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
-                        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-                            piece.setRemark(orderInfo.getRemark());
+                        if (orderInfo != null) {
+                            piece.setOrgInfo(orderInfo.getOrgInfo());
+                            if (StringUtils.isNotBlank(orderInfo.getRemark())) {
+                                piece.setRemark(orderInfo.getRemark());
+                            }
                         }
 
                         Integer groupCount = rawGroup == null ? null : groupToCount.get(rawGroup);

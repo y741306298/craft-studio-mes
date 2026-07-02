@@ -1,5 +1,6 @@
 package com.mes.infra.dal.manufacurer.ProductionPiece.po;
 
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -58,6 +59,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     private List<DeliveryPkgInfo> deliveryPkgInfos;
     private List<MirrorConfig> mirrorConfigs;
     private String remark;
+    private OrgInfo orgInfo;
 
     @Override
     public ProductionPiece toDO() {
@@ -104,6 +106,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setDeliveryPkgInfos(this.deliveryPkgInfos);
         piece.setMirrorConfigs(this.mirrorConfigs);
         piece.setRemark(this.remark);
+        piece.setOrgInfo(this.orgInfo);
 
         return piece;
     }
@@ -152,6 +155,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         this.deliveryPkgInfos = _do.getDeliveryPkgInfos();
         this.mirrorConfigs = _do.getMirrorConfigs();
         this.remark = _do.getRemark();
+        this.orgInfo = _do.getOrgInfo();
 
         return this;
     }

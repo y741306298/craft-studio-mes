@@ -1,6 +1,7 @@
 package com.mes.domain.manufacturer.productionPiece.entity;
 
 import com.mes.domain.base.BaseEntity;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
@@ -56,5 +57,6 @@ public class ProductionPiece extends BaseEntity {
     private List<DeliveryPkgInfo> deliveryPkgInfos;
     private List<MirrorConfig> mirrorConfigs;
     private String remark;
+    private OrgInfo orgInfo;
 
 }

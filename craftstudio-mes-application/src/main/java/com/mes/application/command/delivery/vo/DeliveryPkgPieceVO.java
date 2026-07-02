@@ -57,6 +57,7 @@ public class DeliveryPkgPieceVO {
             vo.setPreviewUrl(piece.getProductImageFile().getFilePreview().getPreview());
         }
         vo.setRemark(piece.getRemark());
+        vo.setOrgInfo(piece.getOrgInfo());
         return vo;
     }
 }
