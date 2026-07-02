@@ -82,6 +82,7 @@ public class OrderController {
         orderQuery.setCustomerName(customerName);
         orderQuery.setCustomerPhone(customerPhone);
         orderQuery.setRouteId(request.getRouteId());
+        orderQuery.setOrgName(request.getOrgName());
         
         // 处理日期字符串转换为 Date 对象
         if (createDateStart != null && !createDateStart.trim().isEmpty()) {

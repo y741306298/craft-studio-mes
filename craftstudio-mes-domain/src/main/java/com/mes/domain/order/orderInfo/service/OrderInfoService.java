@@ -326,6 +326,40 @@ public class OrderInfoService {
         return orderIds;
     }
 
+
+    /**
+     * 根据下单企业名称查询订单号列表。
+     *
+     * @param orgName 下单企业名称，支持模糊匹配
+     * @return 匹配的订单号列表
+     */
+    public List<String> findOrderIdsByOrgName(String orgName) {
+        if (StringUtils.isBlank(orgName)) {
+            return Collections.emptyList();
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orgInfo.name_like", orgName.trim());
+
+        List<String> orderIds = new ArrayList<>();
+        int current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderInfo> orders = orderInfoRepository.filterList(current, size, filters);
+            if (orders == null || orders.isEmpty()) {
+                break;
+            }
+            orders.stream()
+                    .map(OrderInfo::getOrderId)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(orderIds::add);
+            if (orders.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return orderIds;
+    }
+
     /**
      * 根据多条件查询订单（包含客户手机号）
      * @param orderId 订单号
@@ -535,6 +569,7 @@ public class OrderInfoService {
                 item.setOrderItemId(orderItemId);
             }
             item.setOrderId(orderInfo.getOrderId());
+            item.setOrgInfo(orderInfo.getOrgInfo());
             if (isDuplicateOrderItem(orderInfo, item, newItemKeys)) {
                 continue;
             }

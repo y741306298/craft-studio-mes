@@ -91,6 +91,7 @@ public class AppOrderService {
         String customerName = query.getCustomerName();
         String customerPhone = query.getCustomerPhone();
         String routeId = query.getRouteId();
+        String orgName = query.getOrgName();
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
         var pagedQuery = query.getPagedQuery();
@@ -129,6 +130,25 @@ public class AppOrderService {
                 return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
             }
             filters.put("orderId_in", customerMatchedOrderIds);
+        }
+        if (StringUtils.isNotBlank(orgName)) {
+            Set<String> orgMatchedOrderIds = new LinkedHashSet<>(
+                    domainOrderInfoService.findOrderIdsByOrgName(orgName)
+            );
+            if (StringUtils.isNotBlank(orderId)) {
+                String normalizedOrderId = orderId.trim().toLowerCase(Locale.ROOT);
+                orgMatchedOrderIds.removeIf(matchedOrderId ->
+                        StringUtils.isBlank(matchedOrderId)
+                                || !matchedOrderId.toLowerCase(Locale.ROOT).contains(normalizedOrderId));
+                filters.remove("orderId_like");
+            }
+            if (filters.get("orderId_in") instanceof Set<?> existingOrderIds) {
+                orgMatchedOrderIds.retainAll(existingOrderIds);
+            }
+            if (orgMatchedOrderIds.isEmpty()) {
+                return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
+            }
+            filters.put("orderId_in", orgMatchedOrderIds);
         }
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(),

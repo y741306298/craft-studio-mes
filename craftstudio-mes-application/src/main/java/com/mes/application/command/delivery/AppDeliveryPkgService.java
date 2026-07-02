@@ -135,9 +135,12 @@ public class AppDeliveryPkgService {
             boolean matchCarrierName = StringUtils.isBlank(request.getCarrierName())
                     || (item.getLogisticsCarrierInfo() != null && StringUtils.isNotBlank(item.getLogisticsCarrierInfo().getCarrierName())
                     && item.getLogisticsCarrierInfo().getCarrierName().contains(request.getCarrierName()));
+            boolean matchOrgName = StringUtils.isBlank(request.getOrgName())
+                    || (item.getOrgInfo() != null && StringUtils.isNotBlank(item.getOrgInfo().getName())
+                    && item.getOrgInfo().getName().contains(request.getOrgName()));
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
-            return matchOrderId && matchOrderItemId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd;
+            return matchOrderId && matchOrderItemId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchOrgName && matchStart && matchEnd;
         }).sorted(Comparator
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
@@ -325,6 +328,9 @@ public class AppDeliveryPkgService {
         OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
         if (orderItem != null) {
             vo.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
+            if (vo.getOrgInfo() == null) {
+                vo.setOrgInfo(orderItem.getOrgInfo());
+            }
             if (orderItem.getMaterial() != null) {
                 vo.setMaterialConfig(orderItem.getMaterial());
             }
@@ -343,7 +349,9 @@ public class AppDeliveryPkgService {
             OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
             if (orderInfo != null) {
                 vo.setOrderCustomer(orderInfo.getCustomer());
-                vo.setOrgInfo(orderInfo.getOrgInfo());
+                if (vo.getOrgInfo() == null) {
+                    vo.setOrgInfo(orderInfo.getOrgInfo());
+                }
                 World world = worldRepository.loadWorld();
                 Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
                 String fullAddress = address.buildFullAddressString(world);

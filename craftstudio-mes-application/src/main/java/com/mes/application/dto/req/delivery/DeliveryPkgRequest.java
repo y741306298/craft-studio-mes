@@ -29,6 +29,7 @@ public class DeliveryPkgRequest {
     private List<ProcessingFlowCondition> processNames;
     private Double width;
     private String routeId;
+    private String orgName;
 
 
 }
