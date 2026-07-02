@@ -1,5 +1,6 @@
 package com.mes.infra.dal.manufacurer.ProductionPiece;
 
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.infra.base.BaseRepositoryImp;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 @Repository
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
@@ -77,7 +79,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     }
 
     @Override
-    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<String> processNames, Double width, String routeId) {
+    public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<ProcessingFlowCondition> processNames, Double width, String routeId) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
@@ -87,14 +89,18 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         if (materialName != null && !materialName.isBlank()) {
             criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName));
         }
-        List<String> normalizedProcessNames = processNames == null ? List.of() : processNames.stream()
-                .filter(processName -> processName != null && !processName.isBlank())
-                .map(String::trim)
-                .distinct()
+        List<Criteria> processCriteria = processNames == null ? List.of() : processNames.stream()
+                .filter(Objects::nonNull)
+                .filter(condition -> condition.getProcessName() != null && !condition.getProcessName().isBlank())
+                .map(condition -> {
+                    Criteria nodeCriteria = Criteria.where("nodeName").is(condition.getProcessName().trim());
+                    if (condition.getAccessoryName() != null && !condition.getAccessoryName().isBlank()) {
+                        nodeCriteria.and("paramConfigs.param.accessorySnapshot.name").is(condition.getAccessoryName().trim());
+                    }
+                    return Criteria.where("procedureFlow.nodes").elemMatch(nodeCriteria);
+                })
                 .toList();
-        if (!normalizedProcessNames.isEmpty()) {
-            criteriaList.add(Criteria.where("procedureFlow.nodes.nodeName").all(normalizedProcessNames));
-        }
+        criteriaList.addAll(processCriteria);
         if (width != null) {
             criteriaList.add(Criteria.where("width").is(width));
         }

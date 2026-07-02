@@ -1,6 +1,7 @@
 package com.mes.domain.manufacturer.productionPiece.repository;
 
 import com.mes.domain.base.repository.BaseRepository;
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
@@ -27,5 +28,5 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      */
     long deleteByOrderItemId(String orderItemId);
 
-    java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, java.util.List<String> processNames, Double width, String routeId);
+    java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, java.util.List<ProcessingFlowCondition> processNames, Double width, String routeId);
 }

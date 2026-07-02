@@ -1,5 +1,6 @@
 package com.mes.application.dto.req.delivery;
 
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import lombok.Data;
 
@@ -25,7 +26,7 @@ public class DeliveryPkgRequest {
     private String carrierName;
     private String materialName;
     private String processName;
-    private List<String> processNames;
+    private List<ProcessingFlowCondition> processNames;
     private Double width;
     private String routeId;
 

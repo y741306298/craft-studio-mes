@@ -6,7 +6,7 @@
 - **说明**:
   - 查询“待打包”零件列表。
   - 数据源侧先做 Mongo 条件查询：`procedureFlow.nodes` 中存在 `nodeName=待打包` 且 `pieceQuantity > 0` 的零件。
-  - 支持条件查询：`materialName`、`processNames`、`width`、`routeId`。
+  - 支持条件查询：`materialName`、`processNames.processName`、`processNames.accessoryName`、`width`、`routeId`。
   - 在组装 `DeliveryPkgPieceVO` 后，再按 `customerPhone`、`startTime`、`endTime`、`carrierName` 做补充过滤。
   - 返回结果包含三个同级筛选集合：`materialList`、`sizeList`、`processList`。
 
@@ -20,7 +20,7 @@
 | endTime | string | 否 | 创建时间止（ISO-8601，示例：`2026-05-31T23:59:59Z`） |
 | carrierName | string | 否 | 物流承运商名称（模糊匹配） |
 | materialName | string | 否 | 材料名（精确匹配 `materialConfig.materialSnapshot.name`） |
-| processNames | array[string] | 否 | 工序名列表（联合匹配 `procedureFlow.nodes.nodeName`，需同时包含列表内所有工序） |
+| processNames | array[object] | 否 | 工序条件列表，元素包含 `processName` 和可选 `accessoryName`；需同时匹配全部条件 |
 | width | number | 否 | 零件宽度（匹配 `productionPiece.width`） |
 | routeId | string | 否 | 路线 ID（匹配待打包零件 `productionPiece.routeId`） |
 
@@ -34,7 +34,10 @@
   "endTime": "2026-05-31T23:59:59Z",
   "carrierName": "顺丰",
   "materialName": "白卡纸",
-  "processNames": ["覆膜", "烫金"],
+  "processNames": [
+    { "processName": "覆膜", "accessoryName": "哑膜" },
+    { "processName": "烫金" }
+  ],
   "width": 70.0,
   "routeId": "ROUTE_001"
 }
@@ -47,7 +50,7 @@
 | items | array | 待打包零件列表（`DeliveryPkgPieceVO`，包含 `routeId` 与 `routeNodeId`） |
 | materialList | array[string] | 从 `items[].materialConfig.materialSnapshot.name` 去重得到 |
 | sizeList | array[number] | 从 `items[].width` 去重得到 |
-| processList | array[string] | 从 `items[].procedureFlow.nodes[].nodeName` 去重得到 |
+| processList | array[object] | 从 `items[].procedureFlow.nodes[]` 去重得到，元素包含 `processName` 与 `accessoryName` |
 
 ### 返回示例
 
@@ -95,7 +98,11 @@
     ],
     "materialList": ["白卡纸", "铜版纸"],
     "sizeList": [70.0, 90.0],
-    "processList": ["待打包", "覆膜", "烫金"]
+    "processList": [
+      { "processName": "待打包", "accessoryName": null },
+      { "processName": "覆膜", "accessoryName": "哑膜" },
+      { "processName": "烫金", "accessoryName": null }
+    ]
   }
 }
 ```

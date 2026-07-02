@@ -7,6 +7,7 @@ import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
+import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
 import com.mes.application.shared.utils.MD5Util;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryMan;
@@ -20,6 +21,7 @@ import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
 import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
@@ -107,7 +109,7 @@ public class AppDeliveryPkgService {
         List<ProductionPiece> productionPieces = productionPieceService.listPendingPackagingPiecesByConditions(
                 manufacturerMetaId,
                 request.getMaterialName(),
-                resolveProcessNames(request.getProcessNames(), request.getProcessName()),
+                resolveProcessConditions(request.getProcessNames(), request.getProcessName()),
                 request.getWidth(),
                 request.getRouteId());
 
@@ -236,11 +238,39 @@ public class AppDeliveryPkgService {
         boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
         boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
         boolean matchWidth = request.getWidth() == null || Objects.equals(item.getWidth(), request.getWidth());
-        boolean matchProcesses = matchesAllProcessNames(item, resolveProcessNames(request.getProcessNames(), request.getProcessName()));
+        boolean matchProcesses = matchesAllProcessNames(item, resolveLegacyProcessNames(request.getProcessNames(), request.getProcessName()));
         return matchOrderId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchStart && matchEnd && matchWidth && matchProcesses;
     }
 
-    private List<String> resolveProcessNames(List<String> processNames, String processName) {
+    private List<ProcessingFlowCondition> resolveProcessConditions(List<ProcessingFlowCondition> processNames, String processName) {
+        List<ProcessingFlowCondition> resolved = processNames == null ? new ArrayList<>() : processNames.stream()
+                .filter(Objects::nonNull)
+                .filter(condition -> StringUtils.isNotBlank(condition.getProcessName()))
+                .map(condition -> {
+                    ProcessingFlowCondition normalized = new ProcessingFlowCondition();
+                    normalized.setProcessName(condition.getProcessName().trim());
+                    normalized.setAccessoryName(StringUtils.isBlank(condition.getAccessoryName()) ? null : condition.getAccessoryName().trim());
+                    return normalized;
+                })
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(
+                                condition -> condition.getProcessName() + "\u0000" + (condition.getAccessoryName() == null ? "" : condition.getAccessoryName()),
+                                condition -> condition,
+                                (left, right) -> left,
+                                java.util.LinkedHashMap::new
+                        ),
+                        map -> new ArrayList<>(map.values())
+                ));
+        if (resolved.isEmpty() && StringUtils.isNotBlank(processName)) {
+            ProcessingFlowCondition condition = new ProcessingFlowCondition();
+            condition.setProcessName(processName.trim());
+            resolved.add(condition);
+        }
+        return resolved;
+    }
+
+
+    private List<String> resolveLegacyProcessNames(List<String> processNames, String processName) {
         List<String> resolved = processNames == null ? new ArrayList<>() : processNames.stream()
                 .filter(StringUtils::isNotBlank)
                 .map(String::trim)
@@ -334,7 +364,7 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toCollection(LinkedHashSet::new)).stream().collect(Collectors.toList());
     }
 
-    public List<String> buildProcessList(List<DeliveryPkgPieceVO> items) {
+    public List<DeliveryPkgPiecesResponse.ProcessingFlowOption> buildProcessList(List<DeliveryPkgPieceVO> items) {
         return items.stream().filter(Objects::nonNull)
                 .map(DeliveryPkgPieceVO::getProcedureFlow)
                 .filter(Objects::nonNull)
@@ -342,9 +372,51 @@ public class AppDeliveryPkgService {
                 .filter(Objects::nonNull)
                 .flatMap(List::stream)
                 .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new)).stream().collect(Collectors.toList());
+                .map(node -> new DeliveryPkgPiecesResponse.ProcessingFlowOption(
+                        node.getNodeName(),
+                        extractAccessoryName(node)
+                ))
+                .filter(option -> StringUtils.isNotBlank(option.getProcessName()))
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(
+                                option -> option.getProcessName() + "\u0000" + (option.getAccessoryName() == null ? "" : option.getAccessoryName()),
+                                option -> option,
+                                (left, right) -> left,
+                                java.util.LinkedHashMap::new
+                        ),
+                        map -> new ArrayList<>(map.values())
+                ));
+    }
+
+    private String extractAccessoryName(ProcedureFlowNode node) {
+        if (node == null || node.getParamConfigs() == null) {
+            return null;
+        }
+        for (Object config : node.getParamConfigs()) {
+            Object param = extractFieldValue(config, "param");
+            Object accessorySnapshot = extractFieldValue(param, "accessorySnapshot");
+            Object name = extractFieldValue(accessorySnapshot, "name");
+            if (name != null && StringUtils.isNotBlank(String.valueOf(name))) {
+                return String.valueOf(name);
+            }
+        }
+        return null;
+    }
+
+    private Object extractFieldValue(Object target, String fieldName) {
+        if (target == null || StringUtils.isBlank(fieldName)) {
+            return null;
+        }
+        if (target instanceof Map<?, ?> map) {
+            return map.get(fieldName);
+        }
+        try {
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field.get(target);
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+            return null;
+        }
     }
 
     public List<Double> buildSizeList(List<DeliveryPkgPieceVO> items) {
