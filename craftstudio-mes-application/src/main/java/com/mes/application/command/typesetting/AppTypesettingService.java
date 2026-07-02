@@ -1513,17 +1513,16 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
         try {
-            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
-            validateNoSecondaryTypesettingCells(typesettingInfo);
+            validateConfirmLayoutPreconditions(typesettingInfo);
 
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                     StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
             );
             if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-                throw new IllegalArgumentException("排版信息缺少 nestedSvg，无法确认排版");
+                throw new TypesettingPreAlgorithmValidationException("排版信息缺少 nestedSvg，无法确认排版");
             }
             if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-                throw new IllegalArgumentException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+                throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
             }
             typesettingInfo.setLayoutMode(layoutMode.getCode());
             typesettingInfo.applyLayoutModeConfig();
@@ -1568,11 +1567,22 @@ public class AppTypesettingService {
             result.setSuccess(true);
             result.setMessage("确认排版任务已提交，等待回调");
             return result;
+        } catch (TypesettingPreAlgorithmValidationException e) {
+            return LayoutConfirmResult.failed(e.getMessage());
         } catch (Exception e) {
             String failureReason = "确认排版处理失败：" + resolveExceptionMessage(e);
             log.error(failureReason, e);
             markTypesettingFailed(typesettingInfo, failureReason);
             return LayoutConfirmResult.failed(failureReason);
+        }
+    }
+
+    private void validateConfirmLayoutPreconditions(TypesettingInfo typesettingInfo) {
+        try {
+            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
+            validateNoSecondaryTypesettingCells(typesettingInfo);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            throw new TypesettingPreAlgorithmValidationException(e.getMessage(), e);
         }
     }
 
@@ -2597,17 +2607,16 @@ public class AppTypesettingService {
             throw new RuntimeException("排版信息不存在：" + request.getId());
         }
         try {
-            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
+            validateConfirmPrintPreconditions(typesettingInfo);
             if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-                throw new RuntimeException("排版信息缺少 nestedSvg，无法确认打印");
+                throw new TypesettingPreAlgorithmValidationException("排版信息缺少 nestedSvg，无法确认打印");
             }
-            validateConfirmPrintForDoubleSideMirror(typesettingInfo);
 
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                     StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
             );
             if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-                throw new RuntimeException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+                throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
             }
             typesettingInfo.setLayoutMode(layoutMode.getCode());
             typesettingInfo.applyLayoutModeConfig();
@@ -2657,6 +2666,11 @@ public class AppTypesettingService {
             result.setSuccess(true);
             result.setMessage("确认打印任务已提交，等待回调");
             return result;
+        } catch (TypesettingPreAlgorithmValidationException e) {
+            ConfirmPrintResult result = new ConfirmPrintResult();
+            result.setSuccess(false);
+            result.setMessage(e.getMessage());
+            return result;
         } catch (Exception e) {
             String failureReason = "确认打印处理失败：" + resolveExceptionMessage(e);
             log.error(failureReason, e);
@@ -2665,6 +2679,15 @@ public class AppTypesettingService {
             result.setSuccess(false);
             result.setMessage(failureReason);
             return result;
+        }
+    }
+
+    private void validateConfirmPrintPreconditions(TypesettingInfo typesettingInfo) {
+        try {
+            ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
+            validateConfirmPrintForDoubleSideMirror(typesettingInfo);
+        } catch (RuntimeException e) {
+            throw new TypesettingPreAlgorithmValidationException(e.getMessage(), e);
         }
     }
 
@@ -2843,6 +2866,16 @@ public class AppTypesettingService {
             return "未知错误";
         }
         return StringUtils.isNotBlank(e.getMessage()) ? e.getMessage() : e.getClass().getSimpleName();
+    }
+
+    private static class TypesettingPreAlgorithmValidationException extends RuntimeException {
+        private TypesettingPreAlgorithmValidationException(String message) {
+            super(message);
+        }
+
+        private TypesettingPreAlgorithmValidationException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
