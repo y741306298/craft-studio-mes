@@ -65,7 +65,7 @@ public class ManufacturerSideManufacturerMaterialLayoutSpecCfgController {
      * 新增工厂材料步进配置。
      * <p>
      * 新增前会校验 manufacturerMetaId、materialId 必填，材料必须在可配置材料清单中存在，
-     * 且 insetSteps 必须包含 1m 到 10m 的完整阶梯内缩配置。
+     * 且 insetSteps 按请求输入的自定义阶梯保存，不再固定校验 1m 到 10m。
      *
      * @param request 新增请求
      * @return 新增后的工厂材料步进配置

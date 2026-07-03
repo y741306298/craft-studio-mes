@@ -33,7 +33,7 @@ public class ManufacturerMaterialLayoutSpecCfg extends BaseEntity {
     private Size3D usageSize3D;
 
     /**
-     * 跟随工厂和材料组合保存的 1m 到 10m 阶梯内缩数据。
+     * 跟随工厂和材料组合保存的自定义阶梯内缩数据；负数表示外扩。
      */
     private List<MaterialLayoutSpecStep> insetSteps;
 }
