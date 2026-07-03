@@ -5,7 +5,7 @@
 材料排版规格配置用于描述工厂在排版时，对某个材料按照长度阶梯执行的内缩规则。当前设计分为两个层次：
 
 1. **可配置材料（MaterialLayoutSpec）**：只保存哪些材料允许被配置，以及材料快照、使用尺寸等默认展示信息。材料本身的可配置范围不随工厂变化。
-2. **工厂材料步进配置（ManufacturerMaterialLayoutSpecCfg）**：工厂角色选中某个可配置材料后，直接在该工厂、该材料组合下维护 1m 到 10m 的阶梯内缩值。
+2. **工厂材料步进配置（ManufacturerMaterialLayoutSpecCfg）**：工厂角色选中某个可配置材料后，直接在该工厂、该材料组合下维护 自定义阶梯内缩值。
 
 > 关键点：步进配置信息跟着工厂走，保存到 `ManufacturerMaterialLayoutSpecCfg`，不是先给材料配好步进信息再绑定工厂。
 
@@ -24,7 +24,7 @@
 
 | 字段 | 说明 | 示例 |
 | --- | --- | --- |
-| `maxLengthMeter` | 长度阶梯上限，单位：米。 | `1` 表示 1m 内。 |
+| `maxLengthMeter` | 长度阶梯上限，单位：米。 | `0.1` 表示 0.1m 内。 |
 | `insetCm` | 当前阶梯内缩值，单位：厘米。 | `2.5` 表示内缩 2.5cm。 |
 
 ### ManufacturerMaterialLayoutSpecCfg（工厂材料步进配置）
@@ -36,9 +36,9 @@
 | `materialId` | 工厂角色选中的可配置材料 ID。 |
 | `materialSnapshot` | 工厂配置时的材料快照；请求未传时会从可配置材料中补齐。 |
 | `usageSize3D` | 工厂配置时的材料使用尺寸；请求未传时会从可配置材料中补齐。 |
-| `insetSteps` | 当前工厂、当前材料自己的阶梯内缩数据，必须覆盖 1m 到 10m。 |
+| `insetSteps` | 当前工厂、当前材料自己的自定义阶梯内缩数据；负数表示外扩。 |
 
-> 说明：应用服务会校验 `insetSteps` 必须覆盖 `maxLengthMeter = 1..10` 的阶梯值，避免配置缺失导致排版计算结果不稳定。
+> 说明：应用服务只校验 `insetSteps` 每条数据完整且 `maxLengthMeter > 0`，支持 `0.1` 这类小数米配置，不再要求固定覆盖 1m 到 10m。
 
 ## 接口说明
 
@@ -103,16 +103,9 @@ Controller：`ManufacturerMaterialLayoutSpecCfgController`
     "height": 18
   },
   "insetSteps": [
-    { "maxLengthMeter": 1, "insetCm": 1.0 },
-    { "maxLengthMeter": 2, "insetCm": 1.5 },
-    { "maxLengthMeter": 3, "insetCm": 2.0 },
-    { "maxLengthMeter": 4, "insetCm": 2.5 },
-    { "maxLengthMeter": 5, "insetCm": 3.0 },
-    { "maxLengthMeter": 6, "insetCm": 3.5 },
-    { "maxLengthMeter": 7, "insetCm": 4.0 },
-    { "maxLengthMeter": 8, "insetCm": 4.5 },
-    { "maxLengthMeter": 9, "insetCm": 5.0 },
-    { "maxLengthMeter": 10, "insetCm": 5.5 }
+    { "maxLengthMeter": 0.1, "insetCm": 1.0 },
+    { "maxLengthMeter": 0.5, "insetCm": 1.5 },
+    { "maxLengthMeter": 1.2, "insetCm": -0.5 }
   ]
 }
 ```
@@ -120,5 +113,5 @@ Controller：`ManufacturerMaterialLayoutSpecCfgController`
 ## 配置流程建议
 
 1. 平台侧先通过 `/api/configSide/materialLayoutSpec/add` 维护可配置材料清单，材料清单中不维护步进值。
-2. 工厂角色通过 `/api/configSide/manufacturerMaterialLayoutSpecCfg/add` 选择 `materialId`，并配置该工厂、该材料自己的 1m 到 10m 阶梯内缩数据。
+2. 工厂角色通过 `/api/configSide/manufacturerMaterialLayoutSpecCfg/add` 选择 `materialId`，并配置该工厂、该材料自己的自定义阶梯内缩数据。
 3. 后续某个工厂要调整材料排版规则时，只编辑该工厂对应的 `ManufacturerMaterialLayoutSpecCfg`，不会影响其他工厂。
