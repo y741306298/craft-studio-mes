@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Objects;
 
 @Service
 public class AppManufacturerMaterialLayoutSpecCfgService {
@@ -71,7 +70,7 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
     /**
      * 校验工厂材料步进配置。
      * <p>
-     * 工厂角色直接选择一个可配置材料后，在这条工厂+材料配置上维护 1m 到 10m 的阶梯内缩值。
+     * 工厂角色直接选择一个可配置材料后，在这条工厂+材料配置上维护自定义阶梯内缩值。
      * 因此步进信息跟随 manufacturerMetaId + materialId 保存，而不是先配到材料再绑定工厂。
      */
     private void validate(ManufacturerMaterialLayoutSpecCfg cfg) {
@@ -90,15 +89,19 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
         if (cfg.getInsetSteps() == null || cfg.getInsetSteps().isEmpty()) {
             throw new IllegalArgumentException("阶梯数据不能为空");
         }
-        // 只接受 1m 到 10m 的阶梯上限，并按 maxLengthMeter 去重统计。
-        long validStepCount = cfg.getInsetSteps().stream()
-                .filter(Objects::nonNull)
-                .map(MaterialLayoutSpecStep::getMaxLengthMeter)
-                .filter(meter -> meter != null && meter >= 1 && meter <= 10)
-                .distinct()
-                .count();
-        if (validStepCount != 10) {
-            throw new IllegalArgumentException("阶梯数据必须包含1m到10m的内缩配置");
+        for (MaterialLayoutSpecStep step : cfg.getInsetSteps()) {
+            if (step == null) {
+                throw new IllegalArgumentException("阶梯数据不能为空");
+            }
+            if (step.getMaxLengthMeter() == null) {
+                throw new IllegalArgumentException("阶梯长度不能为空");
+            }
+            if (step.getMaxLengthMeter() <= 0) {
+                throw new IllegalArgumentException("阶梯长度必须大于0");
+            }
+            if (step.getInsetCm() == null) {
+                throw new IllegalArgumentException("阶梯内缩值不能为空");
+            }
         }
     }
 

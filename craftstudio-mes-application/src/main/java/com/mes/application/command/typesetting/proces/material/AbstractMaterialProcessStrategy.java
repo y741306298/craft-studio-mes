@@ -127,7 +127,7 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
             }
             previousStep = currentStep;
         }
-        return null;
+        return previousStep == null ? null : cmToMm(previousStep.getInsetCm());
     }
 
     private BigDecimal interpolateInsetCm(MaterialLayoutSpecStep previousStep, MaterialLayoutSpecStep currentStep, double lengthMeter) {
