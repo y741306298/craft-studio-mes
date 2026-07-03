@@ -121,7 +121,7 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
                 .toList();
         MaterialLayoutSpecStep previousStep = null;
         for (MaterialLayoutSpecStep currentStep : sortedSteps) {
-            if (BigDecimal.valueOf(currentStep.getMaxLengthMeter()).compareTo(BigDecimal.valueOf(lengthMeter)) >= 0) {
+            if (currentStep.getMaxLengthMeter().compareTo(BigDecimal.valueOf(lengthMeter)) >= 0) {
                 BigDecimal insetCm = interpolateInsetCm(previousStep, currentStep, lengthMeter);
                 return cmToMm(insetCm);
             }
@@ -135,8 +135,8 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
                 || currentStep.getMaxLengthMeter().equals(previousStep.getMaxLengthMeter())) {
             return currentStep.getInsetCm();
         }
-        double stepLengthRange = currentStep.getMaxLengthMeter() - previousStep.getMaxLengthMeter();
-        double lengthOffset = lengthMeter - previousStep.getMaxLengthMeter();
+        double stepLengthRange = currentStep.getMaxLengthMeter().subtract(previousStep.getMaxLengthMeter()).doubleValue();
+        double lengthOffset = BigDecimal.valueOf(lengthMeter).subtract(previousStep.getMaxLengthMeter()).doubleValue();
         BigDecimal insetRange = currentStep.getInsetCm().subtract(previousStep.getInsetCm());
         return previousStep.getInsetCm().add(insetRange.multiply(BigDecimal.valueOf(lengthOffset / stepLengthRange)));
     }

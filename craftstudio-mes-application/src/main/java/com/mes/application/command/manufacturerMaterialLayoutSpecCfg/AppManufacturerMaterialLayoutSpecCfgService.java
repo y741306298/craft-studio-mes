@@ -11,6 +11,7 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -96,7 +97,7 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
             if (step.getMaxLengthMeter() == null) {
                 throw new IllegalArgumentException("阶梯长度不能为空");
             }
-            if (step.getMaxLengthMeter() <= 0) {
+            if (step.getMaxLengthMeter().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("阶梯长度必须大于0");
             }
             if (step.getInsetCm() == null) {
