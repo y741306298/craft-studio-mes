@@ -49,6 +49,10 @@ public class NestingRequest {
          */
         private String imgFile;
         private Boolean forme;
+        /**
+         * 整体排版标记。带 marks 的生产工件使用该字段通知算法按整体元素处理。
+         */
+        private Boolean whole;
         private String svg;
         private Integer counts;
         /**
