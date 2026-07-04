@@ -39,6 +39,7 @@ public class DeliveryPkg extends BaseEntity {
     private String deliveryWay;                   // 配送方式
     private String presetType;                    // 实际配送预设类型
     private String trackingNumber;                // 运单号
+    private String kuaidiNum;                     // 快递100电子面单号
     
     private Date packingStartTime;                // 打包开始时间
     private Date packingEndTime;                  // 打包完成时间
