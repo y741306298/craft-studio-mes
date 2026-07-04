@@ -346,8 +346,13 @@ public class AppOrderService {
         if (printResult == null || StringUtils.isBlank(printResult.getKuaidiNum())) {
             return;
         }
+        OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
+        if (savedOrderInfo == null) {
+            return;
+        }
+        savedOrderInfo.setKuaidiNum(printResult.getKuaidiNum());
+        domainOrderInfoService.updateOrder(savedOrderInfo);
         orderInfo.setKuaidiNum(printResult.getKuaidiNum());
-        domainOrderInfoService.updateOrder(orderInfo);
     }
 
     /**
