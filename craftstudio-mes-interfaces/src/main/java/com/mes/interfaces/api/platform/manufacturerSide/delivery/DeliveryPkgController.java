@@ -18,7 +18,6 @@ import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService;
-import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRouteNode;
 import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
@@ -245,13 +244,11 @@ public class DeliveryPkgController {
     }
 
     @PostMapping("/reprint")
-    public ApiResponse<DeliveryPkgAddResultVO> reprint(@RequestBody DeliveryPkgActionRequest request) {
+    public ApiResponse<Object> reprint(@RequestBody DeliveryPkgActionRequest request) {
         DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId());
-        return ApiResponse.success(buildAddResult(deliveryPkg));
-    }
-
-    @PostMapping("/kuaidi100/reprint")
-    public ApiResponse<AuthOrderResponse> reprintKuaidi100Label(@RequestBody DeliveryPkgActionRequest request) {
+        if ("CUSTOM".equalsIgnoreCase(deliveryPkg.getPresetType())) {
+            return ApiResponse.success(buildAddResult(deliveryPkg));
+        }
         return ApiResponse.success(appDeliveryPkgService.reprintKuaidi100Label(request));
     }
 

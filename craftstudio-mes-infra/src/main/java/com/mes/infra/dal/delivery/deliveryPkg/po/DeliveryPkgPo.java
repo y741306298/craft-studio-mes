@@ -54,6 +54,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
     private String carrierName;
     private String deliveryManId;
     private String deliverySiidId;
+    private String siid;
     private String manufacturerMetaId;
     private String routeId;
     private String routeNodeId;
@@ -97,6 +98,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         deliveryPkg.setCarrierName(this.carrierName);
         deliveryPkg.setDeliveryManId(this.deliveryManId);
         deliveryPkg.setDeliverySiidId(this.deliverySiidId);
+        deliveryPkg.setSiid(this.siid);
         deliveryPkg.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryPkg.setRouteId(this.routeId);
         deliveryPkg.setRouteNodeId(this.routeNodeId);
@@ -144,6 +146,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         this.carrierName = _do.getCarrierName();
         this.deliveryManId = _do.getDeliveryManId();
         this.deliverySiidId = _do.getDeliverySiidId();
+        this.siid = _do.getSiid();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
