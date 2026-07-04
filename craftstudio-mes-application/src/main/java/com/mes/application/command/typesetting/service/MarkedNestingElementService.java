@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>当生产工件携带 marks 时，预处理阶段已经生成可直接参与排版的印版轮廓资源。
  * 因此提交给算法时不能复用普通零件的 img/svg 组装，也不能走已有印版来源的拼接逻辑；这里单独把它重写成
- * {@code forme=true, counts=前端选择数量, img=svg=maskSvg/routeSvg} 的元素。</p>
+ * {@code whole=true, counts=前端选择数量, img=svg=maskSvg/routeSvg} 的元素。</p>
  */
 @Service
 public class MarkedNestingElementService {
@@ -32,7 +32,7 @@ public class MarkedNestingElementService {
         NestingRequest.Element element = new NestingRequest.Element();
         element.setId(markedElementId(piece));
         element.setCounts(piece.getQuantity() != null && piece.getQuantity() > 0 ? piece.getQuantity() : 1);
-        element.setForme(Boolean.TRUE);
+        element.setWhole(Boolean.TRUE);
         element.setSvg(markedSvg);
         element.setImg(markedSvg);
         return element;
