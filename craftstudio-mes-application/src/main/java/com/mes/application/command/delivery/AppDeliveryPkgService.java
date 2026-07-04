@@ -67,6 +67,7 @@ public class AppDeliveryPkgService {
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
     private static final String NODE_NAME_PENDING_PACKING = "待打包";
     private static final String NODE_NAME_PACKED = "已打包";
+    private static final String PRE_ORDER_SIID = "KX100L3AD65411C274";
 
     @Autowired
     private WorldRepository worldRepository;
@@ -115,6 +116,9 @@ public class AppDeliveryPkgService {
                 request.getRouteId());
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
+        if (productionPieces == null) {
+            productionPieces = new ArrayList<>();
+        }
         for (ProductionPiece productionPiece : productionPieces) {
             DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
             if (vo != null) {
@@ -183,6 +187,9 @@ public class AppDeliveryPkgService {
         }
 
         List<DeliveryPkgPieceVO> items = new ArrayList<>();
+        if (productionPieces == null) {
+            productionPieces = new ArrayList<>();
+        }
         for (ProductionPiece productionPiece : productionPieces) {
             DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
             if (vo != null) {
@@ -490,6 +497,7 @@ public class AppDeliveryPkgService {
         AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
         //添加打印记录
         DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
+        deliveryRecord.setSiid(resolveRequestSiid(request));
         boolean isResponseSuccess = response != null
                 && response.getCode() == ApiResponse.RepStatusCode.success
                 && Boolean.TRUE.equals(response.getSuccess());
@@ -632,6 +640,31 @@ public class AppDeliveryPkgService {
 
         String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
 
+        if (!useCustomPackagingFlow) {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
+                DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
+                if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
+                    AuthOrderResponse reprintResponse = reprintKuaidi100Label(preOrderRecord.getTaskId(),
+                            StringUtils.isBlank(request.getSiid()) ? preOrderRecord.getSiid() : request.getSiid());
+                    if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
+                        String errorMsg = reprintResponse == null || StringUtils.isBlank(reprintResponse.getMessage())
+                                ? "快递100预下单面单复打失败" : reprintResponse.getMessage();
+                        throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
+                    }
+                    preOrderRecord.setReprintCount(preOrderRecord.getReprintCount() == null ? 1 : preOrderRecord.getReprintCount() + 1);
+                    deliveryRecordRepository.update(preOrderRecord);
+                    transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), orderInfo.getKuaidiNum());
+                    DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, orderInfo.getKuaidiNum());
+                    deliveryPkg.setDeliveryPkgCode(preOrderRecord.getTaskId());
+                    deliveryPkgService.updateDeliveryPkg(deliveryPkg);
+                    orderInfo.setKuaidiNum(null);
+                    orderInfoService.updateOrder(orderInfo);
+                    return deliveryPkg;
+                }
+            }
+        }
+
         if (useCustomPackagingFlow) {
             DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, null);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
@@ -679,6 +712,9 @@ public class AppDeliveryPkgService {
             return;
         }
         java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
+        if (productionPieces == null) {
+            productionPieces = new ArrayList<>();
+        }
         for (ProductionPiece productionPiece : productionPieces) {
             if (productionPiece == null || productionPiece.getProcedureFlow() == null
                     || productionPiece.getProcedureFlow().getNodes() == null) {
@@ -954,7 +990,7 @@ public class AppDeliveryPkgService {
         }
     }
 
-    private static class DeliveryPkgPrintResult {
+    public static class DeliveryPkgPrintResult {
         private final String taskId;
         private final String kuaidiNum;
 
@@ -963,11 +999,11 @@ public class AppDeliveryPkgService {
             this.kuaidiNum = kuaidiNum;
         }
 
-        private String getTaskId() {
+        public String getTaskId() {
             return taskId;
         }
 
-        private String getKuaidiNum() {
+        public String getKuaidiNum() {
             return kuaidiNum;
         }
     }
@@ -1013,11 +1049,7 @@ public class AppDeliveryPkgService {
             return buildKuaidi100ReprintFailure("云打印设备不能为空");
         }
 
-        Map<String, String> fdParam = new HashMap<>();
-        fdParam.put("taskId", taskId);
-        fdParam.put("siid", siid);
-        String result = callPost("https://api.kuaidi100.com/label/order", JSON.toJSONString(fdParam), "printOld");
-        AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
+        AuthOrderResponse response = reprintKuaidi100Label(taskId, siid);
         if (response != null && Boolean.TRUE.equals(response.getSuccess()) && StringUtils.isNotBlank(deliveryRecord.getId())) {
             deliveryRecord.setReprintCount(deliveryRecord.getReprintCount() == null ? 1 : deliveryRecord.getReprintCount() + 1);
             deliveryRecordRepository.update(deliveryRecord);
@@ -1025,6 +1057,61 @@ public class AppDeliveryPkgService {
         return response;
     }
 
+
+    private AuthOrderResponse reprintKuaidi100Label(String taskId, String siid) {
+        Map<String, String> fdParam = new HashMap<>();
+        fdParam.put("taskId", taskId);
+        fdParam.put("siid", siid);
+        String result = callPost("https://api.kuaidi100.com/label/order", JSON.toJSONString(fdParam), "printOld");
+        return JSON.parseObject(result, AuthOrderResponse.class);
+    }
+
+    public DeliveryPkgPrintResult preOrderKuaidi100Label(OrderInfo orderInfo) {
+        if (orderInfo == null || orderInfo.getLogisticsCarrierInfo() == null
+                || StringUtils.isBlank(orderInfo.getManufacturerId())) {
+            return null;
+        }
+        if ("CUSTOM".equalsIgnoreCase(orderInfo.getLogisticsCarrierInfo().getPresetType())) {
+            return null;
+        }
+        String carrierId = orderInfo.getLogisticsCarrierInfo().getCarrierId();
+        if (StringUtils.isBlank(carrierId)) {
+            return null;
+        }
+        DeliveryMan deliveryMan = resolveDefaultDeliveryMan(orderInfo.getManufacturerId());
+        DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, orderInfo.getManufacturerId());
+        if (deliveryMan == null || deliveryToken == null) {
+            return null;
+        }
+        DeliveryPkgRequest request = new DeliveryPkgRequest();
+        request.setOrderId(orderInfo.getOrderId());
+        request.setCarrierId(carrierId);
+        request.setCarrierName(orderInfo.getLogisticsCarrierInfo().getCarrierName());
+        request.setDeliveryManId(deliveryMan.getDeliveryManId());
+        request.setDeliverySiidId(PRE_ORDER_SIID);
+        request.setManufacturerMetaId(orderInfo.getManufacturerId());
+        request.setRemark(orderInfo.getRemark());
+        request.setProductionPieces(new ArrayList<>());
+        return executePkg(request);
+    }
+
+    private DeliveryMan resolveDefaultDeliveryMan(String manufacturerMetaId) {
+        List<DeliveryMan> deliveryMen = deliveryManRepository.findByManufacturerMetaId(manufacturerMetaId);
+        if (deliveryMen == null || deliveryMen.isEmpty()) {
+            return null;
+        }
+        return deliveryMen.stream().filter(man -> Boolean.TRUE.equals(man.getIsDefault())).findFirst().orElse(deliveryMen.get(0));
+    }
+
+    private String resolveRequestSiid(DeliveryPkgRequest request) {
+        if (request == null) {
+            return null;
+        }
+        if (PRE_ORDER_SIID.equals(request.getDeliverySiidId())) {
+            return PRE_ORDER_SIID;
+        }
+        return resolveKuaidi100Siid(request.getDeliverySiidId(), request.getManufacturerMetaId());
+    }
 
     private String resolveDeliveryPkgDefaultSiid(DeliveryPkgAddRequest request) {
         if (request == null) {
@@ -1146,6 +1233,7 @@ public class AppDeliveryPkgService {
         DeliveryRecord record = new DeliveryRecord();
         record.setOrderId(request.getOrderId());
         record.setCarrierId(request.getCarrierId());
+        record.setCarrierName(request.getCarrierName());
         record.setDeliveryManId(request.getDeliveryManId());
         record.setDeliverySiidId(request.getDeliverySiidId());
         record.setUserId(request.getUserId());
@@ -1153,6 +1241,9 @@ public class AppDeliveryPkgService {
         record.setRemark(request.getRemark());
         List<ProductionPiece> productionPieces = request.getProductionPieces();
         ArrayList<DeliveryRecord.ProductionPieceDTO> productionPieceDTOs = new ArrayList<DeliveryRecord.ProductionPieceDTO>();
+        if (productionPieces == null) {
+            productionPieces = new ArrayList<>();
+        }
         for (ProductionPiece productionPiece : productionPieces) {
             DeliveryRecord.ProductionPieceDTO productionPieceDTO = new DeliveryRecord.ProductionPieceDTO();
             productionPieceDTO.setProductionPieceId(productionPiece.getId());
