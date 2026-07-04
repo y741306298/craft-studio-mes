@@ -28,7 +28,7 @@ import java.util.Set;
 @Service
 public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildService {
     private static final int EXPAND_TOP_MM = 3;
-    private static final int EXPAND_RIGHT_MM = 11;
+    private static final int EXPAND_LEFT_MM = 11;
 
     private static final int ELEMENT_A_WIDTH_MM = 3;
     private static final int ELEMENT_B_WIDTH_MM = 8;
@@ -64,13 +64,13 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
         int expandedHeight = originalHeight + EXPAND_TOP_MM;
-        int expandedWidth = originalWidth + EXPAND_RIGHT_MM;
+        int expandedWidth = originalWidth + EXPAND_LEFT_MM;
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
-        margin.setLeft(0);
+        margin.setLeft(EXPAND_LEFT_MM);
         margin.setTop(EXPAND_TOP_MM);
-        margin.setRight(EXPAND_RIGHT_MM);
+        margin.setRight(0);
         margin.setBottom(0);
         result.setMargin(margin);
 
