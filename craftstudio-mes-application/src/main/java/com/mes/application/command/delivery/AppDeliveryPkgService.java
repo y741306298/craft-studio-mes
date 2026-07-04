@@ -1071,13 +1071,21 @@ public class AppDeliveryPkgService {
                 || StringUtils.isBlank(orderInfo.getManufacturerId())) {
             return null;
         }
+        if ("CUSTOM".equalsIgnoreCase(orderInfo.getLogisticsCarrierInfo().getPresetType())) {
+            return null;
+        }
+        String carrierId = orderInfo.getLogisticsCarrierInfo().getCarrierId();
+        if (StringUtils.isBlank(carrierId)) {
+            return null;
+        }
         DeliveryMan deliveryMan = resolveDefaultDeliveryMan(orderInfo.getManufacturerId());
-        if (deliveryMan == null) {
+        DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, orderInfo.getManufacturerId());
+        if (deliveryMan == null || deliveryToken == null) {
             return null;
         }
         DeliveryPkgRequest request = new DeliveryPkgRequest();
         request.setOrderId(orderInfo.getOrderId());
-        request.setCarrierId(orderInfo.getLogisticsCarrierInfo().getCarrierId());
+        request.setCarrierId(carrierId);
         request.setCarrierName(orderInfo.getLogisticsCarrierInfo().getCarrierName());
         request.setDeliveryManId(deliveryMan.getDeliveryManId());
         request.setDeliverySiidId(PRE_ORDER_SIID);
