@@ -34,6 +34,8 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
 
     private String deliverySiidId;
 
+    private String siid;
+
     private String userId;
 
     private String manufacturerMetaId;
@@ -63,6 +65,7 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
         deliveryRecord.setCarrierName(this.carrierName);
         deliveryRecord.setDeliveryManId(this.deliveryManId);
         deliveryRecord.setDeliverySiidId(this.deliverySiidId);
+        deliveryRecord.setSiid(this.siid);
         deliveryRecord.setUserId(this.userId);
         deliveryRecord.setManufacturerMetaId(this.manufacturerMetaId);
         deliveryRecord.setRemark(this.remark);
@@ -90,6 +93,7 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
         this.carrierName = _do.getCarrierName();
         this.deliveryManId = _do.getDeliveryManId();
         this.deliverySiidId = _do.getDeliverySiidId();
+        this.siid = _do.getSiid();
         this.userId = _do.getUserId();
         this.manufacturerMetaId = _do.getManufacturerMetaId();
         this.remark = _do.getRemark();

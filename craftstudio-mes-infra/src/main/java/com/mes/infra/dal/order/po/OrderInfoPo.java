@@ -33,6 +33,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private String manufacturerId;
     private String manufacturerName;
+    private String kuaidiNum;
 
     @Override
     public OrderInfo toDO() {
@@ -57,6 +58,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
         orderInfo.setManufacturerId(this.manufacturerId);
         orderInfo.setManufacturerName(this.manufacturerName);
+        orderInfo.setKuaidiNum(this.kuaidiNum);
         if (this.status != null) {
             orderInfo.setStatus(OrderStatus.getByCode(this.status));
         }
@@ -82,6 +84,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
         this.manufacturerId = _do.getManufacturerId();
         this.manufacturerName = _do.getManufacturerName();
+        this.kuaidiNum = _do.getKuaidiNum();
         this.status = _do.getStatus() != null ? _do.getStatus().getCode() : null;
         return this;
     }

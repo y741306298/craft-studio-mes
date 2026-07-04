@@ -32,6 +32,9 @@ public class DeliveryRecord extends BaseEntity {
     private String deliveryManId;
     
     private String deliverySiidId;
+
+    /** 快递100云打印设备编码 */
+    private String siid;
     
     private String userId;
     

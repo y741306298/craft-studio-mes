@@ -114,9 +114,11 @@ public class Kuaidi100OrderParam {
         Kuaidi100OrderParam.setPartnerSecret(deliveryToken.getPartnerSecret());
         Kuaidi100OrderParam.setNet(deliveryToken.getNet());
         Kuaidi100OrderParam.setCode(deliveryToken.getCode());
-        if (deliveryToken.getSiid() != null) {
+        if ("KX100L3AD65411C274".equals(request.getDeliverySiidId())) {
+            Kuaidi100OrderParam.setSiid("KX100L3AD65411C274");
+        } else if (deliveryToken.getSiid() != null) {
             Kuaidi100OrderParam.setSiid(deliveryToken.getSiid());
-        }else{
+        } else {
             //预打包默认
             Kuaidi100OrderParam.setSiid("KX100L3AD65411C274");
         }
