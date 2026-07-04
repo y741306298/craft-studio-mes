@@ -42,6 +42,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
     private String deliveryWay;
     private String presetType;
     private String trackingNumber;
+    private String kuaidiNum;
 
     private Date packingStartTime;
     private Date packingEndTime;
@@ -87,6 +88,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         deliveryPkg.setDeliveryWay(this.deliveryWay);
         deliveryPkg.setPresetType(this.presetType);
         deliveryPkg.setTrackingNumber(this.trackingNumber);
+        deliveryPkg.setKuaidiNum(this.kuaidiNum);
 
         deliveryPkg.setPackingStartTime(this.packingStartTime);
         deliveryPkg.setPackingEndTime(this.packingEndTime);
@@ -135,6 +137,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         this.deliveryWay = _do.getDeliveryWay();
         this.presetType = _do.getPresetType();
         this.trackingNumber = _do.getTrackingNumber();
+        this.kuaidiNum = _do.getKuaidiNum();
 
         this.packingStartTime = _do.getPackingStartTime();
         this.packingEndTime = _do.getPackingEndTime();

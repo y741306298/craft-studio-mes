@@ -35,6 +35,7 @@ public class DeliveryPkgListItemResponse extends BaseEntity {
     private String deliveryWay;
     private String presetType;
     private String trackingNumber;
+    private String kuaidiNum;
 
     private Date packingStartTime;
     private Date packingEndTime;

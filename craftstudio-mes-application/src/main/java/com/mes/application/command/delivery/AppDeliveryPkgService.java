@@ -897,6 +897,7 @@ public class AppDeliveryPkgService {
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
         deliveryPkg.setRouteId(request.getRouteId());
         deliveryPkg.setRouteNodeId(request.getRouteNodeId());
+        deliveryPkg.setKuaidiNum(kuaidiNum);
         OrderInfo orderInfo = StringUtils.isBlank(orderId) ? null : orderInfoService.findByOrderId(orderId);
         if (orderInfo != null) {
             deliveryPkg.setOrgInfo(orderInfo.getOrgInfo());
@@ -940,6 +941,7 @@ public class AppDeliveryPkgService {
         addProductionImageFileNames(remarkParts, pieces);
 
         if (!"CUSTOM".equalsIgnoreCase(presetType)) {
+            addOrderItemRemarks(remarkParts, pieces);
             return String.join("\n", remarkParts);
         }
 
@@ -952,6 +954,29 @@ public class AppDeliveryPkgService {
         return String.join("\n", remarkParts);
     }
 
+
+
+    private void addOrderItemRemarks(List<String> remarkParts, List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces) {
+        if (remarkParts == null || pieces == null || pieces.isEmpty()) {
+            return;
+        }
+        List<String> orderItemRemarks = pieces.stream()
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgPieceVO::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .map(orderItemService::findByOrderItemId)
+                .filter(Objects::nonNull)
+                .map(OrderItem::getRemark)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!orderItemRemarks.isEmpty()) {
+            remarkParts.addAll(orderItemRemarks);
+        }
+    }
 
 
     private void addProductionImageFileNames(List<String> remarkParts, List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces) {
