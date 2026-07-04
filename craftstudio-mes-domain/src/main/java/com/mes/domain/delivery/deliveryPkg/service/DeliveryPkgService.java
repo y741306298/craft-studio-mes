@@ -221,11 +221,12 @@ public class DeliveryPkgService {
             String orderId,
             String recipientName,
             String recipientPhone,
+            String kuaidiNum,
             String createTimeStart,
             String createTimeEnd,
             long current,
             int size) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, createTimeStart, createTimeEnd);
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         return deliveryPkgRepository.filterList(current, size, filters);
     }
 
@@ -238,9 +239,10 @@ public class DeliveryPkgService {
             String orderId,
             String recipientName,
             String recipientPhone,
+            String kuaidiNum,
             String createTimeStart,
             String createTimeEnd) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, createTimeStart, createTimeEnd);
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         if (filters.isEmpty()) {
             return deliveryPkgRepository.total();
         }
@@ -253,6 +255,7 @@ public class DeliveryPkgService {
             String orderId,
             String recipientName,
             String recipientPhone,
+            String kuaidiNum,
             String createTimeStart,
             String createTimeEnd) {
         Map<String, Object> filters = new HashMap<>();
@@ -271,6 +274,9 @@ public class DeliveryPkgService {
         }
         if (StringUtils.isNotBlank(recipientPhone)) {
             filters.put("recipientPhone", recipientPhone);
+        }
+        if (StringUtils.isNotBlank(kuaidiNum)) {
+            filters.put("kuaidiNum_like", kuaidiNum.trim());
         }
         if (StringUtils.isNotBlank(createTimeStart)) {
             filters.put("createTime_gte", Date.from(Instant.parse(createTimeStart)));

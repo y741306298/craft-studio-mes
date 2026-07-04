@@ -897,6 +897,7 @@ public class AppDeliveryPkgService {
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
         deliveryPkg.setRouteId(request.getRouteId());
         deliveryPkg.setRouteNodeId(request.getRouteNodeId());
+        deliveryPkg.setKuaidiNum(kuaidiNum);
         OrderInfo orderInfo = StringUtils.isBlank(orderId) ? null : orderInfoService.findByOrderId(orderId);
         if (orderInfo != null) {
             deliveryPkg.setOrgInfo(orderInfo.getOrgInfo());
@@ -940,6 +941,12 @@ public class AppDeliveryPkgService {
         addProductionImageFileNames(remarkParts, pieces);
 
         if (!"CUSTOM".equalsIgnoreCase(presetType)) {
+            if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
+                orderInfo = orderInfoService.findByOrderId(orderId);
+            }
+            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+                remarkParts.add(orderInfo.getRemark());
+            }
             return String.join("\n", remarkParts);
         }
 
@@ -951,7 +958,6 @@ public class AppDeliveryPkgService {
         }
         return String.join("\n", remarkParts);
     }
-
 
 
     private void addProductionImageFileNames(List<String> remarkParts, List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces) {

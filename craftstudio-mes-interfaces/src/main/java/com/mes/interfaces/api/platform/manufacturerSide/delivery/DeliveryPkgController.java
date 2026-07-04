@@ -131,6 +131,7 @@ public class DeliveryPkgController {
                 request.getOrderId(),
                 request.getRecipientName(),
                 request.getRecipientPhone(),
+                request.getKuaidiNum(),
                 request.getCreateTimeStart(),
                 request.getCreateTimeEnd(),
                 request.getCurrent(),
@@ -146,6 +147,7 @@ public class DeliveryPkgController {
                 request.getOrderId(),
                 request.getRecipientName(),
                 request.getRecipientPhone(),
+                request.getKuaidiNum(),
                 request.getCreateTimeStart(),
                 request.getCreateTimeEnd()
         );
