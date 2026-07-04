@@ -1940,7 +1940,11 @@ public class AppTypesettingService {
         if (request == null) {
             return;
         }
-        applyContainerWidthInset(request, resolveContainerWidthInset(request.getTypesettingCells(), TypesettingLayoutMode.fromCode(request.getLayoutMode())));
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        if (shouldSkipToLayoutContainerWidthInset(layoutMode)) {
+            return;
+        }
+        applyContainerWidthInset(request, resolveContainerWidthInset(request.getTypesettingCells(), layoutMode));
     }
 
     /**
@@ -1955,7 +1959,17 @@ public class AppTypesettingService {
             return;
         }
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        if (shouldSkipToLayoutContainerWidthInset(layoutMode)) {
+            return;
+        }
         applyContainerWidthInset(request, resolveContainerWidthInset(productionPieces, typesettingInfos, layoutMode));
+    }
+
+    private boolean shouldSkipToLayoutContainerWidthInset(TypesettingLayoutMode layoutMode) {
+        return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A30_LARGE_BOARD == layoutMode
+                || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM == layoutMode
+                || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM == layoutMode
+                || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A30_SMALL_GRAPH == layoutMode;
     }
 
     private void applyContainerWidthInset(LayoutConfirmRequest request, Integer widthInset) {
