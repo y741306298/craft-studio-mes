@@ -37,4 +37,7 @@ public class OrderInfo extends BaseEntity {
     private String manufacturerId;
     private String manufacturerName;
 
+    /** 预下单的快递100运单号，用于首次 addPkg 复打面单 */
+    private String kuaidiNum;
+
 }

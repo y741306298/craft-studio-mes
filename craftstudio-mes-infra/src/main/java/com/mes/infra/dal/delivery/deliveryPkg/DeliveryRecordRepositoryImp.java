@@ -43,6 +43,13 @@ public class DeliveryRecordRepositoryImp extends BaseRepositoryImp<DeliveryRecor
     }
 
     @Override
+    public DeliveryRecord findByKuaidiNum(String kuaidiNum) {
+        Query query = new Query(Criteria.where("kuaidiNum").is(kuaidiNum).and("deleteAt").is(null));
+        DeliveryRecordPO po = mongoTemplate.findOne(query, DeliveryRecordPO.class);
+        return po != null ? po.toDO() : null;
+    }
+
+    @Override
     public List<DeliveryRecord> findByManufacturerMetaId(String manufacturerMetaId, int current, int size) {
         Query query = new Query(Criteria.where("manufacturerMetaId").is(manufacturerMetaId).and("deleteAt").is(null));
         query.with(Sort.by(Sort.Direction.DESC, "createTime"));
