@@ -59,6 +59,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     private static final int ELEMENT_D_WIDTH_TENTH_MM = 3;
     private static final int ELEMENT_D_HEIGHT_MM = 5;
     private static final int ELEMENT_D_OFFSET_Y_MM = 8;
+    private static final int ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM = 103;
     private static final int ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM = 203;
     private static final int ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM = 303;
     private static final int ELEMENT_LINE_HEIGHT_SHIFT_THRESHOLD_MM = 2400;
@@ -146,6 +147,10 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
                 lineHeight = svgHeight;
             }
             double extraLeftShift = shouldShiftElementLineLeft(band) ? ELEMENT_LINE_EXTRA_LEFT_SHIFT_MM : 0;
+            if (!isBlood) {
+                marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
+                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM) - extraLeftShift, lineY));
+            }
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                     originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0 + EXPAND_RIGHT_MM) - extraLeftShift, lineY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
