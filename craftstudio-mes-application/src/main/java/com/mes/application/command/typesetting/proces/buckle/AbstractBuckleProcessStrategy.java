@@ -506,7 +506,7 @@ public abstract class AbstractBuckleProcessStrategy {
         return "<g id=\"" + escapeAttr(groupId)
                 + "\" img=\"" + escapeAttr(originalContentImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-forme=\"true\" data-rotation=\"0\">\n"
+                + "\" data-rotation=\"0\">\n"
                 + normalizeRectsToPaths(innerSvg) + "\n"
                 + "</g>\n";
     }

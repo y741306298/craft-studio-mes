@@ -335,7 +335,7 @@ public class SuperWidthSpliceProcessService {
         return prefix + "\n<g id=\"" + escapeAttr(groupId)
                 + "\" img=\"" + escapeAttr(originalContentImg)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-forme=\"true\" data-rotation=\"0\" require-plt=\"true\">\n"
+                + "\" data-rotation=\"0\" require-plt=\"true\">\n"
                 + normalizeRectsToPaths(innerSvg) + "\n</g>\n" + suffix;
     }
 
