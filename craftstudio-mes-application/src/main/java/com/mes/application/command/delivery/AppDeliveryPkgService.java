@@ -857,6 +857,7 @@ public class AppDeliveryPkgService {
         deliveryPkg.setPresetType(presetType);
         deliveryPkg.setDeliveryManId(request.getDeliveryManId());
         deliveryPkg.setDeliverySiidId(request.getDeliverySiidId());
+        deliveryPkg.setSiid(resolveDeliveryPkgDefaultSiid(request));
         deliveryPkg.setManufacturerMetaId(request.getManufacturerMetaId());
         deliveryPkg.setRouteId(request.getRouteId());
         deliveryPkg.setRouteNodeId(request.getRouteNodeId());
@@ -1000,6 +1001,9 @@ public class AppDeliveryPkgService {
 
         String siid = request.getSiid();
         if (StringUtils.isBlank(siid)) {
+            siid = deliveryPkg.getSiid();
+        }
+        if (StringUtils.isBlank(siid)) {
             siid = resolveKuaidi100Siid(deliveryRecord.getDeliverySiidId(), deliveryPkg.getManufacturerMetaId());
         }
         if (StringUtils.isBlank(siid)) {
@@ -1019,6 +1023,17 @@ public class AppDeliveryPkgService {
             deliveryRecordRepository.update(deliveryRecord);
         }
         return response;
+    }
+
+
+    private String resolveDeliveryPkgDefaultSiid(DeliveryPkgAddRequest request) {
+        if (request == null) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(request.getSiid())) {
+            return request.getSiid().trim();
+        }
+        return resolveKuaidi100Siid(request.getDeliverySiidId(), request.getManufacturerMetaId());
     }
 
     private String resolveKuaidi100Siid(String deliverySiidId, String manufacturerMetaId) {
