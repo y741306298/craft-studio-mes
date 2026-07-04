@@ -18,6 +18,11 @@ public interface DeliveryRecordRepository extends BaseRepository<DeliveryRecord>
     DeliveryRecord findByTrackingNumber(String trackingNumber);
 
     /**
+     * 根据快递100云打印任务ID查询发货记录
+     */
+    DeliveryRecord findByTaskId(String taskId);
+
+    /**
      * 根据制造商ID查询发货记录列表
      */
     List<DeliveryRecord> findByManufacturerMetaId(String manufacturerMetaId, int current, int size);
