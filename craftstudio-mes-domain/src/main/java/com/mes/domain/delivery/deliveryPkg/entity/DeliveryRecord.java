@@ -18,6 +18,12 @@ public class DeliveryRecord extends BaseEntity {
     private String orderId;
     
     private String trackingNumber;
+
+    /** 快递100云打印任务ID，用于电子面单复打 */
+    private String taskId;
+
+    /** 快递100面单复打次数 */
+    private Integer reprintCount;
     
     private String carrierId;
     
