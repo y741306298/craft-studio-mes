@@ -941,7 +941,12 @@ public class AppDeliveryPkgService {
         addProductionImageFileNames(remarkParts, pieces);
 
         if (!"CUSTOM".equalsIgnoreCase(presetType)) {
-            addOrderItemRemarks(remarkParts, pieces);
+            if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
+                orderInfo = orderInfoService.findByOrderId(orderId);
+            }
+            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+                remarkParts.add(orderInfo.getRemark());
+            }
             return String.join("\n", remarkParts);
         }
 
@@ -952,30 +957,6 @@ public class AppDeliveryPkgService {
             remarkParts.add(orderInfo.getRemark());
         }
         return String.join("\n", remarkParts);
-    }
-
-
-
-    private void addOrderItemRemarks(List<String> remarkParts, List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces) {
-        if (remarkParts == null || pieces == null || pieces.isEmpty()) {
-            return;
-        }
-        List<String> orderItemRemarks = pieces.stream()
-                .filter(Objects::nonNull)
-                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
-                .filter(Objects::nonNull)
-                .map(DeliveryPkgPieceVO::getOrderItemId)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .map(orderItemService::findByOrderItemId)
-                .filter(Objects::nonNull)
-                .map(OrderItem::getRemark)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .collect(Collectors.toList());
-        if (!orderItemRemarks.isEmpty()) {
-            remarkParts.addAll(orderItemRemarks);
-        }
     }
 
 
