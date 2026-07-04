@@ -22,6 +22,10 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
 
     private String trackingNumber;
 
+    private String taskId;
+
+    private Integer reprintCount;
+
     private String carrierId;
 
     private String carrierName;
@@ -53,6 +57,8 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
         deliveryRecord.setKuaidiNum(this.kuaidiNum);
         deliveryRecord.setOrderId(this.orderId);
         deliveryRecord.setTrackingNumber(this.trackingNumber);
+        deliveryRecord.setTaskId(this.taskId);
+        deliveryRecord.setReprintCount(this.reprintCount);
         deliveryRecord.setCarrierId(this.carrierId);
         deliveryRecord.setCarrierName(this.carrierName);
         deliveryRecord.setDeliveryManId(this.deliveryManId);
@@ -78,6 +84,8 @@ public class DeliveryRecordPO extends BasePO<DeliveryRecord> {
         this.kuaidiNum = _do.getKuaidiNum();
         this.orderId = _do.getOrderId();
         this.trackingNumber = _do.getTrackingNumber();
+        this.taskId = _do.getTaskId();
+        this.reprintCount = _do.getReprintCount();
         this.carrierId = _do.getCarrierId();
         this.carrierName = _do.getCarrierName();
         this.deliveryManId = _do.getDeliveryManId();

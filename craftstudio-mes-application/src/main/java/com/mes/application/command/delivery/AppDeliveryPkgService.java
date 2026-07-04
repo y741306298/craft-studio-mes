@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.req.AuthOrderRequest;
 import com.mes.application.command.delivery.req.Kuaidi100OrderParam;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
+import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
@@ -506,6 +507,8 @@ public class AppDeliveryPkgService {
 
         String kuaidinum = response.getData() == null ? null : response.getData().getKuaidinum();
         deliveryRecord.setKuaidiNum(kuaidinum);
+        deliveryRecord.setTaskId(response.getData() == null ? null : response.getData().getTaskId());
+        deliveryRecord.setReprintCount(0);
         deliveryRecord.setDeliveryTime(new Date());
         deliveryRecord.setIsSuccess(true);
         deliveryRecordRepository.add(deliveryRecord);
@@ -652,6 +655,7 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
+        toPkgRequest.setRemark(buildDeliveryPkgRemarks(orderId, actualPresetType, null, request.getPieces(), null));
         // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
         DeliveryPkgPrintResult printResult = this.executePkg(toPkgRequest);
         String taskId = printResult == null ? null : printResult.getTaskId();
@@ -896,10 +900,6 @@ public class AppDeliveryPkgService {
         if (StringUtils.isNotBlank(orderId)) {
             remarkParts.add("订单:" + orderId);
         }
-        if (!"CUSTOM".equalsIgnoreCase(presetType)) {
-            remarkParts.add("kuaidiNum:" + (StringUtils.isBlank(kuaidiNum) ? "" : kuaidiNum));
-        }
-
         addProductionImageFileNames(remarkParts, pieces);
 
         if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
@@ -976,6 +976,64 @@ public class AppDeliveryPkgService {
                 .filter(pkg -> deliveryPkgId.equals(pkg.getDeliveryPkgId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹不存在"));
+    }
+
+
+    public AuthOrderResponse reprintKuaidi100Label(DeliveryPkgActionRequest request) {
+        if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "deliveryPkgId不能为空");
+        }
+        DeliveryPkg deliveryPkg = findByDeliveryPkgId(request.getDeliveryPkgId().trim());
+        String taskId = deliveryPkg.getDeliveryPkgCode();
+        if (StringUtils.isBlank(taskId)) {
+            return buildKuaidi100ReprintFailure("请先申请打印再进行复打");
+        }
+
+        DeliveryRecord deliveryRecord = deliveryRecordRepository.findByTaskId(taskId);
+        if (deliveryRecord == null) {
+            return buildKuaidi100ReprintFailure("请先申请打印再进行复打");
+        }
+
+        String siid = request.getSiid();
+        if (StringUtils.isBlank(siid)) {
+            siid = resolveKuaidi100Siid(deliveryRecord.getDeliverySiidId(), deliveryPkg.getManufacturerMetaId());
+        }
+        if (StringUtils.isBlank(siid)) {
+            siid = resolveKuaidi100Siid(deliveryPkg.getDeliverySiidId(), deliveryPkg.getManufacturerMetaId());
+        }
+        if (StringUtils.isBlank(siid)) {
+            return buildKuaidi100ReprintFailure("云打印设备不能为空");
+        }
+
+        Map<String, String> fdParam = new HashMap<>();
+        fdParam.put("taskId", taskId);
+        fdParam.put("siid", siid);
+        String result = callPost("https://api.kuaidi100.com/label/order", JSON.toJSONString(fdParam), "printOld");
+        AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
+        if (response != null && Boolean.TRUE.equals(response.getSuccess()) && StringUtils.isNotBlank(deliveryRecord.getId())) {
+            deliveryRecord.setReprintCount(deliveryRecord.getReprintCount() == null ? 1 : deliveryRecord.getReprintCount() + 1);
+            deliveryRecordRepository.update(deliveryRecord);
+        }
+        return response;
+    }
+
+    private String resolveKuaidi100Siid(String deliverySiidId, String manufacturerMetaId) {
+        if (StringUtils.isBlank(deliverySiidId)) {
+            return null;
+        }
+        DeliverySiid deliverySiid = deliverySiidRepository.findByDeliverySiidIdAndManufacturerMetaId(deliverySiidId, manufacturerMetaId);
+        if (deliverySiid == null) {
+            return deliverySiidId;
+        }
+        return StringUtils.isBlank(deliverySiid.getSiid()) ? deliverySiidId : deliverySiid.getSiid();
+    }
+
+    private AuthOrderResponse buildKuaidi100ReprintFailure(String message) {
+        AuthOrderResponse response = new AuthOrderResponse();
+        response.setSuccess(false);
+        response.setMessage(message);
+        response.setCode(9999);
+        return response;
     }
 
     public void releasePkg(String deliveryPkgId) {
