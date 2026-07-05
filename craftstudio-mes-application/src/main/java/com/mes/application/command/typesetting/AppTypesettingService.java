@@ -2183,7 +2183,8 @@ public class AppTypesettingService {
                 }
                 boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
-                if (nestingRequestRuleService != null) {
+                // 仅当本次排版存在出血件/印版时，才需要按规则给非出血元素留 30mm 隔离。
+                if (nestingRequestRuleService != null && hasBloodPiece) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
                 if (spliceLastSeqPiece) {
@@ -2215,7 +2216,8 @@ public class AppTypesettingService {
                     element.setHMargin(0);
                 }
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
-                if (nestingRequestRuleService != null) {
+                // 仅当本次排版存在出血件/印版时，才需要按规则给非出血元素留 30mm 隔离。
+                if (nestingRequestRuleService != null && hasBloodPiece) {
                     nestingRequestRuleService.applyElementStyle(element, Boolean.TRUE.equals(info.getHaveBlood()));
                 }
                 applyElementAlignAndSafeDistance(element, hasBloodPiece, Boolean.TRUE.equals(info.getHaveBlood()));
