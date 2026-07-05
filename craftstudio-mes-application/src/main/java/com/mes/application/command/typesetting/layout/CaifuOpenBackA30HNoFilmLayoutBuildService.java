@@ -89,6 +89,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         orderedBands.addAll(bands);
         MarkerBand bottomBand = new MarkerBand("ysBottom", expandedHeight, ELEMENT_D_HEIGHT_MM, null);
         orderedBands.add(bottomBand);
+        boolean hasBloodBand = orderedBands.stream().anyMatch(this::isBloodBand);
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
@@ -112,6 +113,9 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             }
             double lineY = band.centerY + ELEMENT_D_OFFSET_Y_MM;
             if (lineY > expandedHeight) {
+                continue;
+            }
+            if (!hasBloodBand) {
                 continue;
             }
             boolean isBlood = isBloodBand(band);

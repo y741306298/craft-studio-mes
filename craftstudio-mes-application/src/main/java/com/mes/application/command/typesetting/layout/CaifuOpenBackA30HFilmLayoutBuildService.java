@@ -121,6 +121,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             }
             orderedBands.add(band);
         }
+        boolean hasBloodBand = orderedBands.stream().anyMatch(band -> isBloodBand(band, context.getTypesettingInfo()));
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
@@ -137,6 +138,9 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (lineY > expandedHeight) {
                 continue;
             }
+            if (!hasBloodBand) {
+                continue;
+            }
             boolean isBlood = isBloodBand(band, context.getTypesettingInfo());
             String lineImg = elementD;
             double lineHeight = ELEMENT_D_HEIGHT_MM;
@@ -149,12 +153,12 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             double extraLeftShift = shouldShiftElementLineLeft(band) ? ELEMENT_LINE_EXTRA_LEFT_SHIFT_MM : 0;
             if (!isBlood) {
                 marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM) - extraLeftShift, lineY));
+                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0) - extraLeftShift, lineY));
             }
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0 + EXPAND_RIGHT_MM) - extraLeftShift, lineY));
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0) - extraLeftShift, lineY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0 + EXPAND_RIGHT_MM) - extraLeftShift, lineY));
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0) - extraLeftShift, lineY));
         }
         marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth + ELEMENT_A_X_OFFSET_MM, 0));
 
