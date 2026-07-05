@@ -2142,8 +2142,6 @@ public class AppTypesettingService {
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
         boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
-        // 步骤备注3：计算容器是否需要+30（当前或历史血位零件都触发）
-        boolean hasBloodBasedRotationCandidate = productionPieces.stream().anyMatch(this::isBloodBasedRotationCandidate);
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -2247,15 +2245,6 @@ public class AppTypesettingService {
             defaultContainer.setHeight(1000);
             containers.add(defaultContainer);
         }
-        if (hasBloodBasedRotationCandidate) {
-            // 步骤备注6：命中血位条件时，容器宽度统一增加30mm
-            for (NestingRequest.Container container : containers) {
-                if (container != null && container.getWidth() != null) {
-                    container.setWidth(container.getWidth() + 30);
-                }
-            }
-        }
-
         NestingRequest.NestManifest manifest = new NestingRequest.NestManifest();
         NestingRequestComposeService composeService = nestingRequestComposeServiceMap.get(layoutMode);
         manifest.setSpacing(composeService == null ? layoutMode.getNestingSpacingMm() : composeService.resolveSpacing(layoutMode));
