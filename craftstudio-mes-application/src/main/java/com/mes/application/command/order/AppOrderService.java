@@ -333,7 +333,7 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
-        preOrderKuaidi100Label(orderInfo);
+        preOrderKuaidi100Label(orderInfo, orderItemsResult);
         // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
         List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
         // 入库和必要的灰度图转 SVG 成功后立即返回，后续预处理改为异步队列执行
@@ -341,8 +341,8 @@ public class AppOrderService {
         return orderInfo;
     }
 
-    private void preOrderKuaidi100Label(OrderInfo orderInfo) {
-        AppDeliveryPkgService.DeliveryPkgPrintResult printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo);
+    private void preOrderKuaidi100Label(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        AppDeliveryPkgService.DeliveryPkgPrintResult printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
         if (printResult == null || StringUtils.isBlank(printResult.getKuaidiNum())) {
             return;
         }

@@ -633,8 +633,9 @@ public class AppDeliveryPkgService {
                 || StringUtils.isBlank(request.getDeliveryManId())
                 || StringUtils.isBlank(request.getDeliverySiidId());
 
+        DeliveryToken deliveryToken = null;
         if (!useCustomPackagingFlow) {
-            DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, request.getManufacturerMetaId());
+            deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, request.getManufacturerMetaId());
             useCustomPackagingFlow = deliveryToken == null;
         }
 
@@ -645,8 +646,13 @@ public class AppDeliveryPkgService {
             if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
                 DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
                 if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
-                    AuthOrderResponse reprintResponse = reprintKuaidi100Label(preOrderRecord.getTaskId(),
-                            StringUtils.isBlank(request.getSiid()) ? preOrderRecord.getSiid() : request.getSiid());
+                    String reprintSiid = StringUtils.isNotBlank(request.getSiid())
+                            ? request.getSiid()
+                            : deliveryToken.getSiid();
+                    if (StringUtils.isBlank(reprintSiid)) {
+                        throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100云打印设备不能为空");
+                    }
+                    AuthOrderResponse reprintResponse = reprintKuaidi100Label(preOrderRecord.getTaskId(), reprintSiid);
                     if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
                         String errorMsg = reprintResponse == null || StringUtils.isBlank(reprintResponse.getMessage())
                                 ? "快递100预下单面单复打失败" : reprintResponse.getMessage();
@@ -1073,6 +1079,10 @@ public class AppDeliveryPkgService {
     }
 
     public DeliveryPkgPrintResult preOrderKuaidi100Label(OrderInfo orderInfo) {
+        return preOrderKuaidi100Label(orderInfo, null);
+    }
+
+    public DeliveryPkgPrintResult preOrderKuaidi100Label(OrderInfo orderInfo, List<OrderItem> orderItems) {
         if (orderInfo == null || orderInfo.getLogisticsCarrierInfo() == null
                 || StringUtils.isBlank(orderInfo.getManufacturerId())) {
             return null;
@@ -1096,9 +1106,37 @@ public class AppDeliveryPkgService {
         request.setDeliveryManId(deliveryMan.getDeliveryManId());
         request.setDeliverySiidId(PRE_ORDER_SIID);
         request.setManufacturerMetaId(orderInfo.getManufacturerId());
-        request.setRemark(orderInfo.getRemark());
+        request.setRemark(buildPreOrderKuaidi100Remark(orderInfo, orderItems));
         request.setProductionPieces(new ArrayList<>());
         return executePkg(request);
+    }
+
+    private String buildPreOrderKuaidi100Remark(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        List<String> remarkParts = new ArrayList<>();
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getOrderId())) {
+            remarkParts.add("订单:" + orderInfo.getOrderId());
+        }
+        addOrderItemProductionImageFileNames(remarkParts, orderItems);
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
+            remarkParts.add(orderInfo.getRemark());
+        }
+        return String.join("\n", remarkParts);
+    }
+
+    private void addOrderItemProductionImageFileNames(List<String> remarkParts, List<OrderItem> orderItems) {
+        if (remarkParts == null || orderItems == null || orderItems.isEmpty()) {
+            return;
+        }
+        List<String> imageFileNames = orderItems.stream()
+                .filter(Objects::nonNull)
+                .map(OrderItem::getProductionImgFile)
+                .map(this::getImageFileName)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!imageFileNames.isEmpty()) {
+            remarkParts.add("文件:" + String.join(",", imageFileNames));
+        }
     }
 
     private DeliveryMan resolveDefaultDeliveryMan(String manufacturerMetaId) {
