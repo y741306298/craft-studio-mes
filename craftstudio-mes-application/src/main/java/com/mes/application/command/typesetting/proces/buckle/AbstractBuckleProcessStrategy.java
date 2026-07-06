@@ -645,7 +645,7 @@ public abstract class AbstractBuckleProcessStrategy {
         builder.append("<g id=\"").append(markKeyPrefix()).append("-").append(point.getSuffix()).append("-").append(escapeAttr(pieceId))
                 .append("\" img=\"").append(escapeAttr(MARK_IMG))
                 .append("\" data-source-name=\"").append(MARK_SOURCE_NAME)
-                .append("\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
+                .append("\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
                 .append("<path d=\"").append(buildPointPath())
                 .append("\" fill=\"").append(MARK_PATH_FILL).append("\"/>\n")
                 .append("</g>\n");

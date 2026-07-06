@@ -60,6 +60,7 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
+    private static final String MARK_REQUIRE_PLT_ATTR = " require-plt=\"false\"";
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
     private static final SpliceProcessConfig SUPER_WIDTH_SPLICE_CONFIG = new SpliceProcessConfig(
@@ -302,7 +303,7 @@ public class SuperWidthSpliceProcessService {
 
     private String buildRectMarkGroup(String id, String img, Rect rect) {
         return "<g id=\"" + escapeAttr(id) + "\" img=\"" + escapeAttr(img)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(img)) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
+                + "\" data-source-name=\"" + escapeAttr(sourceName(img)) + "\" data-forme=\"false\" data-rotation=\"0\"" + MARK_REQUIRE_PLT_ATTR + ">\n"
                 + "<path d=\"M" + format(rect.x) + " " + format(rect.y)
                 + " H" + format(rect.x + rect.width)
                 + " V" + format(rect.y + rect.height)
