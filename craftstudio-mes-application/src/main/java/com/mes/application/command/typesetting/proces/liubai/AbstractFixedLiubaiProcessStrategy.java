@@ -1078,7 +1078,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
-                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\">\n"
+                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"#111111\" stroke-width=\""
                 + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n"
@@ -1122,7 +1122,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         builder.append("<g id=\"liubai-tag-").append(direction).append("-").append(suffix).append("-").append(escapeAttr(pieceMongoId))
                 .append("\" img=\"").append(escapeAttr(imageUrl))
                 .append("\" data-source-name=\"").append(escapeAttr(sourceName(imageUrl)))
-                .append("\" data-forme=\"false\" data-rotation=\"0\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
+                .append("\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
                 .append("<path d=\"M0 0 H").append(format(widthMm)).append(" V").append(format(heightMm)).append(" H0 Z\" fill=\"#999999\" />\n")
                 .append("</g>\n");
     }
