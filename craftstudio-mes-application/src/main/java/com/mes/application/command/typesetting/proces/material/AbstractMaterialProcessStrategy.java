@@ -100,8 +100,8 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         if (widthInsetMm == null && heightInsetMm == null) {
             return;
         }
-        double newWidth = Math.max(0D, width - nullToZero(widthInsetMm));
-        double newHeight = Math.max(0D, height - nullToZero(heightInsetMm));
+        double newWidth = Math.max(0D, width + nullToZero(widthInsetMm));
+        double newHeight = Math.max(0D, height + nullToZero(heightInsetMm));
         String updatedSvg = updateRootSize(svg, newWidth, newHeight);
         String manufacturerMetaId = piece.getManufacturerId();
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : piece.getId();
