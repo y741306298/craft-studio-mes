@@ -20,6 +20,7 @@ import com.mes.application.dto.req.order.OrderTransferRecordListRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.order.OrderItemResponse;
+import com.mes.application.dto.resp.order.OrderAddResponse;
 import com.mes.application.dto.resp.order.OrderWithItemsResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
@@ -36,6 +37,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.logging.Logger;
 
 @Slf4j
@@ -163,20 +165,22 @@ public class OrderController {
      * @return 操作结果
      */
     @PostMapping("/add")
-    public ApiResponse<String> addOrderWithItems(@RequestBody String requestBody) {
+    public ApiResponse<?> addOrderWithItems(@RequestBody String requestBody) {
         logger.info("========== addOrderWithItems 入参开始 ==========");
         logger.info("request: " + requestBody);
         logger.info("========== addOrderWithItems 入参结束 ==========");
 
         if (JSON.isValidArray(requestBody)) {
             List<OrderAddRequest> requests = JSON.parseArray(requestBody, OrderAddRequest.class);
-            appOrderService.addOrdersWithItems(requests);
+            List<OrderAddResponse> responses = appOrderService.addOrdersWithItems(requests).stream()
+                    .map(OrderAddResponse::from)
+                    .collect(Collectors.toList());
+            return ApiResponse.success(responses);
         } else {
             OrderAddRequest request = JSON.parseObject(requestBody, OrderAddRequest.class);
-            appOrderService.addOrderWithItems(request);
+            OrderAddResponse response = OrderAddResponse.from(appOrderService.addOrderWithItems(request));
+            return ApiResponse.success(response);
         }
-
-        return ApiResponse.success("success");
     }
 
 
