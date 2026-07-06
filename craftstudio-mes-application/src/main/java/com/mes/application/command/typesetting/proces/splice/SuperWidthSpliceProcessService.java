@@ -26,10 +26,12 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -59,6 +61,8 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_RECT_PATTERN = Pattern.compile("<rect\\b([^>]*)\\s*/>|<rect\\b([^>]*)>\\s*</rect\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_ATTRIBUTE_PATTERN = Pattern.compile("\\s+([A-Za-z_:][-A-Za-z0-9_:.]*)\\s*=\\s*([\"']).*?\\2", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_PATH_PATTERN = Pattern.compile("<path\\b([^>]*)>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SVG_PATH_TOKEN_PATTERN = Pattern.compile("[AaCcHhLlMmQqSsTtVvZz]|[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?");
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final String MARK_REQUIRE_PLT_ATTR = " require-plt=\"false\"";
     private static final double TEXT_PNG_DPI = 300D;
@@ -122,7 +126,8 @@ public class SuperWidthSpliceProcessService {
             return;
         }
 
-        String marksSvg = buildMarksSvg(processConfig, pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets);
+        ShapeEdgeSpans shapeEdgeSpans = resolveShapeEdgeSpans(originalSvg, width, height);
+        String marksSvg = buildMarksSvg(processConfig, pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets, shapeEdgeSpans);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalContentImg, marksSvg);
         String orderItemId = StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
@@ -214,7 +219,8 @@ public class SuperWidthSpliceProcessService {
                                  String groupText,
                                  Set<SpliceEdge> bleedEdges,
                                  Set<SpliceEdge> coveredEdges,
-                                 MarkAssets assets) {
+                                 MarkAssets assets,
+                                 ShapeEdgeSpans shapeEdgeSpans) {
         StringBuilder builder = new StringBuilder("\n");
         int index = 0;
         for (SpliceEdge edgeType : bleedEdges) {
@@ -223,13 +229,13 @@ public class SuperWidthSpliceProcessService {
             String startOffsetLabel = formatOffsetLabel(processConfig.bleedStartOffsetMm);
             String endOffsetLabel = formatOffsetLabel(processConfig.bleedEndOffsetMm);
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedStartOffsetMm)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedStartOffsetMm, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedEndOffsetMm)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedEndOffsetMm, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedStartOffsetMm)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedStartOffsetMm, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedEndOffsetMm)));
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedEndOffsetMm, shapeEdgeSpans)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
@@ -238,17 +244,17 @@ public class SuperWidthSpliceProcessService {
                 continue;
             }
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D)));
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D)));
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 20D)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 20D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 20D)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 20D, shapeEdgeSpans)));
             index++;
         }
         return builder.toString();
@@ -261,17 +267,19 @@ public class SuperWidthSpliceProcessService {
      * 不再把图片中心直接压在角点，避免一半图片跑到零件外侧。</p>
      */
     private Rect coveredRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
-                                   double markWidth, double markHeight, boolean startCorner, double inwardOffset) {
+                                   double markWidth, double markHeight, boolean startCorner, double inwardOffset,
+                                   ShapeEdgeSpans shapeEdgeSpans) {
+        EdgeSpan span = shapeEdgeSpans == null ? null : shapeEdgeSpans.span(edgeType);
         switch (edgeType) {
             case RIGHT:
-                return new Rect(pieceWidth - inwardOffset - markWidth, startCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+                return new Rect(pieceWidth - inwardOffset - markWidth, edgeStartY(span, pieceHeight, markHeight, startCorner), markWidth, markHeight);
             case BOTTOM:
-                return new Rect(startCorner ? 0D : pieceWidth - markWidth, pieceHeight - inwardOffset - markHeight, markWidth, markHeight);
+                return new Rect(edgeStartX(span, pieceWidth, markWidth, startCorner), pieceHeight - inwardOffset - markHeight, markWidth, markHeight);
             case LEFT:
-                return new Rect(inwardOffset, startCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+                return new Rect(inwardOffset, edgeStartY(span, pieceHeight, markHeight, startCorner), markWidth, markHeight);
             case TOP:
             default:
-                return new Rect(startCorner ? 0D : pieceWidth - markWidth, inwardOffset, markWidth, markHeight);
+                return new Rect(edgeStartX(span, pieceWidth, markWidth, startCorner), inwardOffset, markWidth, markHeight);
         }
     }
 
@@ -283,20 +291,22 @@ public class SuperWidthSpliceProcessService {
      * 起点角较小偏移、起点角较大偏移、终点角较小偏移、终点角较大偏移。</p>
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
-                                 double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset) {
+                                 double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset,
+                                 ShapeEdgeSpans shapeEdgeSpans) {
+        EdgeSpan span = shapeEdgeSpans == null ? null : shapeEdgeSpans.span(edgeType);
         switch (edgeType) {
             case RIGHT:
                 return new Rect(pieceWidth - edgeOffset - markWidth,
-                        fromStartCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+                        edgeStartY(span, pieceHeight, markHeight, fromStartCorner), markWidth, markHeight);
             case BOTTOM:
-                return new Rect(fromStartCorner ? 0D : pieceWidth - markWidth,
+                return new Rect(edgeStartX(span, pieceWidth, markWidth, fromStartCorner),
                         pieceHeight - edgeOffset - markHeight, markWidth, markHeight);
             case LEFT:
                 return new Rect(edgeOffset,
-                        fromStartCorner ? 0D : pieceHeight - markHeight, markWidth, markHeight);
+                        edgeStartY(span, pieceHeight, markHeight, fromStartCorner), markWidth, markHeight);
             case TOP:
             default:
-                return new Rect(fromStartCorner ? 0D : pieceWidth - markWidth,
+                return new Rect(edgeStartX(span, pieceWidth, markWidth, fromStartCorner),
                         edgeOffset, markWidth, markHeight);
         }
     }
@@ -309,6 +319,20 @@ public class SuperWidthSpliceProcessService {
                 + " V" + format(rect.y + rect.height)
                 + " H" + format(rect.x) + " Z\" fill=\"#111111\" fill-opacity=\"0.82\" fill-rule=\"evenodd\" />\n"
                 + "</g>\n";
+    }
+
+    private double edgeStartY(EdgeSpan span, double pieceHeight, double markHeight, boolean startCorner) {
+        if (span == null || !span.valid()) {
+            return startCorner ? 0D : pieceHeight - markHeight;
+        }
+        return startCorner ? span.start : Math.max(span.start, span.end - markHeight);
+    }
+
+    private double edgeStartX(EdgeSpan span, double pieceWidth, double markWidth, boolean startCorner) {
+        if (span == null || !span.valid()) {
+            return startCorner ? 0D : pieceWidth - markWidth;
+        }
+        return startCorner ? span.start : Math.max(span.start, span.end - markWidth);
     }
 
     private String appendMarksSvg(String originalSvg, String pieceMongoId, String originalContentImg, String marksSvg) {
@@ -590,6 +614,148 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
+    private ShapeEdgeSpans resolveShapeEdgeSpans(String svg, double pieceWidth, double pieceHeight) {
+        ShapeEdgeSpans spans = new ShapeEdgeSpans();
+        if (StringUtils.isBlank(svg)) {
+            return spans;
+        }
+        List<Segment> segments = new ArrayList<>();
+        Matcher pathMatcher = SVG_PATH_PATTERN.matcher(svg);
+        while (pathMatcher.find()) {
+            String d = attributeValue(pathMatcher.group(1), "d");
+            segments.addAll(parsePathSegments(d));
+        }
+        if (segments.isEmpty()) {
+            return spans;
+        }
+        double tolerance = Math.max(0.5D, Math.max(pieceWidth, pieceHeight) * 0.002D);
+        for (Segment segment : segments) {
+            if (segment.isVertical()) {
+                if (near(segment.x1, 0D, tolerance)) {
+                    spans.include(SpliceEdge.LEFT, Math.min(segment.y1, segment.y2), Math.max(segment.y1, segment.y2));
+                }
+                if (near(segment.x1, pieceWidth, tolerance)) {
+                    spans.include(SpliceEdge.RIGHT, Math.min(segment.y1, segment.y2), Math.max(segment.y1, segment.y2));
+                }
+            } else if (segment.isHorizontal()) {
+                if (near(segment.y1, 0D, tolerance)) {
+                    spans.include(SpliceEdge.TOP, Math.min(segment.x1, segment.x2), Math.max(segment.x1, segment.x2));
+                }
+                if (near(segment.y1, pieceHeight, tolerance)) {
+                    spans.include(SpliceEdge.BOTTOM, Math.min(segment.x1, segment.x2), Math.max(segment.x1, segment.x2));
+                }
+            }
+        }
+        return spans;
+    }
+
+    private List<Segment> parsePathSegments(String d) {
+        List<Segment> segments = new ArrayList<>();
+        if (StringUtils.isBlank(d)) {
+            return segments;
+        }
+        List<String> tokens = new ArrayList<>();
+        Matcher matcher = SVG_PATH_TOKEN_PATTERN.matcher(d);
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+        double currentX = 0D;
+        double currentY = 0D;
+        double startX = 0D;
+        double startY = 0D;
+        char command = 0;
+        int i = 0;
+        while (i < tokens.size()) {
+            String token = tokens.get(i);
+            if (isPathCommand(token)) {
+                command = token.charAt(0);
+                i++;
+                if (command == 'Z' || command == 'z') {
+                    segments.add(new Segment(currentX, currentY, startX, startY));
+                    currentX = startX;
+                    currentY = startY;
+                }
+                continue;
+            }
+            switch (command) {
+                case 'M':
+                case 'm': {
+                    if (i + 1 >= tokens.size()) {
+                        return segments;
+                    }
+                    double x = parsePathNumber(tokens.get(i++));
+                    double y = parsePathNumber(tokens.get(i++));
+                    if (command == 'm') {
+                        x += currentX;
+                        y += currentY;
+                    }
+                    currentX = x;
+                    currentY = y;
+                    startX = x;
+                    startY = y;
+                    command = command == 'm' ? 'l' : 'L';
+                    break;
+                }
+                case 'L':
+                case 'l': {
+                    if (i + 1 >= tokens.size()) {
+                        return segments;
+                    }
+                    double x = parsePathNumber(tokens.get(i++));
+                    double y = parsePathNumber(tokens.get(i++));
+                    if (command == 'l') {
+                        x += currentX;
+                        y += currentY;
+                    }
+                    segments.add(new Segment(currentX, currentY, x, y));
+                    currentX = x;
+                    currentY = y;
+                    break;
+                }
+                case 'H':
+                case 'h': {
+                    double x = parsePathNumber(tokens.get(i++));
+                    if (command == 'h') {
+                        x += currentX;
+                    }
+                    segments.add(new Segment(currentX, currentY, x, currentY));
+                    currentX = x;
+                    break;
+                }
+                case 'V':
+                case 'v': {
+                    double y = parsePathNumber(tokens.get(i++));
+                    if (command == 'v') {
+                        y += currentY;
+                    }
+                    segments.add(new Segment(currentX, currentY, currentX, y));
+                    currentY = y;
+                    break;
+                }
+                default:
+                    i++;
+                    break;
+            }
+        }
+        return segments;
+    }
+
+    private boolean isPathCommand(String token) {
+        return token != null && token.length() == 1 && Character.isLetter(token.charAt(0));
+    }
+
+    private double parsePathNumber(String token) {
+        try {
+            return Double.parseDouble(token);
+        } catch (Exception e) {
+            return 0D;
+        }
+    }
+
+    private boolean near(double value, double target, double tolerance) {
+        return Math.abs(value - target) <= tolerance;
+    }
+
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
         ImageFile maskFile = piece.getMaskImageFile();
         if (maskFile == null) {
@@ -868,6 +1034,67 @@ public class SuperWidthSpliceProcessService {
             this.stripeHeight = stripeHeight;
             this.textWidth = textWidth;
             this.textHeight = textHeight;
+        }
+    }
+
+    private static class ShapeEdgeSpans {
+        private final Map<SpliceEdge, EdgeSpan> spans = new EnumMap<>(SpliceEdge.class);
+
+        private void include(SpliceEdge edge, double start, double end) {
+            if (Math.abs(end - start) < 0.000001D) {
+                return;
+            }
+            EdgeSpan span = spans.get(edge);
+            if (span == null) {
+                spans.put(edge, new EdgeSpan(start, end));
+            } else {
+                span.include(start, end);
+            }
+        }
+
+        private EdgeSpan span(SpliceEdge edge) {
+            return spans.get(edge);
+        }
+    }
+
+    private static class EdgeSpan {
+        private double start;
+        private double end;
+
+        private EdgeSpan(double start, double end) {
+            this.start = Math.min(start, end);
+            this.end = Math.max(start, end);
+        }
+
+        private void include(double start, double end) {
+            this.start = Math.min(this.start, Math.min(start, end));
+            this.end = Math.max(this.end, Math.max(start, end));
+        }
+
+        private boolean valid() {
+            return end > start;
+        }
+    }
+
+    private static class Segment {
+        private final double x1;
+        private final double y1;
+        private final double x2;
+        private final double y2;
+
+        private Segment(double x1, double y1, double x2, double y2) {
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+        }
+
+        private boolean isVertical() {
+            return Math.abs(x1 - x2) < 0.000001D;
+        }
+
+        private boolean isHorizontal() {
+            return Math.abs(y1 - y2) < 0.000001D;
         }
     }
 
