@@ -175,7 +175,7 @@ public class DeliveryRouteService {
         if (deliveryRoute != null) {
             List<DeliveryRouteNode> routeNodes = deliveryRouteNodeRepository.listByRouteId(deliveryRoute.getId());
             List<String> routeNodeIds = collectRouteNodeIdentifiers(routeNodes);
-            assertNoInProductionOrderBinding(deliveryRoute.getId(), null, "存在生产中的订单绑定了该路线，不能删除路线");
+            clearInProductionBindings(deliveryRoute.getId(), null);
             deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
             deliveryRouteRepository.delete(deliveryRoute);
             unbindAddressesByRoute(deliveryRoute.getId());
@@ -266,6 +266,70 @@ public class DeliveryRouteService {
                 || hasInProductionOrderBinding(orderItemRepository, routeId, nodeIds)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, message);
         }
+    }
+
+    private void clearInProductionBindings(String routeId, List<String> nodeIds) {
+        clearInProductionOrderBindings(orderInfoRepository, routeId, nodeIds);
+        clearInProductionOrderBindings(orderItemRepository, routeId, nodeIds);
+        clearInProductionPieceBindings(routeId, nodeIds);
+    }
+
+    private <T extends com.mes.domain.base.BaseEntity> void clearInProductionOrderBindings(com.mes.domain.base.repository.BaseRepository<T> repository, String routeId, List<String> nodeIds) {
+        if (nodeIds != null && nodeIds.isEmpty()) {
+            return;
+        }
+        Map<String, Object> filters = buildRouteBindingFilters(routeId, nodeIds);
+        filters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+        while (true) {
+            List<T> records = repository.filterList(1, 100, filters);
+            if (records == null || records.isEmpty()) {
+                break;
+            }
+            for (com.mes.domain.base.BaseEntity record : records) {
+                if (record instanceof OrderInfo orderInfo) {
+                    orderInfo.setRouteId(null);
+                    orderInfo.setRouteNodeId(null);
+                } else if (record instanceof OrderItem orderItem) {
+                    orderItem.setRouteId(null);
+                    orderItem.setRouteNodeId(null);
+                }
+            }
+            repository.batchUpdate(records);
+        }
+    }
+
+    private void clearInProductionPieceBindings(String routeId, List<String> nodeIds) {
+        if (nodeIds != null && nodeIds.isEmpty()) {
+            return;
+        }
+        Map<String, Object> filters = buildRouteBindingFilters(routeId, nodeIds);
+        List<String> inProductionStatuses = new ArrayList<>();
+        for (ProductionPieceStatus status : ProductionPieceStatus.values()) {
+            if (!status.isFinalState()) {
+                inProductionStatuses.add(status.getCode());
+            }
+        }
+        filters.put("status_in", inProductionStatuses);
+        while (true) {
+            List<ProductionPiece> pieces = productionPieceRepository.filterList(1, 100, filters);
+            if (pieces == null || pieces.isEmpty()) {
+                break;
+            }
+            for (ProductionPiece piece : pieces) {
+                piece.setRouteId(null);
+                piece.setRouteNodeId(null);
+            }
+            productionPieceRepository.batchUpdate(pieces);
+        }
+    }
+
+    private Map<String, Object> buildRouteBindingFilters(String routeId, List<String> nodeIds) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("routeId", routeId);
+        if (nodeIds != null && !nodeIds.isEmpty()) {
+            filters.put("routeNodeId_in", nodeIds);
+        }
+        return filters;
     }
 
     private boolean hasInProductionOrderBinding(com.mes.domain.base.repository.BaseRepository<?> repository, String routeId, List<String> nodeIds) {
