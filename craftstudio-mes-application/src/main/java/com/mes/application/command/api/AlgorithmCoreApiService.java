@@ -52,6 +52,12 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.generateRectNestedFilesUrl}")
     private String generateRectNestedFilesUrl;
 
+    @Value("${external.api.convertGrayImgToSvgUrl}")
+    private String convertGrayImgToSvgUrl;
+
+    @Value("${external.api.generateMaskFilesUrl}")
+    private String generateMaskFilesUrl;
+
     /**
      * 同步调用算法服务
      * 请求发起方需一直等处理结束才释放连接
@@ -198,7 +204,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         validateSliceBloodDirection(request);
-        return callAlgorithmAsync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request,
+        return callAlgorithmAsync(generateMaskFilesUrl,"", request,
                 request.getCallbackConfig().getCallbackUrl(), "generateMaskFilesAsync", ImageMaskResponse.class);
     }
 
@@ -229,7 +235,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://test-crg-to-svg-pbprotvptv.cn-hangzhou.fcapp.run", "/convert_gray_img_to_svg", request,
+        return callAlgorithmAsync(convertGrayImgToSvgUrl, "", request,
                 request.getCallbackConfig().getCallbackUrl(), "convertGrayImgToSvgAsync", GrayImgToSvgResponse.class);
     }
 
@@ -256,7 +262,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
         validateSliceBloodDirection(request);
-        return callAlgorithmSync("http://craftstg-masker-qvsnfcgkck.cn-hangzhou.fcapp.run", "/generate_mask_files", request, "generateMaskFilesSync", ImageMaskResponse.class);
+        return callAlgorithmSync(generateMaskFilesUrl, "", request, "generateMaskFilesSync", ImageMaskResponse.class);
     }
 
 
@@ -549,7 +555,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("SVG上传路径不能为空");
         }
 
-        return callAlgorithmSync("http://test-crg-to-svg-pbprotvptv.cn-hangzhou.fcapp.run", "/convert_gray_img_to_svg", request,
+        return callAlgorithmSync(convertGrayImgToSvgUrl, "", request,
                 "convertGrayImgToSvg", GrayImgToSvgResponse.class);
     }
 
