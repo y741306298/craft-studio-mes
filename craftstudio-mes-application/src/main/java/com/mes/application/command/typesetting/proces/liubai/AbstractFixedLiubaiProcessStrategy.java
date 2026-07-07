@@ -61,9 +61,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     private static final double LIUBAI_TAG_PNG_DPI = 300D;
 
     /**
-     * 留白后附加工艺标签贴边边长，单位 mm。
+     * 留白后附加工艺标签贴边默认边长，单位 mm。
      */
-    private static final double LIUBAI_TAG_EDGE_SIZE_MM = 10D;
+    private static final double DEFAULT_LIUBAI_TAG_EDGE_SIZE_MM = 10D;
 
     /**
      * 留白标签距离相邻边的安全距离，单位 mm。
@@ -532,7 +532,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private LiubaiTagImage createHorizontalLiubaiTagPng(String text) {
-        int heightPx = convertMmToPixels(LIUBAI_TAG_EDGE_SIZE_MM, LIUBAI_TAG_PNG_DPI);
+        double edgeSizeMm = liubaiTagEdgeSizeMm();
+        int heightPx = convertMmToPixels(edgeSizeMm, LIUBAI_TAG_PNG_DPI);
         int fontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
         Font font = new Font("SansSerif", Font.BOLD, fontSize);
         FontMetrics metrics = fontMetrics(font);
@@ -557,11 +558,20 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             x += textWidthPx + segmentGapPx;
         }
         graphics.dispose();
-        return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, LIUBAI_TAG_EDGE_SIZE_MM);
+        return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, edgeSizeMm);
     }
 
     protected List<Color> liubaiTagTextColors() {
         return List.of(Color.BLACK);
+    }
+
+    /**
+     * 留白后附加工艺标签贴边边长，单位 mm。
+     *
+     * <p>默认保持留白工艺历史 10mm；仅特殊工艺可覆盖该值，DPI 仍由 {@link #LIUBAI_TAG_PNG_DPI} 控制。</p>
+     */
+    protected double liubaiTagEdgeSizeMm() {
+        return DEFAULT_LIUBAI_TAG_EDGE_SIZE_MM;
     }
 
     private LiubaiTagImage cropHorizontalLiubaiTagPng(LiubaiTagImage image, double maxWidthMm) {
@@ -584,12 +594,12 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
     private LiubaiTagImage createVerticalLiubaiTagPng(BufferedImage horizontalImage) {
         BufferedImage rotated = rotateClockwise90(horizontalImage);
-        return new LiubaiTagImage(toPng(rotated), rotated, LIUBAI_TAG_EDGE_SIZE_MM, rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
+        return new LiubaiTagImage(toPng(rotated), rotated, liubaiTagEdgeSizeMm(), rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
 
     private LiubaiTagImage createOutwardRightLiubaiTagPng(BufferedImage horizontalImage) {
         BufferedImage rotated = rotateCounterClockwise90(horizontalImage);
-        return new LiubaiTagImage(toPng(rotated), rotated, LIUBAI_TAG_EDGE_SIZE_MM, rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
+        return new LiubaiTagImage(toPng(rotated), rotated, liubaiTagEdgeSizeMm(), rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
 
     private FontMetrics fontMetrics(Font font) {
