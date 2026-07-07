@@ -25,6 +25,8 @@ import java.util.Map;
 @Service
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class BaobianProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
+    private static final double BAOBIAN_TAG_EDGE_SIZE_MM = 4D;
+
     public BaobianProcessStrategy(RestTemplate restTemplate, OssTagUploadService ossTagUploadService) {
         super(0, restTemplate, ossTagUploadService);
     }
@@ -85,6 +87,11 @@ public class BaobianProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     @Override
     protected List<Color> liubaiTagTextColors() {
         return List.of(Color.CYAN, Color.MAGENTA, Color.YELLOW, Color.BLACK);
+    }
+
+    @Override
+    protected double liubaiTagEdgeSizeMm() {
+        return BAOBIAN_TAG_EDGE_SIZE_MM;
     }
 
     private String findBaobianAccessoryName(ProcedureFlow procedureFlow) {
