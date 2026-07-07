@@ -1,6 +1,8 @@
 package com.mes.application.command.orderPreprocessing;
 
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +26,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 public class OrderPreprocessTaskQueue {
+
+    private static final Logger log = LoggerFactory.getLogger(OrderPreprocessTaskQueue.class);
 
     private final AppOrderPreprocessingService appOrderPreprocessingService;
     private BlockingQueue<OrderPreprocessTask> queue;
@@ -51,14 +55,20 @@ public class OrderPreprocessTaskQueue {
     public void start() {
         this.queue = new LinkedBlockingQueue<>(queueCapacity);
         workerExecutor.submit(this::consumeLoop);
+        log.info("订单预处理任务队列已启动: capacity={}, maxRetry={}, retryBackoffMs={}", queueCapacity, maxRetry, retryBackoffMs);
     }
 
     public void submit(List<OrderItem> orderItems) {
         if (orderItems == null || orderItems.isEmpty()) {
+            log.info("订单预处理任务跳过入队: orderItems为空");
             return;
+        }
+        if (queue == null) {
+            throw new IllegalStateException("订单预处理任务队列尚未初始化");
         }
         try {
             queue.put(new OrderPreprocessTask(orderItems, 0));
+            log.info("订单预处理任务已入队: itemCount={}, queueSize={}", orderItems.size(), queue.size());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("订单预处理任务入队被中断", e);
@@ -72,11 +82,12 @@ public class OrderPreprocessTaskQueue {
                 if (task == null) {
                     continue;
                 }
+                log.info("订单预处理任务开始消费: itemCount={}, retry={}, queueSize={}", task.getOrderItems().size(), task.getRetryCount(), queue.size());
                 handleTask(task);
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
             } catch (Exception ex) {
-                System.err.println("订单预处理任务队列消费异常: " + ex.getMessage());
+                log.error("订单预处理任务队列消费异常", ex);
             }
         }
     }
@@ -84,7 +95,9 @@ public class OrderPreprocessTaskQueue {
     private void handleTask(OrderPreprocessTask task) {
         try {
             List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(task.getOrderItems());
+            log.info("订单预处理任务灰度图转换完成: originalItemCount={}, readyItemCount={}", task.getOrderItems().size(), readyOrderItems == null ? 0 : readyOrderItems.size());
             appOrderPreprocessingService.preprocessOrder(readyOrderItems);
+            log.info("订单预处理任务处理完成: itemCount={}", readyOrderItems == null ? 0 : readyOrderItems.size());
         } catch (Exception ex) {
             int nextRetry = task.getRetryCount() + 1;
             if (nextRetry <= maxRetry) {
@@ -95,10 +108,10 @@ public class OrderPreprocessTaskQueue {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                System.err.println("订单预处理任务失败，已重试入队，retry=" + nextRetry + ", err=" + ex.getMessage());
+                log.warn("订单预处理任务失败，已重试入队: retry={}, itemCount={}, err={}", nextRetry, task.getOrderItems().size(), ex.getMessage(), ex);
                 return;
             }
-            System.err.println("订单预处理任务失败且超过最大重试次数，task dropped, err=" + ex.getMessage());
+            log.error("订单预处理任务失败且超过最大重试次数，task dropped: itemCount={}", task.getOrderItems().size(), ex);
         }
     }
 
