@@ -372,28 +372,66 @@ public class AppOrderService {
     }
 
     /**
-     * 重新处理订单项：删除该订单项已生成的所有生产工件，并重新提交预处理任务。
+     * 重新处理订单项：删除已生成的所有生产工件，并重新提交预处理任务。
+     * 当传入 orderId 时，重新处理该订单下的所有订单项；否则按 orderItemId 重新处理单个订单项。
      *
      * @param orderItemId 订单项业务 ID
+     * @param orderId 订单 ID
      * @return 被删除的生产工件数量
      */
-    public long reprocessOrderItem(String orderItemId) {
-        if (StringUtils.isBlank(orderItemId)) {
-            throw new IllegalArgumentException("订单项 ID 不能为空");
+    public long reprocessOrderItem(String orderItemId, String orderId) {
+        if (StringUtils.isBlank(orderItemId) && StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单项 ID 或订单 ID 不能为空");
         }
 
+        List<OrderItem> orderItems = StringUtils.isNotBlank(orderId)
+                ? findAllOrderItemsByOrderId(orderId.trim())
+                : List.of(resolveOrderItem(orderItemId.trim()));
+
+        long deletedCount = 0;
+        for (OrderItem orderItem : orderItems) {
+            // 先更新预处理请求 ID，使重做前已发出的异步算法回调在返回时被识别为过期并丢弃。
+            orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+            domainOrderItemService.updateOrderItem(orderItem);
+            deletedCount += productionPieceService.deleteProductionPiecesByOrderItemId(orderItem.getOrderItemId());
+        }
+        orderPreprocessTaskQueue.submit(orderItems);
+        return deletedCount;
+    }
+
+    public long reprocessOrderItem(String orderItemId) {
+        return reprocessOrderItem(orderItemId, null);
+    }
+
+    private OrderItem resolveOrderItem(String orderItemId) {
         OrderItem orderItem = domainOrderItemService.findByOrderItemId(orderItemId);
         if (orderItem == null) {
             throw new IllegalArgumentException("订单项不存在：" + orderItemId);
         }
+        return orderItem;
+    }
 
-        // 先更新预处理请求 ID，使重做前已发出的异步算法回调在返回时被识别为过期并丢弃。
-        orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
-        domainOrderItemService.updateOrderItem(orderItem);
-
-        long deletedCount = productionPieceService.deleteProductionPiecesByOrderItemId(orderItemId);
-        orderPreprocessTaskQueue.submit(List.of(orderItem));
-        return deletedCount;
+    private List<OrderItem> findAllOrderItemsByOrderId(String orderId) {
+        List<OrderItem> orderItems = new ArrayList<>();
+        int current = 1;
+        int size = 100;
+        while (true) {
+            Map<String, Object> filters = new HashMap<>();
+            filters.put("orderId", orderId);
+            List<OrderItem> pageItems = domainOrderItemService.filterList(current, size, filters);
+            if (pageItems == null || pageItems.isEmpty()) {
+                break;
+            }
+            orderItems.addAll(pageItems);
+            if (pageItems.size() < size) {
+                break;
+            }
+            current++;
+        }
+        if (orderItems.isEmpty()) {
+            throw new IllegalArgumentException("订单不存在或订单项为空：" + orderId);
+        }
+        return orderItems;
     }
 
 
