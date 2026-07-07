@@ -47,6 +47,8 @@ import com.piliofpala.craftstudio.shared.infra.cloud.storage.dto.ObjectStorageTe
 import io.micrometer.common.util.StringUtils;
 import com.mes.application.command.orderPreprocessing.strategy.OrderItemProcessingStrategy;
 import com.mes.infra.oss.ImageToImageSearchService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -79,6 +81,8 @@ import java.util.Objects;
  */
 @Service
 public class AppOrderPreprocessingService {
+
+    private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
 
     @Autowired
     private OrderItemService orderItemService;
@@ -165,12 +169,18 @@ public class AppOrderPreprocessingService {
      *
      */
     public void preprocessOrder(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            log.info("订单预处理跳过: orderItems为空");
+            return;
+        }
+        log.info("订单预处理开始: itemCount={}", orderItems.size());
         List<ProductionPiece> resultPieces = new ArrayList<>();
         List<String> failedOrderItems = new ArrayList<>();
 
         // 2. 遍历每个订单项进行处理
         for (OrderItem orderItem : orderItems) {
             try {
+                log.info("订单项预处理开始: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
                 //转化成生产零件，同时判断是否需要调用抠图算法
                 List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
                 // 处理成功，将订单项状态改为生产中
@@ -184,18 +194,21 @@ public class AppOrderPreprocessingService {
                         productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
                     }
                 }
+                log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
                 // 单个订单项处理失败时，标记该订单项为失败状态，并最终抛出异常让接口返回非 200
-                orderItemService.markAsFailed(orderItem.getOrderItemId(), e.getMessage());
-                String err = "订单项=" + orderItem.getOrderItemId() + ", 错误=" + e.getMessage();
+                String orderItemId = orderItem == null ? null : orderItem.getOrderItemId();
+                orderItemService.markAsFailed(orderItemId, e.getMessage());
+                String err = "订单项=" + orderItemId + ", 错误=" + e.getMessage();
                 failedOrderItems.add(err);
-                System.err.println("处理订单项失败：" + err);
+                log.error("处理订单项失败: {}", err, e);
             }
         }
 
         if (!failedOrderItems.isEmpty()) {
-            System.err.println("订单预处理存在失败项: " + String.join("; ", failedOrderItems));
+            log.error("订单预处理存在失败项: {}", String.join("; ", failedOrderItems));
         }
+        log.info("订单预处理结束: itemCount={}, generatedPieceCount={}, failedCount={}", orderItems.size(), resultPieces.size(), failedOrderItems.size());
     }
 
     /**
@@ -214,12 +227,13 @@ public class AppOrderPreprocessingService {
         }
 
         if (matchedStrategies.isEmpty()) {
+            log.info("订单项未命中任何预处理策略: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
             return new ArrayList<>();
         }
 
         List<ProductionPiece> finalResult = null;
         for (OrderItemProcessingStrategy strategy : matchedStrategies) {
-            System.out.println("命中订单预处理策略: type=" + strategy.getStrategyType() + ", remark=" + strategy.getStrategyRemark() + ", orderItemId=" + orderItem.getOrderItemId());
+            log.info("命中订单预处理策略: type={}, remark={}, orderItemId={}", strategy.getStrategyType(), strategy.getStrategyRemark(), orderItem.getOrderItemId());
             List<ProductionPiece> current = strategy.process(orderItem, procedureFlow, this);
             if (current != null) {
                 if (finalResult == null) {

@@ -28,6 +28,8 @@ import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.alibaba.fastjson.JSON;
 import io.micrometer.common.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -44,6 +46,8 @@ import java.util.Set;
 
 @Service
 public class AppOrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(AppOrderService.class);
 
     @Autowired
     private OrderInfoService domainOrderInfoService;
@@ -337,7 +341,12 @@ public class AppOrderService {
         // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
         List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
         // 入库和必要的灰度图转 SVG 成功后立即返回，后续预处理改为异步队列执行
+        log.info("addOrderWithItems 准备提交订单预处理任务: orderId={}, itemCount={}, readyItemCount={}",
+                orderInfo.getOrderId(),
+                orderItemsResult == null ? 0 : orderItemsResult.size(),
+                readyToPreprocessOrderItems == null ? 0 : readyToPreprocessOrderItems.size());
         orderPreprocessTaskQueue.submit(readyToPreprocessOrderItems);
+        log.info("addOrderWithItems 已提交订单预处理任务: orderId={}", orderInfo.getOrderId());
         return orderInfo;
     }
 
