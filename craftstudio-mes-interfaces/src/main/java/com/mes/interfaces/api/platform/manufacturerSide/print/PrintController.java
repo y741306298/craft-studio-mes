@@ -3,6 +3,7 @@ package com.mes.interfaces.api.platform.manufacturerSide.print;
 import com.mes.application.command.print.AppPrintService;
 import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
 import com.mes.application.command.print.vo.PrintReportResult;
+import com.mes.application.dto.req.typesetting.PendingPrintTypesettingListRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -10,7 +11,7 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingPrintTask;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.format.annotation.DateTimeFormat;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,18 +30,21 @@ public class PrintController {
     /**
      * 查询状态为"待打印"的排版信息（分页）
      */
-    @GetMapping("/pending/list")
+    @PostMapping("/pending/list")
     public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(
-            @RequestParam String manufacturerMetaId,
-            @RequestParam(required = false) String id,
-            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") java.util.Date startTime,
-            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") java.util.Date endTime,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false, defaultValue = "1") int current,
-            @RequestParam(required = false, defaultValue = "20") int size) {
-        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, startTime={}, endTime={}, status={}, current={}, size={}",
-                manufacturerMetaId, id, startTime, endTime, status, current, size);
-        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(manufacturerMetaId, id, startTime, endTime, status, current, size));
+            @Valid @RequestBody PendingPrintTypesettingListRequest request) {
+        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, typesettingId={}, startTime={}, endTime={}, status={}, current={}, size={}",
+                request.getManufacturerMetaId(), request.getId(), request.getTypesettingId(), request.getStartTime(),
+                request.getEndTime(), request.getStatus(), request.getCurrent(), request.getSize());
+        return ApiResponse.success(appPrintService.findPendingPrintTypesetting(
+                request.getManufacturerMetaId(),
+                request.getId(),
+                request.getTypesettingId(),
+                request.getStartTime(),
+                request.getEndTime(),
+                request.getStatus(),
+                request.getCurrent(),
+                request.getSize()));
     }
 
     /**

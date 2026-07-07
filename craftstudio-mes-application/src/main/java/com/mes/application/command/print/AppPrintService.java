@@ -39,7 +39,7 @@ public class AppPrintService {
     @Autowired
     private ManufacturerDeviceCfgService manufacturerDeviceCfgService;
 
-    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, Date startTime, Date endTime, String status, int current, int size) {
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, String typesettingId, Date startTime, Date endTime, String status, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
@@ -114,7 +114,17 @@ public class AppPrintService {
                 uniqueMap.put(item.getId(), item);
             }
         }
-        List<TypesettingInfo> uniqueItems = uniqueMap.values().stream()
+        List<TypesettingInfo> streamItems = new ArrayList<>(uniqueMap.values());
+        if (StringUtils.isNotBlank(typesettingId)) {
+            String trimmedTypesettingId = typesettingId.trim();
+            streamItems = streamItems.stream()
+                    .filter(item -> StringUtils.isNotBlank(item.getTypesettingId())
+                            && item.getTypesettingId().toLowerCase(Locale.ROOT)
+                            .contains(trimmedTypesettingId.toLowerCase(Locale.ROOT)))
+                    .collect(Collectors.toList());
+        }
+
+        List<TypesettingInfo> uniqueItems = streamItems.stream()
                 .sorted(Comparator
                         .comparing((TypesettingInfo item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                         .reversed()
