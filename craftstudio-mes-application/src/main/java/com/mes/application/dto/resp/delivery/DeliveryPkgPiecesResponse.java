@@ -12,6 +12,8 @@ import java.util.List;
 @AllArgsConstructor
 public class DeliveryPkgPiecesResponse {
     private List<DeliveryPkgPieceVO> items;
+    private Long total;
+    private Long current;
     private List<String> materialList;
     private List<Double> sizeList;
     private List<ProcessingFlowOption> processList;
