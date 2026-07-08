@@ -83,12 +83,19 @@ public class DeliveryPkgController {
      */
     @PostMapping("/list")
     public ApiResponse<DeliveryPkgPiecesResponse> listTypesettingAndProductionPiecesByPkg(@RequestBody DeliveryPkgRequest request) {
-        List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPieces(request);
+        List<DeliveryPkgPieceVO> allItems = appDeliveryPkgService.listPendingPackagingPieces(request);
+        int current = request == null || request.getCurrent() == null || request.getCurrent() < 1 ? 1 : request.getCurrent();
+        int size = request == null || request.getSize() == null || request.getSize() < 1 ? 50 : Math.min(request.getSize(), 100);
+        int fromIndex = Math.min((current - 1) * size, allItems.size());
+        int toIndex = Math.min(fromIndex + size, allItems.size());
+        List<DeliveryPkgPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                 items,
-                appDeliveryPkgService.buildMaterialList(items),
-                appDeliveryPkgService.buildSizeList(items),
-                appDeliveryPkgService.buildProcessList(items),
+                (long) allItems.size(),
+                (long) current,
+                appDeliveryPkgService.buildMaterialList(allItems),
+                appDeliveryPkgService.buildSizeList(allItems),
+                appDeliveryPkgService.buildProcessList(allItems),
                 findOrgInfoByOrderId(request == null ? null : request.getOrderId())
         );
         return ApiResponse.success(response);
@@ -103,6 +110,8 @@ public class DeliveryPkgController {
         List<DeliveryPkgPieceVO> items = appDeliveryPkgService.listPendingPackagingPiecesById(request);
         DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                 items,
+                (long) items.size(),
+                1L,
                 appDeliveryPkgService.buildMaterialList(items),
                 appDeliveryPkgService.buildSizeList(items),
                 appDeliveryPkgService.buildProcessList(items),
@@ -423,6 +432,8 @@ public class DeliveryPkgController {
 
             DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
                     pieceVOS,
+                    (long) pieceVOS.size(),
+                    1L,
                     appDeliveryPkgService.buildMaterialList(pieceVOS),
                     appDeliveryPkgService.buildSizeList(pieceVOS),
                     appDeliveryPkgService.buildProcessList(pieceVOS),
