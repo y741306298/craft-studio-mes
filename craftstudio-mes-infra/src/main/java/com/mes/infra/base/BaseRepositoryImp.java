@@ -22,6 +22,7 @@ import java.time.ZonedDateTime;
 
 public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO<DO>> implements BaseRepository<DO> {
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final int DEFAULT_BATCH_INSERT_SIZE = 500;
 
     @Autowired
     protected MongoTemplate mongoTemplate;
@@ -42,17 +43,30 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
 
     @Override
     public Collection<DO> batchAdd(List<DO> items) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         Date now = currentBeijingTime();
-        Collection<PO> pos = mongoTemplate.insertAll(items.stream().map(item -> {
-            if (item.getCreateTime() == null) {
-                item.setCreateTime(now);
+        List<DO> savedItems = new ArrayList<>(items.size());
+        for (int fromIndex = 0; fromIndex < items.size(); fromIndex += DEFAULT_BATCH_INSERT_SIZE) {
+            int toIndex = Math.min(fromIndex + DEFAULT_BATCH_INSERT_SIZE, items.size());
+            List<PO> batch = items.subList(fromIndex, toIndex).stream().map(item -> {
+                if (item.getCreateTime() == null) {
+                    item.setCreateTime(now);
+                }
+                if (item.getUpdateTime() == null) {
+                    item.setUpdateTime(now);
+                }
+                return BasePO.fromDO(item, poClass());
+            }).toList();
+
+            Collection<PO> pos = mongoTemplate.insertAll(batch);
+            if (pos != null && !pos.isEmpty()) {
+                savedItems.addAll(pos.stream().map(PO::toDO).toList());
             }
-            if (item.getUpdateTime() == null) {
-                item.setUpdateTime(now);
-            }
-            return BasePO.fromDO(item, poClass());
-        }).toList());
-        return pos.stream().map(PO::toDO).toList();
+        }
+        return savedItems;
     }
 
     @Override
