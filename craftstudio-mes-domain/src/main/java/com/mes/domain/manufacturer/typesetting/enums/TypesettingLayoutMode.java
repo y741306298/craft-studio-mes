@@ -39,6 +39,23 @@ public enum TypesettingLayoutMode {
             true
     ),
 
+
+    /**
+     * 基础矩形排版：
+     * 仅按 rect_typesetting 归类，确认排版时不需要额外印版放置处理。
+     */
+    RECT_TYPESETTING_BASIC(
+            "rect_typesetting",
+            "基础矩形排版",
+            "rect_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none",
+            0,
+            true
+    ),
+
     /**
      * 矩形排版（plt二维码）-圆形定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。
