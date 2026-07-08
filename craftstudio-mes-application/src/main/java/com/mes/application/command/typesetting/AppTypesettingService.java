@@ -120,6 +120,8 @@ import java.util.Comparator;
 @Service
 public class AppTypesettingService {
 
+    private static final int SCOPED_FULL_LIST_SIZE = 999;
+
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
@@ -368,7 +370,7 @@ public class AppTypesettingService {
                 query.getEndTime(),
                 null,
                 1,
-                Integer.MAX_VALUE
+                SCOPED_FULL_LIST_SIZE
         );
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
         for (TypesettingInfo info : typesettingInfos) {
@@ -405,7 +407,7 @@ public class AppTypesettingService {
                     query.getStartTime(),
                     query.getEndTime(),
                     1,
-                    Integer.MAX_VALUE
+                    SCOPED_FULL_LIST_SIZE
             );
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) <= 0) {

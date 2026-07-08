@@ -63,6 +63,8 @@ import java.util.stream.Collectors;
 @Service
 public class AppDeliveryPkgService {
 
+    private static final int SCOPED_FULL_LIST_SIZE = 999;
+
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
     private static final String NODE_NAME_PENDING_PACKING = "待打包";
@@ -230,7 +232,7 @@ public class AppDeliveryPkgService {
                 null,
                 null,
                 1,
-                Integer.MAX_VALUE
+                SCOPED_FULL_LIST_SIZE
         );
     }
 
