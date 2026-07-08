@@ -12,6 +12,8 @@ import java.util.Map;
 @Data
 public class Kuaidi100OrderParam {
 
+    private static final int MAX_REMARK_LENGTH = 200;
+
     //打印类型，NON：只下单不打印（默认）； IMAGE:生成图片短链；HTML:生成html短链； CLOUD:使用快递100云打印机打印，使用CLOUD时siid必填
     private String printType;
 
@@ -135,8 +137,15 @@ public class Kuaidi100OrderParam {
         DeliveryManInfo recManInfo  = DeliveryManInfo.fromOrderCustomer(customer);
         Kuaidi100OrderParam.setRecMan(recManInfo);
         Kuaidi100OrderParam.setSendMan(DeliveryManInfo.toDeliveryMan(sendManInfo));
-        Kuaidi100OrderParam.setRemark(request.getRemark());
+        Kuaidi100OrderParam.setRemark(limitRemark(request.getRemark()));
         return Kuaidi100OrderParam;
+    }
+
+    private static String limitRemark(String remark) {
+        if (remark == null || remark.length() <= MAX_REMARK_LENGTH) {
+            return remark;
+        }
+        return remark.substring(0, MAX_REMARK_LENGTH);
     }
 
 }
