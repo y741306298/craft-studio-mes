@@ -1,5 +1,6 @@
 package com.mes.application.dto.req.productionpiece;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.mes.application.dto.req.base.ApiRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -22,8 +23,10 @@ public class ProductionPieceListRequest extends ApiRequest {
 
     private String nodeName;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date startTime;
 
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private Date endTime;
 
     @Min(value = 1, message = "当前页码不能小于 1")
