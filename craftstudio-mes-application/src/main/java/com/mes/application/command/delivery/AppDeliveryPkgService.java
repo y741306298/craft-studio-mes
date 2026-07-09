@@ -486,38 +486,34 @@ public class AppDeliveryPkgService {
         }
         //查询寄件人信息
         DeliveryMan deliveryMan = deliveryManRepository.findByDeliveryManIdAndManufacturerMetaId(deliveryManId, manufacturerMetaId);
-        //查询云打印设备
-        DeliverySiid deliverySiid = deliverySiidRepository.findByDeliverySiidIdAndManufacturerMetaId(deliverySiidId, manufacturerMetaId);
         //查询订单信息
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
         OrderCustomer customer = orderInfo.getCustomer();
         //组装请求参数
         Kuaidi100OrderParam kuaidi100OrderParam = Kuaidi100OrderParam.createKuaidi100OrderParam(request, deliveryToken, deliveryMan, customer);
+        kuaidi100OrderParam.setSiid(resolveKuaidi100SiidForPkg(deliverySiidId, manufacturerMetaId, deliveryToken));
         String paramStr = JSON.toJSONString(kuaidi100OrderParam);
         // 5. 调用快递100 API
         String result = callPost(url, paramStr, "label.order");
         AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
-        //添加打印记录
-        DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
-        deliveryRecord.setSiid(resolveRequestSiid(request));
         boolean isResponseSuccess = response != null
                 && response.getCode() == ApiResponse.RepStatusCode.success
-                && Boolean.TRUE.equals(response.getSuccess());
+                && Boolean.TRUE.equals(response.getSuccess())
+                && response.getData() != null;
         if (!isResponseSuccess) {
             String errorMsg = response == null || StringUtils.isBlank(response.getMessage())
                     ? "快递100电子面单下单失败"
                     : response.getMessage();
-            deliveryRecord.setDeliveryTime(new Date());
-            deliveryRecord.setIsSuccess(false);
-            deliveryRecord.setErrorMsg(errorMsg);
-            deliveryRecordRepository.add(deliveryRecord);
-            // 返回错误原因；失败分支不更新生产零件，保证数量与状态保持原样
+            // 快递100失败时立即抛出，失败分支不新增发货记录、不创建包裹、不更新生产零件。
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
         }
 
-        String kuaidinum = response.getData() == null ? null : response.getData().getKuaidinum();
+        //添加打印记录
+        DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
+        deliveryRecord.setSiid(resolveRequestSiid(request));
+        String kuaidinum = response.getData().getKuaidinum();
         deliveryRecord.setKuaidiNum(kuaidinum);
-        deliveryRecord.setTaskId(response.getData() == null ? null : response.getData().getTaskId());
+        deliveryRecord.setTaskId(response.getData().getTaskId());
         deliveryRecord.setReprintCount(0);
         deliveryRecord.setDeliveryTime(new Date());
         deliveryRecord.setIsSuccess(true);
@@ -582,9 +578,6 @@ public class AppDeliveryPkgService {
             }
         }
 
-        if (response.getData() == null) {
-            return null;
-        }
         return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
     }
 
@@ -648,9 +641,7 @@ public class AppDeliveryPkgService {
             if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
                 DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
                 if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
-                    String reprintSiid = StringUtils.isNotBlank(request.getSiid())
-                            ? request.getSiid()
-                            : deliveryToken.getSiid();
+                    String reprintSiid = resolveKuaidi100SiidForAddPkg(request, deliveryToken);
                     if (StringUtils.isBlank(reprintSiid)) {
                         throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100云打印设备不能为空");
                     }
@@ -1163,10 +1154,27 @@ public class AppDeliveryPkgService {
         if (request == null) {
             return null;
         }
+        if (StringUtils.isNotBlank(request.getDeliverySiidId())) {
+            return resolveKuaidi100Siid(request.getDeliverySiidId(), request.getManufacturerMetaId());
+        }
         if (StringUtils.isNotBlank(request.getSiid())) {
             return request.getSiid().trim();
         }
-        return resolveKuaidi100Siid(request.getDeliverySiidId(), request.getManufacturerMetaId());
+        return null;
+    }
+
+    private String resolveKuaidi100SiidForAddPkg(DeliveryPkgAddRequest request, DeliveryToken deliveryToken) {
+        if (request != null && StringUtils.isNotBlank(request.getDeliverySiidId())) {
+            return resolveKuaidi100Siid(request.getDeliverySiidId(), request.getManufacturerMetaId());
+        }
+        return deliveryToken == null ? null : deliveryToken.getSiid();
+    }
+
+    private String resolveKuaidi100SiidForPkg(String deliverySiidId, String manufacturerMetaId, DeliveryToken deliveryToken) {
+        if (StringUtils.isNotBlank(deliverySiidId)) {
+            return resolveKuaidi100Siid(deliverySiidId, manufacturerMetaId);
+        }
+        return deliveryToken == null ? null : deliveryToken.getSiid();
     }
 
     private String resolveKuaidi100Siid(String deliverySiidId, String manufacturerMetaId) {
