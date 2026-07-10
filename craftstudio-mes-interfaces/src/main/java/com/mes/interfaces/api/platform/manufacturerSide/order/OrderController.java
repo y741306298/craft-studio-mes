@@ -25,6 +25,7 @@ import com.mes.application.dto.resp.order.OrderWithItemsResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -36,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.logging.Logger;
@@ -73,6 +75,8 @@ public class OrderController {
         String customerPhone = request.getCustomerPhone();
         String createDateStart = request.getCreateDateStart();
         String createDateEnd = request.getCreateDateEnd();
+        LocalDate statisticsStartDate = null;
+        LocalDate statisticsEndDate = null;
         
         // 构建查询条件
         OrderQuery orderQuery = new OrderQuery();
@@ -90,6 +94,7 @@ public class OrderController {
         if (createDateStart != null && !createDateStart.trim().isEmpty()) {
             try {
                 LocalDate startDate = LocalDate.parse(createDateStart);
+                statisticsStartDate = startDate;
                 LocalDateTime startDateTime = startDate.atStartOfDay();
                 orderQuery.setStartTime(java.util.Date.from(startDateTime.atZone(BEIJING_ZONE).toInstant()));
             } catch (java.time.format.DateTimeParseException e) {
@@ -99,6 +104,7 @@ public class OrderController {
         if (createDateEnd != null && !createDateEnd.trim().isEmpty()) {
             try {
                 LocalDate endDate = LocalDate.parse(createDateEnd);
+                statisticsEndDate = endDate;
                 LocalDateTime endDateTime = endDate.atTime(LocalTime.of(23, 59, 59));
                 orderQuery.setEndTime(java.util.Date.from(endDateTime.atZone(BEIJING_ZONE).toInstant()));
             } catch (java.time.format.DateTimeParseException e) {
@@ -110,8 +116,21 @@ public class OrderController {
         
         // 调用应用服务查询数据
         PagedResult<OrderItemVO> ordersWithItems = appOrderService.findOrdersWithItems(orderQuery);
-        // 返回分页响应
-        return PagedApiResponse.success((List<OrderItemVO>) ordersWithItems.items(), query.getCurrent(), query.getSize(), ordersWithItems.total());
+        OrderDailyStatistics statistics = null;
+        if (statisticsStartDate != null || statisticsEndDate != null) {
+            LocalDate queryStartDate = statisticsStartDate == null ? statisticsEndDate : statisticsStartDate;
+            LocalDate queryEndDate = statisticsEndDate == null ? statisticsStartDate : statisticsEndDate;
+            statistics = appOrderService.sumOrderDailyStatistics(request.getManufacturerId(), queryStartDate, queryEndDate);
+        }
+        // 返回分页响应及可选统计数据
+        return PagedApiResponse.success(
+                (List<OrderItemVO>) ordersWithItems.items(),
+                query.getCurrent(),
+                query.getSize(),
+                ordersWithItems.total(),
+                statistics == null ? 0L : statistics.getTotalOrderCount(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalArea(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
     }
 
 
