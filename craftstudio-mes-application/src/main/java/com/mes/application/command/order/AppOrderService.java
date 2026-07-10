@@ -21,6 +21,8 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
+import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
 import com.mes.domain.shared.utils.IdGenerator;
@@ -35,6 +37,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -75,6 +81,11 @@ public class AppOrderService {
 
     @Autowired
     private AppDeliveryPkgService appDeliveryPkgService;
+
+    @Autowired
+    private OrderDailyStatisticsService orderDailyStatisticsService;
+
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     /**
      * 根据多条件分页查询订单项列表，同时查询关联的订单
@@ -205,11 +216,17 @@ public class AppOrderService {
                 orderWithItemsVO.setCustomer(orderInfo.getCustomer());
                 orderWithItemsVO.setRemark(orderInfo.getRemark());
                 orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
+                if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                    orderWithItemsVO.setPaymentPrice(scaleStatisticsDecimal(orderInfo.getPrice().getPaymentPrice()));
+                } else {
+                    orderWithItemsVO.setPaymentPrice(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                }
             }
             result.add(orderWithItemsVO);
         }
         return result;
     }
+
 
     /**
      * 根据ID 获取订单详情（包含订单项）
@@ -371,13 +388,114 @@ public class AppOrderService {
      */
     public List<OrderInfo> addOrdersWithItems(List<OrderAddRequest> requests) {
         List<OrderInfo> orderInfos = new ArrayList<>();
-        if (requests == null) {
+        if (requests == null || requests.isEmpty()) {
             return orderInfos;
         }
         for (OrderAddRequest request : requests) {
             orderInfos.add(addOrderWithItems(request));
         }
+        saveOrderDailyStatistics(requests);
         return orderInfos;
+    }
+
+    public OrderDailyStatistics findOrderDailyStatistics(String manufacturerMetaId, LocalDate statisticsDate) {
+        if (StringUtils.isBlank(manufacturerMetaId) || statisticsDate == null) {
+            return null;
+        }
+        return orderDailyStatisticsService.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
+    }
+
+    public OrderDailyStatistics sumOrderDailyStatistics(String manufacturerId, LocalDate startDate, LocalDate endDate) {
+        if (StringUtils.isBlank(manufacturerId) || startDate == null || endDate == null) {
+            return null;
+        }
+        return orderDailyStatisticsService.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerId, startDate, endDate);
+    }
+
+    private void saveOrderDailyStatistics(List<OrderAddRequest> requests) {
+        String manufacturerMetaId = resolveManufacturerMetaId(requests);
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            log.warn("addOrdersWithItems 跳过订单统计，manufacturerMetaId 为空");
+            return;
+        }
+        BigDecimal totalArea = BigDecimal.ZERO;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (OrderAddRequest request : requests) {
+            OrderInfo orderInfo = request.toOrderInfo();
+            if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                totalAmount = totalAmount.add(orderInfo.getPrice().getPaymentPrice());
+            }
+            List<OrderItem> orderItems = request.toOrderItems();
+            for (OrderItem orderItem : orderItems) {
+                totalArea = totalArea.add(calculateOrderItemArea(orderItem));
+            }
+        }
+        orderDailyStatisticsService.increment(
+                manufacturerMetaId,
+                LocalDate.now(BEIJING_ZONE),
+                requests.size(),
+                scaleStatisticsDecimal(totalArea),
+                scaleStatisticsDecimal(totalAmount));
+    }
+
+    private String resolveManufacturerMetaId(List<OrderAddRequest> requests) {
+        for (OrderAddRequest request : requests) {
+            OrderInfo orderInfo = request.toOrderInfo();
+            if (StringUtils.isNotBlank(orderInfo.getManufacturerId())) {
+                return orderInfo.getManufacturerId();
+            }
+            for (OrderItem orderItem : request.toOrderItems()) {
+                if (StringUtils.isNotBlank(orderItem.getManufacturerId())) {
+                    return orderItem.getManufacturerId();
+                }
+            }
+        }
+        return null;
+    }
+
+    private BigDecimal calculateOrderItemArea(OrderItem orderItem) {
+        Object mtoProduct = orderItem.getMtoProduct();
+        Object materialConfig = invokeGetter(mtoProduct, "getMaterialConfig");
+        Object usageSize3D = invokeGetter(materialConfig, "getUsageSize3D");
+        BigDecimal widthCm = toBigDecimal(invokeGetter(usageSize3D, "getWidth"));
+        BigDecimal heightCm = toBigDecimal(invokeGetter(usageSize3D, "getHeight"));
+        BigDecimal quantity = toBigDecimal(invokeGetter(mtoProduct, "getQuantity"));
+        if (quantity.compareTo(BigDecimal.ZERO) == 0 && orderItem.getQuantity() != null) {
+            quantity = BigDecimal.valueOf(orderItem.getQuantity());
+        }
+        return widthCm.multiply(heightCm).divide(BigDecimal.valueOf(10000)).multiply(quantity);
+    }
+
+    private BigDecimal scaleStatisticsDecimal(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private Object invokeGetter(Object target, String getterName) {
+        if (target == null) {
+            return null;
+        }
+        try {
+            return target.getClass().getMethod(getterName).invoke(target);
+        } catch (ReflectiveOperationException e) {
+            return null;
+        }
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal bigDecimal) {
+            return bigDecimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     /**
