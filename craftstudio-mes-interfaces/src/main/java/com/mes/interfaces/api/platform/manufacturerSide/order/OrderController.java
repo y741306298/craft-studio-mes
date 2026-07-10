@@ -6,6 +6,7 @@ import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
+import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
@@ -136,6 +137,18 @@ public class OrderController {
         orderQuery.setOrderId(request.getOrderId());
         orderQuery.setManufacturerId(request.getManufacturerId());
         return ApiResponse.success(appOrderService.findNonZeroQuantityOrderItemsByOrderId(orderQuery));
+    }
+
+
+    /**
+     * 同步生产中订单项的已打包状态。
+     * 当订单项关联生产工件的“已打包”节点数量大于等于订单项数量时，将订单项状态更新为已打包。
+     *
+     * @return 同步结果
+     */
+    @PostMapping("/item/syncPackagedStatus")
+    public ApiResponse<OrderPackagingSyncResult> syncPackagedOrderItems() {
+        return ApiResponse.success(appOrderService.syncPackagedOrderItems());
     }
 
     /**

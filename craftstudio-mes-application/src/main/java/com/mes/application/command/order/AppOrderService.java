@@ -2,6 +2,7 @@ package com.mes.application.command.order;
 
 import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.application.command.order.vo.OrderItemVO;
+import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
@@ -12,6 +13,7 @@ import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.repository.ManufacturerUserRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerMetaRepository;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -86,6 +88,84 @@ public class AppOrderService {
     private OrderDailyStatisticsService orderDailyStatisticsService;
 
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
+
+    /**
+     * 同步生产中订单项的已打包状态。
+     * 查询所有状态为生产中的订单项，统计其关联生产工件中“已打包”节点的数量，
+     * 当已打包数量大于等于订单项数量时，将订单项状态更新为“已打包”。
+     *
+     * @return 同步结果
+     */
+    public OrderPackagingSyncResult syncPackagedOrderItems() {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+
+        List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters);
+        List<OrderPackagingSyncResult.ItemPackagingSyncResult> itemResults = new ArrayList<>();
+        long updatedCount = 0;
+
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem == null || StringUtils.isBlank(orderItem.getOrderItemId())) {
+                continue;
+            }
+            long packedQuantity = countPackedQuantity(orderItem.getOrderItemId());
+            int orderItemQuantity = safeQuantity(orderItem.getQuantity());
+            boolean updated = false;
+            if (packedQuantity >= orderItemQuantity && orderItem.getStatus() == OrderStatus.IN_PRODUCTION) {
+                orderItem.setStatus(OrderStatus.PACKAGED);
+                domainOrderItemService.updateOrderItem(orderItem);
+                updated = true;
+                updatedCount++;
+            }
+            itemResults.add(new OrderPackagingSyncResult.ItemPackagingSyncResult(
+                    orderItem.getOrderItemId(),
+                    orderItem.getQuantity(),
+                    packedQuantity,
+                    updated
+            ));
+        }
+
+        return new OrderPackagingSyncResult(orderItems.size(), updatedCount, itemResults);
+    }
+
+    private long countPackedQuantity(String orderItemId) {
+        long packedQuantity = 0;
+        int current = 1;
+        int size = 100;
+        while (true) {
+            List<ProductionPiece> pieces = productionPieceService.findProductionPiecesByOrderItemId(orderItemId, current, size);
+            if (pieces == null || pieces.isEmpty()) {
+                break;
+            }
+            for (ProductionPiece piece : pieces) {
+                packedQuantity += countPackedQuantity(piece);
+            }
+            if (pieces.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return packedQuantity;
+    }
+
+    private long countPackedQuantity(ProductionPiece piece) {
+        if (piece == null) {
+            return 0;
+        }
+        ProcedureFlow flow = piece.getProcedureFlow();
+        if (flow == null || flow.getNodes() == null) {
+            return 0;
+        }
+        return flow.getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(this::isPackedNode)
+                .mapToLong(node -> node.getPieceQuantity() == null ? 0 : node.getPieceQuantity())
+                .sum();
+    }
+
+    private boolean isPackedNode(ProcedureFlowNode node) {
+        return "NODE_PACKED".equals(node.getNodeId()) || "已打包".equals(node.getNodeName());
+    }
 
     /**
      * 根据多条件分页查询订单项列表，同时查询关联的订单
