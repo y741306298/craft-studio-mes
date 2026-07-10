@@ -6,6 +6,8 @@ import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.order.orderStatistics.po.OrderDailyStatisticsPo;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -31,6 +33,35 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
                 poClass()
         );
         return po == null ? null : po.toDO();
+    }
+
+    @Override
+    public OrderDailyStatistics sumByManufacturerMetaIdAndStatisticsDateBetween(String manufacturerMetaId,
+                                                                                LocalDate startDate,
+                                                                                LocalDate endDate) {
+        Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("statisticsDate").gte(startDate).lte(endDate)
+                .and("deleteAt").is(null);
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(criteria),
+                Aggregation.group()
+                        .sum("totalOrderCount").as("totalOrderCount")
+                        .sum("totalArea").as("totalArea")
+                        .sum("totalAmount").as("totalAmount")
+        );
+        AggregationResults<OrderDailyStatisticsPo> results = mongoTemplate.aggregate(
+                aggregation,
+                mongoTemplate.getCollectionName(poClass()),
+                poClass()
+        );
+        OrderDailyStatisticsPo po = results.getUniqueMappedResult();
+        if (po == null || po.getTotalOrderCount() == null) {
+            return null;
+        }
+        OrderDailyStatistics statistics = po.toDO();
+        statistics.setManufacturerMetaId(manufacturerMetaId);
+        statistics.setStatisticsDate(startDate);
+        return statistics;
     }
 
     @Override

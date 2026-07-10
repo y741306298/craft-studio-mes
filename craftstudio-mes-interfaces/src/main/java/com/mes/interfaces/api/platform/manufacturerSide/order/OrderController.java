@@ -75,6 +75,8 @@ public class OrderController {
         String customerPhone = request.getCustomerPhone();
         String createDateStart = request.getCreateDateStart();
         String createDateEnd = request.getCreateDateEnd();
+        LocalDate statisticsStartDate = null;
+        LocalDate statisticsEndDate = null;
         
         // 构建查询条件
         OrderQuery orderQuery = new OrderQuery();
@@ -92,6 +94,7 @@ public class OrderController {
         if (createDateStart != null && !createDateStart.trim().isEmpty()) {
             try {
                 LocalDate startDate = LocalDate.parse(createDateStart);
+                statisticsStartDate = startDate;
                 LocalDateTime startDateTime = startDate.atStartOfDay();
                 orderQuery.setStartTime(java.util.Date.from(startDateTime.atZone(BEIJING_ZONE).toInstant()));
             } catch (java.time.format.DateTimeParseException e) {
@@ -101,6 +104,7 @@ public class OrderController {
         if (createDateEnd != null && !createDateEnd.trim().isEmpty()) {
             try {
                 LocalDate endDate = LocalDate.parse(createDateEnd);
+                statisticsEndDate = endDate;
                 LocalDateTime endDateTime = endDate.atTime(LocalTime.of(23, 59, 59));
                 orderQuery.setEndTime(java.util.Date.from(endDateTime.atZone(BEIJING_ZONE).toInstant()));
             } catch (java.time.format.DateTimeParseException e) {
@@ -113,16 +117,10 @@ public class OrderController {
         // 调用应用服务查询数据
         PagedResult<OrderItemVO> ordersWithItems = appOrderService.findOrdersWithItems(orderQuery);
         OrderDailyStatistics statistics = null;
-        if (request.getStatisticsDate() != null && !request.getStatisticsDate().trim().isEmpty()) {
-            try {
-                String manufacturerMetaId = request.getManufacturerMetaId();
-                if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
-                    manufacturerMetaId = request.getManufacturerId();
-                }
-                statistics = appOrderService.findOrderDailyStatistics(manufacturerMetaId, LocalDate.parse(request.getStatisticsDate()));
-            } catch (java.time.format.DateTimeParseException e) {
-                throw new IllegalArgumentException("统计日期格式错误，应为 yyyy-MM-dd");
-            }
+        if (statisticsStartDate != null || statisticsEndDate != null) {
+            LocalDate queryStartDate = statisticsStartDate == null ? statisticsEndDate : statisticsStartDate;
+            LocalDate queryEndDate = statisticsEndDate == null ? statisticsStartDate : statisticsEndDate;
+            statistics = appOrderService.sumOrderDailyStatistics(request.getManufacturerId(), queryStartDate, queryEndDate);
         }
         // 返回分页响应及可选统计数据
         return PagedApiResponse.success(

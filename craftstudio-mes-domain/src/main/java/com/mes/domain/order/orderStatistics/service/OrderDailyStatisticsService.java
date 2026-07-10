@@ -30,4 +30,10 @@ public class OrderDailyStatisticsService {
     public OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate) {
         return repository.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
     }
+
+    public OrderDailyStatistics sumByManufacturerMetaIdAndStatisticsDateBetween(String manufacturerMetaId,
+                                                                                LocalDate startDate,
+                                                                                LocalDate endDate) {
+        return repository.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerMetaId, startDate, endDate);
+    }
 }

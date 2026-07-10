@@ -14,14 +14,6 @@ public class OrderListRequest extends PagedApiRequest {
     private String customerPhone;
     private String createDateStart;
     private String createDateEnd;
-    /**
-     * 订单统计查询日期，格式 yyyy-MM-dd。
-     */
-    private String statisticsDate;
-    /**
-     * 订单统计所属工厂 ID；为空时兼容使用 manufacturerId。
-     */
-    private String manufacturerMetaId;
     private String routeId;
     private String orgName;
 }

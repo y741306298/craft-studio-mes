@@ -398,6 +398,13 @@ public class AppOrderService {
         return orderDailyStatisticsService.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
     }
 
+    public OrderDailyStatistics sumOrderDailyStatistics(String manufacturerId, LocalDate startDate, LocalDate endDate) {
+        if (StringUtils.isBlank(manufacturerId) || startDate == null || endDate == null) {
+            return null;
+        }
+        return orderDailyStatisticsService.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerId, startDate, endDate);
+    }
+
     private void saveOrderDailyStatistics(List<OrderAddRequest> requests) {
         String manufacturerMetaId = resolveManufacturerMetaId(requests);
         if (StringUtils.isBlank(manufacturerMetaId)) {

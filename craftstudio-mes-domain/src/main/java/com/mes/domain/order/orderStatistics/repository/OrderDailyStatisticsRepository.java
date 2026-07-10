@@ -9,6 +9,10 @@ import java.time.LocalDate;
 public interface OrderDailyStatisticsRepository extends BaseRepository<OrderDailyStatistics> {
     OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate);
 
+    OrderDailyStatistics sumByManufacturerMetaIdAndStatisticsDateBetween(String manufacturerMetaId,
+                                                                         LocalDate startDate,
+                                                                         LocalDate endDate);
+
     OrderDailyStatistics increment(String manufacturerMetaId,
                                    LocalDate statisticsDate,
                                    long orderCount,
