@@ -4,6 +4,7 @@ import com.mes.domain.base.repository.ApiResponse;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 @Data
@@ -42,8 +43,12 @@ public class PagedApiResponse<T> extends ApiResponse<PagedApiResponse.PageData<T
                                                   BigDecimal totalAmount) {
         PagedApiResponse<T> response = success(records, current, size, total);
         response.getData().setTotalOrderCount(totalOrderCount);
-        response.getData().setTotalArea(totalArea);
-        response.getData().setTotalAmount(totalAmount);
+        response.getData().setTotalArea(scaleStatisticsDecimal(totalArea));
+        response.getData().setTotalAmount(scaleStatisticsDecimal(totalAmount));
         return response;
+    }
+
+    private static BigDecimal scaleStatisticsDecimal(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 }

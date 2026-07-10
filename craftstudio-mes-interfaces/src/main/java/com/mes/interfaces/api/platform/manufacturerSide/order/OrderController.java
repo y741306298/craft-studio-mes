@@ -122,9 +122,10 @@ public class OrderController {
             LocalDate queryEndDate = statisticsEndDate == null ? statisticsStartDate : statisticsEndDate;
             statistics = appOrderService.sumOrderDailyStatistics(request.getManufacturerId(), queryStartDate, queryEndDate);
         }
+        List<OrderItemVO> orderItems = (List<OrderItemVO>) ordersWithItems.items();
         // 返回分页响应及可选统计数据
         return PagedApiResponse.success(
-                (List<OrderItemVO>) ordersWithItems.items(),
+                orderItems,
                 query.getCurrent(),
                 query.getSize(),
                 ordersWithItems.total(),

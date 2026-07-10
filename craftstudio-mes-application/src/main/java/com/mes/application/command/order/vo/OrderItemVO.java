@@ -5,6 +5,8 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class OrderItemVO extends OrderItem {
 
@@ -13,5 +15,10 @@ public class OrderItemVO extends OrderItem {
     private String remark;
 
     private OrgInfo orgInfo;
+
+    /**
+     * 所属订单 orderInfo.price.paymentPrice。
+     */
+    private BigDecimal paymentPrice;
 
 }

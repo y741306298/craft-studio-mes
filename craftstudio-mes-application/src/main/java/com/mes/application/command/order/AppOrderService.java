@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -215,11 +216,17 @@ public class AppOrderService {
                 orderWithItemsVO.setCustomer(orderInfo.getCustomer());
                 orderWithItemsVO.setRemark(orderInfo.getRemark());
                 orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
+                if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                    orderWithItemsVO.setPaymentPrice(scaleStatisticsDecimal(orderInfo.getPrice().getPaymentPrice()));
+                } else {
+                    orderWithItemsVO.setPaymentPrice(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                }
             }
             result.add(orderWithItemsVO);
         }
         return result;
     }
+
 
     /**
      * 根据ID 获取订单详情（包含订单项）
@@ -414,15 +421,21 @@ public class AppOrderService {
         BigDecimal totalArea = BigDecimal.ZERO;
         BigDecimal totalAmount = BigDecimal.ZERO;
         for (OrderAddRequest request : requests) {
+            OrderInfo orderInfo = request.toOrderInfo();
+            if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                totalAmount = totalAmount.add(orderInfo.getPrice().getPaymentPrice());
+            }
             List<OrderItem> orderItems = request.toOrderItems();
             for (OrderItem orderItem : orderItems) {
                 totalArea = totalArea.add(calculateOrderItemArea(orderItem));
-                if (orderItem.getPrice() != null && orderItem.getPrice().getActualPrice() != null) {
-                    totalAmount = totalAmount.add(orderItem.getPrice().getActualPrice());
-                }
             }
         }
-        orderDailyStatisticsService.increment(manufacturerMetaId, LocalDate.now(BEIJING_ZONE), requests.size(), totalArea, totalAmount);
+        orderDailyStatisticsService.increment(
+                manufacturerMetaId,
+                LocalDate.now(BEIJING_ZONE),
+                requests.size(),
+                scaleStatisticsDecimal(totalArea),
+                scaleStatisticsDecimal(totalAmount));
     }
 
     private String resolveManufacturerMetaId(List<OrderAddRequest> requests) {
@@ -451,6 +464,10 @@ public class AppOrderService {
             quantity = BigDecimal.valueOf(orderItem.getQuantity());
         }
         return widthCm.multiply(heightCm).divide(BigDecimal.valueOf(10000)).multiply(quantity);
+    }
+
+    private BigDecimal scaleStatisticsDecimal(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
     private Object invokeGetter(Object target, String getterName) {

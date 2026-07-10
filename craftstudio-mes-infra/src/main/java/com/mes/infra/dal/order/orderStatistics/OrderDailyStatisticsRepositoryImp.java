@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Date;
 
@@ -61,7 +62,13 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
         OrderDailyStatistics statistics = po.toDO();
         statistics.setManufacturerMetaId(manufacturerMetaId);
         statistics.setStatisticsDate(startDate);
+        statistics.setTotalArea(scaleStatisticsDecimal(statistics.getTotalArea()));
+        statistics.setTotalAmount(scaleStatisticsDecimal(statistics.getTotalAmount()));
         return statistics;
+    }
+
+    private BigDecimal scaleStatisticsDecimal(BigDecimal value) {
+        return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
 
     @Override
@@ -79,8 +86,8 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
                 .setOnInsert("createTime", now)
                 .set("updateTime", now)
                 .inc("totalOrderCount", orderCount)
-                .inc("totalArea", area == null ? BigDecimal.ZERO : area)
-                .inc("totalAmount", amount == null ? BigDecimal.ZERO : amount);
+                .inc("totalArea", scaleStatisticsDecimal(area))
+                .inc("totalAmount", scaleStatisticsDecimal(amount));
         OrderDailyStatisticsPo po = mongoTemplate.findAndModify(
                 query,
                 update,
