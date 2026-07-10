@@ -25,6 +25,7 @@ import com.mes.application.dto.resp.order.OrderWithItemsResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
@@ -36,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.logging.Logger;
@@ -110,8 +112,27 @@ public class OrderController {
         
         // 调用应用服务查询数据
         PagedResult<OrderItemVO> ordersWithItems = appOrderService.findOrdersWithItems(orderQuery);
-        // 返回分页响应
-        return PagedApiResponse.success((List<OrderItemVO>) ordersWithItems.items(), query.getCurrent(), query.getSize(), ordersWithItems.total());
+        OrderDailyStatistics statistics = null;
+        if (request.getStatisticsDate() != null && !request.getStatisticsDate().trim().isEmpty()) {
+            try {
+                String manufacturerMetaId = request.getManufacturerMetaId();
+                if (manufacturerMetaId == null || manufacturerMetaId.trim().isEmpty()) {
+                    manufacturerMetaId = request.getManufacturerId();
+                }
+                statistics = appOrderService.findOrderDailyStatistics(manufacturerMetaId, LocalDate.parse(request.getStatisticsDate()));
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new IllegalArgumentException("统计日期格式错误，应为 yyyy-MM-dd");
+            }
+        }
+        // 返回分页响应及可选统计数据
+        return PagedApiResponse.success(
+                (List<OrderItemVO>) ordersWithItems.items(),
+                query.getCurrent(),
+                query.getSize(),
+                ordersWithItems.total(),
+                statistics == null ? 0L : statistics.getTotalOrderCount(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalArea(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
     }
 
 
