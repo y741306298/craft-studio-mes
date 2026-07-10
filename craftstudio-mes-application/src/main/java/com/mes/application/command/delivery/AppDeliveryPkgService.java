@@ -781,7 +781,7 @@ public class AppDeliveryPkgService {
         }
         boolean pieceFullyPacked = isPieceFullyPacked(piece);
         boolean flag = !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus());
-        if (isPieceFullyPacked(piece) && flag) {
+        if (pieceFullyPacked && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
         productionPieceService.updateProductionPiece(piece);
@@ -810,8 +810,10 @@ public class AppDeliveryPkgService {
                 current++;
             }
 
-            boolean allPacked = !orderItemPieces.isEmpty() && orderItemPieces.stream()
-                    .allMatch(this::isPieceFullyPacked);
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            Integer requiredPackedQuantity = getOrderItemQuantity(orderItem);
+            boolean allPacked = requiredPackedQuantity != null && !orderItemPieces.isEmpty() && orderItemPieces.stream()
+                    .allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
             if (!allPacked) {
                 continue;
             }
@@ -837,7 +839,6 @@ public class AppDeliveryPkgService {
                 continue;
             }
 
-            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
             if (orderItem != null) {
                 boolean changed = false;
                 if (orderItem.getStatus() != OrderStatus.PACKAGED) {
@@ -856,11 +857,34 @@ public class AppDeliveryPkgService {
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece) {
-        if (piece == null || piece.getQuantity() == null || piece.getQuantity() <= 0) {
+        Integer requiredPackedQuantity = getPieceRequiredPackedQuantity(piece);
+        return isPieceFullyPacked(piece, requiredPackedQuantity);
+    }
+
+    private boolean isPieceFullyPacked(ProductionPiece piece, Integer requiredPackedQuantity) {
+        if (piece == null || requiredPackedQuantity == null || requiredPackedQuantity <= 0) {
             return false;
         }
         int packedQty = getNodeQuantity(piece, NODE_ID_PACKED, NODE_NAME_PACKED);
-        return packedQty >= piece.getQuantity();
+        return packedQty >= requiredPackedQuantity;
+    }
+
+    private Integer getPieceRequiredPackedQuantity(ProductionPiece piece) {
+        if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
+            return piece == null ? null : piece.getQuantity();
+        }
+        return getOrderItemQuantity(orderItemService.findByOrderItemId(piece.getOrderItemId()), piece.getQuantity());
+    }
+
+    private Integer getOrderItemQuantity(OrderItem orderItem) {
+        return getOrderItemQuantity(orderItem, null);
+    }
+
+    private Integer getOrderItemQuantity(OrderItem orderItem, Integer fallbackQuantity) {
+        if (orderItem != null && orderItem.getQuantity() != null && orderItem.getQuantity() > 0) {
+            return orderItem.getQuantity();
+        }
+        return fallbackQuantity;
     }
 
     private void revertPackagedOrderItems(java.util.Set<String> touchedOrderItemIds) {
