@@ -8,6 +8,7 @@ import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.application.dto.resp.order.OrderStatisticsResponse;
 import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.repository.ManufacturerUserRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
@@ -104,6 +105,55 @@ public class AppOrderService {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
 
+        var pagedQuery = query.getPagedQuery();
+        Map<String, Object> filters = buildOrderItemFilters(query);
+        List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
+                (int) pagedQuery.getCurrent(),
+                (int) pagedQuery.getSize(),
+                filters
+        );
+        long total = domainOrderItemService.filterTotal(filters);
+        List<OrderItemVO> result = buildOrderItemVOs(orderItems);
+        return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
+    }
+
+    /**
+     * 根据列表查询条件全量查询订单项，并实时计算总订单数、总面积和总金额。
+     */
+    public OrderStatisticsResponse calculateOrderStatistics(OrderQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("查询参数不能为空");
+        }
+
+        List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(buildOrderItemFilters(query));
+        Set<String> countedOrderIds = new LinkedHashSet<>();
+        BigDecimal totalArea = BigDecimal.ZERO;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        if (orderItems != null) {
+            for (OrderItem orderItem : orderItems) {
+                if (orderItem == null) {
+                    continue;
+                }
+                totalArea = totalArea.add(calculateOrderItemArea(orderItem));
+                String orderId = orderItem.getOrderId();
+                if (StringUtils.isBlank(orderId) || !countedOrderIds.add(orderId)) {
+                    continue;
+                }
+                OrderInfo orderInfo = domainOrderInfoService.findByOrderId(orderId);
+                if (orderInfo != null && orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                    totalAmount = totalAmount.add(orderInfo.getPrice().getPaymentPrice());
+                }
+            }
+        }
+
+        return new OrderStatisticsResponse(
+                (long) countedOrderIds.size(),
+                scaleStatisticsDecimal(totalArea),
+                scaleStatisticsDecimal(totalAmount));
+    }
+
+    private Map<String, Object> buildOrderItemFilters(OrderQuery query) {
         String orderId = query.getOrderId();
         String manufacturerId = query.getManufacturerId();
         String status = query.getStatus() != null ? query.getStatus().getCode() : null;
@@ -113,9 +163,6 @@ public class AppOrderService {
         String orgName = query.getOrgName();
         var startTime = query.getStartTime();
         var endTime = query.getEndTime();
-        var pagedQuery = query.getPagedQuery();
-
-        long total;
 
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId", manufacturerId);
@@ -134,49 +181,43 @@ public class AppOrderService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-        if (StringUtils.isNotBlank(customerName) || StringUtils.isNotBlank(customerPhone)) {
-            Set<String> customerMatchedOrderIds = new LinkedHashSet<>(
-                    domainOrderInfoService.findOrderIdsByCustomerConditions(customerName, customerPhone)
-            );
-            if (StringUtils.isNotBlank(orderId)) {
-                String normalizedOrderId = orderId.trim().toLowerCase(Locale.ROOT);
-                customerMatchedOrderIds.removeIf(matchedOrderId ->
-                        StringUtils.isBlank(matchedOrderId)
-                                || !matchedOrderId.toLowerCase(Locale.ROOT).contains(normalizedOrderId));
-                filters.remove("orderId_like");
-            }
-            if (customerMatchedOrderIds.isEmpty()) {
-                return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
-            }
-            filters.put("orderId_in", customerMatchedOrderIds);
+        applyCustomerOrderIdFilter(filters, orderId, customerName, customerPhone);
+        applyOrgNameOrderIdFilter(filters, orderId, orgName);
+        return filters;
+    }
+
+    private void applyCustomerOrderIdFilter(Map<String, Object> filters, String orderId, String customerName, String customerPhone) {
+        if (StringUtils.isBlank(customerName) && StringUtils.isBlank(customerPhone)) {
+            return;
         }
-        if (StringUtils.isNotBlank(orgName)) {
-            Set<String> orgMatchedOrderIds = new LinkedHashSet<>(
-                    domainOrderInfoService.findOrderIdsByOrgName(orgName)
-            );
-            if (StringUtils.isNotBlank(orderId)) {
-                String normalizedOrderId = orderId.trim().toLowerCase(Locale.ROOT);
-                orgMatchedOrderIds.removeIf(matchedOrderId ->
-                        StringUtils.isBlank(matchedOrderId)
-                                || !matchedOrderId.toLowerCase(Locale.ROOT).contains(normalizedOrderId));
-                filters.remove("orderId_like");
-            }
-            if (filters.get("orderId_in") instanceof Set<?> existingOrderIds) {
-                orgMatchedOrderIds.retainAll(existingOrderIds);
-            }
-            if (orgMatchedOrderIds.isEmpty()) {
-                return new PagedResult<>(List.of(), 0, pagedQuery.getSize(), pagedQuery.getCurrent());
-            }
-            filters.put("orderId_in", orgMatchedOrderIds);
-        }
-        List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
-                (int) pagedQuery.getCurrent(),
-                (int) pagedQuery.getSize(),
-                filters
+        Set<String> customerMatchedOrderIds = new LinkedHashSet<>(
+                domainOrderInfoService.findOrderIdsByCustomerConditions(customerName, customerPhone)
         );
-        total = domainOrderItemService.filterTotal(filters);
-        List<OrderItemVO> result = buildOrderItemVOs(orderItems);
-        return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
+        applyOrderIdLikeIntersection(filters, orderId, customerMatchedOrderIds);
+    }
+
+    private void applyOrgNameOrderIdFilter(Map<String, Object> filters, String orderId, String orgName) {
+        if (StringUtils.isBlank(orgName)) {
+            return;
+        }
+        Set<String> orgMatchedOrderIds = new LinkedHashSet<>(
+                domainOrderInfoService.findOrderIdsByOrgName(orgName)
+        );
+        applyOrderIdLikeIntersection(filters, orderId, orgMatchedOrderIds);
+    }
+
+    private void applyOrderIdLikeIntersection(Map<String, Object> filters, String orderId, Set<String> matchedOrderIds) {
+        if (StringUtils.isNotBlank(orderId)) {
+            String normalizedOrderId = orderId.trim().toLowerCase(Locale.ROOT);
+            matchedOrderIds.removeIf(matchedOrderId ->
+                    StringUtils.isBlank(matchedOrderId)
+                            || !matchedOrderId.toLowerCase(Locale.ROOT).contains(normalizedOrderId));
+            filters.remove("orderId_like");
+        }
+        if (filters.get("orderId_in") instanceof Set<?> existingOrderIds) {
+            matchedOrderIds.retainAll(existingOrderIds);
+        }
+        filters.put("orderId_in", matchedOrderIds);
     }
 
     /**
