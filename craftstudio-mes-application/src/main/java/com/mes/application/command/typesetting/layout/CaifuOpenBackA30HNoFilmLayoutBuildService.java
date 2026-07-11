@@ -36,7 +36,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
     private static final int ELEMENT_D_WIDTH_TENTH_MM = 3;
     private static final int ELEMENT_D_HEIGHT_MM = 5;
     private static final int ELEMENT_D_OFFSET_Y_MM = 8;
-    private static final int ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM = 3;
+    private static final int ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM = 5;
     private static final int ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM = 203;
     private static final int ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM = 303;
 
