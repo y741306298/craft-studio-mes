@@ -17,6 +17,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,9 +39,12 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
     private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
+    private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
 
-    public DoubleSideMountingLayoutBuildService(OssTagUploadService ossTagUploadService) {
+    public DoubleSideMountingLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                                QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
         this.ossTagUploadService = ossTagUploadService;
+        this.qrLayoutOrderIdResolver = qrLayoutOrderIdResolver;
     }
     /**
      * 圆形二维码排版模式构建器：
@@ -77,7 +81,8 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         // 2) 构建 A/B/C/F：A=typesetting引用标识，B=队列plt名，C=二维码，F=标签条
         String elementA = context.getElementAResolver().apply(context.getTypesettingInfo());
         List<String> elementAExtInfos = buildElementAExtInfos(context.getTypesettingInfo());
-        log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}", elementA, elementAExtInfos);
+        String commonOrderId = qrLayoutOrderIdResolver.resolveCommonOrderId(context.getTypesettingInfo());
+        log.info("Circle QR tag text resolved, elementA={}, elementAExtInfos={}, commonOrderId={}", elementA, elementAExtInfos, commonOrderId);
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         boolean allCellsAreParts = allCellsAreProductionPieces(context.getTypesettingInfo());
@@ -85,8 +90,8 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         String elementCC = allCellsAreParts ? LEFT_ARROW_URL : null;
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = normalizeMirrorTypesettingId(context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId());
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -157,11 +162,27 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         if (info == null) {
             return extInfos;
         }
+        String plateArea = formatPlateArea(info);
+        if (StringUtils.isNotBlank(plateArea)) {
+            extInfos.add(plateArea);
+        }
         if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
             extInfos.add(info.getTemplateCode());
         }
         extInfos.addAll(extractAccessoryLabels(info));
         return extInfos;
+    }
+
+    private String formatPlateArea(TypesettingInfo info) {
+        if (info == null || info.getElement() == null
+                || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
+            return null;
+        }
+        return formatTwoDecimal(info.getElement().getWidth().multiply(info.getElement().getHeight()));
+    }
+
+    private String formatTwoDecimal(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private List<String> extractAccessoryLabels(TypesettingInfo info) {
@@ -220,6 +241,7 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
                                         String typesettingId,
                                         String elementA,
                                         List<String> elementAExtInfos,
+                                        String commonOrderId,
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
@@ -234,7 +256,6 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         int qrSizePx = mmToPx(QR_SIZE_MM);
         int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
-        int cX = bX + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
 
         BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
@@ -255,8 +276,13 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
                 g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
             drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
-            drawTextRotate180(g, elementA, cX, textBaseLineY, fontMetrics);
-            int currentX = cX + fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
+            int currentX = bX + fontMetrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
+            if (StringUtils.isNotBlank(commonOrderId)) {
+                drawTextRotate180(g, commonOrderId, currentX, textBaseLineY, fontMetrics);
+                currentX += fontMetrics.stringWidth(commonOrderId) + mmToPx(EXTRA_INFO_GAP_MM);
+            }
+            drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
+            currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
             if (elementAExtInfos != null) {
                 for (String extInfo : elementAExtInfos) {
                     if (StringUtils.isBlank(extInfo)) {
