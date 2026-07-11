@@ -386,7 +386,20 @@ public class TypesettingController {
         if (materialScopedResult == null || materialScopedResult.getAllItems() == null) {
             return new ArrayList<>();
         }
-        return new ArrayList<>(materialScopedResult.getAllItems());
+        return materialScopedResult.getAllItems().stream()
+                .filter(item -> matchesMaterialName(item, request.getMaterialName()))
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private boolean matchesMaterialName(TypesettingProductionPieceVO item, String materialName) {
+        if (StringUtils.isBlank(materialName)) {
+            return true;
+        }
+        if (item == null || item.getMaterialConfig() == null || item.getMaterialConfig().getMaterialSnapshot() == null) {
+            return false;
+        }
+        String itemMaterialName = item.getMaterialConfig().getMaterialSnapshot().getName();
+        return StringUtils.isNotBlank(itemMaterialName) && itemMaterialName.contains(materialName);
     }
 
     private TypesettingQuery copyTypesettingQuery(TypesettingQuery source) {
