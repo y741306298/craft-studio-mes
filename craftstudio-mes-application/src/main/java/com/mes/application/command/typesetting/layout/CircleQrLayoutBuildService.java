@@ -19,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -230,11 +231,27 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         if (info == null) {
             return extInfos;
         }
-        extInfos.addAll(extractAccessoryLabels(info));
+        String plateArea = formatPlateArea(info);
+        if (StringUtils.isNotBlank(plateArea)) {
+            extInfos.add(plateArea);
+        }
         if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
             extInfos.add(info.getTemplateCode());
         }
+        extInfos.addAll(extractAccessoryLabels(info));
         return extInfos;
+    }
+
+    private String formatPlateArea(TypesettingInfo info) {
+        if (info == null || info.getElement() == null
+                || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
+            return null;
+        }
+        return formatTwoDecimal(info.getElement().getWidth().multiply(info.getElement().getHeight()));
+    }
+
+    private String formatTwoDecimal(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private List<String> extractAccessoryLabels(TypesettingInfo info) {
@@ -344,6 +361,12 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             }
             drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
             int currentX = bX + fontMetrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
+            if (StringUtils.isNotBlank(commonOrderId)) {
+                drawTextRotate180(g, commonOrderId, currentX, textBaseLineY, fontMetrics);
+                currentX += fontMetrics.stringWidth(commonOrderId) + mmToPx(EXTRA_INFO_GAP_MM);
+            }
+            drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
+            currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
             if (elementAExtInfos != null) {
                 for (String extInfo : elementAExtInfos) {
                     if (StringUtils.isBlank(extInfo)) {
@@ -352,11 +375,6 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                     drawTextRotate180(g, extInfo, currentX, textBaseLineY, fontMetrics);
                     currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
                 }
-            }
-            drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
-            currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
-            if (StringUtils.isNotBlank(commonOrderId)) {
-                drawTextRotate180(g, commonOrderId, currentX, textBaseLineY, fontMetrics);
             }
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
