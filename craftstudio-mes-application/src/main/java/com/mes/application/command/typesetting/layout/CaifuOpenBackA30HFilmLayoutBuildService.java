@@ -78,19 +78,22 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
         double expandedHeight = originalHeight + EXPAND_TOP_MM;
+        double contentOffsetY = OPEN_BACK_TAG_HEIGHT_MM;
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
         margin.setLeft(0);
-        margin.setTop(EXPAND_TOP_MM);
+        margin.setTop(EXPAND_TOP_MM + OPEN_BACK_TAG_HEIGHT_MM);
         margin.setRight(EXPAND_RIGHT_MM);
-        margin.setBottom(0);
+        margin.setBottom(OPEN_BACK_TAG_HEIGHT_MM);
         result.setMargin(margin);
 
         String tagUploadSubDir = buildTagUploadSubDir(context);
         String elementA = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_A_WIDTH_MM, expandedHeight), tagUploadSubDir);
         String elementB = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM), tagUploadSubDir);
         String elementD = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM), tagUploadSubDir);
+        String elementF = buildOpenBackTagStrip(context, originalWidth, false);
+        String elementFRotated = buildOpenBackTagStrip(context, originalWidth, true);
 
         List<MarkerBand> bands = extractMarkerBands(context, originalHeight);
         List<MarkerBand> orderedBands = new ArrayList<>();
@@ -117,6 +120,8 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
+        marks.add(createMark(elementF, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, 0, 0));
+        marks.add(createMark(elementFRotated, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, 0, contentOffsetY + expandedHeight));
         for (MarkerBand band : orderedBands) {
             if (band == null) {
                 continue;
@@ -124,7 +129,7 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             double y = band.centerY;
             double elementBY = y + ELEMENT_B_OFFSET_Y_MM;
             if (elementBY <= expandedHeight) {
-                marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY));
+                marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY + contentOffsetY));
             }
             double lineY = y + ELEMENT_D_OFFSET_Y_MM;
             if (lineY > expandedHeight) {
@@ -144,20 +149,22 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             }
             if (!isBlood) {
                 marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0), lineY));
+                        originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0), lineY + contentOffsetY));
             }
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY));
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY + contentOffsetY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY));
+                    originalWidth + EXPAND_RIGHT_MM - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
         }
-        marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth + ELEMENT_A_X_OFFSET_MM, 0));
+        marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, originalWidth + ELEMENT_A_X_OFFSET_MM, contentOffsetY));
 
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> markFiles = new LinkedHashMap<>();
             markFiles.put("elementA", elementA);
             markFiles.put("elementB", elementB);
             markFiles.put("elementD", elementD);
+            markFiles.put("elementF", elementF);
+            markFiles.put("elementFRotated", elementFRotated);
             if (!elementEByHeight.isEmpty()) {
                 markFiles.put("elementE", elementEByHeight.values().iterator().next());
             }
