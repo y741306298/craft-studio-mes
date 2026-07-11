@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -28,6 +29,12 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private static final int MARK_C_WIDTH_MM = 3;
     private static final int MARK_C_OFFSET_X_MM = 20;
+    protected static final int OPEN_BACK_TAG_HEIGHT_MM = 20;
+    private static final int TAG_DPI = 300;
+    private static final double MM_PER_INCH = 25.4D;
+    private static final int TAG_TEXT_LEFT_MM = 30;
+    private static final int TAG_TEXT_GAP_MM = 5;
+    private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
 
     protected final OssTagUploadService ossTagUploadService;
 
@@ -133,6 +140,81 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
         mark.setSize(createSize(BigDecimal.valueOf(width), BigDecimal.valueOf(height)));
         mark.setPosition(createPosition(Math.max(0, x), Math.max(0, y)));
         return mark;
+    }
+
+
+    protected FormeGenerationRequest.Mark createMark(String img, int width, double height, int x, double y) {
+        FormeGenerationRequest.Mark mark = new FormeGenerationRequest.Mark();
+        mark.setImg(img);
+        mark.setSize(createSize(BigDecimal.valueOf(width), BigDecimal.valueOf(height)));
+        mark.setPosition(createPosition(Math.max(0, x), (int) Math.max(0, Math.round(y))));
+        return mark;
+    }
+
+    protected String buildOpenBackTagStrip(FormeBuildContext context, int stripWidth, boolean rotate180) {
+        String elementA = context.getElementAResolver() == null || context.getTypesettingInfo() == null
+                ? ""
+                : context.getElementAResolver().apply(context.getTypesettingInfo());
+        int canvasWidthPx = mmToPx(stripWidth);
+        int canvasHeightPx = mmToPx(OPEN_BACK_TAG_HEIGHT_MM);
+        int textHeight = Math.max(mmToPx(4), 1);
+        BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = canvas.createGraphics();
+        try {
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
+            g.setColor(Color.BLACK);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
+            FontMetrics fontMetrics = g.getFontMetrics();
+            int baselineY = ((canvasHeightPx - textHeight) / 2) + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
+            int currentX = mmToPx(TAG_TEXT_LEFT_MM);
+            if (elementA != null && !elementA.trim().isEmpty()) {
+                drawTextRotate180(g, elementA, currentX, baselineY, fontMetrics);
+                currentX += fontMetrics.stringWidth(elementA) + mmToPx(TAG_TEXT_GAP_MM);
+            }
+            BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            ImageIO.write(uploadImage, "png", outputStream);
+            return ossTagUploadService.uploadTagPng(context.getBusinessId(), outputStream.toByteArray(), buildTagUploadSubDir(context));
+        } catch (Exception e) {
+            throw new IllegalStateException("生成开背标签条PNG失败", e);
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
+        int textWidth = fontMetrics.stringWidth(text);
+        if (textWidth <= 0) {
+            return;
+        }
+        int textHeight = fontMetrics.getHeight();
+        double centerX = x + textWidth / 2.0D;
+        double centerY = baselineY - fontMetrics.getAscent() + textHeight / 2.0D;
+        AffineTransform origin = g.getTransform();
+        try {
+            g.rotate(Math.PI, centerX, centerY);
+            g.drawString(text, x, baselineY);
+        } finally {
+            g.setTransform(origin);
+        }
+    }
+
+    private BufferedImage rotateCenter180(BufferedImage source) {
+        BufferedImage rotated = new BufferedImage(source.getWidth(), source.getHeight(), source.getType());
+        Graphics2D g = rotated.createGraphics();
+        try {
+            g.rotate(Math.PI, source.getWidth() / 2.0D, source.getHeight() / 2.0D);
+            g.drawImage(source, 0, 0, null);
+            return rotated;
+        } finally {
+            g.dispose();
+        }
+    }
+
+    private int mmToPx(int mm) {
+        return (int) Math.round(mm / MM_PER_INCH * TAG_DPI);
     }
 
     protected byte[] createBlackPng(int width, int height) {
