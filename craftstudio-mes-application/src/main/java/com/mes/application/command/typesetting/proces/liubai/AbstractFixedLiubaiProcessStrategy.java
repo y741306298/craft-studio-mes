@@ -1144,9 +1144,20 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double verticalY = top + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
         appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
         appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
-        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
-        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+        if (shouldBuildLeftRightLiubaiTagGroups()) {
+            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
+            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+        }
         return builder.toString();
+    }
+
+    /**
+     * 是否在左右两边生成留白工艺流标签分组。
+     *
+     * <p>默认保持常规留白四边都有标签；特殊工艺可关闭左右两边，只保留上下两边。</p>
+     */
+    protected boolean shouldBuildLeftRightLiubaiTagGroups() {
+        return true;
     }
 
 

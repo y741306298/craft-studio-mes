@@ -66,6 +66,17 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         return new ExpandMargins(-HORIZONTAL_INSET_MM, -HORIZONTAL_INSET_MM, VERTICAL_EXPAND_PER_SIDE_MM, VERTICAL_EXPAND_PER_SIDE_MM);
     }
 
+
+    @Override
+    protected boolean shouldBuildLeftRightLiubaiTagGroups() {
+        return false;
+    }
+
+    @Override
+    protected boolean shouldDrawInnerOriginalBorder() {
+        return false;
+    }
+
     @Override
     protected String resolveOriginalMaskRef(LiubaiProcessContext context, ProductionPiece piece) {
         YilabaoSize size = resolveYilabaoSize(context);
@@ -73,6 +84,8 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
             return null;
         }
         String imageUrl = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
+        double contentLeft = HORIZONTAL_INSET_MM;
+        double contentRight = size.widthMm - HORIZONTAL_INSET_MM;
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(size.widthMm)
                 + "\" height=\"" + format(size.heightMm)
                 + "\" viewBox=\"0 0 " + format(size.widthMm) + " " + format(size.heightMm)
@@ -80,8 +93,8 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
                 + "<g id=\"yilabao-original\" img=\"" + escapeAttr(imageUrl)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(imageUrl))
                 + "\" data-rotation=\"0\">\n"
-                + "<path d=\"M0 0 H" + format(size.widthMm) + " V" + format(size.heightMm)
-                + " H0 Z\" fill=\"#ffffff\" />\n"
+                + "<path d=\"M" + format(contentLeft) + " 0 H" + format(contentRight) + " V" + format(size.heightMm)
+                + " H" + format(contentLeft) + " Z\" fill=\"#ffffff\" />\n"
                 + "</g>\n"
                 + "</svg>";
     }
