@@ -231,9 +231,9 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         if (info == null) {
             return extInfos;
         }
-        String plateArea = formatPlateArea(info);
-        if (StringUtils.isNotBlank(plateArea)) {
-            extInfos.add(plateArea);
+        String plateSize = formatPlateSize(info);
+        if (StringUtils.isNotBlank(plateSize)) {
+            extInfos.add(plateSize);
         }
         if (StringUtils.isNotBlank(info.getTemplateCode()) && !"1/1".equals(info.getTemplateCode())) {
             extInfos.add(info.getTemplateCode());
@@ -242,12 +242,12 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return extInfos;
     }
 
-    private String formatPlateArea(TypesettingInfo info) {
+    private String formatPlateSize(TypesettingInfo info) {
         if (info == null || info.getElement() == null
                 || info.getElement().getWidth() == null || info.getElement().getHeight() == null) {
             return null;
         }
-        return formatTwoDecimal(info.getElement().getWidth().multiply(info.getElement().getHeight()));
+        return formatTwoDecimal(info.getElement().getWidth()) + "*" + formatTwoDecimal(info.getElement().getHeight());
     }
 
     private String formatTwoDecimal(BigDecimal value) {

@@ -1656,7 +1656,7 @@ public class AppTypesettingService {
 
         applySpecialCraftMarkStrategies(typesettingInfo, request);
         mergeFormeMarkResources(typesettingInfo, request);
-        syncTypesettingElementSizeAfterFormeExpand(typesettingInfo, request);
+        syncTypesettingElementSizeAfterFormeExpand(typesettingInfo, request, rawNestedSize);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
         ObjectStorageTempAuthConfig objectStorageTempAuthConfig = aliCloudAuthService.getObjectStorageTempAuthConfig(businessId);
@@ -1708,9 +1708,12 @@ public class AppTypesettingService {
      *
      * <p>confirmLayout / confirmPrint 会通过 forme.margin 在原 nestedSvg 四周追加标签条、定位点或辅助线区域。
      * 算法请求提交后、回调返回前，列表和后续打印任务仍读取 typesetting.element.width/height，
-     * 因此需要在所有外扩参数处理完成后，把展示/落库尺寸同步为原印版尺寸 + 四边 margin。</p>
+     * 因此需要在所有外扩参数处理完成后，把展示/落库尺寸同步为原印版尺寸 + 四边 margin。
+     * 同步时同样优先使用 nestedSvg 原始尺寸，避免反面印版的 element.width/height 被重复外扩。</p>
      */
-    private void syncTypesettingElementSizeAfterFormeExpand(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
+    private void syncTypesettingElementSizeAfterFormeExpand(TypesettingInfo typesettingInfo,
+                                                            FormeGenerationRequest formeRequest,
+                                                            SvgRootSize rawNestedSize) {
         if (typesettingInfo == null || typesettingInfo.getElement() == null || formeRequest == null
                 || formeRequest.getForme() == null || formeRequest.getForme().getMargin() == null) {
             return;
@@ -1719,11 +1722,13 @@ public class AppTypesettingService {
         if (element.getWidth() == null || element.getHeight() == null) {
             return;
         }
+        BigDecimal baseWidth = rawNestedSize != null ? rawNestedSize.width : element.getWidth();
+        BigDecimal baseHeight = rawNestedSize != null ? rawNestedSize.height : element.getHeight();
         FormeGenerationRequest.Margin margin = formeRequest.getForme().getMargin();
-        BigDecimal expandedWidth = element.getWidth()
+        BigDecimal expandedWidth = baseWidth
                 .add(BigDecimal.valueOf(defaultMarginValue(margin.getLeft())))
                 .add(BigDecimal.valueOf(defaultMarginValue(margin.getRight())));
-        BigDecimal expandedHeight = element.getHeight()
+        BigDecimal expandedHeight = baseHeight
                 .add(BigDecimal.valueOf(defaultMarginValue(margin.getTop())))
                 .add(BigDecimal.valueOf(defaultMarginValue(margin.getBottom())));
         element.setWidth(expandedWidth);
