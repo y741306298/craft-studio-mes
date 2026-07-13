@@ -250,7 +250,7 @@ public class AppOrderPreprocessingService {
 
 
     public String generateRectMaskSvgForStrategy(OrderItem orderItem) {
-        return generateAndUploadRectMaskSvg(orderItem);
+        return generateAndUploadPathMaskSvg(orderItem);
     }
 
     public void saveMaskToOrderItemForStrategy(OrderItem orderItem, String maskUrl) {
@@ -470,7 +470,7 @@ public class AppOrderPreprocessingService {
                 ? orderItem.getProductionImgFile().getFilePreview().getRaw()
                 : null;
 
-        String generatedMaskImgUrl = generateAndUploadRectMaskSvg(orderItem);
+        String generatedMaskImgUrl = generateAndUploadPathMaskSvg(orderItem);
         Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
         Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
 
@@ -563,7 +563,7 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
-    private String generateAndUploadRectMaskSvg(OrderItem orderItem) {
+    private String generateAndUploadPathMaskSvg(OrderItem orderItem) {
         Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
         Integer width = null;
         Integer height = null;
@@ -584,8 +584,8 @@ public class AppOrderPreprocessingService {
 
         String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
                 + "\" viewBox=\"0 0 " + width + " " + height + "\">"
-                + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"" + height
-                + "\" fill=\"#000000\" stroke=\"#000000\" stroke-width=\"1\"/>"
+                + "<path d=\"M0 0 H" + width + " V" + height
+                + " H0 Z\" fill=\"#000000\" stroke=\"#000000\" stroke-width=\"1\"/>"
                 + "</svg>";
 
         String manufacturerMetaId = StringUtils.isBlank(orderItem.getManufacturerId()) ? "default" : orderItem.getManufacturerId();
