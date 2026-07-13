@@ -131,6 +131,15 @@ public class AppTypesettingService {
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
+    private static final Pattern SVG_TAG_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern SVG_ROOT_SIZE_PATTERN = Pattern.compile(
+            "\\b(width|height)\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern SVG_VIEW_BOX_PATTERN = Pattern.compile(
+            "\\bviewBox\\s*=\\s*[\"']\\s*[-+]?\\d*\\.?\\d+\\s+[-+]?\\d*\\.?\\d+\\s+([-+]?\\d*\\.?\\d+)\\s+([-+]?\\d*\\.?\\d+)\\s*[\"']",
+            Pattern.CASE_INSENSITIVE
+    );
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM = 28;
@@ -1609,6 +1618,11 @@ public class AppTypesettingService {
         if (nestedWidth == null || nestedHeight == null) {
             throw new IllegalArgumentException("buildFormeGenerationRequest 缺少必要参数：nestedWidth 和 nestedHeight 必须有入参");
         }
+        SvgRootSize rawNestedSize = resolveRawNestedSize(typesettingInfo);
+        if (rawNestedSize != null) {
+            nestedWidth = rawNestedSize.width;
+            nestedHeight = rawNestedSize.height;
+        }
         BigDecimal marginHeight = BigDecimal.valueOf(TAG_STRIP_HEIGHT_MM);
 
         // 1) 选择当前 mode 对应的独立构建 service
@@ -1718,6 +1732,90 @@ public class AppTypesettingService {
 
     private int defaultMarginValue(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    /**
+     * 从 nestedSvg 根节点读取原始排版宽高。
+     *
+     * <p>confirmLayout / confirmPrint 为了列表展示会把 element.width/height 同步为扩边后的印版尺寸。
+     * 如果后续重复确认或生成 mirror 印版时继续使用已扩边的 element.height，底部标签条坐标会被重复推高
+     * （例如 double-side mirror 的 bottom mark 会多出上下 20mm 标签条）。因此构建算法请求时优先以
+     * nestedSvg 根节点尺寸作为真正的原始 nested 尺寸，下载或解析失败时再退回 element.width/height。</p>
+     */
+    private SvgRootSize resolveRawNestedSize(TypesettingInfo typesettingInfo) {
+        if (typesettingInfo == null || typesettingInfo.getElement() == null
+                || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
+            return null;
+        }
+        Path tempSvgPath = null;
+        try {
+            tempSvgPath = downloadNestedSvgToTempFile(typesettingInfo.getElement().getNestedSvg());
+            if (tempSvgPath == null) {
+                return null;
+            }
+            String svg = Files.readString(tempSvgPath, StandardCharsets.UTF_8);
+            return parseSvgRootSize(svg);
+        } catch (Exception e) {
+            log.warn("解析 nestedSvg 原始尺寸失败，回退使用 element.width/height: typesettingId={}, nestedSvg={}, error={}",
+                    typesettingInfo.getTypesettingId(), typesettingInfo.getElement().getNestedSvg(), e.getMessage());
+            return null;
+        } finally {
+            if (tempSvgPath != null) {
+                try {
+                    Files.deleteIfExists(tempSvgPath);
+                } catch (IOException e) {
+                    log.warn("删除 nestedSvg 临时文件失败: {}", tempSvgPath, e);
+                }
+            }
+        }
+    }
+
+    private SvgRootSize parseSvgRootSize(String svg) {
+        if (StringUtils.isBlank(svg)) {
+            return null;
+        }
+        Matcher svgTagMatcher = SVG_TAG_PATTERN.matcher(svg);
+        if (!svgTagMatcher.find()) {
+            return null;
+        }
+        String openTag = svgTagMatcher.group();
+        BigDecimal width = null;
+        BigDecimal height = null;
+        Matcher sizeMatcher = SVG_ROOT_SIZE_PATTERN.matcher(openTag);
+        while (sizeMatcher.find()) {
+            String attribute = sizeMatcher.group(1);
+            BigDecimal value = new BigDecimal(sizeMatcher.group(2));
+            if ("width".equalsIgnoreCase(attribute)) {
+                width = value;
+            } else if ("height".equalsIgnoreCase(attribute)) {
+                height = value;
+            }
+        }
+        if (width == null || height == null) {
+            Matcher viewBoxMatcher = SVG_VIEW_BOX_PATTERN.matcher(openTag);
+            if (viewBoxMatcher.find()) {
+                if (width == null) {
+                    width = new BigDecimal(viewBoxMatcher.group(1));
+                }
+                if (height == null) {
+                    height = new BigDecimal(viewBoxMatcher.group(2));
+                }
+            }
+        }
+        if (width == null || height == null || width.compareTo(BigDecimal.ZERO) <= 0 || height.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return new SvgRootSize(width, height);
+    }
+
+    private static class SvgRootSize {
+        private final BigDecimal width;
+        private final BigDecimal height;
+
+        private SvgRootSize(BigDecimal width, BigDecimal height) {
+            this.width = width;
+            this.height = height;
+        }
     }
 
     private void mergeFormeMarkResources(TypesettingInfo typesettingInfo, FormeGenerationRequest formeRequest) {
