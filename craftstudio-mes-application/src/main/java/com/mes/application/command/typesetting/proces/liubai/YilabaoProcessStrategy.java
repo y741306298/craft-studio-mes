@@ -23,8 +23,10 @@ import java.util.regex.Pattern;
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
     private static final String PROCESS_NAME = "配易拉宝";
+    private static final double CM_TO_MM = 10D;
     private static final double HORIZONTAL_INSET_MM = 10D;
-    private static final double VERTICAL_EXPAND_MM = 20D;
+    /** 上下各外扩 20mm。 */
+    private static final double VERTICAL_EXPAND_PER_SIDE_MM = 20D;
     private static final Pattern ACCESSORY_SIZE_PATTERN = Pattern.compile("^[\\p{IsHan}]+\\s*([0-9]+(?:\\.[0-9]+)?)\\s*[×xX*]\\s*([0-9]+(?:\\.[0-9]+)?)\\s*[\\p{IsHan}]+$");
 
     public YilabaoProcessStrategy(RestTemplate restTemplate, OssTagUploadService ossTagUploadService) {
@@ -58,7 +60,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected ExpandMargins resolveMargins(ProductionPiece piece, LiubaiProcessContext context) {
-        return new ExpandMargins(-HORIZONTAL_INSET_MM, -HORIZONTAL_INSET_MM, VERTICAL_EXPAND_MM, VERTICAL_EXPAND_MM);
+        return new ExpandMargins(-HORIZONTAL_INSET_MM, -HORIZONTAL_INSET_MM, VERTICAL_EXPAND_PER_SIDE_MM, VERTICAL_EXPAND_PER_SIDE_MM);
     }
 
     @Override
@@ -102,7 +104,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         if (!matcher.matches()) {
             return null;
         }
-        return new YilabaoSize(Double.parseDouble(matcher.group(1)), Double.parseDouble(matcher.group(2)));
+        return YilabaoSize.fromCentimeter(Double.parseDouble(matcher.group(1)), Double.parseDouble(matcher.group(2)));
     }
 
     private String findYilabaoAccessoryName(ProcedureFlow procedureFlow) {
@@ -163,6 +165,10 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         private YilabaoSize(double widthMm, double heightMm) {
             this.widthMm = widthMm;
             this.heightMm = heightMm;
+        }
+
+        private static YilabaoSize fromCentimeter(double widthCm, double heightCm) {
+            return new YilabaoSize(widthCm * CM_TO_MM, heightCm * CM_TO_MM);
         }
     }
 }
