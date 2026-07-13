@@ -172,26 +172,32 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     @Override
     public void process(LiubaiProcessContext context) {
         ProductionPiece piece = context.getProductionPiece();
-        if (piece == null || piece.getMaskImageFile() == null || StringUtils.isBlank(piece.getMaskImageFile().getRawFile())) {
+        if (piece == null) {
             return;
         }
-        String originalMaskUrl = piece.getMaskImageFile().getRawFile();
+        String originalMaskUrl = resolveOriginalMaskRef(context, piece);
+        if (StringUtils.isBlank(originalMaskUrl)) {
+            return;
+        }
         String originalSvg = resolveSvg(originalMaskUrl);
         if (StringUtils.isBlank(originalSvg)) {
             return;
         }
-        double originalWidth = resolveDimension(originalSvg, SVG_WIDTH_PATTERN, piece.getWidth());
-        double originalHeight = resolveDimension(originalSvg, SVG_HEIGHT_PATTERN, piece.getHeight());
+        double originalWidth = resolveOriginalWidth(context, originalSvg, piece);
+        double originalHeight = resolveOriginalHeight(context, originalSvg, piece);
         if (originalWidth <= 0 || originalHeight <= 0) {
             return;
         }
 
-        ExpandMargins margins = resolveMargins(piece, context.isSkipBloodEdges());
+        ExpandMargins margins = resolveMargins(piece, context);
         String pieceMongoId = ensureProductionPieceMongoId(piece);
         String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
-        String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
-        updateMarks(piece, markPngUrl);
+        String markPngUrl = null;
+        if (shouldBuildLiubaiMarkGroup()) {
+            markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
+            updateMarks(piece, markPngUrl);
+        }
         double expandedWidth = originalWidth + margins.left + margins.right;
         double expandedHeight = originalHeight + margins.top + margins.bottom;
         LiubaiTagAssets tagAssets = shouldUploadLiubaiTagAssets()
@@ -206,6 +212,32 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         updateMaskImageFile(piece, newMaskUrl);
         piece.setWidth(expandedWidth);
         piece.setHeight(expandedHeight);
+    }
+
+
+
+    /**
+     * 解析原始 mask 引用。默认读取 productionPiece.maskImageFile.rawFile；特殊工艺可以自行生成 SVG。
+     */
+    protected String resolveOriginalMaskRef(LiubaiProcessContext context, ProductionPiece piece) {
+        if (piece == null || piece.getMaskImageFile() == null) {
+            return null;
+        }
+        return piece.getMaskImageFile().getRawFile();
+    }
+
+    /**
+     * 解析处理前 SVG 宽度，默认优先读取 SVG width，其次使用生产工件宽度。
+     */
+    protected double resolveOriginalWidth(LiubaiProcessContext context, String originalSvg, ProductionPiece piece) {
+        return resolveDimension(originalSvg, SVG_WIDTH_PATTERN, piece == null ? null : piece.getWidth());
+    }
+
+    /**
+     * 解析处理前 SVG 高度，默认优先读取 SVG height，其次使用生产工件高度。
+     */
+    protected double resolveOriginalHeight(LiubaiProcessContext context, String originalSvg, ProductionPiece piece) {
+        return resolveDimension(originalSvg, SVG_HEIGHT_PATTERN, piece == null ? null : piece.getHeight());
     }
 
     /**
@@ -670,9 +702,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param skipBloodEdges 是否跳过出血边外扩
      * @return 四边最终外扩量
      */
-    private ExpandMargins resolveMargins(ProductionPiece piece, boolean skipBloodEdges) {
+    protected ExpandMargins resolveMargins(ProductionPiece piece, LiubaiProcessContext context) {
         double expandMm = expandMm();
         ExpandMargins margins = new ExpandMargins(expandMm, expandMm, expandMm, expandMm);
+        boolean skipBloodEdges = context != null && context.isSkipBloodEdges();
         if (!skipBloodEdges || piece == null) {
             return margins;
         }
@@ -795,7 +828,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param svgRef SVG 字符串或远程 URL
      * @return SVG 文本内容
      */
-    private String resolveSvg(String svgRef) {
+    protected String resolveSvg(String svgRef) {
         String trimmed = svgRef.trim();
         if (trimmed.startsWith("<svg") || trimmed.startsWith("<?xml")) {
             return trimmed;
@@ -811,7 +844,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param fallback SVG 缺失对应属性时使用的兜底值
      * @return 解析后的尺寸，解析失败且无兜底值时返回 0
      */
-    private double resolveDimension(String svg, Pattern pattern, Double fallback) {
+    protected double resolveDimension(String svg, Pattern pattern, Double fallback) {
         Matcher matcher = pattern.matcher(svg);
         if (matcher.find()) {
             return Double.parseDouble(matcher.group(1));
@@ -853,8 +886,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double newWidth = originalWidth + margins.left + margins.right;
         double newHeight = originalHeight + margins.top + margins.bottom;
         String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
-        String markSourceName = sourceName(markPngUrl);
-        String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
+        String liubaiGroup = shouldBuildLiubaiMarkGroup()
+                ? buildLiubaiGroup(pieceMongoId, markPngUrl, sourceName(markPngUrl), originalWidth, originalHeight, margins)
+                : "";
         String tagGroups = buildLiubaiTagGroups(pieceMongoId, tagAssets, originalWidth, originalHeight, margins);
         String markGroups = liubaiGroup + tagGroups;
         if (!containsGroup(originalSvg)) {
@@ -1001,7 +1035,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return isInlineSvg(originalMaskUrl) ? "" : originalMaskUrl;
     }
 
-    private String resolveImageFileRaw(ImageFile imageFile) {
+    protected String resolveImageFileRaw(ImageFile imageFile) {
         if (imageFile == null) {
             return null;
         }
@@ -1056,6 +1090,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
+    /**
+     * 是否生成留白外框 mark 分组。
+     *
+     * <p>默认保持常规留白外框；不需要外框和贴图描边的特殊工艺可关闭，仅保留其他标记分组。</p>
+     */
+    protected boolean shouldBuildLiubaiMarkGroup() {
+        return true;
     }
 
     /**
@@ -1114,9 +1157,20 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double verticalY = top + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
         appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
         appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
-        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
-        appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+        if (shouldBuildLeftRightLiubaiTagGroups()) {
+            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
+            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+        }
         return builder.toString();
+    }
+
+    /**
+     * 是否在左右两边生成留白工艺流标签分组。
+     *
+     * <p>默认保持常规留白四边都有标签；特殊工艺可关闭左右两边，只保留上下两边。</p>
+     */
+    protected boolean shouldBuildLeftRightLiubaiTagGroups() {
+        return true;
     }
 
 
@@ -1188,7 +1242,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param value 原始属性值
      * @return 可安全写入 XML 属性的值
      */
-    private String escapeAttr(String value) {
+    protected String escapeAttr(String value) {
         if (value == null) {
             return "";
         }
@@ -1206,7 +1260,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param value 原始数值
      * @return 格式化后的 SVG 数值字符串
      */
-    private String format(double value) {
+    protected String format(double value) {
         if (Math.abs(value - Math.rint(value)) < 0.000001D) {
             return String.valueOf((long) Math.rint(value));
         }
@@ -1254,6 +1308,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      */
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
         ImageFile maskFile = piece.getMaskImageFile();
+        if (maskFile == null) {
+            maskFile = new ImageFile();
+            piece.setMaskImageFile(maskFile);
+        }
         maskFile.setRawFile(maskUrl);
         FilePreview preview = maskFile.getFilePreview();
         if (preview == null) {
@@ -1340,15 +1398,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      *
      * <p>单位为毫米；callback 路线会根据出血边把其中某些边置为 0。</p>
      */
-    private static class ExpandMargins {
+    protected static class ExpandMargins {
         /** 左边外扩量。 */
-        private double left;
+        protected double left;
         /** 右边外扩量。 */
-        private double right;
+        protected double right;
         /** 上边外扩量。 */
-        private double top;
+        protected double top;
         /** 下边外扩量。 */
-        private double bottom;
+        protected double bottom;
 
         /**
          * 构造四边外扩量。
@@ -1358,7 +1416,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
          * @param top 上边外扩量
          * @param bottom 下边外扩量
          */
-        private ExpandMargins(double left, double right, double top, double bottom) {
+        protected ExpandMargins(double left, double right, double top, double bottom) {
             this.left = left;
             this.right = right;
             this.top = top;
