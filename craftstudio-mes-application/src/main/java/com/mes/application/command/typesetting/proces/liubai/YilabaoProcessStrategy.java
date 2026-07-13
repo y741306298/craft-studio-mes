@@ -4,6 +4,7 @@ import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
@@ -17,8 +18,8 @@ import java.util.regex.Pattern;
  * “配易拉宝”工艺策略。
  *
  * <p>易拉宝通常不会配置“异形切割”节点，无法复用异形切割产出的 mask SVG；
- * 因此该策略只精确匹配“配易拉宝”工艺节点，并根据该节点参数中的配件规格生成初始矩形 SVG，
- * 再复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
+ * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据订单物料 usageSize3D 的厘米宽高生成初始矩形 SVG，
+ * 缺失时再回退到该节点参数中的配件规格；随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
  */
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
@@ -35,12 +36,14 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     public boolean matches(LiubaiProcessContext context) {
-        return context != null && findYilabaoSize(context.getProcedureFlow()) != null;
+        return context != null
+                && findYilabaoNode(context.getProcedureFlow()) != null
+                && resolveYilabaoSize(context) != null;
     }
 
     @Override
     protected boolean matchesLiubaiValue(ProcedureFlow procedureFlow) {
-        return findYilabaoSize(procedureFlow) != null;
+        return findYilabaoNode(procedureFlow) != null && findAccessoryYilabaoSize(procedureFlow) != null;
     }
 
     @Override
@@ -65,7 +68,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected String resolveOriginalMaskRef(LiubaiProcessContext context, ProductionPiece piece) {
-        YilabaoSize size = findYilabaoSize(context == null ? null : context.getProcedureFlow());
+        YilabaoSize size = resolveYilabaoSize(context);
         if (size == null) {
             return null;
         }
@@ -85,17 +88,55 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected double resolveOriginalWidth(LiubaiProcessContext context, String originalSvg, ProductionPiece piece) {
-        YilabaoSize size = findYilabaoSize(context == null ? null : context.getProcedureFlow());
+        YilabaoSize size = resolveYilabaoSize(context);
         return size == null ? 0D : size.widthMm;
     }
 
     @Override
     protected double resolveOriginalHeight(LiubaiProcessContext context, String originalSvg, ProductionPiece piece) {
-        YilabaoSize size = findYilabaoSize(context == null ? null : context.getProcedureFlow());
+        YilabaoSize size = resolveYilabaoSize(context);
         return size == null ? 0D : size.heightMm;
     }
 
-    private YilabaoSize findYilabaoSize(ProcedureFlow procedureFlow) {
+    private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
+        YilabaoSize usageSize = resolveUsageSize(context == null ? null : context.getOrderItem());
+        if (usageSize != null) {
+            return usageSize;
+        }
+        return findAccessoryYilabaoSize(context == null ? null : context.getProcedureFlow());
+    }
+
+    private YilabaoSize resolveUsageSize(OrderItem orderItem) {
+        Object usageSize3D = orderItem == null || orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+        if (usageSize3D == null) {
+            return null;
+        }
+        Number widthCm = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
+        Number heightCm = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
+        if (widthCm == null || heightCm == null || widthCm.doubleValue() <= 0D || heightCm.doubleValue() <= 0D) {
+            return null;
+        }
+        return YilabaoSize.fromCentimeter(widthCm.doubleValue(), heightCm.doubleValue());
+    }
+
+    private Number invokeNumberGetter(Object target, String... getterNames) {
+        if (target == null || getterNames == null) {
+            return null;
+        }
+        for (String getterName : getterNames) {
+            try {
+                Object value = target.getClass().getMethod(getterName).invoke(target);
+                if (value instanceof Number number) {
+                    return number;
+                }
+            } catch (ReflectiveOperationException ignored) {
+                // 兼容不同 usageSize3D 值对象的 getter 命名。
+            }
+        }
+        return null;
+    }
+
+    private YilabaoSize findAccessoryYilabaoSize(ProcedureFlow procedureFlow) {
         String accessoryName = findYilabaoAccessoryName(procedureFlow);
         if (StringUtils.isBlank(accessoryName)) {
             return null;
