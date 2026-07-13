@@ -193,8 +193,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         String pieceMongoId = ensureProductionPieceMongoId(piece);
         String productionPieceId = ensureProductionPieceBusinessId(piece);
         String manufacturerMetaId = StringUtils.isBlank(piece.getManufacturerId()) ? "default" : piece.getManufacturerId();
-        String markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
-        updateMarks(piece, markPngUrl);
+        String markPngUrl = null;
+        if (shouldBuildLiubaiMarkGroup()) {
+            markPngUrl = uploadOuterRectMarkPng(productionPieceId, manufacturerMetaId, originalWidth, originalHeight, margins);
+            updateMarks(piece, markPngUrl);
+        }
         double expandedWidth = originalWidth + margins.left + margins.right;
         double expandedHeight = originalHeight + margins.top + margins.bottom;
         LiubaiTagAssets tagAssets = shouldUploadLiubaiTagAssets()
@@ -883,8 +886,9 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double newWidth = originalWidth + margins.left + margins.right;
         double newHeight = originalHeight + margins.top + margins.bottom;
         String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
-        String markSourceName = sourceName(markPngUrl);
-        String liubaiGroup = buildLiubaiGroup(pieceMongoId, markPngUrl, markSourceName, originalWidth, originalHeight, margins);
+        String liubaiGroup = shouldBuildLiubaiMarkGroup()
+                ? buildLiubaiGroup(pieceMongoId, markPngUrl, sourceName(markPngUrl), originalWidth, originalHeight, margins)
+                : "";
         String tagGroups = buildLiubaiTagGroups(pieceMongoId, tagAssets, originalWidth, originalHeight, margins);
         String markGroups = liubaiGroup + tagGroups;
         if (!containsGroup(originalSvg)) {
@@ -1086,6 +1090,15 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
+    /**
+     * 是否生成留白外框 mark 分组。
+     *
+     * <p>默认保持常规留白外框；不需要外框和贴图描边的特殊工艺可关闭，仅保留其他标记分组。</p>
+     */
+    protected boolean shouldBuildLiubaiMarkGroup() {
+        return true;
     }
 
     /**

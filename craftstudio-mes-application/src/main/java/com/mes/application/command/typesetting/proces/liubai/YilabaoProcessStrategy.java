@@ -73,6 +73,11 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     @Override
+    protected boolean shouldBuildLiubaiMarkGroup() {
+        return false;
+    }
+
+    @Override
     protected boolean shouldDrawInnerOriginalBorder() {
         return false;
     }
