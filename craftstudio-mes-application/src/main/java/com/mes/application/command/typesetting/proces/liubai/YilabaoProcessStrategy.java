@@ -84,8 +84,9 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
             return null;
         }
         String imageUrl = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
-        double contentLeft = HORIZONTAL_INSET_MM;
-        double contentRight = size.widthMm - HORIZONTAL_INSET_MM;
+        double contentWidth = resolveOriginalContentWidth(piece, size);
+        double contentLeft = Math.max(0D, (size.widthMm - contentWidth) / 2D);
+        double contentRight = contentLeft + contentWidth;
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + format(size.widthMm)
                 + "\" height=\"" + format(size.heightMm)
                 + "\" viewBox=\"0 0 " + format(size.widthMm) + " " + format(size.heightMm)
@@ -109,6 +110,25 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     protected double resolveOriginalHeight(LiubaiProcessContext context, String originalSvg, ProductionPiece piece) {
         YilabaoSize size = resolveYilabaoSize(context);
         return size == null ? 0D : size.heightMm;
+    }
+
+    private double resolveOriginalContentWidth(ProductionPiece piece, YilabaoSize size) {
+        double reducedWidth = Math.max(0D, size.widthMm - HORIZONTAL_INSET_MM * 2D);
+        double pieceWidth = resolvePieceWidth(piece);
+        if (pieceWidth > 0D && pieceWidth <= reducedWidth) {
+            return pieceWidth;
+        }
+        return reducedWidth;
+    }
+
+    private double resolvePieceWidth(ProductionPiece piece) {
+        if (piece == null) {
+            return 0D;
+        }
+        if (piece.getTrueWidth() != null && piece.getTrueWidth() > 0D) {
+            return piece.getTrueWidth();
+        }
+        return piece.getWidth() == null ? 0D : piece.getWidth();
     }
 
     private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
