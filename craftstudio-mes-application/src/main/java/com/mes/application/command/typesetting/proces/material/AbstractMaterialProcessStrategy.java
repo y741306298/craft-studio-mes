@@ -32,7 +32,6 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
     private static final Pattern SVG_WIDTH_PATTERN = Pattern.compile("width\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_HEIGHT_PATTERN = Pattern.compile("height\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']", Pattern.CASE_INSENSITIVE);
 
-    private final RestTemplate restTemplate;
     private final OssTagUploadService ossTagUploadService;
     private final ManufacturerMaterialLayoutSpecCfgService layoutSpecCfgService;
 
@@ -41,7 +40,6 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
                                               OssTagUploadService ossTagUploadService,
                                               ManufacturerMaterialLayoutSpecCfgService layoutSpecCfgService) {
         super(expandCm, restTemplate, ossTagUploadService);
-        this.restTemplate = restTemplate;
         this.ossTagUploadService = ossTagUploadService;
         this.layoutSpecCfgService = layoutSpecCfgService;
     }
@@ -149,22 +147,6 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         return value == null ? 0D : value;
     }
 
-    private String resolveSvg(String svgRef) {
-        String trimmed = svgRef.trim();
-        if (trimmed.startsWith("<svg") || trimmed.startsWith("<?xml")) {
-            return trimmed;
-        }
-        return restTemplate.getForObject(trimmed, String.class);
-    }
-
-    private double resolveDimension(String svg, Pattern pattern, Double fallback) {
-        Matcher matcher = pattern.matcher(svg);
-        if (matcher.find()) {
-            return Double.parseDouble(matcher.group(1));
-        }
-        return fallback == null ? 0D : fallback;
-    }
-
     private String updateRootSize(String svg, double width, double height) {
         Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
         if (!matcher.find()) {
@@ -185,21 +167,6 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
-    }
-
-    private String format(double value) {
-        BigDecimal decimal = BigDecimal.valueOf(value).stripTrailingZeros();
-        return decimal.compareTo(BigDecimal.ZERO) == 0 ? "0" : decimal.toPlainString();
-    }
-
-    private String escapeAttr(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("&", "&amp;")
-                .replace("\"", "&quot;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
     }
 
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
