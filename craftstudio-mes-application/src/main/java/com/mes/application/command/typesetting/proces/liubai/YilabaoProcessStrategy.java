@@ -18,8 +18,8 @@ import java.util.regex.Pattern;
  * “配易拉宝”工艺策略。
  *
  * <p>易拉宝通常不会配置“异形切割”节点，无法复用异形切割产出的 mask SVG；
- * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据订单物料 usageSize3D 的厘米宽高生成初始矩形 SVG，
- * 缺失时再回退到该节点参数中的配件规格；随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
+ * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据该节点参数中的配件规格生成初始矩形 SVG，
+ * 缺失时再回退到订单物料 usageSize3D 的厘米宽高；随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
  */
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
@@ -131,11 +131,11 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
-        YilabaoSize usageSize = resolveUsageSize(context == null ? null : context.getOrderItem());
-        if (usageSize != null) {
-            return usageSize;
+        YilabaoSize accessorySize = findAccessoryYilabaoSize(context == null ? null : context.getProcedureFlow());
+        if (accessorySize != null) {
+            return accessorySize;
         }
-        return findAccessoryYilabaoSize(context == null ? null : context.getProcedureFlow());
+        return resolveUsageSize(context == null ? null : context.getOrderItem());
     }
 
     private YilabaoSize resolveUsageSize(OrderItem orderItem) {
