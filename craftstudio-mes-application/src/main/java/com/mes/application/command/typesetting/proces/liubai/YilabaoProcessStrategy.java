@@ -14,15 +14,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * “易拉宝”工艺策略。
+ * “配易拉宝”工艺策略。
  *
  * <p>易拉宝通常不会配置“异形切割”节点，无法复用异形切割产出的 mask SVG；
- * 因此该策略直接根据“易拉宝”节点参数中的配件规格生成初始矩形 SVG，再复用固定留白基类的
- * path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
+ * 因此该策略只精确匹配“配易拉宝”工艺节点，并根据该节点参数中的配件规格生成初始矩形 SVG，
+ * 再复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
  */
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
-    private static final String KEYWORD = "易拉宝";
+    private static final String PROCESS_NAME = "配易拉宝";
     private static final double HORIZONTAL_INSET_MM = 10D;
     private static final double VERTICAL_EXPAND_MM = 20D;
     private static final Pattern ACCESSORY_SIZE_PATTERN = Pattern.compile("^[\\p{IsHan}]+\\s*([0-9]+(?:\\.[0-9]+)?)\\s*[×xX*]\\s*([0-9]+(?:\\.[0-9]+)?)\\s*[\\p{IsHan}]+$");
@@ -53,7 +53,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected String[] matchKeywords() {
-        return new String[]{KEYWORD};
+        return new String[]{PROCESS_NAME};
     }
 
     @Override
@@ -126,7 +126,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
             return null;
         }
         return procedureFlow.getNodes().stream()
-                .filter(node -> node != null && StringUtils.isNotBlank(node.getNodeName()) && node.getNodeName().contains(KEYWORD))
+                .filter(node -> node != null && StringUtils.isNotBlank(node.getNodeName()) && PROCESS_NAME.equals(node.getNodeName().trim()))
                 .findFirst()
                 .orElse(null);
     }
