@@ -125,10 +125,9 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         if (piece == null) {
             return 0D;
         }
-        if (piece.getTrueWidth() != null && piece.getTrueWidth() > 0D) {
-            return piece.getTrueWidth();
-        }
-        return piece.getWidth() == null ? 0D : piece.getWidth();
+        double width = piece.getWidth() == null ? 0D : piece.getWidth();
+        double trueWidth = piece.getTrueWidth() == null ? 0D : piece.getTrueWidth();
+        return Math.max(width, trueWidth);
     }
 
     private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
