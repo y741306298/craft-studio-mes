@@ -60,7 +60,7 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(request);
+        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(request, allItems);
         sanitizeProcedureFlow(materialScopedItems);
         TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult());
         fillOrgInfo(response, request);
@@ -117,7 +117,7 @@ public class TypesettingController {
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(query);
+        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(query, allItems);
         sanitizeProcedureFlow(materialScopedItems);
         TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult());
         fillOrgInfo(response, query);
@@ -379,7 +379,10 @@ public class TypesettingController {
      * <p>processingFlowList 需要先按材料筛选，再返回该材料下包含的全部原始工艺；
      * 因此这里复用列表查询条件，但清空 processingName，避免工艺下拉被当前工艺筛选项反向收窄。</p>
      */
-    private List<TypesettingProductionPieceVO> findMaterialScopedItemsForProcessingFlowOptions(TypesettingQuery request) {
+    private List<TypesettingProductionPieceVO> findMaterialScopedItemsForProcessingFlowOptions(TypesettingQuery request, List<TypesettingProductionPieceVO> allItems) {
+        if (request == null || request.getProcessingName() == null || request.getProcessingName().isEmpty()) {
+            return allItems == null ? new ArrayList<>() : new ArrayList<>(allItems);
+        }
         TypesettingQuery materialScopedQuery = copyTypesettingQuery(request);
         materialScopedQuery.setProcessingName(null);
         TypesettingPiecesQueryResult materialScopedResult = appTypesettingService.findTypesettingAndProductionPieces(materialScopedQuery);

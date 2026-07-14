@@ -280,7 +280,7 @@ public class AppTypesettingService {
         if (!queryTypesettingOnly) {
             List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByProcessingConditions(
                     query.getManufacturerMetaId(),
-                    null,
+                    ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getOrderItemId(),
@@ -303,7 +303,7 @@ public class AppTypesettingService {
         if (!queryPartOnly && !queryProductionPiecesByRoute) {
             List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
                     query.getManufacturerMetaId(),
-                    null,
+                    TypesettingStatus.PENDING.getCode(),
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getStartTime(),
