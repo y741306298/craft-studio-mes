@@ -1111,6 +1111,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     /**
+     * 留白外框分组是否允许子元素参与 PLT 输出。
+     *
+     * <p>常规留白保持历史行为；仅当下游会按父级 {@code require-plt} 过滤子元素时，
+     * 特殊工艺可打开该分组，同时再由具体 path 控制实际进入 PLT 的几何元素。</p>
+     */
+    protected boolean liubaiGroupRequirePlt() {
+        return false;
+    }
+
+    /**
      * 是否生成留白外框 mark 分组。
      *
      * <p>默认保持常规留白外框；不需要外框和贴图描边的特殊工艺可关闭，仅保留其他标记分组。</p>
@@ -1163,7 +1173,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
-                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
+                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"" + liubaiGroupRequirePlt() + "\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"" + outerBorderStrokeColorSvg() + "\" stroke-width=\""
                 + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n"
