@@ -118,7 +118,7 @@
 - 不改动原分页接口 `POST /api/manufacturerSide/typesetting/list` 的行为；本接口是新增的全量范围查询入口。
 - 当传 `typesettingId`：
   - 查询排版数据。
-  - 返回 `typesettingId` 与入参匹配的数据，也包含同一基础 ID 的 `-Mirror` 数据。
+  - 返回 `typesettingId` 与入参精确匹配的数据；传入基础 ID 时不会同时返回 `基础ID-Mirror`。
   - 只返回满足待排版条件的数据：`status = PENDING` 且 `leaveQuantity > 0`。
 - 当传 `orderId`：
   - 先查询该订单下的订单项。
@@ -136,7 +136,7 @@
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---:|---|
 | manufacturerMetaId | string | 是 | 工厂元数据 ID |
-| typesettingId | string | 条件必填之一 | 排版业务 ID；传入基础 ID 时会同时匹配 `基础ID-Mirror` |
+| typesettingId | string | 条件必填之一 | 排版业务 ID；按完整 ID 精确匹配，`基础ID` 与 `基础ID-Mirror` 分别查询 |
 | orderId | string | 条件必填之一 | 订单业务 ID；后端先展开为订单项再查生产工件 |
 | orderItemId | string | 条件必填之一 | 订单项业务 ID；直接查生产工件 |
 | materialName | string | 否 | 材料名称，模糊匹配 `materialConfig.materialSnapshot.name` |
@@ -517,7 +517,7 @@ GET /api/manufacturerSide/typesetting/confirming/listByTypesettingId?manufacture
 ## 5. 对接注意事项
 
 1. 新接口均为全量返回，不需要传 `current` / `size`。
-2. `typesettingId` 查询会归一匹配 `-Mirror`，例如传 `TS_001` 会匹配 `TS_001` 和 `TS_001-Mirror`。
+2. `POST /api/manufacturerSide/typesetting/listById` 的 `typesettingId` 按完整 ID 精确匹配；如需反面文件需显式传 `TS_001-Mirror`。`GET /api/manufacturerSide/typesetting/confirming/listByTypesettingId` 仍会按基础 ID 包含 `-Mirror` 记录。
 3. 排版范围查询中，三种 ID 一次只能选择一种：
    - `typesettingId`：查待排版的排版数据。
    - `orderId`：先查订单项，再查待排版生产工件。
