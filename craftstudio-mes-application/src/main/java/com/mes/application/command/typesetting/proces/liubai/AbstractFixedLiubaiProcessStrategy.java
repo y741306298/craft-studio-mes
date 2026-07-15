@@ -1077,7 +1077,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "viewBox",
                 format(-margins.left) + " " + format(-margins.top) + " " + format(newWidth) + " " + format(newHeight));
         updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "version", "1.1");
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "require-plt", "true");
+        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "require-plt", String.valueOf(rootRequirePlt()));
         return svg.substring(0, matcher.start()) + updatedOpenTag + svg.substring(matcher.end());
     }
 
@@ -1090,6 +1090,24 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
+    /**
+     * 根 SVG 是否需要参与 PLT 输出。
+     *
+     * <p>常规留白保持历史行为；只希望外扩矩形进入 PLT 的特殊工艺可关闭根节点 PLT 标记。</p>
+     */
+    protected boolean rootRequirePlt() {
+        return true;
+    }
+
+    /**
+     * 留白外扩矩形 path 是否需要参与 PLT 输出。
+     *
+     * <p>常规留白保持外框分组不进 PLT；特殊工艺可只让外扩矩形进 PLT。</p>
+     */
+    protected boolean liubaiOuterRectRequirePlt() {
+        return false;
     }
 
     /**
@@ -1134,7 +1152,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
                 + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"#111111\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n"
+                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n"
                 + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
@@ -1217,7 +1235,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
-                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n";
+                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n";
     }
 
     /**
