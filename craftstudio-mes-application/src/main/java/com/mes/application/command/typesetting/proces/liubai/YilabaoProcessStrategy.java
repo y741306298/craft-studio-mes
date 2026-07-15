@@ -74,12 +74,38 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected boolean shouldBuildLiubaiMarkGroup() {
-        return false;
+        return true;
     }
 
     @Override
     protected boolean shouldDrawInnerOriginalBorder() {
         return false;
+    }
+
+    @Override
+    protected boolean rootRequirePlt() {
+        return false;
+    }
+
+    @Override
+    protected boolean liubaiOuterRectRequirePlt() {
+        return true;
+    }
+
+
+    @Override
+    protected String outerRectFillAttributes() {
+        return "fill=\"none\"";
+    }
+
+    @Override
+    protected String outerBorderStrokeColorSvg() {
+        return "#ffffff";
+    }
+
+    @Override
+    protected java.awt.Color outerBorderColor() {
+        return java.awt.Color.WHITE;
     }
 
     @Override
@@ -98,9 +124,9 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
                 + "\" version=\"1.1\">\n"
                 + "<g id=\"yilabao-original\" img=\"" + escapeAttr(imageUrl)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(imageUrl))
-                + "\" data-rotation=\"0\">\n"
+                + "\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(contentLeft) + " 0 H" + format(contentRight) + " V" + format(size.heightMm)
-                + " H" + format(contentLeft) + " Z\" fill=\"#ffffff\" />\n"
+                + " H" + format(contentLeft) + " Z\" fill=\"#ffffff\" require-plt=\"false\" />\n"
                 + "</g>\n"
                 + "</svg>";
     }
