@@ -374,7 +374,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             Graphics2D graphics = image.createGraphics();
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics.setStroke(new BasicStroke(borderStrokeWidthPx()));
-            graphics.setColor(Color.BLACK);
+            graphics.setColor(outerBorderColor());
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
             drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm, margins);
             drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
@@ -1077,7 +1077,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "viewBox",
                 format(-margins.left) + " " + format(-margins.top) + " " + format(newWidth) + " " + format(newHeight));
         updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "version", "1.1");
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "require-plt", "true");
+        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "require-plt", String.valueOf(rootRequirePlt()));
         return svg.substring(0, matcher.start()) + updatedOpenTag + svg.substring(matcher.end());
     }
 
@@ -1090,6 +1090,34 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
+    }
+
+    /**
+     * 根 SVG 是否需要参与 PLT 输出。
+     *
+     * <p>常规留白保持历史行为；只希望外扩矩形进入 PLT 的特殊工艺可关闭根节点 PLT 标记。</p>
+     */
+    protected boolean rootRequirePlt() {
+        return true;
+    }
+
+    /**
+     * 留白外扩矩形 path 是否需要参与 PLT 输出。
+     *
+     * <p>常规留白保持外框分组不进 PLT；特殊工艺可只让外扩矩形进 PLT。</p>
+     */
+    protected boolean liubaiOuterRectRequirePlt() {
+        return false;
+    }
+
+    /**
+     * 留白外框分组是否允许子元素参与 PLT 输出。
+     *
+     * <p>常规留白保持历史行为；仅当下游会按父级 {@code require-plt} 过滤子元素时，
+     * 特殊工艺可打开该分组，同时再由具体 path 控制实际进入 PLT 的几何元素。</p>
+     */
+    protected boolean liubaiGroupRequirePlt() {
+        return false;
     }
 
     /**
@@ -1114,10 +1142,24 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 留白外框 path 的填充属性。
      *
-     * <p>固定尺寸留白默认保持历史半透明填充；只需要黑色描边的工艺可返回 {@code fill="none"}。</p>
+     * <p>固定尺寸留白默认保持历史半透明填充；只需要描边的工艺可返回 {@code fill="none"}。</p>
      */
     protected String outerRectFillAttributes() {
         return "fill=\"#d1495b\" fill-opacity=\"0.82\"";
+    }
+
+    /**
+     * 留白外框在 SVG 中使用的描边颜色。
+     */
+    protected String outerBorderStrokeColorSvg() {
+        return "#111111";
+    }
+
+    /**
+     * 留白外框在 PNG 标记图中使用的描边颜色。
+     */
+    protected Color outerBorderColor() {
+        return Color.BLACK;
     }
 
     private String buildLiubaiGroup(String pieceMongoId,
@@ -1131,10 +1173,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         double right = originalWidth + margins.right;
         double bottom = originalHeight + margins.bottom;
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
-                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
+                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"" + liubaiGroupRequirePlt() + "\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"#111111\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n"
+                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"" + outerBorderStrokeColorSvg() + "\" stroke-width=\""
+                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n"
                 + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)
                 + "</g>\n";
@@ -1217,7 +1259,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             return "";
         }
         return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
-                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" />\n";
+                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n";
     }
 
     /**
