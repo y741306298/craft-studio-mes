@@ -1531,11 +1531,16 @@ public class AppTypesettingService {
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
             FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            String formeOpRemark = "FORME_OP:LAYOUT";
+            // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setRemark(formeOpRemark);
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
             String formeRequestJson = JSON.toJSONString(formeRequest);
             log.info("formeRequest========:{}", formeRequestJson);
             algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
 
-            String formeOpRemark = "FORME_OP:LAYOUT";
             TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
             if (mirrorTypesettingInfo != null) {
                 if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
@@ -1557,12 +1562,6 @@ public class AppTypesettingService {
                 log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
                 algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
             }
-
-            // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-            typesettingInfo.setRemark(formeOpRemark);
-            mergeExistingMarksBeforeUpdate(typesettingInfo);
-            domainTypesettingService.updateTypesetting(typesettingInfo);
 
             LayoutConfirmResult result = new LayoutConfirmResult();
             result.setSuccess(true);
