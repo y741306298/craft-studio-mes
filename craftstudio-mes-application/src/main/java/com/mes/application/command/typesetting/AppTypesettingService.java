@@ -460,17 +460,7 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(candidate)) {
             return false;
         }
-        String normalizedRequest = normalizeTypesettingId(requestTypesettingId);
-        return normalizeTypesettingId(candidate).equalsIgnoreCase(normalizedRequest);
-    }
-
-    private String normalizeTypesettingId(String typesettingId) {
-        String normalized = typesettingId == null ? "" : typesettingId.trim();
-        String mirrorSuffix = "-Mirror";
-        if (normalized.toLowerCase().endsWith(mirrorSuffix.toLowerCase())) {
-            return normalized.substring(0, normalized.length() - mirrorSuffix.length());
-        }
-        return normalized;
+        return candidate.trim().equals(requestTypesettingId.trim());
     }
 
     private void applyECommerceGroupId(TypesettingProductionPieceVO vo, ProductionPiece piece, TypesettingQuery query, Map<String, String> orderGroupIdCache) {
