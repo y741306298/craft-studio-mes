@@ -9,10 +9,12 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,6 +37,7 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
             return null;
         }
         TypesettingInfo mirror = JSON.parseObject(JSON.toJSONString(origin), TypesettingInfo.class);
+        restoreMissingProcedureFlowNodes(origin, mirror);
         mirror.setId(null);
         mirror.setTypesettingId(buildMirrorTypesettingId(origin));
         mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
@@ -49,6 +52,34 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
             }
         }
         return mirror;
+    }
+
+
+    private void restoreMissingProcedureFlowNodes(TypesettingInfo origin, TypesettingInfo mirror) {
+        if (origin == null || origin.getProcedureFlow() == null || origin.getProcedureFlow().getNodes() == null
+                || mirror == null || mirror.getProcedureFlow() == null || mirror.getProcedureFlow().getNodes() == null) {
+            return;
+        }
+        List<ProcedureFlowNode> originNodes = origin.getProcedureFlow().getNodes();
+        List<ProcedureFlowNode> mirrorNodes = mirror.getProcedureFlow().getNodes();
+        int nodeCount = Math.min(originNodes.size(), mirrorNodes.size());
+        for (int i = 0; i < nodeCount; i++) {
+            ProcedureFlowNode mirrorNode = mirrorNodes.get(i);
+            if (mirrorNode != null && StringUtils.isNotBlank(mirrorNode.getNodeName())) {
+                continue;
+            }
+            ProcedureFlowNode originNode = originNodes.get(i);
+            if (originNode != null) {
+                mirrorNodes.set(i, copyProcedureFlowNode(originNode));
+            }
+        }
+        mirror.getProcedureFlow().setTotalNodes(mirrorNodes.size());
+    }
+
+    private ProcedureFlowNode copyProcedureFlowNode(ProcedureFlowNode source) {
+        ProcedureFlowNode target = new ProcedureFlowNode();
+        BeanUtils.copyProperties(source, target);
+        return target;
     }
 
     private String buildMirrorTypesettingId(TypesettingInfo origin) {
