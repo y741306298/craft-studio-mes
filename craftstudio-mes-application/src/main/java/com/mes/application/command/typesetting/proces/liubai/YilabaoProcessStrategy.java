@@ -83,6 +83,16 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     @Override
+    protected boolean rootRequirePlt() {
+        return false;
+    }
+
+    @Override
+    protected boolean liubaiOuterRectRequirePlt() {
+        return true;
+    }
+
+    @Override
     protected String resolveOriginalMaskRef(LiubaiProcessContext context, ProductionPiece piece) {
         YilabaoSize size = resolveYilabaoSize(context);
         if (size == null) {
@@ -98,9 +108,9 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
                 + "\" version=\"1.1\">\n"
                 + "<g id=\"yilabao-original\" img=\"" + escapeAttr(imageUrl)
                 + "\" data-source-name=\"" + escapeAttr(sourceName(imageUrl))
-                + "\" data-rotation=\"0\">\n"
+                + "\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(contentLeft) + " 0 H" + format(contentRight) + " V" + format(size.heightMm)
-                + " H" + format(contentLeft) + " Z\" fill=\"#ffffff\" />\n"
+                + " H" + format(contentLeft) + " Z\" fill=\"#ffffff\" require-plt=\"false\" />\n"
                 + "</g>\n"
                 + "</svg>";
     }
