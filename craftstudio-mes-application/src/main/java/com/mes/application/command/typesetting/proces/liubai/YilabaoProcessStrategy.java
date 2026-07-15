@@ -83,11 +83,6 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     @Override
-    protected boolean rootRequirePlt() {
-        return false;
-    }
-
-    @Override
     protected boolean liubaiOuterRectRequirePlt() {
         return true;
     }
