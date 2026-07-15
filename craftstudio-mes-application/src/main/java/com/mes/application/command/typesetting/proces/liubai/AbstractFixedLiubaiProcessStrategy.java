@@ -374,7 +374,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             Graphics2D graphics = image.createGraphics();
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics.setStroke(new BasicStroke(borderStrokeWidthPx()));
-            graphics.setColor(Color.BLACK);
+            graphics.setColor(outerBorderColor());
             graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
             drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm, margins);
             drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
@@ -1132,10 +1132,24 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     /**
      * 留白外框 path 的填充属性。
      *
-     * <p>固定尺寸留白默认保持历史半透明填充；只需要黑色描边的工艺可返回 {@code fill="none"}。</p>
+     * <p>固定尺寸留白默认保持历史半透明填充；只需要描边的工艺可返回 {@code fill="none"}。</p>
      */
     protected String outerRectFillAttributes() {
         return "fill=\"#d1495b\" fill-opacity=\"0.82\"";
+    }
+
+    /**
+     * 留白外框在 SVG 中使用的描边颜色。
+     */
+    protected String outerBorderStrokeColorSvg() {
+        return "#111111";
+    }
+
+    /**
+     * 留白外框在 PNG 标记图中使用的描边颜色。
+     */
+    protected Color outerBorderColor() {
+        return Color.BLACK;
     }
 
     private String buildLiubaiGroup(String pieceMongoId,
@@ -1151,7 +1165,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
                 + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\">\n"
                 + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"#111111\" stroke-width=\""
+                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"" + outerBorderStrokeColorSvg() + "\" stroke-width=\""
                 + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n"
                 + buildDashedInsetBorderPath(left, top, right, bottom, margins)
                 + buildInnerOriginalBorderPath(originalWidth, originalHeight)

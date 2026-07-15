@@ -74,7 +74,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected boolean shouldBuildLiubaiMarkGroup() {
-        return false;
+        return true;
     }
 
     @Override
@@ -90,6 +90,22 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     @Override
     protected boolean liubaiOuterRectRequirePlt() {
         return true;
+    }
+
+
+    @Override
+    protected String outerRectFillAttributes() {
+        return "fill=\"none\"";
+    }
+
+    @Override
+    protected String outerBorderStrokeColorSvg() {
+        return "#ffffff";
+    }
+
+    @Override
+    protected java.awt.Color outerBorderColor() {
+        return java.awt.Color.WHITE;
     }
 
     @Override
