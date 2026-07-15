@@ -33,6 +33,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
     private List<TypesettingSourceCell> typesettingCells;
     private ProcedureFlow procedureFlow;
     private String remark;
+    private String failReason;
     private String deviceCode;
     private String deviceName;
     private String maskSvg;
@@ -69,6 +70,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         typesettingInfo.setTypesettingCells(this.typesettingCells);
         typesettingInfo.setProcedureFlow(this.procedureFlow);
         typesettingInfo.setRemark(this.remark);
+        typesettingInfo.setFailReason(this.failReason);
         typesettingInfo.setDeviceCode(this.deviceCode);
         typesettingInfo.setDeviceName(this.deviceName);
         typesettingInfo.setMaskSvg(this.maskSvg);
@@ -104,6 +106,7 @@ public class TypesettingPo extends BasePO<TypesettingInfo> {
         this.typesettingCells = _do.getTypesettingCells();
         this.procedureFlow = _do.getProcedureFlow();
         this.remark = _do.getRemark();
+        this.failReason = _do.getFailReason();
         this.deviceCode = _do.getDeviceCode();
         this.deviceName = _do.getDeviceName();
         this.maskSvg = _do.getMaskSvg();

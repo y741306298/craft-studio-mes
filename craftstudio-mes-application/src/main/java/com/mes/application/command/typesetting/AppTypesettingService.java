@@ -1535,6 +1535,7 @@ public class AppTypesettingService {
             // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
             typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
             typesettingInfo.setRemark(formeOpRemark);
+            typesettingInfo.setFailReason(null);
             mergeExistingMarksBeforeUpdate(typesettingInfo);
             domainTypesettingService.updateTypesetting(typesettingInfo);
             String formeRequestJson = JSON.toJSONString(formeRequest);
@@ -1547,6 +1548,7 @@ public class AppTypesettingService {
                     mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
                 }
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
+                mirrorTypesettingInfo.setFailReason(null);
                 mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
                 FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
@@ -1568,6 +1570,7 @@ public class AppTypesettingService {
             result.setMessage("确认排版任务已提交，等待回调");
             return result;
         } catch (TypesettingPreAlgorithmValidationException e) {
+            markTypesettingFailed(typesettingInfo, e.getMessage());
             return LayoutConfirmResult.failed(e.getMessage());
         } catch (Exception e) {
             String failureReason = "确认排版处理失败：" + resolveExceptionMessage(e);
@@ -2730,6 +2733,7 @@ public class AppTypesettingService {
                     mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
                 }
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
+                mirrorTypesettingInfo.setFailReason(null);
                 mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
                 mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
                 ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
@@ -2752,6 +2756,7 @@ public class AppTypesettingService {
             ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
             typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
             typesettingInfo.setRemark(formeOpRemark);
+            typesettingInfo.setFailReason(null);
             typesettingInfo.setDeviceCode(request.getDeviceCode());
             typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
             mergeExistingMarksBeforeUpdate(typesettingInfo);
@@ -2766,6 +2771,7 @@ public class AppTypesettingService {
             result.setMessage("确认打印任务已提交，等待回调");
             return result;
         } catch (TypesettingPreAlgorithmValidationException e) {
+            markTypesettingFailed(typesettingInfo, e.getMessage());
             ConfirmPrintResult result = new ConfirmPrintResult();
             result.setSuccess(false);
             result.setMessage(e.getMessage());
@@ -2874,6 +2880,7 @@ public class AppTypesettingService {
             if ("FORME_OP:LAYOUT".equals(remark)) {
                 typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
                 typesettingInfo.setRemark(null);
+                typesettingInfo.setFailReason(null);
                 mergeExistingMarksBeforeUpdate(typesettingInfo);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 return;
@@ -2911,6 +2918,7 @@ public class AppTypesettingService {
                         productionPieceIds,
                         typesettingInfo);
                 typesettingInfo.setRemark(null);
+                typesettingInfo.setFailReason(null);
                 mergeExistingMarksBeforeUpdate(typesettingInfo);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
@@ -2951,7 +2959,7 @@ public class AppTypesettingService {
             return;
         }
         typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
-        typesettingInfo.setRemark(StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
+        typesettingInfo.setFailReason(StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
         mergeExistingMarksBeforeUpdate(typesettingInfo);
         domainTypesettingService.updateTypesetting(typesettingInfo);
     }
