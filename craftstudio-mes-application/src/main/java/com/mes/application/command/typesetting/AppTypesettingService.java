@@ -2897,7 +2897,8 @@ public class AppTypesettingService {
                 if (!repeatedPrintCallback && !skipQuantityTransferForMirror) {
                     transferTypesettingQuantityToPrinting(productionPieceUsage, plateUseCount);
                 }
-                Set<String> productionPieceIds = productionPieceUsage.keySet();
+                Set<String> productionPieceIds = collectProductionPieceIdsForDownload(typesettingInfo);
+                productionPieceIds.addAll(productionPieceUsage.keySet());
                 String printTaskTypesettingId = callbackTypesettingId;
                 String printTaskTypesettingCode = typesettingInfo.getId();
                 String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
@@ -3123,6 +3124,45 @@ public class AppTypesettingService {
             }
         }
         visitedTypesettingKeys.remove(currentKey);
+    }
+
+    private Set<String> collectProductionPieceIdsForDownload(TypesettingInfo typesettingInfo) {
+        LinkedHashSet<String> productionPieceIds = new LinkedHashSet<>();
+        collectProductionPieceIdsForDownloadRecursive(typesettingInfo, productionPieceIds, new HashSet<>());
+        return productionPieceIds;
+    }
+
+    private void collectProductionPieceIdsForDownloadRecursive(TypesettingInfo typesettingInfo,
+                                                                Set<String> productionPieceIds,
+                                                                Set<String> visitedTypesettingKeys) {
+        if (typesettingInfo == null || StringUtils.isBlank(typesettingInfo.getId())) {
+            return;
+        }
+        String currentKey = "id:" + typesettingInfo.getId();
+        if (!visitedTypesettingKeys.add(currentKey)) {
+            return;
+        }
+        try {
+            if (typesettingInfo.getTypesettingCells() == null) {
+                return;
+            }
+            for (TypesettingSourceCell cell : typesettingInfo.getTypesettingCells()) {
+                if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
+                    continue;
+                }
+                if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
+                    productionPieceIds.add(cell.getSourceId());
+                    continue;
+                }
+                if (!TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
+                    continue;
+                }
+                TypesettingInfo nestedInfo = domainTypesettingService.findById(cell.getSourceId());
+                collectProductionPieceIdsForDownloadRecursive(nestedInfo, productionPieceIds, visitedTypesettingKeys);
+            }
+        } finally {
+            visitedTypesettingKeys.remove(currentKey);
+        }
     }
 
     private void transferTypesettingQuantityToPrinting(Map<String, Integer> productionPieceUsage, int plateUseCount) {
