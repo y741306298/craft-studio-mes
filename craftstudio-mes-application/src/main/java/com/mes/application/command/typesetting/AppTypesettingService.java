@@ -1531,11 +1531,16 @@ public class AppTypesettingService {
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
             FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            String formeOpRemark = "FORME_OP:LAYOUT";
+            // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setRemark(formeOpRemark);
+            mergeExistingMarksBeforeUpdate(typesettingInfo);
+            domainTypesettingService.updateTypesetting(typesettingInfo);
             String formeRequestJson = JSON.toJSONString(formeRequest);
             log.info("formeRequest========:{}", formeRequestJson);
             algorithmCoreApiService.generateFormeAsync(formeRequestJson, formeRequest.getCallbackConfig().getCallbackUrl());
 
-            String formeOpRemark = "FORME_OP:LAYOUT";
             TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
             if (mirrorTypesettingInfo != null) {
                 if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
@@ -1557,12 +1562,6 @@ public class AppTypesettingService {
                 log.info("mirrorFormeRequest========:{}", mirrorFormeRequestJson);
                 algorithmCoreApiService.generateFormeAsync(mirrorFormeRequestJson, mirrorFormeRequest.getCallbackConfig().getCallbackUrl());
             }
-
-            // 异步处理中，先进入确认中状态，回调成功后再走后续逻辑
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
-            typesettingInfo.setRemark(formeOpRemark);
-            mergeExistingMarksBeforeUpdate(typesettingInfo);
-            domainTypesettingService.updateTypesetting(typesettingInfo);
 
             LayoutConfirmResult result = new LayoutConfirmResult();
             result.setSuccess(true);
@@ -2845,7 +2844,7 @@ public class AppTypesettingService {
 
     public void handleGenerateFormeCallback(FormeGenerationResponse response) {
         if (response == null) {
-            return;
+            throw new IllegalArgumentException("印版生成回调参数不能为空");
         }
         String recordId = null;
         if (response.getCallbackConfig() != null && response.getCallbackConfig().getCallbackCustomValue() != null) {
@@ -2855,11 +2854,11 @@ public class AppTypesettingService {
             recordId = response.getId();
         }
         if (StringUtils.isBlank(recordId)) {
-            return;
+            throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(recordId);
         if (typesettingInfo == null) {
-            return;
+            throw new IllegalArgumentException("印版生成回调对应的排版记录不存在：" + recordId);
         }
         try {
             if (!"success".equalsIgnoreCase(response.getStatus())) {
@@ -2871,7 +2870,7 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(typesettingInfo.getTemplateCode())) {
                 typesettingInfo.setTemplateCode(buildTemplateCode(1, 1));
             }
-            String remark = typesettingInfo.getRemark();
+            String remark = typesettingInfo.getRemark() == null ? "" : typesettingInfo.getRemark().trim();
             if ("FORME_OP:LAYOUT".equals(remark)) {
                 typesettingInfo.setStatus(TypesettingStatus.PENDING.getCode());
                 typesettingInfo.setRemark(null);
@@ -2917,10 +2916,15 @@ public class AppTypesettingService {
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
                 savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
                 savePltBroadcastPrintTask(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), downloadTaskData, typesettingInfo);
+                return;
             }
+            throw new IllegalStateException("印版生成回调无法识别排版操作类型，recordId=" + recordId
+                    + "，status=" + typesettingInfo.getStatus()
+                    + "，remark=" + typesettingInfo.getRemark());
         }catch (Exception e) {
-            log.error("处理打印印版回调异常", e);
-            markTypesettingFailed(typesettingInfo, "打印印版回调处理异常：" + resolveExceptionMessage(e));
+            log.error("处理印版生成回调异常", e);
+            markTypesettingFailed(typesettingInfo, "印版生成回调处理异常：" + resolveExceptionMessage(e));
+            throw new IllegalStateException("处理印版生成回调异常：" + resolveExceptionMessage(e), e);
         }
 
     }
