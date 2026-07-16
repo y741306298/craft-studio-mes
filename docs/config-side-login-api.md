@@ -1,12 +1,12 @@
 # ConfigSide 登录与登录态校验接口文档
 
-本文档描述配置端登录接口、token 查询接口，以及 `/api/configSide/**` 业务接口的登录态校验规则。
+本文档描述配置端登录接口、token 查询接口，以及 `/api/configSide/**` 业务接口的登录态校验规则。配置端使用独立的 `configUser` 用户表，不复用工厂端 `manufacturerUser` 登录账号。
 
 ## 1. 基本信息
 
 - Controller 路径前缀：`/api/configSide/auth`
 - 登录接口：`POST /api/configSide/auth/login`
-- token 查询接口：`GET /api/configSide/auth/token/manufacturerMetaId`
+- token 查询接口：`GET /api/configSide/auth/token/configUserId`
 - 受保护业务接口：除上述认证接口外，所有 `/api/configSide/**` 接口都需要在请求头携带登录 token。
 - 请求头格式：`Authorization: Bearer <token>`
 - 返回结构：`ApiResponse<T>`
@@ -15,7 +15,7 @@
 
 - **URL**：`POST /api/configSide/auth/login`
 - **Content-Type**：`application/json`
-- **描述**：使用账号密码登录配置端，登录成功后返回 token、用户所属工厂信息、用户信息和 token 过期时间。
+- **描述**：使用配置端账号密码登录，登录成功后返回 token、配置端用户信息和 token 过期时间。配置端账号来源于独立的 `configUser` 表，工厂端 `manufacturerUser` 账号不能登录配置端。
 
 ### 请求字段说明
 
@@ -43,9 +43,6 @@ Content-Type: application/json
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | token | string | 登录令牌，后续访问 `/api/configSide/**` 业务接口时放入 `Authorization` 请求头 |
-| manufacturerMetaId | string | 用户所属工厂 ID |
-| manufacturerMetaName | string | 用户所属工厂名称 |
-| eCommerceMmodel | boolean | 工厂是否为电商模式 |
 | userName | string | 用户名称 |
 | isAdmin | boolean | 是否管理员 |
 | tokenExpireAt | string(datetime) | token 过期时间 |
@@ -58,9 +55,6 @@ Content-Type: application/json
   "message": "success",
   "data": {
     "token": "c5f4f5f3d0...",
-    "manufacturerMetaId": "RMF_10001",
-    "manufacturerMetaName": "示例工厂",
-    "eCommerceMmodel": false,
     "userName": "张三",
     "isAdmin": true,
     "tokenExpireAt": "2026-07-23T10:15:30.000+00:00"
@@ -71,7 +65,7 @@ Content-Type: application/json
 
 ## 3. 配置端业务接口登录态校验
 
-除 `/api/configSide/auth/login` 和 `/api/configSide/auth/token/manufacturerMetaId` 外，访问其他 `/api/configSide/**` 接口时必须携带登录 token。
+除 `/api/configSide/auth/login` 和 `/api/configSide/auth/token/configUserId` 外，访问其他 `/api/configSide/**` 接口时必须携带登录 token。
 
 ### 请求头
 
@@ -109,10 +103,10 @@ Authorization: Bearer c5f4f5f3d0...
 }
 ```
 
-## 4. 根据 token 查询 manufacturerMetaId
+## 4. 根据 token 查询 configUserId
 
-- **URL**：`GET /api/configSide/auth/token/manufacturerMetaId`
-- **描述**：根据登录后获取的 token 查询用户所属工厂 `manufacturerMetaId`。
+- **URL**：`GET /api/configSide/auth/token/configUserId`
+- **描述**：根据登录后获取的 token 查询配置端用户 `configUserId`。
 
 ### 请求参数（Query）
 
@@ -123,7 +117,7 @@ Authorization: Bearer c5f4f5f3d0...
 ### 请求示例
 
 ```http
-GET /api/configSide/auth/token/manufacturerMetaId?token=c5f4f5f3d0...
+GET /api/configSide/auth/token/configUserId?token=c5f4f5f3d0...
 ```
 
 ### 响应示例
@@ -132,7 +126,7 @@ GET /api/configSide/auth/token/manufacturerMetaId?token=c5f4f5f3d0...
 {
   "code": 200,
   "message": "success",
-  "data": "RMF_10001",
+  "data": "CFG_USER_10001",
   "timestamp": 1784801730000
 }
 ```

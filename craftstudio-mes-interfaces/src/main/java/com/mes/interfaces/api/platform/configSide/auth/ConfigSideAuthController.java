@@ -1,6 +1,6 @@
 package com.mes.interfaces.api.platform.configSide.auth;
 
-import com.mes.application.command.auth.AppLoginService;
+import com.mes.application.command.auth.AppConfigLoginService;
 import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.domain.base.repository.ApiResponse;
@@ -17,10 +17,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/configSide/auth")
 public class ConfigSideAuthController {
 
-    private final AppLoginService appLoginService;
+    private final AppConfigLoginService appConfigLoginService;
 
-    public ConfigSideAuthController(AppLoginService appLoginService) {
-        this.appLoginService = appLoginService;
+    public ConfigSideAuthController(AppConfigLoginService appConfigLoginService) {
+        this.appConfigLoginService = appConfigLoginService;
     }
 
     /**
@@ -31,17 +31,17 @@ public class ConfigSideAuthController {
      */
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.success(appLoginService.login(request));
+        return ApiResponse.success(appConfigLoginService.login(request));
     }
 
     /**
-     * 根据 token 查询用户所属工厂ID。
+     * 根据 token 查询配置端用户ID。
      *
      * @param token 登录令牌
-     * @return 用户所属工厂ID
+     * @return 配置端用户ID
      */
-    @GetMapping("/token/manufacturerMetaId")
-    public ApiResponse<String> getManufacturerMetaIdByToken(@RequestParam @NotBlank(message = "token不能为空") String token) {
-        return ApiResponse.success(appLoginService.getManufacturerMetaIdByToken(token));
+    @GetMapping("/token/configUserId")
+    public ApiResponse<String> getConfigUserIdByToken(@RequestParam @NotBlank(message = "token不能为空") String token) {
+        return ApiResponse.success(appConfigLoginService.getConfigUserIdByToken(token));
     }
 }

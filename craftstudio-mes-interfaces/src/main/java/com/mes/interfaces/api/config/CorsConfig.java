@@ -9,9 +9,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CorsConfig implements WebMvcConfigurer {
 
     private final ManufacturerSideAuthInterceptor manufacturerSideAuthInterceptor;
+    private final ConfigSideAuthInterceptor configSideAuthInterceptor;
 
-    public CorsConfig(ManufacturerSideAuthInterceptor manufacturerSideAuthInterceptor) {
+    public CorsConfig(ManufacturerSideAuthInterceptor manufacturerSideAuthInterceptor,
+                      ConfigSideAuthInterceptor configSideAuthInterceptor) {
         this.manufacturerSideAuthInterceptor = manufacturerSideAuthInterceptor;
+        this.configSideAuthInterceptor = configSideAuthInterceptor;
     }
 
     @Override
@@ -37,11 +40,11 @@ public class CorsConfig implements WebMvcConfigurer {
                         "/api/manufacturerSide/deviceCfg/factory/task/download"
                 );
 
-        registry.addInterceptor(manufacturerSideAuthInterceptor)
+        registry.addInterceptor(configSideAuthInterceptor)
                 .addPathPatterns("/api/configSide/**")
                 .excludePathPatterns(
                         "/api/configSide/auth/login",
-                        "/api/configSide/auth/token/manufacturerMetaId"
+                        "/api/configSide/auth/token/configUserId"
                 );
     }
 }
