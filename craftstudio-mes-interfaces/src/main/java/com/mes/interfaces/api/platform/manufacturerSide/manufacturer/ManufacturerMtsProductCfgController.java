@@ -127,6 +127,32 @@ public class ManufacturerMtsProductCfgController {
         return responseEntity;
     }
 
+    /**
+     * 配置平台成品商品规格价格
+     *
+     * Path: /api/internal/mes/platform/cfg/price/mtsProductSpec
+     * Method: POST
+     *
+     * @return 操作结果
+     */
+    @PostMapping("/price/mtsProductSpec")
+    public ResponseEntity<byte[]> configPlatformMTSProductSpecPrice(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        String targetUrl = String.format("%s/api/internal/mes/platform/cfg/price/mtsProductSpec", productCoreUrl);
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, targetUrl, paramMap);
+
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
     @PostMapping("/searchByName")
     public ResponseEntity<byte[]> searchMTSProductsByName(
             HttpServletRequest request,
