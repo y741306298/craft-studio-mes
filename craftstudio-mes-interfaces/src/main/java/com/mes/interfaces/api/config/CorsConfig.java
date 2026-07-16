@@ -36,5 +36,12 @@ public class CorsConfig implements WebMvcConfigurer {
                         "/api/manufacturerSide/deviceCfg/factory/task/claim",
                         "/api/manufacturerSide/deviceCfg/factory/task/download"
                 );
+
+        registry.addInterceptor(manufacturerSideAuthInterceptor)
+                .addPathPatterns("/api/configSide/**")
+                .excludePathPatterns(
+                        "/api/configSide/auth/login",
+                        "/api/configSide/auth/token/manufacturerMetaId"
+                );
     }
 }
