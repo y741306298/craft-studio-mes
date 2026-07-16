@@ -102,6 +102,32 @@ public class ManufacturerProcessCfgController {
     }
 
     /**
+     * 配置平台工艺价格
+     *
+     * Path: /api/internal/mes/platform/cfg/price/process
+     * Method: POST
+     *
+     * @return 操作结果
+     */
+    @PostMapping("/price/process")
+    public ResponseEntity<byte[]> configPlatformProcessPrice(
+            HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+
+        String targetUrl = String.format("%s/api/internal/mes/platform/cfg/price/process", productCoreUrl);
+
+        HashMap<String, Object> paramMap = new HashMap<>();
+        ResponseEntity<byte[]> responseEntity = httpProxy.forwardRequest(request, body, targetUrl, paramMap);
+
+        if (responseEntity.getBody() != null) {
+            String responseBody = new String(responseEntity.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Response body: " + responseBody);
+        }
+
+        return responseEntity;
+    }
+
+    /**
      * 修改上下架状态-工艺定义
      *
      * Path: /api/internal/mes/rmfcfg/changeProcessMetaConfigState
