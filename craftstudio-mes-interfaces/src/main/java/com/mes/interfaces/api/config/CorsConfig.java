@@ -44,6 +44,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/configSide/**")
                 .excludePathPatterns(
                         "/api/configSide/auth/login",
+                        "/api/configSide/auth/user/add",
                         "/api/configSide/auth/token/configUserId"
                 );
     }

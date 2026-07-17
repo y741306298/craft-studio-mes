@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.configSide.auth;
 
 import com.mes.application.command.auth.AppConfigLoginService;
+import com.mes.application.dto.req.auth.AddConfigUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.domain.base.repository.ApiResponse;
@@ -32,6 +33,18 @@ public class ConfigSideAuthController {
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.success(appConfigLoginService.login(request));
+    }
+
+    /**
+     * 新增配置端登录账号。
+     *
+     * @param request 新增配置端用户参数
+     * @return 操作结果
+     */
+    @PostMapping("/user/add")
+    public ApiResponse<String> addConfigUser(@Valid @RequestBody AddConfigUserRequest request) {
+        appConfigLoginService.addConfigUser(request);
+        return ApiResponse.success("success");
     }
 
     /**

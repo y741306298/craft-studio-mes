@@ -1,5 +1,6 @@
 package com.mes.application.command.auth;
 
+import com.mes.application.dto.req.auth.AddConfigUserRequest;
 import com.mes.application.dto.req.auth.LoginRequest;
 import com.mes.application.dto.resp.auth.LoginResponse;
 import com.mes.domain.auth.entity.ConfigUser;
@@ -48,6 +49,16 @@ public class AppConfigLoginService {
 
         redisTemplate.opsForValue().set(buildLoginTokenCacheKey(token), user.getId(), tokenValidDays, TimeUnit.DAYS);
         return response;
+    }
+
+    public void addConfigUser(AddConfigUserRequest request) {
+        ConfigUser user = new ConfigUser();
+        user.setAccount(request.getAccount());
+        user.setPassword(request.getPassword());
+        user.setName(request.getName());
+        user.setPhone(request.getPhone());
+        user.setIsAdmin(Boolean.TRUE.equals(request.getIsAdmin()));
+        configUserService.add(user);
     }
 
     public String getConfigUserIdByToken(String token) {
