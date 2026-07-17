@@ -10,6 +10,8 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,8 +20,9 @@ import java.util.regex.Pattern;
  * “配易拉宝”工艺策略。
  *
  * <p>易拉宝通常不会配置“异形切割”节点，无法复用异形切割产出的 mask SVG；
- * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据该节点参数中的配件规格生成初始矩形 SVG，
- * 缺失时再回退到订单物料 usageSize3D 的厘米宽高；随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
+ * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据该节点参数中的配件规格确定宽度，
+ * 缺失时再回退到订单物料 usageSize3D 的宽度；高度始终取订单物料 usageSize3D.height（厘米转毫米并保留两位小数）。
+ * 随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
  */
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
@@ -163,23 +166,33 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
         YilabaoSize accessorySize = findAccessoryYilabaoSize(context == null ? null : context.getProcedureFlow());
-        if (accessorySize != null) {
-            return accessorySize;
+        Object usageSize3D = resolveUsageSize3D(context == null ? null : context.getOrderItem());
+        Number usageWidthCm = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
+        Number usageHeightCm = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
+        if (usageHeightCm == null || usageHeightCm.doubleValue() <= 0D) {
+            return null;
         }
-        return resolveUsageSize(context == null ? null : context.getOrderItem());
+        double widthMm = accessorySize != null
+                ? accessorySize.widthMm
+                : toMillimeters(usageWidthCm);
+        if (widthMm <= 0D) {
+            return null;
+        }
+        return new YilabaoSize(widthMm, toMillimeters(usageHeightCm));
     }
 
-    private YilabaoSize resolveUsageSize(OrderItem orderItem) {
-        Object usageSize3D = orderItem == null || orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
-        if (usageSize3D == null) {
-            return null;
+    private Object resolveUsageSize3D(OrderItem orderItem) {
+        return orderItem == null || orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
+    }
+
+    private double toMillimeters(Number sizeCm) {
+        if (sizeCm == null || sizeCm.doubleValue() <= 0D) {
+            return 0D;
         }
-        Number widthCm = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
-        Number heightCm = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
-        if (widthCm == null || heightCm == null || widthCm.doubleValue() <= 0D || heightCm.doubleValue() <= 0D) {
-            return null;
-        }
-        return YilabaoSize.fromCentimeter(widthCm.doubleValue(), heightCm.doubleValue());
+        return BigDecimal.valueOf(sizeCm.doubleValue())
+                .multiply(BigDecimal.valueOf(CM_TO_MM))
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     private Number invokeNumberGetter(Object target, String... getterNames) {
