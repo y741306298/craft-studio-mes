@@ -3253,11 +3253,13 @@ public class AppTypesettingService {
                                                               Set<String> productionPieceIds,
                                                               TypesettingInfo rootTypesettingInfo) {
         LinkedHashSet<String> imageSet = new LinkedHashSet<>();
+        List<ProductionPiece> sourcePieces = new ArrayList<>();
         for (String productionPieceId : productionPieceIds) {
             ProductionPiece piece = productionPieceService.findById(productionPieceId);
             if (piece == null) {
                 continue;
             }
+            sourcePieces.add(piece);
             String baseImage = resolveProductionPieceImageForDownload(piece);
             appendRawFile(imageSet, baseImage);
             appendMirrorConfigImages(imageSet, piece);
@@ -3272,6 +3274,16 @@ public class AppTypesettingService {
         collectRequiredPltsRecursive(rootTypesettingInfo, pltSet, new HashSet<>());
         if (marks != null && !marks.isEmpty()) {
             for (String markFile : marks.values()) {
+                appendMarkFiles(markSet, markFile);
+            }
+        }
+        // 不能只依赖排版记录上的汇总 marks：历史排版记录或回调前创建的记录可能尚未回填该字段。
+        // 打印任务以实际参与排版的零件为准，直接补齐零件自身的 mark 资源，保证下载端拿到完整文件集。
+        for (ProductionPiece sourcePiece : sourcePieces) {
+            if (sourcePiece.getMarks() == null || sourcePiece.getMarks().isEmpty()) {
+                continue;
+            }
+            for (String markFile : sourcePiece.getMarks().values()) {
                 appendMarkFiles(markSet, markFile);
             }
         }
