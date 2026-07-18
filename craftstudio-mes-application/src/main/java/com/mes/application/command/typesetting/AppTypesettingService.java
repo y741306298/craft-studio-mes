@@ -323,7 +323,8 @@ public class AppTypesettingService {
     /**
      * 查询仍有待排版数量的零件。
      * <p>
-     * 除常规待排版状态外，已打包的零件也可能因历史数据或补排版流程保留待排版数量，
+     * 除常规待排版状态外，已打包的零件也可能因历史数据或补排版流程保留待排版数量。
+     * 已打包零件在不同流程中可能使用 {@code PACKING_COMPLETED} 或 {@code completed} 状态，
      * 因此需要一并查询，并由调用方根据“待排版”节点数量过滤。
      *
      * @param query 查询条件
@@ -331,12 +332,13 @@ public class AppTypesettingService {
      */
     private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query) {
         List<ProductionPiece> productionPieces = new ArrayList<>();
-        for (ProductionPieceStatus status : List.of(
-                ProductionPieceStatus.PENDING_TYPESITTING,
-                ProductionPieceStatus.PACKING_COMPLETED)) {
+        for (String status : List.of(
+                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
+                ProductionPieceStatus.PACKING_COMPLETED.getCode(),
+                TypesettingStatus.COMPLETED.getCode())) {
             productionPieces.addAll(productionPieceService.findProductionPiecesByProcessingConditions(
                     query.getManufacturerMetaId(),
-                    status.getCode(),
+                    status,
                     query.getMaterialName(),
                     query.getProcessingName(),
                     query.getOrderItemId(),
