@@ -278,18 +278,7 @@ public class AppTypesettingService {
         boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
 
         if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByProcessingConditions(
-                    query.getManufacturerMetaId(),
-                    ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
-                    query.getMaterialName(),
-                    query.getProcessingName(),
-                    query.getOrderItemId(),
-                    query.getRouteId(),
-                    query.getStartTime(),
-                    query.getEndTime(),
-                    1,
-                    Integer.MAX_VALUE
-            );
+            List<ProductionPiece> productionPieces = findPendingTypesettingProductionPieces(query);
             Map<String, String> orderGroupIdCache = new HashMap<>();
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) > 0) {
@@ -329,6 +318,36 @@ public class AppTypesettingService {
         List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
 
         return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+    }
+
+    /**
+     * 查询仍有待排版数量的零件。
+     * <p>
+     * 除常规待排版状态外，已打包的零件也可能因历史数据或补排版流程保留待排版数量，
+     * 因此需要一并查询，并由调用方根据“待排版”节点数量过滤。
+     *
+     * @param query 查询条件
+     * @return 待排版或已打包状态的零件
+     */
+    private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query) {
+        List<ProductionPiece> productionPieces = new ArrayList<>();
+        for (ProductionPieceStatus status : List.of(
+                ProductionPieceStatus.PENDING_TYPESITTING,
+                ProductionPieceStatus.PACKING_COMPLETED)) {
+            productionPieces.addAll(productionPieceService.findProductionPiecesByProcessingConditions(
+                    query.getManufacturerMetaId(),
+                    status.getCode(),
+                    query.getMaterialName(),
+                    query.getProcessingName(),
+                    query.getOrderItemId(),
+                    query.getRouteId(),
+                    query.getStartTime(),
+                    query.getEndTime(),
+                    1,
+                    Integer.MAX_VALUE
+            ));
+        }
+        return productionPieces;
     }
 
     /**
