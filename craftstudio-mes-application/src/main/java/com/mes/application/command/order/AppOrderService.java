@@ -448,17 +448,64 @@ public class AppOrderService {
     }
 
     private void preOrderKuaidi100Label(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        AppDeliveryPkgService.DeliveryPkgPrintResult printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
-        if (printResult == null || StringUtils.isBlank(printResult.getKuaidiNum())) {
+        try {
+            AppDeliveryPkgService.DeliveryPkgPrintResult printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
+            if (printResult == null || StringUtils.isBlank(printResult.getKuaidiNum())) {
+                return;
+            }
+            OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
+            if (savedOrderInfo == null) {
+                return;
+            }
+            savedOrderInfo.setKuaidiNum(printResult.getKuaidiNum());
+            domainOrderInfoService.updateOrder(savedOrderInfo);
+            orderInfo.setKuaidiNum(printResult.getKuaidiNum());
+        } catch (Exception ex) {
+            log.warn("addOrderWithItems 快递100预下单失败，继续后续订单预处理: orderId={}",
+                    orderInfo == null ? null : orderInfo.getOrderId(),
+                    ex);
+            savePreOrderKuaidi100FailureRemark(orderInfo, ex);
+        }
+    }
+
+    private void savePreOrderKuaidi100FailureRemark(OrderInfo orderInfo, Exception ex) {
+        if (orderInfo == null || StringUtils.isBlank(orderInfo.getOrderId())) {
             return;
         }
-        OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
-        if (savedOrderInfo == null) {
-            return;
+        String failureRemark = buildPreOrderKuaidi100FailureRemark(ex);
+        try {
+            OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
+            if (savedOrderInfo == null) {
+                orderInfo.setRemark(appendRemark(orderInfo.getRemark(), failureRemark));
+                return;
+            }
+            String updatedRemark = appendRemark(savedOrderInfo.getRemark(), failureRemark);
+            savedOrderInfo.setRemark(updatedRemark);
+            domainOrderInfoService.updateOrder(savedOrderInfo);
+            orderInfo.setRemark(updatedRemark);
+        } catch (Exception saveEx) {
+            log.warn("addOrderWithItems 保存快递100预下单失败备注失败，继续后续订单预处理: orderId={}",
+                    orderInfo.getOrderId(),
+                    saveEx);
         }
-        savedOrderInfo.setKuaidiNum(printResult.getKuaidiNum());
-        domainOrderInfoService.updateOrder(savedOrderInfo);
-        orderInfo.setKuaidiNum(printResult.getKuaidiNum());
+    }
+
+    private String buildPreOrderKuaidi100FailureRemark(Exception ex) {
+        String message = ex == null ? null : ex.getMessage();
+        if (StringUtils.isBlank(message)) {
+            message = ex == null ? "未知异常" : ex.getClass().getSimpleName();
+        }
+        return "快递100预下单失败：" + message;
+    }
+
+    private String appendRemark(String originalRemark, String appendRemark) {
+        if (StringUtils.isBlank(appendRemark)) {
+            return originalRemark;
+        }
+        if (StringUtils.isBlank(originalRemark)) {
+            return appendRemark;
+        }
+        return originalRemark + "\n" + appendRemark;
     }
 
     /**
