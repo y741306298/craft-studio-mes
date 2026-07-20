@@ -635,6 +635,10 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     }
 
     private int mmToPx(int mm) {
+        return mmToPx((double) mm);
+    }
+
+    private int mmToPx(double mm) {
         return Math.max((int) Math.round(mm * TAG_DPI / MM_PER_INCH), 1);
     }
 
