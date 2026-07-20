@@ -41,6 +41,8 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int QR_BOTTOM_GAP_MM = 2;
     private static final int ELEMENT_GAP_MM = 30;
     private static final int EXTRA_INFO_GAP_MM = 5;
+    private static final int WRAPPED_EXT_INFO_TEXT_HEIGHT_MM = 6;
+    private static final double WRAPPED_EXT_INFO_ROW_GAP_MM = 1.5D;
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
     private static final int TOP_ANCHOR_LEFT_MM = QR_LEFT_MM + QR_SIZE_MM + 15;
@@ -110,8 +112,9 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        BigDecimal tagContentMaxWidth = context.getNestedWidth().add(BigDecimal.valueOf(marginRight));
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -330,6 +333,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         String elementB,
                                         String qrDataUri,
                                         BigDecimal stripWidth,
+                                        BigDecimal tagContentMaxWidth,
                                         BigDecimal stripHeight,
                                         boolean rotate180) {
         // 生成标签条 PNG 并上传至 OSS 的 /tag 路径，返回可访问 URL
@@ -343,6 +347,8 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int qrTopPx = canvasHeightPx - mmToPx(QR_BOTTOM_GAP_MM + QR_SIZE_MM);
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
+        int maxContentWidthPx = mmToPx(tagContentMaxWidth == null ? stripWidthInt : tagContentMaxWidth.doubleValue());
+        ExtInfoLayout extInfoLayout = resolveExtInfoLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx);
 
         BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -355,6 +361,16 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
+            Font extInfoFont = extInfoLayout.wrap ? new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)) : g.getFont();
+            FontMetrics extInfoFontMetrics = extInfoLayout.wrap ? g.getFontMetrics(extInfoFont) : fontMetrics;
+            int extInfoFirstBaseLineY = textBaseLineY;
+            int extInfoSecondBaseLineY = textBaseLineY;
+            if (extInfoLayout.wrap) {
+                int textAreaHeightPx = mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM * 2 + WRAPPED_EXT_INFO_ROW_GAP_MM);
+                int textAreaTopY = (canvasHeightPx - textAreaHeightPx) / 2;
+                extInfoFirstBaseLineY = textAreaTopY + ((mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM) - extInfoFontMetrics.getHeight()) / 2) + extInfoFontMetrics.getAscent();
+                extInfoSecondBaseLineY = extInfoFirstBaseLineY + mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM + WRAPPED_EXT_INFO_ROW_GAP_MM);
+            }
 
             BufferedImage qrImage = decodePngDataUri(qrDataUri);
             if (qrImage != null) {
@@ -370,12 +386,15 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
             drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
             currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
             if (elementAExtInfos != null) {
-                for (String extInfo : elementAExtInfos) {
-                    if (StringUtils.isBlank(extInfo)) {
-                        continue;
+                Font originFont = g.getFont();
+                g.setFont(extInfoFont);
+                try {
+                    drawExtInfoRow(g, extInfoLayout.firstRow, currentX, extInfoFirstBaseLineY, extInfoFontMetrics);
+                    if (extInfoLayout.wrap) {
+                        drawExtInfoRow(g, extInfoLayout.secondRow, currentX, extInfoSecondBaseLineY, extInfoFontMetrics);
                     }
-                    drawTextRotate180(g, extInfo, currentX, textBaseLineY, fontMetrics);
-                    currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
+                } finally {
+                    g.setFont(originFont);
                 }
             }
 
@@ -391,6 +410,81 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
             throw new IllegalStateException("生成并上传标签条PNG失败", e);
         } finally {
             g.dispose();
+        }
+    }
+
+    private ExtInfoLayout resolveExtInfoLayout(String elementA,
+                                               List<String> elementAExtInfos,
+                                               String commonOrderId,
+                                               String elementB,
+                                               int bX,
+                                               int textHeight,
+                                               int maxContentWidthPx) {
+        FontMetrics metrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
+        int extStartX = bX + metrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
+        if (StringUtils.isNotBlank(commonOrderId)) {
+            extStartX += metrics.stringWidth(commonOrderId) + mmToPx(EXTRA_INFO_GAP_MM);
+        }
+        extStartX += metrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
+        List<String> extInfos = elementAExtInfos == null ? new ArrayList<>() : elementAExtInfos.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toList());
+        int singleRowEndX = extStartX + measureJoinedWidth(extInfos, metrics);
+        if (singleRowEndX <= maxContentWidthPx) {
+            return new ExtInfoLayout(false, extInfos, new ArrayList<>());
+        }
+        FontMetrics wrappedMetrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)));
+        List<String> firstRow = new ArrayList<>();
+        List<String> secondRow = new ArrayList<>();
+        int firstRowWidth = 0;
+        int maxRowWidth = Math.max(maxContentWidthPx - extStartX, 0);
+        for (String extInfo : extInfos) {
+            int nextWidth = firstRowWidth + wrappedMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
+            if (!firstRow.isEmpty() && nextWidth > maxRowWidth) {
+                secondRow.add(extInfo);
+            } else {
+                firstRow.add(extInfo);
+                firstRowWidth = nextWidth;
+            }
+        }
+        return new ExtInfoLayout(true, firstRow, secondRow);
+    }
+
+    private FontMetrics createFontMetrics(Font font) {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            return graphics.getFontMetrics(font);
+        } finally {
+            graphics.dispose();
+        }
+    }
+
+    private int measureJoinedWidth(List<String> texts, FontMetrics metrics) {
+        int width = 0;
+        for (String text : texts) {
+            width += metrics.stringWidth(extractDisplayText(text)) + mmToPx(EXTRA_INFO_GAP_MM);
+        }
+        return width;
+    }
+
+    private void drawExtInfoRow(Graphics2D g, List<String> extInfos, int x, int baselineY, FontMetrics fontMetrics) {
+        int currentX = x;
+        for (String extInfo : extInfos) {
+            drawTextRotate180(g, extInfo, currentX, baselineY, fontMetrics);
+            currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
+        }
+    }
+
+    private static class ExtInfoLayout {
+        private final boolean wrap;
+        private final List<String> firstRow;
+        private final List<String> secondRow;
+
+        private ExtInfoLayout(boolean wrap, List<String> firstRow, List<String> secondRow) {
+            this.wrap = wrap;
+            this.firstRow = firstRow;
+            this.secondRow = secondRow;
         }
     }
 
