@@ -40,7 +40,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int QR_BOTTOM_GAP_MM = 2;
     private static final int ELEMENT_GAP_MM = 30;
     private static final int EXTRA_INFO_GAP_MM = 5;
-    private static final int WRAPPED_EXT_INFO_TEXT_HEIGHT_MM = 6;
+    private static final int WRAPPED_EXT_INFO_TEXT_HEIGHT_MM = 4;
     private static final double WRAPPED_EXT_INFO_ROW_GAP_MM = 1.5D;
     private static final int ANCHOR_SIZE_MM = 4;
     private static final int ANCHOR_GAP_TO_MARGIN_BOTTOM_MM = 2;
@@ -346,7 +346,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
         int maxContentWidthPx = mmToPx(tagContentMaxWidth == null ? stripWidthInt : tagContentMaxWidth.doubleValue());
-        ExtInfoLayout extInfoLayout = resolveExtInfoLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx);
+        TagTextLayout tagTextLayout = resolveTagTextLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx);
 
         BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -359,11 +359,11 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             FontMetrics fontMetrics = g.getFontMetrics();
             int textTopY = (canvasHeightPx - textHeight) / 2;
             int textBaseLineY = textTopY + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
-            Font extInfoFont = extInfoLayout.wrap ? new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)) : g.getFont();
-            FontMetrics extInfoFontMetrics = extInfoLayout.wrap ? g.getFontMetrics(extInfoFont) : fontMetrics;
+            Font extInfoFont = tagTextLayout.wrap ? new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)) : g.getFont();
+            FontMetrics extInfoFontMetrics = tagTextLayout.wrap ? g.getFontMetrics(extInfoFont) : fontMetrics;
             int extInfoFirstBaseLineY = textBaseLineY;
             int extInfoSecondBaseLineY = textBaseLineY;
-            if (extInfoLayout.wrap) {
+            if (tagTextLayout.wrap) {
                 int textAreaHeightPx = mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM * 2 + WRAPPED_EXT_INFO_ROW_GAP_MM);
                 int textAreaTopY = (canvasHeightPx - textAreaHeightPx) / 2;
                 extInfoFirstBaseLineY = textAreaTopY + ((mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM) - extInfoFontMetrics.getHeight()) / 2) + extInfoFontMetrics.getAscent();
@@ -375,25 +375,15 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 BufferedImage effectiveQrImage = trimWhiteBorder(qrImage);
                 g.drawImage(effectiveQrImage, qrLeftPx, qrTopPx, qrSizePx, qrSizePx, null);
             }
-            drawTextRotate180(g, elementB, bX, textBaseLineY, fontMetrics);
-            int currentX = bX + fontMetrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
-            if (StringUtils.isNotBlank(commonOrderId)) {
-                drawTextRotate180(g, commonOrderId, currentX, textBaseLineY, fontMetrics);
-                currentX += fontMetrics.stringWidth(commonOrderId) + mmToPx(EXTRA_INFO_GAP_MM);
-            }
-            drawTextRotate180(g, elementA, currentX, textBaseLineY, fontMetrics);
-            currentX += fontMetrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
-            if (elementAExtInfos != null) {
-                Font originFont = g.getFont();
-                g.setFont(extInfoFont);
-                try {
-                    drawExtInfoRow(g, extInfoLayout.firstRow, currentX, extInfoFirstBaseLineY, extInfoFontMetrics);
-                    if (extInfoLayout.wrap) {
-                        drawExtInfoRow(g, extInfoLayout.secondRow, currentX, extInfoSecondBaseLineY, extInfoFontMetrics);
-                    }
-                } finally {
-                    g.setFont(originFont);
+            Font originFont = g.getFont();
+            g.setFont(extInfoFont);
+            try {
+                drawTagTextRow(g, tagTextLayout.firstRow, bX, extInfoFirstBaseLineY, extInfoFontMetrics);
+                if (tagTextLayout.wrap) {
+                    drawTagTextRow(g, tagTextLayout.secondRow, bX, extInfoSecondBaseLineY, extInfoFontMetrics);
                 }
+            } finally {
+                g.setFont(originFont);
             }
 
             BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
@@ -411,41 +401,56 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
     }
 
-    private ExtInfoLayout resolveExtInfoLayout(String elementA,
+    private TagTextLayout resolveTagTextLayout(String elementA,
                                                List<String> elementAExtInfos,
                                                String commonOrderId,
                                                String elementB,
-                                               int bX,
+                                               int textStartX,
                                                int textHeight,
                                                int maxContentWidthPx) {
         FontMetrics metrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
-        int extStartX = bX + metrics.stringWidth(elementB == null ? "" : elementB) + mmToPx(EXTRA_INFO_GAP_MM);
-        if (StringUtils.isNotBlank(commonOrderId)) {
-            extStartX += metrics.stringWidth(commonOrderId) + mmToPx(EXTRA_INFO_GAP_MM);
-        }
-        extStartX += metrics.stringWidth(elementA == null ? "" : elementA) + mmToPx(EXTRA_INFO_GAP_MM);
-        List<String> extInfos = elementAExtInfos == null ? new ArrayList<>() : elementAExtInfos.stream()
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toList());
-        int singleRowEndX = extStartX + measureJoinedWidth(extInfos, metrics);
+        List<String> tagTexts = buildTagTexts(elementA, elementAExtInfos, commonOrderId, elementB);
+        int singleRowEndX = textStartX + measureJoinedWidth(tagTexts, metrics);
         if (singleRowEndX <= maxContentWidthPx) {
-            return new ExtInfoLayout(false, extInfos, new ArrayList<>());
+            return new TagTextLayout(false, tagTexts, new ArrayList<>());
         }
         FontMetrics wrappedMetrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, Math.max(mmToPx(WRAPPED_EXT_INFO_TEXT_HEIGHT_MM), 1)));
         List<String> firstRow = new ArrayList<>();
         List<String> secondRow = new ArrayList<>();
         int firstRowWidth = 0;
-        int maxRowWidth = Math.max(maxContentWidthPx - extStartX, 0);
-        for (String extInfo : extInfos) {
-            int nextWidth = firstRowWidth + wrappedMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
+        int maxRowWidth = Math.max(maxContentWidthPx - textStartX, 0);
+        for (String tagText : tagTexts) {
+            int nextWidth = firstRowWidth + wrappedMetrics.stringWidth(extractDisplayText(tagText)) + mmToPx(EXTRA_INFO_GAP_MM);
             if (!firstRow.isEmpty() && nextWidth > maxRowWidth) {
-                secondRow.add(extInfo);
+                secondRow.add(tagText);
             } else {
-                firstRow.add(extInfo);
+                firstRow.add(tagText);
                 firstRowWidth = nextWidth;
             }
         }
-        return new ExtInfoLayout(true, firstRow, secondRow);
+        return new TagTextLayout(true, firstRow, secondRow);
+    }
+
+    private List<String> buildTagTexts(String elementA,
+                                       List<String> elementAExtInfos,
+                                       String commonOrderId,
+                                       String elementB) {
+        List<String> tagTexts = new ArrayList<>();
+        if (StringUtils.isNotBlank(elementB)) {
+            tagTexts.add(elementB);
+        }
+        if (StringUtils.isNotBlank(commonOrderId)) {
+            tagTexts.add("<font color='blue'>" + commonOrderId + "</font>");
+        }
+        if (StringUtils.isNotBlank(elementA)) {
+            tagTexts.add(elementA);
+        }
+        if (elementAExtInfos != null) {
+            tagTexts.addAll(elementAExtInfos.stream()
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList()));
+        }
+        return tagTexts;
     }
 
     private FontMetrics createFontMetrics(Font font) {
@@ -466,20 +471,20 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         return width;
     }
 
-    private void drawExtInfoRow(Graphics2D g, List<String> extInfos, int x, int baselineY, FontMetrics fontMetrics) {
+    private void drawTagTextRow(Graphics2D g, List<String> tagTexts, int x, int baselineY, FontMetrics fontMetrics) {
         int currentX = x;
-        for (String extInfo : extInfos) {
-            drawTextRotate180(g, extInfo, currentX, baselineY, fontMetrics);
-            currentX += fontMetrics.stringWidth(extractDisplayText(extInfo)) + mmToPx(EXTRA_INFO_GAP_MM);
+        for (String tagText : tagTexts) {
+            drawTextRotate180(g, tagText, currentX, baselineY, fontMetrics);
+            currentX += fontMetrics.stringWidth(extractDisplayText(tagText)) + mmToPx(EXTRA_INFO_GAP_MM);
         }
     }
 
-    private static class ExtInfoLayout {
+    private static class TagTextLayout {
         private final boolean wrap;
         private final List<String> firstRow;
         private final List<String> secondRow;
 
-        private ExtInfoLayout(boolean wrap, List<String> firstRow, List<String> secondRow) {
+        private TagTextLayout(boolean wrap, List<String> firstRow, List<String> secondRow) {
             this.wrap = wrap;
             this.firstRow = firstRow;
             this.secondRow = secondRow;
@@ -519,14 +524,19 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         if (text == null) {
             return "";
         }
-        return text.replaceAll("<font\\s+color='red'>", "").replace("</font>", "");
+        return text.replaceAll("<font\\s+color='(red|blue)'>", "").replace("</font>", "");
     }
 
     private void drawRichText(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
         String safeText = text == null ? "" : text;
-        String openTag = "<font color='red'>";
+        String redOpenTag = "<font color='red'>";
+        String blueOpenTag = "<font color='blue'>";
         String closeTag = "</font>";
-        int openIdx = safeText.indexOf(openTag);
+        int redOpenIdx = safeText.indexOf(redOpenTag);
+        int blueOpenIdx = safeText.indexOf(blueOpenTag);
+        boolean blueText = blueOpenIdx >= 0 && (redOpenIdx < 0 || blueOpenIdx < redOpenIdx);
+        String openTag = blueText ? blueOpenTag : redOpenTag;
+        int openIdx = blueText ? blueOpenIdx : redOpenIdx;
         int closeIdx = safeText.indexOf(closeTag);
         if (openIdx < 0 || closeIdx < 0 || closeIdx <= openIdx) {
             g.setColor(Color.BLACK);
@@ -535,7 +545,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         }
 
         String prefix = safeText.substring(0, openIdx);
-        String redText = safeText.substring(openIdx + openTag.length(), closeIdx);
+        String coloredText = safeText.substring(openIdx + openTag.length(), closeIdx);
         String suffix = safeText.substring(closeIdx + closeTag.length());
 
         int currentX = x;
@@ -544,10 +554,10 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
             g.drawString(prefix, currentX, baselineY);
             currentX += fontMetrics.stringWidth(prefix);
         }
-        if (StringUtils.isNotEmpty(redText)) {
-            g.setColor(Color.RED);
-            g.drawString(redText, currentX, baselineY);
-            currentX += fontMetrics.stringWidth(redText);
+        if (StringUtils.isNotEmpty(coloredText)) {
+            g.setColor(blueText ? Color.BLUE : Color.RED);
+            g.drawString(coloredText, currentX, baselineY);
+            currentX += fontMetrics.stringWidth(coloredText);
         }
         if (StringUtils.isNotEmpty(suffix)) {
             g.setColor(Color.BLACK);
