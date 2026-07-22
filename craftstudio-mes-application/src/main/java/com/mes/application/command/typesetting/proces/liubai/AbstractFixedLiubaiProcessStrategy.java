@@ -203,7 +203,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         LiubaiTagAssets tagAssets = shouldUploadLiubaiTagAssets()
                 ? uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId, expandedWidth, expandedHeight)
                 : null;
-        updateTagMarks(piece, tagAssets);
+        updateTagMarks(piece, tagAssets, margins);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
         String expandedSvg = buildExpandedSvg(originalSvg, pieceMongoId, markPngUrl, tagAssets, originalContentImg, originalWidth, originalHeight, margins);
         String businessId = StringUtils.isNotBlank(piece.getProductionPieceId()) ? piece.getProductionPieceId() : pieceMongoId;
@@ -1197,13 +1197,32 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         StringBuilder builder = new StringBuilder();
         double horizontalX = left + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
         double verticalY = top + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
-        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
-        appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
+        if (shouldBuildLiubaiTagGroup(margins.top)) {
+            appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
+        }
+        if (shouldBuildLiubaiTagGroup(margins.bottom)) {
+            appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
+        }
         if (shouldBuildLeftRightLiubaiTagGroups()) {
-            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
-            appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+            if (shouldBuildLiubaiTagGroup(margins.left)) {
+                appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
+            }
+            if (shouldBuildLiubaiTagGroup(margins.right)) {
+                appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
+            }
         }
         return builder.toString();
+    }
+
+    /**
+     * 当前边是否需要生成留白文字标签。
+     *
+     * <p>固定尺寸留白在超幅拼接场景会把出血/被出血边的外扩量置为 0；这些边没有实际留白区域，
+     * 因此也不应追加文字标签。零外扩复用型工艺（例如包边、净画面）由具体策略控制标签开关，
+     * 不受该判断影响，避免误伤本来就需要贴在原图四边的标签。</p>
+     */
+    private boolean shouldBuildLiubaiTagGroup(double marginMm) {
+        return expandMm() <= 0D || marginMm > 0D;
     }
 
     /**
@@ -1365,7 +1384,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         preview.setThumbnail(maskUrl);
     }
 
-    private void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets) {
+    private void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets, ExpandMargins margins) {
         if (tagAssets == null) {
             return;
         }
@@ -1374,10 +1393,18 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             marks = new LinkedHashMap<>();
             piece.setMarks(marks);
         }
-        marks.put("liubai-tag-top", tagAssets.topUrl);
-        marks.put("liubai-tag-right", tagAssets.rightUrl);
-        marks.put("liubai-tag-bottom", tagAssets.bottomUrl);
-        marks.put("liubai-tag-left", tagAssets.leftUrl);
+        if (shouldBuildLiubaiTagGroup(margins.top)) {
+            marks.put("liubai-tag-top", tagAssets.topUrl);
+        }
+        if (shouldBuildLiubaiTagGroup(margins.right) && shouldBuildLeftRightLiubaiTagGroups()) {
+            marks.put("liubai-tag-right", tagAssets.rightUrl);
+        }
+        if (shouldBuildLiubaiTagGroup(margins.bottom)) {
+            marks.put("liubai-tag-bottom", tagAssets.bottomUrl);
+        }
+        if (shouldBuildLiubaiTagGroup(margins.left) && shouldBuildLeftRightLiubaiTagGroups()) {
+            marks.put("liubai-tag-left", tagAssets.leftUrl);
+        }
     }
 
     private static class LiubaiTagImage {
