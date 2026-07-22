@@ -6,6 +6,9 @@ import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
+import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsMaterialVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
@@ -45,9 +48,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -257,6 +262,149 @@ public class AppOrderService {
         total = domainOrderItemService.filterTotal(filters);
         List<OrderItemVO> result = buildOrderItemVOs(orderItems);
         return new PagedResult<>(result, total, pagedQuery.getSize(), pagedQuery.getCurrent());
+    }
+
+
+    public OrderStatisticsListVO findOrderStatistics(String manufacturerId,
+                                                     String orderId,
+                                                     OrderStatus status,
+                                                     java.util.Date startTime,
+                                                     java.util.Date endTime,
+                                                     String materialId,
+                                                     String materialName,
+                                                     String materialType,
+                                                     PagedQuery pagedQuery) {
+        if (pagedQuery == null) {
+            throw new IllegalArgumentException("分页参数不能为空");
+        }
+        if (pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
+            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        }
+
+        List<OrderInfo> orders = findStatisticOrders(orderId, status, startTime, endTime);
+        LinkedHashMap<String, OrderStatisticsMaterialVO> materialMap = new LinkedHashMap<>();
+        LinkedHashMap<String, OrderStatisticsItemVO> orderMap = new LinkedHashMap<>();
+        BigDecimal totalArea = BigDecimal.ZERO;
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        for (OrderInfo order : orders) {
+            if (order == null || StringUtils.isBlank(order.getOrderId())) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(manufacturerId) && !manufacturerId.equals(order.getManufacturerId())) {
+                continue;
+            }
+            List<OrderItem> orderItems = findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, null);
+            for (OrderItem item : orderItems) {
+                if (item == null) {
+                    continue;
+                }
+                collectMaterial(materialMap, item.getMaterial());
+            }
+
+            List<OrderItem> matchedItems = StringUtils.isBlank(materialId)
+                    ? orderItems
+                    : findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, materialId);
+            boolean matchedOrder = false;
+            for (OrderItem item : matchedItems) {
+                if (item == null) {
+                    continue;
+                }
+                matchedOrder = true;
+                totalArea = totalArea.add(calculateOrderItemArea(item));
+            }
+            if (!matchedOrder) {
+                continue;
+            }
+            BigDecimal paymentPrice = BigDecimal.ZERO;
+            if (order.getPrice() != null && order.getPrice().getPaymentPrice() != null) {
+                paymentPrice = order.getPrice().getPaymentPrice();
+            }
+            BigDecimal scaledPaymentPrice = scaleStatisticsDecimal(paymentPrice);
+            totalAmount = totalAmount.add(scaledPaymentPrice);
+            orderMap.put(order.getOrderId(), new OrderStatisticsItemVO(
+                    order.getOrderId(),
+                    scaledPaymentPrice,
+                    order.getCreateTime()));
+        }
+
+        List<OrderStatisticsItemVO> allOrders = new ArrayList<>(orderMap.values());
+        allOrders.sort(Comparator.comparing(OrderStatisticsItemVO::getCreateTime,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        long total = allOrders.size();
+        int fromIndex = (int) Math.min(Math.max((pagedQuery.getCurrent() - 1) * pagedQuery.getSize(), 0), total);
+        int toIndex = (int) Math.min(fromIndex + pagedQuery.getSize(), total);
+        List<OrderStatisticsItemVO> pageItems = allOrders.subList(fromIndex, toIndex);
+
+        return new OrderStatisticsListVO(
+                pageItems,
+                total,
+                total,
+                scaleStatisticsDecimal(totalArea),
+                scaleStatisticsDecimal(totalAmount),
+                new ArrayList<>(materialMap.values()));
+    }
+
+    private List<OrderInfo> findStatisticOrders(String orderId,
+                                                OrderStatus status,
+                                                java.util.Date startTime,
+                                                java.util.Date endTime) {
+        List<OrderInfo> orders = new ArrayList<>();
+        int current = 1;
+        int size = 100;
+        String statusCode = status == null ? null : status.getCode();
+        while (true) {
+            List<OrderInfo> page = domainOrderInfoService.findOrdersByConditions(
+                    orderId,
+                    statusCode,
+                    startTime,
+                    endTime,
+                    current,
+                    size);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            orders.addAll(page);
+            if (page.size() < size) {
+                break;
+            }
+            current++;
+        }
+        return orders;
+    }
+
+    private List<OrderItem> findAllOrderItemsByOrder(String orderId, String manufacturerId, String materialId) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orderId", orderId);
+        if (StringUtils.isNotBlank(manufacturerId)) {
+            filters.put("manufacturerId", manufacturerId);
+        }
+        if (StringUtils.isNotBlank(materialId)) {
+            filters.put("material.materialId", materialId.trim());
+        }
+        return domainOrderItemService.filterAllUrgentFirst(filters);
+    }
+
+    private void collectMaterial(LinkedHashMap<String, OrderStatisticsMaterialVO> materialMap, Object material) {
+        if (material == null) {
+            return;
+        }
+        Object materialId = invokeGetter(material, "getMaterialId");
+        if (materialId == null || StringUtils.isBlank(String.valueOf(materialId))) {
+            return;
+        }
+        String materialIdText = String.valueOf(materialId);
+        if (materialMap.containsKey(materialIdText)) {
+            return;
+        }
+        Object materialSnapshot = invokeGetter(material, "getMaterialSnapshot");
+        Object materialName = invokeGetter(materialSnapshot, "getName");
+        Object materialType = invokeGetter(material, "getMaterialType");
+        materialMap.put(materialIdText, new OrderStatisticsMaterialVO(
+                materialIdText,
+                materialName == null ? null : String.valueOf(materialName),
+                materialType == null ? null : String.valueOf(materialType)));
     }
 
     /**

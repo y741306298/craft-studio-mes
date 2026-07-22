@@ -18,6 +18,7 @@ public class PagedApiResponse<T> extends ApiResponse<PagedApiResponse.PageData<T
         private Long totalOrderCount;  // 查询日期的订单统计总订单数
         private BigDecimal totalArea;  // 查询日期的订单统计总面积（平方米）
         private BigDecimal totalAmount;// 查询日期的订单统计总金额
+        private List<?> materialList; // 统计接口材料筛选项集合
 
         public PageData(List<T> records, long current, long size, long total) {
             this.items = records;
