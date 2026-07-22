@@ -17,16 +17,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * “配易拉宝”工艺策略。
+ * 易拉宝工艺策略。
  *
  * <p>易拉宝通常不会配置“异形切割”节点，无法复用异形切割产出的 mask SVG；
- * 因此该策略只精确匹配“配易拉宝”工艺节点，并优先根据该节点参数中的配件规格确定宽度，
+ * 因此该策略优先精确匹配“配易拉宝”工艺节点，并保持原逻辑：优先根据该节点参数中的配件规格确定宽度，
  * 缺失时再回退到订单物料 usageSize3D 的宽度；高度始终取订单物料 usageSize3D.height（厘米转毫米并保留两位小数）。
+ * 当只存在“易拉宝画面”且不存在“配易拉宝”节点时，直接使用订单物料 usageSize3D 的宽高作为原始画面尺寸。
  * 随后复用固定留白基类的 path 化留白、processingFlow 标签、mark PNG 上传和生产工件回写能力。</p>
  */
 @Service
 public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrategy {
-    private static final String PROCESS_NAME = "配易拉宝";
+    private static final String ACCESSORY_PROCESS_NAME = "配易拉宝";
+    private static final String SCREEN_PROCESS_NAME = "易拉宝画面";
     private static final double CM_TO_MM = 10D;
     private static final double HORIZONTAL_INSET_MM = 10D;
     /** 上下各外扩 20mm。 */
@@ -46,7 +48,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected boolean matchesLiubaiValue(ProcedureFlow procedureFlow) {
-        return findYilabaoNode(procedureFlow) != null && findAccessoryYilabaoSize(procedureFlow) != null;
+        return findYilabaoNode(procedureFlow) != null;
     }
 
     @Override
@@ -61,7 +63,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
 
     @Override
     protected String[] matchKeywords() {
-        return new String[]{PROCESS_NAME};
+        return new String[]{ACCESSORY_PROCESS_NAME, SCREEN_PROCESS_NAME};
     }
 
     @Override
@@ -165,13 +167,21 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     private YilabaoSize resolveYilabaoSize(LiubaiProcessContext context) {
-        YilabaoSize accessorySize = findAccessoryYilabaoSize(context == null ? null : context.getProcedureFlow());
+        ProcedureFlow procedureFlow = context == null ? null : context.getProcedureFlow();
+        ProcedureFlowNode accessoryNode = findAccessoryYilabaoNode(procedureFlow);
+        ProcedureFlowNode screenNode = findScreenYilabaoNode(procedureFlow);
+        if (accessoryNode == null && screenNode == null) {
+            return null;
+        }
+
         Object usageSize3D = resolveUsageSize3D(context == null ? null : context.getOrderItem());
         Number usageWidthCm = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
         Number usageHeightCm = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
         if (usageHeightCm == null || usageHeightCm.doubleValue() <= 0D) {
             return null;
         }
+
+        YilabaoSize accessorySize = accessoryNode == null ? null : findAccessoryYilabaoSize(accessoryNode);
         double widthMm = accessorySize != null
                 ? accessorySize.widthMm
                 : toMillimeters(usageWidthCm);
@@ -212,8 +222,8 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         return null;
     }
 
-    private YilabaoSize findAccessoryYilabaoSize(ProcedureFlow procedureFlow) {
-        String accessoryName = findYilabaoAccessoryName(procedureFlow);
+    private YilabaoSize findAccessoryYilabaoSize(ProcedureFlowNode node) {
+        String accessoryName = findYilabaoAccessoryName(node);
         if (StringUtils.isBlank(accessoryName)) {
             return null;
         }
@@ -224,8 +234,7 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
         return YilabaoSize.fromCentimeter(Double.parseDouble(matcher.group(1)), Double.parseDouble(matcher.group(2)));
     }
 
-    private String findYilabaoAccessoryName(ProcedureFlow procedureFlow) {
-        ProcedureFlowNode node = findYilabaoNode(procedureFlow);
+    private String findYilabaoAccessoryName(ProcedureFlowNode node) {
         if (node == null || node.getParamConfigs() == null) {
             return null;
         }
@@ -241,11 +250,24 @@ public class YilabaoProcessStrategy extends AbstractCentimeterLiubaiProcessStrat
     }
 
     private ProcedureFlowNode findYilabaoNode(ProcedureFlow procedureFlow) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null) {
+        ProcedureFlowNode accessoryNode = findAccessoryYilabaoNode(procedureFlow);
+        return accessoryNode == null ? findScreenYilabaoNode(procedureFlow) : accessoryNode;
+    }
+
+    private ProcedureFlowNode findAccessoryYilabaoNode(ProcedureFlow procedureFlow) {
+        return findNodeByName(procedureFlow, ACCESSORY_PROCESS_NAME);
+    }
+
+    private ProcedureFlowNode findScreenYilabaoNode(ProcedureFlow procedureFlow) {
+        return findNodeByName(procedureFlow, SCREEN_PROCESS_NAME);
+    }
+
+    private ProcedureFlowNode findNodeByName(ProcedureFlow procedureFlow, String nodeName) {
+        if (procedureFlow == null || procedureFlow.getNodes() == null || StringUtils.isBlank(nodeName)) {
             return null;
         }
         return procedureFlow.getNodes().stream()
-                .filter(node -> node != null && StringUtils.isNotBlank(node.getNodeName()) && PROCESS_NAME.equals(node.getNodeName().trim()))
+                .filter(node -> node != null && StringUtils.isNotBlank(node.getNodeName()) && nodeName.equals(node.getNodeName().trim()))
                 .findFirst()
                 .orElse(null);
     }
