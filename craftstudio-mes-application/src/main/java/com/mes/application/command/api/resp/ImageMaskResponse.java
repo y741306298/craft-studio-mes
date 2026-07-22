@@ -24,6 +24,10 @@ public class ImageMaskResponse {
          */
         private SideResult normal;
         /**
+         * 兼容部分算法回调直接返回的正面结果字段
+         */
+        private SideResult primaryResult;
+        /**
          * 新版结构：反面结果
          */
         private SideResult mirror;
@@ -39,7 +43,12 @@ public class ImageMaskResponse {
 
         public SideResult getPrimaryResult() {
             if (normal != null) {
+                fillPairMetaIfNecessary(normal);
                 return normal;
+            }
+            if (primaryResult != null) {
+                fillPairMetaIfNecessary(primaryResult);
+                return primaryResult;
             }
             if (img == null && svg == null && previewImg == null && thumbnail == null && blood == null) {
                 return null;
@@ -53,6 +62,15 @@ public class ImageMaskResponse {
             compat.setGroup(group);
             compat.setSeq(seq);
             return compat;
+        }
+
+        private void fillPairMetaIfNecessary(SideResult sideResult) {
+            if (sideResult.getGroup() == null) {
+                sideResult.setGroup(group);
+            }
+            if (sideResult.getSeq() == null) {
+                sideResult.setSeq(seq);
+            }
         }
     }
 

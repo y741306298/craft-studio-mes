@@ -344,7 +344,11 @@ public class OrderController {
             return ApiResponse.success("回调处理成功");
             
         } catch (Exception e) {
-            System.err.println("处理图像蒙版回调失败：" + e.getMessage());
+            logger.error("处理图像蒙版回调失败: callbackId={}, orderItemId={}, preprocessRequestId={}",
+                    response == null ? null : response.getId(),
+                    response == null ? null : response.getOrderItemId(),
+                    response == null ? null : response.getPreprocessRequestId(),
+                    e);
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
         }
     }
