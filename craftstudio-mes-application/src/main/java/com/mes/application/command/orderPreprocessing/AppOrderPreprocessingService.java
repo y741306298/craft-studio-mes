@@ -794,6 +794,11 @@ public class AppOrderPreprocessingService {
             if (StringUtils.isBlank(orderItemId)) {
                 throw new RuntimeException("订单项ID不能为空");
             }
+            log.info("图像蒙版回调解析完成: orderItemId={}, callbackPreprocessRequestId={}, pairCount={}, status={}",
+                    orderItemId,
+                    callbackIdentity.preprocessRequestId(),
+                    response.getPairs() == null ? 0 : response.getPairs().size(),
+                    response.getStatus());
 
             // 2. 查询订单项，并判断该回调是否仍属于订单项当前预处理请求。
             OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
@@ -801,13 +806,13 @@ public class AppOrderPreprocessingService {
                 throw new RuntimeException("订单项不存在：" + orderItemId);
             }
             if (isReturnedOrderItem(orderItem) || isReturnedOrder(orderItem.getOrderId())) {
-                System.out.println("丢弃已退单订单项图像蒙版回调，订单项ID：" + orderItemId);
+                log.warn("丢弃已退单订单项图像蒙版回调: orderItemId={}, orderId={}, orderItemStatus={}",
+                        orderItemId, orderItem.getOrderId(), orderItem.getStatus());
                 return;
             }
             if (!isCurrentPreprocessCallback(orderItem, callbackIdentity.preprocessRequestId())) {
-                System.out.println("丢弃过期图像蒙版回调，订单项ID：" + orderItemId
-                        + "，callbackPreprocessRequestId=" + callbackIdentity.preprocessRequestId()
-                        + "，currentPreprocessRequestId=" + orderItem.getPreprocessRequestId());
+                log.warn("丢弃过期图像蒙版回调: orderItemId={}, callbackPreprocessRequestId={}, currentPreprocessRequestId={}",
+                        orderItemId, callbackIdentity.preprocessRequestId(), orderItem.getPreprocessRequestId());
                 return;
             }
 
@@ -856,12 +861,18 @@ public class AppOrderPreprocessingService {
                 try {
                     ImageMaskResponse.SideResult sideResult = pair.getPrimaryResult();
                     if (sideResult == null) {
+                        log.warn("跳过图像蒙版回调结果: orderItemId={}, reason=primaryResult为空, pair={}",
+                                orderItemId, JSON.toJSONString(pair));
                         continue;
                     }
                     String rawImageUrl = sideResult.getImg();
                     String maskedImageUrl = sideResult.getSvg();
                     String rawGroup = sideResult.getGroup() != null ? sideResult.getGroup() : pair.getGroup();
                     Integer seq = sideResult.getSeq() != null ? sideResult.getSeq() : pair.getSeq();
+                    if (StringUtils.isBlank(rawImageUrl)) {
+                        log.warn("跳过图像蒙版回调结果: orderItemId={}, reason=img为空, group={}, seq={}",
+                                orderItemId, rawGroup, seq);
+                    }
                     
                     ProcedureFlow originalFlow = orderItem.getProcedureFlow();
                     ProcedureFlow newProcedureFlow = new ProcedureFlow();
@@ -952,7 +963,7 @@ public class AppOrderPreprocessingService {
                         }
                         OrderItem latestOrderItem = orderItemService.findByOrderItemId(orderItemId);
                         if (isReturnedOrderItem(latestOrderItem) || isReturnedOrder(latestOrderItem == null ? null : latestOrderItem.getOrderId())) {
-                            System.out.println("订单项处理期间已退单，停止生成生产零件，订单项ID：" + orderItemId);
+                            log.warn("订单项处理期间已退单，停止生成生产零件: orderItemId={}", orderItemId);
                             return;
                         }
                         productionPieceService.addProductionPiece(piece);
@@ -977,7 +988,7 @@ public class AppOrderPreprocessingService {
                     );
                 }
                 
-                System.out.println("成功为订单项 " + orderItemId + " 生成 " + resultPieces.size() + " 个生产零件");
+                log.info("成功为订单项生成生产零件: orderItemId={}, generatedPieceCount={}", orderItemId, resultPieces.size());
             } else {
                 orderItemService.markAsFailed(orderItemId, "未能生成任何生产零件");
                 System.err.println("未能生成任何生产零件，订单项ID：" + orderItemId);
@@ -1461,18 +1472,23 @@ public class AppOrderPreprocessingService {
         if (StringUtils.isBlank(svgRefOrContent)) {
             return new Double[]{null, null};
         }
-        String svgContent = svgRefOrContent.trim();
-        if (!svgContent.startsWith("<svg")) {
-            svgContent = this.restTemplate.getForObject(this.completeOssUrl(svgRefOrContent), String.class);
-        }
-        if (StringUtils.isBlank(svgContent)) {
+        try {
+            String svgContent = svgRefOrContent.trim();
+            if (!svgContent.startsWith("<svg")) {
+                svgContent = this.restTemplate.getForObject(this.completeOssUrl(svgRefOrContent), String.class);
+            }
+            if (StringUtils.isBlank(svgContent)) {
+                return new Double[]{null, null};
+            }
+            Matcher widthMatcher = SVG_WIDTH_PATTERN.matcher(svgContent);
+            Matcher heightMatcher = SVG_HEIGHT_PATTERN.matcher(svgContent);
+            Double width = widthMatcher.find() ? Double.parseDouble(widthMatcher.group(1)) : null;
+            Double height = heightMatcher.find() ? Double.parseDouble(heightMatcher.group(1)) : null;
+            return new Double[]{width, height};
+        } catch (Exception e) {
+            log.warn("解析SVG宽高失败，将回退使用订单物料尺寸: svg={}", svgRefOrContent, e);
             return new Double[]{null, null};
         }
-        Matcher widthMatcher = SVG_WIDTH_PATTERN.matcher(svgContent);
-        Matcher heightMatcher = SVG_HEIGHT_PATTERN.matcher(svgContent);
-        Double width = widthMatcher.find() ? Double.parseDouble(widthMatcher.group(1)) : null;
-        Double height = heightMatcher.find() ? Double.parseDouble(heightMatcher.group(1)) : null;
-        return new Double[]{width, height};
     }
 
 }
