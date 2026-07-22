@@ -54,7 +54,7 @@ public class TypesettingController {
      * @return 分页查询结果
      */
     @PostMapping("/list")
-    public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
+        public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
         TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(request);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);

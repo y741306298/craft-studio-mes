@@ -31,6 +31,7 @@ import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
 import com.mes.domain.shared.utils.IdGenerator;
+import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.alibaba.fastjson.JSON;
