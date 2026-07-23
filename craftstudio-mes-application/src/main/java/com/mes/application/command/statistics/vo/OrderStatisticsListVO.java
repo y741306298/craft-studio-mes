@@ -17,4 +17,5 @@ public class OrderStatisticsListVO {
     private BigDecimal totalArea;
     private BigDecimal totalAmount;
     private List<OrderStatisticsMaterialVO> materialList;
+    private List<OrderStatisticsStatusVO> statusList;
 }

@@ -261,7 +261,7 @@ public class OrderInfoService {
      * @param size 每页大小
      * @return 订单列表
      */
-    public List<OrderInfo> findOrdersByConditions(String orderId, String status, Date startTime, Date endTime, int current, int size) {
+    public List<OrderInfo> findOrdersByConditions(String orderId, String status, Date startTime, Date endTime, String routeId, int current, int size) {
         if (size <= 0 || size > 100) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
@@ -278,6 +278,9 @@ public class OrderInfoService {
         }
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
+        }
+        if (StringUtils.isNotBlank(routeId)) {
+            filters.put("routeId", routeId.trim());
         }
 
         if (filters.isEmpty()) {
@@ -422,7 +425,6 @@ public class OrderInfoService {
         if (endTime != null) {
             filters.put("createTime_lte", endTime);
         }
-
         if (filters.isEmpty()) {
             return orderInfoRepository.total();
         }

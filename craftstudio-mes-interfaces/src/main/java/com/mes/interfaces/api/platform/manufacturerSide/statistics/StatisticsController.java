@@ -42,6 +42,7 @@ public class StatisticsController {
                 resolveStatus(request.getStatus()),
                 parseStartDate(request.getCreateDateStart()),
                 parseEndDate(request.getCreateDateEnd()),
+                request.getRouteId(),
                 request.getMaterialId(),
                 request.getMaterialName(),
                 request.getMaterialType(),
@@ -57,6 +58,7 @@ public class StatisticsController {
                 result.getTotalArea(),
                 result.getTotalAmount());
         response.getData().setMaterialList(result.getMaterialList());
+        response.getData().setStatusList(result.getStatusList());
         return response;
     }
 
@@ -64,7 +66,11 @@ public class StatisticsController {
         if (status == null || status.trim().isEmpty()) {
             return null;
         }
-        return OrderStatus.valueOf(status);
+        OrderStatus resolvedStatus = OrderStatus.getByCode(status.trim());
+        if (resolvedStatus != null) {
+            return resolvedStatus;
+        }
+        return OrderStatus.valueOf(status.trim());
     }
 
     private Date parseStartDate(String date) {
