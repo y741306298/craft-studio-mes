@@ -8,6 +8,7 @@
   - 先按订单创建时间等订单条件查询订单数据，再查询这些订单关联的订单项进行统计，不返回具体订单项明细。
   - 返回 `items` 为订单维度列表，每条包含 `orderId`、订单总金额 `paymentPrice`、订单创建时间 `createTime`。
   - 返回 `materialList` 为本次订单范围内订单项材料按 `materialId` 去重后的统一材料列表，可用于前端材料筛选项。
+  - 返回 `statusList` 为全部订单状态枚举，可用于前端状态筛选项；未传 `status` 时默认排除“已退单”订单。
   - 统计字段与订单列表接口的分页响应保持一致：`totalOrderCount`、`totalArea`、`totalAmount`。
   - 统计口径基于查询命中的 `OrderItem`：
     - `totalArea`：对命中的订单项按面积计算规则累加。
@@ -23,7 +24,8 @@
 | size | number | 是 | 每页条数，范围 1-100 |
 | manufacturerId | string | 否 | 工厂/制造商标识，匹配订单项 `manufacturerId` |
 | orderId | string | 否 | 订单 ID，模糊匹配订单项 `orderId` |
-| status | string | 否 | 订单状态枚举名；传入值会按 `OrderStatus.valueOf` 解析 |
+| status | string | 否 | 订单状态枚举名或状态码；未传时默认查询除 `RETURNED`（已退单）之外的订单统计 |
+| routeId | string | 否 | 路线 ID，精确匹配订单 `routeId` |
 | createDateStart | string | 否 | 创建日期起，格式 `yyyy-MM-dd`；按北京时间当天 `00:00:00` 转换为查询起始时间 |
 | createDateEnd | string | 否 | 创建日期止，格式 `yyyy-MM-dd`；按北京时间当天 `23:59:59` 转换为查询结束时间 |
 | materialId | string | 否 | 材料 ID，精确匹配订单项 `material.materialId` |
@@ -39,6 +41,8 @@
   "manufacturerId": "MFR_10001",
   "createDateStart": "2026-07-01",
   "createDateEnd": "2026-07-22",
+  "status": "IN_PRODUCTION",
+  "routeId": "ROUTE_001",
   "materialId": "MAT_001"
 }
 ```
@@ -61,6 +65,9 @@
 | materialList[].materialId | string | 材料 ID |
 | materialList[].materialName | string | 材料名称 |
 | materialList[].materialType | string | 材料类型 |
+| statusList | array[object] | 全部订单状态枚举列表 |
+| statusList[].code | string | 订单状态码 |
+| statusList[].description | string | 订单状态描述 |
 
 ### 返回示例
 
@@ -87,6 +94,16 @@
     "totalOrderCount": 2,
     "totalArea": 35.42,
     "totalAmount": 2268.50,
+    "statusList": [
+      {
+        "code": "PENDING",
+        "description": "待处理"
+      },
+      {
+        "code": "RETURNED",
+        "description": "已退单"
+      }
+    ],
     "materialList": [
       {
         "materialId": "MAT_001",
@@ -105,7 +122,8 @@
 
 ### 统计与分页规则
 
-- 先根据订单条件查询订单数据，日期条件作用于订单 `createTime`。
+- 先根据订单条件查询订单数据，日期条件作用于订单 `createTime`；路线条件精确匹配订单 `routeId`。
+- 未传入 `status` 时，默认查询除 `RETURNED`（已退单）之外的所有订单统计；传入 `status` 时按指定状态查询。
 - 再查询这些订单关联的订单项，并按 `orderItem.material.materialId` 去重形成 `materialList`。
 - 如传入 `materialId`，只统计材料 ID 匹配的订单项；未传入则统计订单下全部订单项。
 - 对存在命中订单项的订单按 `orderId` 去重，形成订单维度 `items`。

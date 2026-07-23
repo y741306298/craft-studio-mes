@@ -9,6 +9,7 @@ import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsMaterialVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
@@ -48,6 +49,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -271,6 +273,7 @@ public class AppOrderService {
                                                      OrderStatus status,
                                                      java.util.Date startTime,
                                                      java.util.Date endTime,
+                                                     String routeId,
                                                      String materialId,
                                                      String materialName,
                                                      String materialType,
@@ -282,7 +285,7 @@ public class AppOrderService {
             throw new IllegalArgumentException("每页大小必须在 1-100 之间");
         }
 
-        List<OrderInfo> orders = findStatisticOrders(orderId, status, startTime, endTime);
+        List<OrderInfo> orders = findStatisticOrders(orderId, status, startTime, endTime, routeId);
         LinkedHashMap<String, OrderStatisticsMaterialVO> materialMap = new LinkedHashMap<>();
         LinkedHashMap<String, OrderStatisticsItemVO> orderMap = new LinkedHashMap<>();
         BigDecimal totalArea = BigDecimal.ZERO;
@@ -344,13 +347,21 @@ public class AppOrderService {
                 total,
                 scaleStatisticsDecimal(totalArea),
                 scaleStatisticsDecimal(totalAmount),
-                new ArrayList<>(materialMap.values()));
+                new ArrayList<>(materialMap.values()),
+                buildOrderStatisticsStatusList());
+    }
+
+    private List<OrderStatisticsStatusVO> buildOrderStatisticsStatusList() {
+        return Arrays.stream(OrderStatus.values())
+                .map(status -> new OrderStatisticsStatusVO(status.getCode(), status.getDescription()))
+                .toList();
     }
 
     private List<OrderInfo> findStatisticOrders(String orderId,
                                                 OrderStatus status,
                                                 java.util.Date startTime,
-                                                java.util.Date endTime) {
+                                                java.util.Date endTime,
+                                                String routeId) {
         List<OrderInfo> orders = new ArrayList<>();
         int current = 1;
         int size = 100;
@@ -361,12 +372,19 @@ public class AppOrderService {
                     statusCode,
                     startTime,
                     endTime,
+                    routeId,
                     current,
                     size);
             if (page == null || page.isEmpty()) {
                 break;
             }
-            orders.addAll(page);
+            if (status == null) {
+                page.stream()
+                        .filter(order -> order != null && order.getStatus() != OrderStatus.RETURNED)
+                        .forEach(orders::add);
+            } else {
+                orders.addAll(page);
+            }
             if (page.size() < size) {
                 break;
             }

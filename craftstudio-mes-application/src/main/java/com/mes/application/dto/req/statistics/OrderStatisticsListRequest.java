@@ -10,6 +10,7 @@ public class OrderStatisticsListRequest extends PagedApiRequest {
     private String manufacturerId;
     private String orderId;
     private String status;
+    private String routeId;
     private String createDateStart;
     private String createDateEnd;
     private String materialId;
