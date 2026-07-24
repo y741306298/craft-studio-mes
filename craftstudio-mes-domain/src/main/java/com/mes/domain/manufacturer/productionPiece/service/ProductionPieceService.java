@@ -502,7 +502,7 @@ public class ProductionPieceService {
             if (StringUtils.isBlank(piece.getProductionPieceType())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
             }
-            syncRouteBindingFromOrderItem(piece);
+            syncOrderMetadataFromOrderItem(piece);
 
             // 生成唯一的 productionPieceId
             if (StringUtils.isBlank(piece.getProductionPieceId())) {
