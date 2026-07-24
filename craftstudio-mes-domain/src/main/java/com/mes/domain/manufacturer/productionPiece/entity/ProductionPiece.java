@@ -5,6 +5,7 @@ import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class ProductionPiece extends BaseEntity {
 
     private String productionPieceId;
     private String orderItemId;
+    private OrderChannelInfo channel;
     private String carrierId;
     private String manufacturerId;
     private String routeId;

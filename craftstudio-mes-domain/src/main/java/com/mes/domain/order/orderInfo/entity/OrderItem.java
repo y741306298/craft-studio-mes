@@ -6,6 +6,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
@@ -39,6 +40,7 @@ public class OrderItem extends BaseEntity {
     private String preprocessRequestId;
     private String kuaidiWay;
     private String kuaidiNum;
+    private OrderChannelInfo channel;
     private String routeId;
     private String routeNodeId;
     private List<ProductionPiece> productionPieces;
