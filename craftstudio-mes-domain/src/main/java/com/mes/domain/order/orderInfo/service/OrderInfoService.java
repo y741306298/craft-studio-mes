@@ -621,10 +621,8 @@ public class OrderInfoService {
             return new ArrayList<>();
         }
 
-        // 先添加订单主表
-        if (!existsOrder(orderInfo)) {
-            orderInfoRepository.add(orderInfo);
-        }
+        // 先添加订单主表；如果订单已存在但缺少新增的渠道信息，则补齐渠道信息。
+        saveOrPatchOrderInfo(orderInfo);
 
         // 批量添加订单项，并获取带有ID的结果
         Collection<OrderItem> savedOrderItemsCollection = orderItemRepository.batchAdd(itemsToAdd);
@@ -660,16 +658,29 @@ public class OrderInfoService {
         return orderInfo != null ? orderInfo.getManufacturerId() : null;
     }
 
-    private boolean existsOrder(OrderInfo orderInfo) {
+    private void saveOrPatchOrderInfo(OrderInfo orderInfo) {
+        OrderInfo existingOrder = findExistingOrder(orderInfo);
+        if (existingOrder == null) {
+            orderInfoRepository.add(orderInfo);
+            return;
+        }
+        if (existingOrder.getChannel() == null && orderInfo.getChannel() != null) {
+            existingOrder.setChannel(orderInfo.getChannel());
+            orderInfoRepository.update(existingOrder);
+        }
+    }
+
+    private OrderInfo findExistingOrder(OrderInfo orderInfo) {
         if (orderInfo == null || StringUtils.isBlank(orderInfo.getOrderId())) {
-            return false;
+            return null;
         }
         Map<String, Object> filters = new HashMap<>();
         filters.put("orderId", orderInfo.getOrderId());
         if (StringUtils.isNotBlank(orderInfo.getManufacturerId())) {
             filters.put("manufacturerId", orderInfo.getManufacturerId());
         }
-        return orderInfoRepository.filterTotal(filters) > 0;
+        List<OrderInfo> results = orderInfoRepository.filterList(1, 1, filters);
+        return results == null || results.isEmpty() ? null : results.get(0);
     }
 
 

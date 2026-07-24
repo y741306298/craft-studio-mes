@@ -377,6 +377,11 @@ public class ProductionPieceService {
         }
     }
 
+    private void updateProductionPieceWithOrderMetadata(ProductionPiece productionPiece) {
+        syncOrderMetadataFromOrderItem(productionPiece);
+        productionPieceRepository.update(productionPiece);
+    }
+
     /**
      * 更新生产工件
      */
@@ -388,7 +393,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
 
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -483,8 +488,7 @@ public class ProductionPieceService {
         if (productionPiece.getProcedureFlow() != null) {
             existingPiece.setProcedureFlow(productionPiece.getProcedureFlow());
         }
-
-        productionPieceRepository.update(existingPiece);
+        updateProductionPieceWithOrderMetadata(existingPiece);
     }
 
     /**
@@ -530,7 +534,7 @@ public class ProductionPieceService {
         }
 
         productionPiece.setStatus(status.getCode());
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -553,7 +557,7 @@ public class ProductionPieceService {
         }
 
         productionPiece.setStatus(status.getCode());
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -571,7 +575,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -589,7 +593,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -607,7 +611,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -625,7 +629,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PRINTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -643,7 +647,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -661,7 +665,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.CUTTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -684,7 +688,7 @@ public class ProductionPieceService {
         } else {
             piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
         }
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -702,7 +706,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.FUBAN.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -720,7 +724,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -738,7 +742,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -756,7 +760,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.RETURNED.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
