@@ -12,9 +12,12 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -108,8 +111,8 @@ class MQTest {
         if (nameServer != null && !nameServer.isBlank()) {
             return nameServer;
         }
-        ClassPathResource applicationProperties = new ClassPathResource("application.properties");
-        if (!applicationProperties.exists()) {
+        Resource applicationProperties = findConfigResource("application.properties");
+        if (applicationProperties == null || !applicationProperties.exists()) {
             return null;
         }
         properties = PropertiesLoaderUtils.loadProperties(applicationProperties);
@@ -117,13 +120,34 @@ class MQTest {
     }
 
     private Properties loadYamlProperties(String location) {
-        ClassPathResource yaml = new ClassPathResource(location);
-        if (!yaml.exists()) {
+        Resource yaml = findConfigResource(location);
+        if (yaml == null || !yaml.exists()) {
             return null;
         }
         YamlPropertiesFactoryBean yamlPropertiesFactoryBean = new YamlPropertiesFactoryBean();
         yamlPropertiesFactoryBean.setResources(yaml);
         return yamlPropertiesFactoryBean.getObject();
+    }
+
+    private Resource findConfigResource(String location) {
+        ClassPathResource classPathResource = new ClassPathResource(location);
+        if (classPathResource.exists()) {
+            return classPathResource;
+        }
+        Path[] fileSystemPaths = new Path[] {
+                Path.of(location),
+                Path.of("src/main/resources", location),
+                Path.of("src/test/resources", location),
+                Path.of("craftstudio-mes-application/src/main/resources", location),
+                Path.of("craftstudio-mes-application/src/test/resources", location)
+        };
+        for (Path fileSystemPath : fileSystemPaths) {
+            FileSystemResource fileSystemResource = new FileSystemResource(fileSystemPath);
+            if (fileSystemResource.exists()) {
+                return fileSystemResource;
+            }
+        }
+        return null;
     }
 
     static Map<String, Object> baseMessage(String topic, String tag, Object info) {
