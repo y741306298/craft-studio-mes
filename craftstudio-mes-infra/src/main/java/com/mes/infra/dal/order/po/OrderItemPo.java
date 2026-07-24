@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
@@ -36,6 +37,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String preprocessRequestId;
     private String kuaidiWay;
     private String kuaidiNum;
+    private OrderChannelInfo channel;
     private String routeId;
     private String routeNodeId;
     private OrderItemPriceInfo price;
@@ -67,6 +69,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setPreprocessRequestId(this.preprocessRequestId);
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
+        orderItem.setChannel(this.channel);
         orderItem.setRouteId(this.routeId);
         orderItem.setRouteNodeId(this.routeNodeId);
         orderItem.setPrice(this.price);
@@ -94,6 +97,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
         this.kuaidiNum = _do.getKuaidiNum();
+        this.channel = _do.getChannel();
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
         this.price = _do.getPrice();

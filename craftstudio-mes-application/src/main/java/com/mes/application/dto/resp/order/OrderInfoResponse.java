@@ -1,6 +1,7 @@
 package com.mes.application.dto.resp.order;
 
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import lombok.Data;
 
@@ -15,6 +16,7 @@ public class OrderInfoResponse {
     private String deliveryWay;
     private String deliveryAddress;
     private String status;
+    private OrderChannelInfo channel;
 
     public static OrderInfoResponse from(OrderInfo orderInfo) {
         OrderInfoResponse response = new OrderInfoResponse();
@@ -23,6 +25,7 @@ public class OrderInfoResponse {
         response.setCustomer(orderInfo.getCustomer());
         response.setDeliveryAddress(orderInfo.getDeliveryAddress());
         response.setStatus(orderInfo.getStatus() != null ? orderInfo.getStatus().getCode() : null);
+        response.setChannel(orderInfo.getChannel());
         return response;
     }
 }
