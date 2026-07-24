@@ -6,6 +6,7 @@ import com.mes.domain.delivery.deliveryNet.enums.DeliveryWayNUM;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
@@ -33,6 +34,7 @@ public class OrderInfo extends BaseEntity {
     private Long userId;
     private String externalOrderId;
     private String paymentState;
+    private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private String manufacturerId;
     private String manufacturerName;
