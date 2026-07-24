@@ -1,5 +1,6 @@
 package com.mes.application.command.order;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -101,6 +102,11 @@ public class AppPreOrderLabelTaskService {
     }
 
     private void notifyLogisticsOrderInfo(OrderInfo orderInfo, String kuaidiNum) {
+        if (StringUtils.isBlank(kuaidiNum)) {
+            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，kuaidiNum 为空: orderId={}",
+                    orderInfo == null ? null : orderInfo.getOrderId());
+            return;
+        }
         if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
             log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，渠道订单 ID 为空: orderId={}",
                     orderInfo == null ? null : orderInfo.getOrderId());
@@ -122,7 +128,7 @@ public class AppPreOrderLabelTaskService {
         logisticsOrderInfo.setOrderId(orderInfo.getChannel().getOrderId());
 
         Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
-        rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), message);
+        rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), JSON.toJSONString(message));
         log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: topic={}, tag={}, orderId={}, kuaidiNum={}, manufacturerMetaId={}",
                 LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
                 logisticsOrderInfo.getKuaidiNum(), logisticsOrderInfo.getManufacturerMetaId());
