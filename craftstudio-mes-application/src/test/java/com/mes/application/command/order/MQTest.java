@@ -25,10 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @EnableAutoConfiguration
 @SpringBootTest(
         classes = MQTest.LogisticsOrderInfoTestListener.class,
-        properties = {
-                "rocketmq.name-server=${rocketmq.name-server}",
-                "rocketmq.producer.group=mes-logistics-test-producer"
-        })
+        properties = "rocketmq.producer.group=mes-logistics-test-producer")
 class MQTest {
     private static final String TOPIC = "mes-logistics";
     private static final String TAG = "test-platform";
