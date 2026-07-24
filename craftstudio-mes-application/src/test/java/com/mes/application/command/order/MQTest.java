@@ -3,7 +3,7 @@ package com.mes.application.command.order;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -20,9 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Disabled("需要本地/测试环境 RocketMQ broker；手动验证 mes-logistics topic 监听时启用")
+@EnabledIfSystemProperty(named = "rocketmq.name-server", matches = ".+",
+        disabledReason = "需要通过 -Drocketmq.name-server=<host:port> 指定 RocketMQ broker 后才执行")
 @EnableAutoConfiguration
-@SpringBootTest(classes = MQTest.LogisticsOrderInfoTestListener.class)
+@SpringBootTest(
+        classes = MQTest.LogisticsOrderInfoTestListener.class,
+        properties = {
+                "rocketmq.name-server=${rocketmq.name-server}",
+                "rocketmq.producer.group=mes-logistics-test-producer"
+        })
 class MQTest {
     private static final String TOPIC = "mes-logistics";
     private static final String TAG = "test-platform";
