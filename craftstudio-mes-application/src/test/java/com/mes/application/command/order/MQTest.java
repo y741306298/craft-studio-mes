@@ -17,12 +17,14 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,7 +121,7 @@ class MQTest {
         return properties.getProperty(propertyName);
     }
 
-    private Properties loadYamlProperties(String location) {
+    private Properties loadYamlProperties(String location) throws Exception {
         Resource yaml = findConfigResource(location);
         if (yaml == null || !yaml.exists()) {
             return null;
@@ -129,7 +131,7 @@ class MQTest {
         return yamlPropertiesFactoryBean.getObject();
     }
 
-    private Resource findConfigResource(String location) {
+    private Resource findConfigResource(String location) throws Exception {
         ClassPathResource classPathResource = new ClassPathResource(location);
         if (classPathResource.exists()) {
             return classPathResource;
@@ -139,7 +141,9 @@ class MQTest {
                 Path.of("src/main/resources", location),
                 Path.of("src/test/resources", location),
                 Path.of("craftstudio-mes-application/src/main/resources", location),
-                Path.of("craftstudio-mes-application/src/test/resources", location)
+                Path.of("craftstudio-mes-application/src/test/resources", location),
+                Path.of("craftstudio-mes-interfaces/src/main/resources", location),
+                Path.of("craftstudio-mes-interfaces/src/test/resources", location)
         };
         for (Path fileSystemPath : fileSystemPaths) {
             FileSystemResource fileSystemResource = new FileSystemResource(fileSystemPath);
@@ -147,7 +151,22 @@ class MQTest {
                 return fileSystemResource;
             }
         }
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+        while (current != null) {
+            Path matched = findConfigResourceUnder(current, location);
+            if (matched != null) {
+                return new FileSystemResource(matched);
+            }
+            current = current.getParent();
+        }
         return null;
+    }
+
+    private Path findConfigResourceUnder(Path root, String location) throws Exception {
+        try (Stream<Path> paths = Files.find(root, 6,
+                (path, attributes) -> attributes.isRegularFile() && path.getFileName().toString().equals(location))) {
+            return paths.findFirst().orElse(null);
+        }
     }
 
     static Map<String, Object> baseMessage(String topic, String tag, Object info) {
