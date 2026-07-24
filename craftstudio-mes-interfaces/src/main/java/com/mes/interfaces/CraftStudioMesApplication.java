@@ -7,6 +7,7 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerA
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGenerator;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(
 		scanBasePackages = {
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.FullyQualifiedAnnotationBeanNameGe
 				DataSourceTransactionManagerAutoConfiguration.class
 		}
 )
+@EnableScheduling
 @ComponentScan(
 	basePackages = {
 		"com.mes.interfaces",

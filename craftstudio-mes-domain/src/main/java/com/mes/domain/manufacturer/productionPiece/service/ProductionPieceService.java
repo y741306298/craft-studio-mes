@@ -6,7 +6,9 @@ import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
@@ -29,6 +31,9 @@ public class ProductionPieceService {
 
     @Autowired
     private OrderItemService orderItemService;
+
+    @Autowired
+    private OrderInfoService orderInfoService;
 
     /**
      * 根据多条件查询生产工件（支持分页）
@@ -337,7 +342,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
         }
 
-        syncRouteBindingFromOrderItem(productionPiece);
+        syncOrderMetadataFromOrderItem(productionPiece);
 
         // 生成唯一的 productionPieceId
         if (StringUtils.isBlank(productionPiece.getProductionPieceId())) {
@@ -347,16 +352,22 @@ public class ProductionPieceService {
         return productionPieceRepository.add(productionPiece);
     }
 
-    private void syncRouteBindingFromOrderItem(ProductionPiece productionPiece) {
+    private void syncOrderMetadataFromOrderItem(ProductionPiece productionPiece) {
         if (productionPiece == null || StringUtils.isBlank(productionPiece.getOrderItemId())) {
-            return;
-        }
-        if (StringUtils.isNotBlank(productionPiece.getRouteId()) && StringUtils.isNotBlank(productionPiece.getRouteNodeId())) {
             return;
         }
         OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
         if (orderItem == null) {
             return;
+        }
+        if (productionPiece.getChannel() == null) {
+            productionPiece.setChannel(orderItem.getChannel());
+        }
+        if (productionPiece.getChannel() == null && StringUtils.isNotBlank(orderItem.getOrderId())) {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+            if (orderInfo != null) {
+                productionPiece.setChannel(orderInfo.getChannel());
+            }
         }
         if (StringUtils.isBlank(productionPiece.getRouteId())) {
             productionPiece.setRouteId(orderItem.getRouteId());
@@ -364,6 +375,11 @@ public class ProductionPieceService {
         if (StringUtils.isBlank(productionPiece.getRouteNodeId())) {
             productionPiece.setRouteNodeId(orderItem.getRouteNodeId());
         }
+    }
+
+    private void updateProductionPieceWithOrderMetadata(ProductionPiece productionPiece) {
+        syncOrderMetadataFromOrderItem(productionPiece);
+        productionPieceRepository.update(productionPiece);
     }
 
     /**
@@ -377,7 +393,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
         }
 
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -472,8 +488,7 @@ public class ProductionPieceService {
         if (productionPiece.getProcedureFlow() != null) {
             existingPiece.setProcedureFlow(productionPiece.getProcedureFlow());
         }
-
-        productionPieceRepository.update(existingPiece);
+        updateProductionPieceWithOrderMetadata(existingPiece);
     }
 
     /**
@@ -491,7 +506,7 @@ public class ProductionPieceService {
             if (StringUtils.isBlank(piece.getProductionPieceType())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
             }
-            syncRouteBindingFromOrderItem(piece);
+            syncOrderMetadataFromOrderItem(piece);
 
             // 生成唯一的 productionPieceId
             if (StringUtils.isBlank(piece.getProductionPieceId())) {
@@ -519,7 +534,7 @@ public class ProductionPieceService {
         }
 
         productionPiece.setStatus(status.getCode());
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -542,7 +557,7 @@ public class ProductionPieceService {
         }
 
         productionPiece.setStatus(status.getCode());
-        productionPieceRepository.update(productionPiece);
+        updateProductionPieceWithOrderMetadata(productionPiece);
     }
 
     /**
@@ -560,7 +575,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -578,7 +593,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -596,7 +611,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -614,7 +629,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PRINTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -632,7 +647,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -650,7 +665,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.CUTTING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -673,7 +688,7 @@ public class ProductionPieceService {
         } else {
             piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
         }
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -691,7 +706,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.FUBAN.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -709,7 +724,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -727,7 +742,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**
@@ -745,7 +760,7 @@ public class ProductionPieceService {
         }
 
         piece.setStatus(ProductionPieceStatus.RETURNED.getCode());
-        productionPieceRepository.update(piece);
+        updateProductionPieceWithOrderMetadata(piece);
     }
 
     /**

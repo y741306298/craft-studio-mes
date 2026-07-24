@@ -1,6 +1,5 @@
 package com.mes.application.command.order;
 
-import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderQuery;
@@ -30,6 +29,7 @@ import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
 import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
+import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -90,7 +90,7 @@ public class AppOrderService {
     private AppOrderPreprocessingService appOrderPreprocessingService;
 
     @Autowired
-    private AppDeliveryPkgService appDeliveryPkgService;
+    private PreOrderLabelTaskService preOrderLabelTaskService;
 
     @Autowired
     private OrderDailyStatisticsService orderDailyStatisticsService;
@@ -601,7 +601,7 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
-        preOrderKuaidi100Label(orderInfo, orderItemsResult);
+        preOrderLabelTaskService.createFromOrderInfo(orderInfo);
         // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
         List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
         // 入库和必要的灰度图转 SVG 成功后立即返回，后续预处理改为异步队列执行
@@ -612,67 +612,6 @@ public class AppOrderService {
         orderPreprocessTaskQueue.submit(readyToPreprocessOrderItems);
         log.info("addOrderWithItems 已提交订单预处理任务: orderId={}", orderInfo.getOrderId());
         return orderInfo;
-    }
-
-    private void preOrderKuaidi100Label(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        try {
-            AppDeliveryPkgService.DeliveryPkgPrintResult printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
-            if (printResult == null || StringUtils.isBlank(printResult.getKuaidiNum())) {
-                return;
-            }
-            OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
-            if (savedOrderInfo == null) {
-                return;
-            }
-            savedOrderInfo.setKuaidiNum(printResult.getKuaidiNum());
-            domainOrderInfoService.updateOrder(savedOrderInfo);
-            orderInfo.setKuaidiNum(printResult.getKuaidiNum());
-        } catch (Exception ex) {
-            log.warn("addOrderWithItems 快递100预下单失败，继续后续订单预处理: orderId={}",
-                    orderInfo == null ? null : orderInfo.getOrderId(),
-                    ex);
-            savePreOrderKuaidi100FailureRemark(orderInfo, ex);
-        }
-    }
-
-    private void savePreOrderKuaidi100FailureRemark(OrderInfo orderInfo, Exception ex) {
-        if (orderInfo == null || StringUtils.isBlank(orderInfo.getOrderId())) {
-            return;
-        }
-        String failureRemark = buildPreOrderKuaidi100FailureRemark(ex);
-        try {
-            OrderInfo savedOrderInfo = domainOrderInfoService.findByOrderId(orderInfo.getOrderId());
-            if (savedOrderInfo == null) {
-                orderInfo.setRemark(appendRemark(orderInfo.getRemark(), failureRemark));
-                return;
-            }
-            String updatedRemark = appendRemark(savedOrderInfo.getRemark(), failureRemark);
-            savedOrderInfo.setRemark(updatedRemark);
-            domainOrderInfoService.updateOrder(savedOrderInfo);
-            orderInfo.setRemark(updatedRemark);
-        } catch (Exception saveEx) {
-            log.warn("addOrderWithItems 保存快递100预下单失败备注失败，继续后续订单预处理: orderId={}",
-                    orderInfo.getOrderId(),
-                    saveEx);
-        }
-    }
-
-    private String buildPreOrderKuaidi100FailureRemark(Exception ex) {
-        String message = ex == null ? null : ex.getMessage();
-        if (StringUtils.isBlank(message)) {
-            message = ex == null ? "未知异常" : ex.getClass().getSimpleName();
-        }
-        return "快递100预下单失败：" + message;
-    }
-
-    private String appendRemark(String originalRemark, String appendRemark) {
-        if (StringUtils.isBlank(appendRemark)) {
-            return originalRemark;
-        }
-        if (StringUtils.isBlank(originalRemark)) {
-            return appendRemark;
-        }
-        return originalRemark + "\n" + appendRemark;
     }
 
     /**

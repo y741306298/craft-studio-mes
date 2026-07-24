@@ -4,6 +4,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.mes.infra.base.BasePO;
@@ -30,6 +31,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private Long userId;
     private String externalOrderId;
     private String paymentState;
+    private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private String manufacturerId;
     private String manufacturerName;
@@ -55,6 +57,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setUserId(this.userId);
         orderInfo.setExternalOrderId(this.externalOrderId);
         orderInfo.setPaymentState(this.paymentState);
+        orderInfo.setChannel(this.channel);
         orderInfo.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
         orderInfo.setManufacturerId(this.manufacturerId);
         orderInfo.setManufacturerName(this.manufacturerName);
@@ -81,6 +84,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.userId = _do.getUserId();
         this.externalOrderId = _do.getExternalOrderId();
         this.paymentState = _do.getPaymentState();
+        this.channel = _do.getChannel();
         this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
         this.manufacturerId = _do.getManufacturerId();
         this.manufacturerName = _do.getManufacturerName();

@@ -5,6 +5,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.infra.base.BasePO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
@@ -23,6 +24,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
 
     private String productionPieceId;
     private String orderItemId;
+    private OrderChannelInfo channel;
     private String procedureFlowId;
     private String carrierId;
     private String manufacturerId;
@@ -71,6 +73,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
         piece.setProductionPieceId(this.productionPieceId);
         piece.setCarrierId(this.carrierId);
         piece.setOrderItemId(this.orderItemId);
+        piece.setChannel(this.channel);
         piece.setProcedureFlowId(this.procedureFlowId);
         piece.setManufacturerId(this.manufacturerId);
         piece.setRouteId(this.routeId);
@@ -119,6 +122,7 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
 
         this.productionPieceId = _do.getProductionPieceId();
         this.orderItemId = _do.getOrderItemId();
+        this.channel = _do.getChannel();
         this.carrierId = _do.getCarrierId();
         this.procedureFlowId = _do.getProcedureFlowId();
         this.manufacturerId = _do.getManufacturerId();
