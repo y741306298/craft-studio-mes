@@ -8,12 +8,16 @@ import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageExt;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,14 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@EnabledIfSystemProperty(named = "rocketmq.name-server", matches = ".+",
-        disabledReason = "需要通过 -Drocketmq.name-server=<host:port> 指定 RocketMQ broker 后才执行")
 class MQTest {
     private static final String TOPIC = "mes-logistics";
 
     @Test
     void shouldListenLogisticsOrderInfoMessage() throws Exception {
-        String nameServer = System.getProperty("rocketmq.name-server");
+        String nameServer = resolveNameServer();
+        Assumptions.assumeTrue(nameServer != null && !nameServer.isBlank(),
+                "需要通过 -Drocketmq.name-server=<host:port> 或 application-dev.yml/application.yml 配置 rocketmq.name-server 后才执行");
         String tag = "test-platform-" + System.currentTimeMillis();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Map<String, Object>> receivedMessage = new AtomicReference<>();
@@ -72,6 +76,54 @@ class MQTest {
             producer.shutdown();
             consumer.shutdown();
         }
+    }
+
+    private String resolveNameServer() throws Exception {
+        String nameServer = System.getProperty("rocketmq.name-server");
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        nameServer = System.getenv("ROCKETMQ_NAME_SERVER");
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        String propertyName = "rocketmq.name-server";
+        Properties properties = loadYamlProperties("application-dev.yml");
+        nameServer = properties == null ? null : properties.getProperty(propertyName);
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        properties = loadYamlProperties("application-dev.yaml");
+        nameServer = properties == null ? null : properties.getProperty(propertyName);
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        properties = loadYamlProperties("application.yml");
+        nameServer = properties == null ? null : properties.getProperty(propertyName);
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        properties = loadYamlProperties("application.yaml");
+        nameServer = properties == null ? null : properties.getProperty(propertyName);
+        if (nameServer != null && !nameServer.isBlank()) {
+            return nameServer;
+        }
+        ClassPathResource applicationProperties = new ClassPathResource("application.properties");
+        if (!applicationProperties.exists()) {
+            return null;
+        }
+        properties = PropertiesLoaderUtils.loadProperties(applicationProperties);
+        return properties.getProperty(propertyName);
+    }
+
+    private Properties loadYamlProperties(String location) {
+        ClassPathResource yaml = new ClassPathResource(location);
+        if (!yaml.exists()) {
+            return null;
+        }
+        YamlPropertiesFactoryBean yamlPropertiesFactoryBean = new YamlPropertiesFactoryBean();
+        yamlPropertiesFactoryBean.setResources(yaml);
+        return yamlPropertiesFactoryBean.getObject();
     }
 
     static Map<String, Object> baseMessage(String topic, String tag, Object info) {
