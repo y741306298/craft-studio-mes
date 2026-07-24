@@ -13,17 +13,24 @@ import com.mes.domain.order.preOrderLabelTask.entity.PreOrderLabelTask;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
 public class AppPreOrderLabelTaskService {
     private static final long PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS = 10 * 60 * 1000L;
+    private static final String LOGISTICS_ORDER_INFO_MESSAGE_NAME = "LogisticsOrderInfo";
+    private static final String LOGISTICS_ORDER_INFO_STATE_PRODUCING = "生产中";
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -39,6 +46,15 @@ public class AppPreOrderLabelTaskService {
 
     @Autowired
     private AppDeliveryPkgService appDeliveryPkgService;
+
+    @Autowired
+    private ObjectProvider<RabbitTemplate> rabbitTemplateProvider;
+
+    @Value("${craftstudio.mq.logistics-order-info.exchange:}")
+    private String logisticsOrderInfoExchange;
+
+    @Value("${craftstudio.mq.logistics-order-info.routing-key:LogisticsOrderInfo}")
+    private String logisticsOrderInfoRoutingKey;
 
     @Scheduled(fixedDelay = PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS)
     public void processPendingPreOrderLabelTasks() {
@@ -74,6 +90,7 @@ public class AppPreOrderLabelTaskService {
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
             String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
+            notifyLogisticsOrderProducing(task);
             preOrderLabelTaskService.markProcessed(task, kuaidiNum);
         } catch (Exception ex) {
             log.warn("预下快递单批处理任务处理失败，等待下次重试: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
@@ -89,6 +106,35 @@ public class AppPreOrderLabelTaskService {
      */
     private AppDeliveryPkgService.DeliveryPkgPrintResult preOrderWdtLabel(OrderInfo orderInfo, List<OrderItem> orderItems) {
         return null;
+    }
+
+    private void notifyLogisticsOrderProducing(PreOrderLabelTask task) {
+        if (task == null || task.getChannel() == null || StringUtils.isBlank(task.getChannel().getOrderId())) {
+            log.info("预下快递单批处理任务跳过物流订单状态 MQ 通知，渠道订单 ID 为空: taskId={}, orderId={}",
+                    task == null ? null : task.getId(), task == null ? null : task.getOrderId());
+            return;
+        }
+        RabbitTemplate rabbitTemplate = rabbitTemplateProvider.getIfAvailable();
+        if (rabbitTemplate == null) {
+            log.warn("预下快递单批处理任务无法发送物流订单状态 MQ 通知，RabbitTemplate 未配置: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId());
+            return;
+        }
+        Map<String, Object> logisticsOrderInfo = new LinkedHashMap<>();
+        logisticsOrderInfo.put("LogisticsOrderId", task.getChannel().getOrderId());
+        logisticsOrderInfo.put("State", LOGISTICS_ORDER_INFO_STATE_PRODUCING);
+
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("messageName", LOGISTICS_ORDER_INFO_MESSAGE_NAME);
+        message.put("data", logisticsOrderInfo);
+
+        if (StringUtils.isBlank(logisticsOrderInfoExchange)) {
+            rabbitTemplate.convertAndSend(logisticsOrderInfoRoutingKey, message);
+        } else {
+            rabbitTemplate.convertAndSend(logisticsOrderInfoExchange, logisticsOrderInfoRoutingKey, message);
+        }
+        log.info("预下快递单批处理任务已发送物流订单状态 MQ 通知: taskId={}, orderId={}, logisticsOrderId={}, state={}",
+                task.getId(), task.getOrderId(), task.getChannel().getOrderId(), LOGISTICS_ORDER_INFO_STATE_PRODUCING);
     }
 
     private List<ProductionPiece> findProductionPieces(List<OrderItem> orderItems) {
