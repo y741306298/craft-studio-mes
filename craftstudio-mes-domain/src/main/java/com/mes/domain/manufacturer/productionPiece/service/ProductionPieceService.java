@@ -6,7 +6,9 @@ import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import io.micrometer.common.util.StringUtils;
@@ -29,6 +31,9 @@ public class ProductionPieceService {
 
     @Autowired
     private OrderItemService orderItemService;
+
+    @Autowired
+    private OrderInfoService orderInfoService;
 
     /**
      * 根据多条件查询生产工件（支持分页）
@@ -337,7 +342,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件类型不能为空");
         }
 
-        syncRouteBindingFromOrderItem(productionPiece);
+        syncOrderMetadataFromOrderItem(productionPiece);
 
         // 生成唯一的 productionPieceId
         if (StringUtils.isBlank(productionPiece.getProductionPieceId())) {
@@ -347,16 +352,22 @@ public class ProductionPieceService {
         return productionPieceRepository.add(productionPiece);
     }
 
-    private void syncRouteBindingFromOrderItem(ProductionPiece productionPiece) {
+    private void syncOrderMetadataFromOrderItem(ProductionPiece productionPiece) {
         if (productionPiece == null || StringUtils.isBlank(productionPiece.getOrderItemId())) {
-            return;
-        }
-        if (StringUtils.isNotBlank(productionPiece.getRouteId()) && StringUtils.isNotBlank(productionPiece.getRouteNodeId())) {
             return;
         }
         OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
         if (orderItem == null) {
             return;
+        }
+        if (productionPiece.getChannel() == null) {
+            productionPiece.setChannel(orderItem.getChannel());
+        }
+        if (productionPiece.getChannel() == null && StringUtils.isNotBlank(orderItem.getOrderId())) {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
+            if (orderInfo != null) {
+                productionPiece.setChannel(orderInfo.getChannel());
+            }
         }
         if (StringUtils.isBlank(productionPiece.getRouteId())) {
             productionPiece.setRouteId(orderItem.getRouteId());
