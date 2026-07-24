@@ -183,6 +183,7 @@ public class ProcedureService {
 
         ProductionPiece piece = new ProductionPiece();
         piece.setOrderItemId(orderItem.getOrderItemId());
+        piece.setChannel(orderItem.getChannel());
         piece.setOrgInfo(orderItem.getOrgInfo());
 
         ProcedureFlow sourceProcedureFlow = procedureFlow != null ? procedureFlow : orderItem.getProcedureFlow();

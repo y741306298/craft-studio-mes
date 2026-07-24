@@ -6,6 +6,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import lombok.Data;
@@ -33,6 +34,7 @@ public class OrderAddRequest {
     private Long userId;
     private String externalOrderId;
     private String paymentState;
+    private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private ManufacturerInfoRequest manufacturerInfo;
     private OrderPriceInfo price;
@@ -54,6 +56,7 @@ public class OrderAddRequest {
         orderInfo.setUserId(userId);
         orderInfo.setExternalOrderId(externalOrderId);
         orderInfo.setPaymentState(paymentState);
+        orderInfo.setChannel(channel);
         orderInfo.setLogisticsCarrierInfo(logisticsCarrierInfo);
         if (manufacturerInfo != null) {
             orderInfo.setManufacturerId(manufacturerInfo.getId());

@@ -571,6 +571,7 @@ public class OrderInfoService {
                 item.setOrderItemId(orderItemId);
             }
             item.setOrderId(orderInfo.getOrderId());
+            item.setChannel(orderInfo.getChannel());
             item.setOrgInfo(orderInfo.getOrgInfo());
             if (isDuplicateOrderItem(orderInfo, item, newItemKeys)) {
                 continue;
