@@ -13,10 +13,9 @@ import com.mes.domain.order.preOrderLabelTask.entity.PreOrderLabelTask;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -29,8 +28,7 @@ import java.util.Map;
 @Service
 public class AppPreOrderLabelTaskService {
     private static final long PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS = 10 * 60 * 1000L;
-    private static final String LOGISTICS_ORDER_INFO_MESSAGE_NAME = "LogisticsOrderInfo";
-    private static final String LOGISTICS_ORDER_INFO_STATE_PRODUCING = "生产中";
+    private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -48,13 +46,7 @@ public class AppPreOrderLabelTaskService {
     private AppDeliveryPkgService appDeliveryPkgService;
 
     @Autowired
-    private ObjectProvider<RabbitTemplate> rabbitTemplateProvider;
-
-    @Value("${craftstudio.mq.logistics-order-info.exchange:}")
-    private String logisticsOrderInfoExchange;
-
-    @Value("${craftstudio.mq.logistics-order-info.routing-key:LogisticsOrderInfo}")
-    private String logisticsOrderInfoRoutingKey;
+    private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
 
     @Scheduled(fixedDelay = PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS)
     public void processPendingPreOrderLabelTasks() {
@@ -90,7 +82,7 @@ public class AppPreOrderLabelTaskService {
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
             String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
-            notifyLogisticsOrderProducing(task);
+            notifyLogisticsOrderInfo(orderInfo, kuaidiNum);
             preOrderLabelTaskService.markProcessed(task, kuaidiNum);
         } catch (Exception ex) {
             log.warn("预下快递单批处理任务处理失败，等待下次重试: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
@@ -108,33 +100,40 @@ public class AppPreOrderLabelTaskService {
         return null;
     }
 
-    private void notifyLogisticsOrderProducing(PreOrderLabelTask task) {
-        if (task == null || task.getChannel() == null || StringUtils.isBlank(task.getChannel().getOrderId())) {
-            log.info("预下快递单批处理任务跳过物流订单状态 MQ 通知，渠道订单 ID 为空: taskId={}, orderId={}",
-                    task == null ? null : task.getId(), task == null ? null : task.getOrderId());
+    private void notifyLogisticsOrderInfo(OrderInfo orderInfo, String kuaidiNum) {
+        if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
+            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，渠道订单 ID 为空: orderId={}",
+                    orderInfo == null ? null : orderInfo.getOrderId());
             return;
         }
-        RabbitTemplate rabbitTemplate = rabbitTemplateProvider.getIfAvailable();
-        if (rabbitTemplate == null) {
-            log.warn("预下快递单批处理任务无法发送物流订单状态 MQ 通知，RabbitTemplate 未配置: taskId={}, orderId={}",
-                    task.getId(), task.getOrderId());
+        if (StringUtils.isBlank(orderInfo.getPlatformCode())) {
+            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，platformCode 为空: orderId={}", orderInfo.getOrderId());
             return;
         }
-        Map<String, Object> logisticsOrderInfo = new LinkedHashMap<>();
-        logisticsOrderInfo.put("LogisticsOrderId", task.getChannel().getOrderId());
-        logisticsOrderInfo.put("State", LOGISTICS_ORDER_INFO_STATE_PRODUCING);
+        RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
+        if (rocketMQTemplate == null) {
+            log.warn("预下快递单批处理任务无法发送物流订单信息 MQ 通知，RocketMQTemplate 未配置: orderId={}", orderInfo.getOrderId());
+            return;
+        }
 
+        LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
+        logisticsOrderInfo.setKuaidiNum(kuaidiNum);
+        logisticsOrderInfo.setManufacturerMetaId(orderInfo.getManufacturerId());
+        logisticsOrderInfo.setOrderId(orderInfo.getChannel().getOrderId());
+
+        Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
+        rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), message);
+        log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: topic={}, tag={}, orderId={}, kuaidiNum={}, manufacturerMetaId={}",
+                LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
+                logisticsOrderInfo.getKuaidiNum(), logisticsOrderInfo.getManufacturerMetaId());
+    }
+
+    private Map<String, Object> buildBaseMessage(String topic, String tag, Object info) {
         Map<String, Object> message = new LinkedHashMap<>();
-        message.put("messageName", LOGISTICS_ORDER_INFO_MESSAGE_NAME);
-        message.put("data", logisticsOrderInfo);
-
-        if (StringUtils.isBlank(logisticsOrderInfoExchange)) {
-            rabbitTemplate.convertAndSend(logisticsOrderInfoRoutingKey, message);
-        } else {
-            rabbitTemplate.convertAndSend(logisticsOrderInfoExchange, logisticsOrderInfoRoutingKey, message);
-        }
-        log.info("预下快递单批处理任务已发送物流订单状态 MQ 通知: taskId={}, orderId={}, logisticsOrderId={}, state={}",
-                task.getId(), task.getOrderId(), task.getChannel().getOrderId(), LOGISTICS_ORDER_INFO_STATE_PRODUCING);
+        message.put("topic", topic);
+        message.put("tag", tag);
+        message.put("info", info);
+        return message;
     }
 
     private List<ProductionPiece> findProductionPieces(List<OrderItem> orderItems) {
@@ -183,4 +182,12 @@ public class AppPreOrderLabelTaskService {
         pkgInfos.add(deliveryPkgInfo);
         productionPiece.setDeliveryPkgInfos(pkgInfos);
     }
+
+    @lombok.Data
+    private static class LogisticsOrderInfo {
+        private String kuaidiNum;
+        private String manufacturerMetaId;
+        private String orderId;
+    }
+
 }
