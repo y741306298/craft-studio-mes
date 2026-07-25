@@ -37,11 +37,23 @@ public class PreOrderLabelTaskService {
     }
 
     public void markProcessed(PreOrderLabelTask task, String kuaidiNum) {
+        markProcessed(task, kuaidiNum, null);
+    }
+
+    /**
+     * 将任务标记为已处理，并记录未打印或未通知成功的原因。
+     *
+     * @param task 预下单任务
+     * @param kuaidiNum 已生成的快递单号
+     * @param failureReason 处理失败原因；完全成功时为空
+     */
+    public void markProcessed(PreOrderLabelTask task, String kuaidiNum, String failureReason) {
         if (task == null) {
             return;
         }
         task.setStatus(PreOrderLabelTaskStatus.PROCESSED);
         task.setKuaidiNum(kuaidiNum);
+        task.setFailureReason(failureReason);
         preOrderLabelTaskRepository.update(task);
     }
 }

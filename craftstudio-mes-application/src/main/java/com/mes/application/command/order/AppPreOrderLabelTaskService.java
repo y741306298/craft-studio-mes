@@ -3,6 +3,9 @@ package com.mes.application.command.order;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
+import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
+import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
+import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.order.enums.OrderChannelType;
@@ -19,11 +22,15 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -45,6 +52,9 @@ public class AppPreOrderLabelTaskService {
 
     @Autowired
     private AppDeliveryPkgService appDeliveryPkgService;
+
+    @Autowired
+    private WdtService wdtService;
 
     @Autowired
     private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
@@ -83,8 +93,17 @@ public class AppPreOrderLabelTaskService {
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
             String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
-            notifyLogisticsOrderInfo(orderInfo, kuaidiNum);
-            preOrderLabelTaskService.markProcessed(task, kuaidiNum);
+            if (StringUtils.isBlank(kuaidiNum)) {
+                String failureReason = isGatherPlatform(task)
+                        ? "聚单平台打印未返回物流单号"
+                        : "快递100打印未返回快递单号";
+                log.warn("预下快递单批处理任务未生成快递单号，任务按已处理结束: taskId={}, orderId={}, reason={}",
+                        task.getId(), task.getOrderId(), failureReason);
+                preOrderLabelTaskService.markProcessed(task, null, failureReason);
+                return;
+            }
+            String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, kuaidiNum);
+            preOrderLabelTaskService.markProcessed(task, kuaidiNum, mqFailureReason);
         } catch (Exception ex) {
             log.warn("预下快递单批处理任务处理失败，等待下次重试: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
         }
@@ -95,31 +114,134 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 旺店通预下单预留入口。
+     * 为旺店通聚单平台订单执行快递换仓和预下单面单打印。
+     *
+     * @param orderInfo 订单信息
+     * @param orderItems 订单项列表
+     * @return 打印结果；缺少必要数据或未配置快递映射时返回 {@code null}
      */
-    private AppDeliveryPkgService.DeliveryPkgPrintResult preOrderWdtLabel(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        return null;
+    private AppDeliveryPkgService.DeliveryPkgPrintResult preOrderWdtLabel(OrderInfo orderInfo,
+                                                                           List<OrderItem> orderItems) {
+        if (orderInfo == null || orderInfo.getChannel() == null || orderInfo.getLogisticsCarrierInfo() == null
+                || StringUtils.isBlank(orderInfo.getManufacturerId())
+                || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
+            return null;
+        }
+        String presetType = orderInfo.getLogisticsCarrierInfo().getPresetType();
+        WdtConfig config = wdtService.findConfig(orderInfo.getManufacturerId(), presetType);
+        if (config == null) {
+            log.info("旺店通预下单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
+                    orderInfo.getManufacturerId(), presetType);
+            return null;
+        }
+
+        String uniCode = orderInfo.getChannel().getOrderId();
+        try {
+            Object platform = getWdtPlatform();
+            platform.getClass().getMethod("configLogisticsWarehouse", String.class, String.class, String.class)
+                    .invoke(platform, config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            LogisticsLabel label = printWdtLabel(platform, uniCode);
+            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                return null;
+            }
+            String remark = buildPreOrderWdtRemark(orderInfo, orderItems);
+            saveWdtLabelRecord(config, label, remark);
+            return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
+        } catch (Exception ex) {
+            throw new IllegalStateException("旺店通快递换仓或面单打印失败: " + uniCode, ex);
+        }
     }
 
-    private void notifyLogisticsOrderInfo(OrderInfo orderInfo, String kuaidiNum) {
+    /**
+     * 获取旺店通聚单平台实例。
+     */
+    private Object getWdtPlatform() throws ReflectiveOperationException {
+        Class<?> platformClass = Class.forName("com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform");
+        return platformClass.getMethod("getInstance", GatherPlatformType.class).invoke(null, GatherPlatformType.WDT);
+    }
+
+    /**
+     * 使用默认打印机 {@code mes-siid} 打印旺店通面单。
+     */
+    private LogisticsLabel printWdtLabel(Object platform, String uniCode) throws ReflectiveOperationException {
+        try {
+            return (LogisticsLabel) platform.getClass()
+                    .getMethod("printLogisticsLabel", String.class, String.class)
+                    .invoke(platform, uniCode, "mes-siid");
+        } catch (NoSuchMethodException ignored) {
+            try {
+                return (LogisticsLabel) platform.getClass()
+                        .getMethod("printLogistics", String.class, String.class)
+                        .invoke(platform, uniCode, "mes-siid");
+            } catch (NoSuchMethodException secondIgnored) {
+                return (LogisticsLabel) platform.getClass().getMethod("printLogisticsLabel", String.class).invoke(platform, uniCode);
+            }
+        }
+    }
+
+    /**
+     * 保存快递配置、完整面单数据及打印备注快照。
+     */
+    private void saveWdtLabelRecord(WdtConfig config, LogisticsLabel label, String remark) {
+        WdtLabelRecord record = new WdtLabelRecord();
+        record.setManufacturerMetaId(config.getManufacturerMetaId());
+        record.setWarehouseId(config.getWarehouseId());
+        record.setLogisticsId(config.getLogisticsId());
+        record.setLogisticsName(config.getLogisticsName());
+        record.setPresetType(config.getPresetType());
+        record.setLogisticsOrderId(label.getLogisticsOrderId());
+        record.setConsignee(label.getConsignee());
+        record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
+        record.setRemark(remark);
+        wdtService.saveLabelRecord(record);
+    }
+
+    /**
+     * 按快递100预下单规则生成订单、文件和订单备注信息。
+     */
+    private String buildPreOrderWdtRemark(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        List<String> parts = new ArrayList<>();
+        if (StringUtils.isNotBlank(orderInfo.getOrderId())) parts.add("订单:" + orderInfo.getOrderId());
+        if (orderItems != null) {
+            List<String> files = orderItems.stream().filter(Objects::nonNull).map(OrderItem::getProductionImgFile)
+                    .map(this::getImageFileName).filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+            if (!files.isEmpty()) parts.add("文件:" + String.join(",", files));
+        }
+        if (StringUtils.isNotBlank(orderInfo.getRemark())) parts.add(orderInfo.getRemark());
+        return String.join("\n", parts);
+    }
+
+    /**
+     * 从生产图片文件对象读取文件名。
+     */
+    private String getImageFileName(Object imageFile) {
+        if (imageFile == null) return null;
+        try {
+            Object value = imageFile.getClass().getMethod("getName").invoke(imageFile);
+            return value == null ? null : String.valueOf(value);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * 通知聚单平台物流单号。通知失败时返回原因，由任务记录持久化，避免重新下单打印。
+     *
+     * @return 通知失败原因；通知成功时返回 {@code null}
+     */
+    private String notifyLogisticsOrderInfo(OrderInfo orderInfo, String kuaidiNum) {
         if (StringUtils.isBlank(kuaidiNum)) {
-            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，kuaidiNum 为空: orderId={}",
-                    orderInfo == null ? null : orderInfo.getOrderId());
-            return;
+            return "MQ通知失败：kuaidiNum为空";
         }
         if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
-            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，渠道订单 ID 为空: orderId={}",
-                    orderInfo == null ? null : orderInfo.getOrderId());
-            return;
+            return "MQ通知失败：渠道订单ID为空";
         }
         if (StringUtils.isBlank(orderInfo.getPlatformCode())) {
-            log.info("预下快递单批处理任务跳过物流订单信息 MQ 通知，platformCode 为空: orderId={}", orderInfo.getOrderId());
-            return;
+            return "MQ通知失败：platformCode为空";
         }
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
-            log.warn("预下快递单批处理任务无法发送物流订单信息 MQ 通知，RocketMQTemplate 未配置: orderId={}", orderInfo.getOrderId());
-            return;
+            return "MQ通知失败：RocketMQTemplate未配置";
         }
 
         LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
@@ -128,10 +250,34 @@ public class AppPreOrderLabelTaskService {
         logisticsOrderInfo.setOrderId(orderInfo.getChannel().getOrderId());
 
         Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
-        rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), JSON.toJSONString(message));
-        log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: topic={}, tag={}, orderId={}, kuaidiNum={}, manufacturerMetaId={}",
-                LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
-                logisticsOrderInfo.getKuaidiNum(), logisticsOrderInfo.getManufacturerMetaId());
+        try {
+            rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), JSON.toJSONString(message));
+            log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: topic={}, tag={}, orderId={}, kuaidiNum={}, manufacturerMetaId={}",
+                    LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
+                    logisticsOrderInfo.getKuaidiNum(), logisticsOrderInfo.getManufacturerMetaId());
+            return null;
+        } catch (Exception ex) {
+            String failureReason = "MQ通知失败：" + resolveExceptionMessage(ex);
+            log.error("预下快递单批处理任务 MQ 通知失败，记录错误并结束任务: orderId={}, kuaidiNum={}",
+                    orderInfo.getOrderId(), kuaidiNum, ex);
+            return failureReason;
+        }
+    }
+
+    /**
+     * 获取异常链最底层的可读错误信息。
+     */
+    private String resolveExceptionMessage(Exception ex) {
+        if (ex == null) {
+            return "未知异常";
+        }
+        Throwable current = ex;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return StringUtils.isBlank(current.getMessage())
+                ? current.getClass().getSimpleName()
+                : current.getMessage();
     }
 
     private Map<String, Object> buildBaseMessage(String topic, String tag, Object info) {

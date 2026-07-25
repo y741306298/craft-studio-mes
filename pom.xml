@@ -157,6 +157,11 @@
             <artifactId>craftstudio-pangolin-domain</artifactId>
             <version>0.0.1</version>
         </dependency>
+        <dependency>
+            <groupId>com.piliofpala.craftstudio</groupId>
+            <artifactId>craftstudio-pangolin-infra</artifactId>
+            <version>0.0.1</version>
+        </dependency>
 
         <dependency>
             <groupId>com.piliofpala.craftstudio.shared</groupId>

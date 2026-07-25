@@ -18,4 +18,6 @@ public class PreOrderLabelTask extends BaseEntity {
     private PreOrderLabelTaskStatus status;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private String kuaidiNum;
+    /** 任务已处理但未完成打印或 MQ 通知时的原因。 */
+    private String failureReason;
 }
