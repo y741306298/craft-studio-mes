@@ -18,6 +18,7 @@ public class PreOrderLabelTaskPo extends BasePO<PreOrderLabelTask> {
     private String status;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private String kuaidiNum;
+    private String failureReason;
 
     @Override
     public PreOrderLabelTask toDO() {
@@ -30,6 +31,7 @@ public class PreOrderLabelTaskPo extends BasePO<PreOrderLabelTask> {
         task.setStatus(this.status == null ? null : PreOrderLabelTaskStatus.valueOf(this.status));
         task.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
         task.setKuaidiNum(this.kuaidiNum);
+        task.setFailureReason(this.failureReason);
         return task;
     }
 
@@ -40,6 +42,7 @@ public class PreOrderLabelTaskPo extends BasePO<PreOrderLabelTask> {
         this.status = _do.getStatus() == null ? null : _do.getStatus().getCode();
         this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
         this.kuaidiNum = _do.getKuaidiNum();
+        this.failureReason = _do.getFailureReason();
         return this;
     }
 }

@@ -1023,7 +1023,7 @@ public class AppDeliveryPkgService {
         private final String taskId;
         private final String kuaidiNum;
 
-        private DeliveryPkgPrintResult(String taskId, String kuaidiNum) {
+        public DeliveryPkgPrintResult(String taskId, String kuaidiNum) {
             this.taskId = taskId;
             this.kuaidiNum = kuaidiNum;
         }
