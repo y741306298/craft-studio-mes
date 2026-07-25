@@ -245,8 +245,9 @@ public class AppPreOrderLabelTaskService {
         if (StringUtils.isBlank(kuaidiNum)) {
             return "MQ通知失败：kuaidiNum为空";
         }
-        if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
-            return "MQ通知失败：渠道订单ID为空";
+        String logisticsOrderId = resolveLogisticsOrderId(orderInfo);
+        if (StringUtils.isBlank(logisticsOrderId)) {
+            return "MQ通知失败：订单ID为空";
         }
         if (StringUtils.isBlank(orderInfo.getPlatformCode())) {
             return "MQ通知失败：platformCode为空";
@@ -259,7 +260,7 @@ public class AppPreOrderLabelTaskService {
         LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
         logisticsOrderInfo.setKuaidiNum(kuaidiNum);
         logisticsOrderInfo.setManufacturerMetaId(orderInfo.getManufacturerId());
-        logisticsOrderInfo.setOrderId(orderInfo.getChannel().getOrderId());
+        logisticsOrderInfo.setOrderId(logisticsOrderId);
 
         Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
         try {
@@ -274,6 +275,20 @@ public class AppPreOrderLabelTaskService {
                     orderInfo.getOrderId(), kuaidiNum, ex);
             return failureReason;
         }
+    }
+
+    /**
+     * 聚单平台订单使用渠道订单 ID，其他订单使用 MES 订单 ID。
+     */
+    private String resolveLogisticsOrderId(OrderInfo orderInfo) {
+        if (orderInfo == null) {
+            return null;
+        }
+        if (orderInfo.getChannel() != null
+                && orderInfo.getChannel().getType() == OrderChannelType.GATHER_PLATFORM) {
+            return orderInfo.getChannel().getOrderId();
+        }
+        return orderInfo.getOrderId();
     }
 
     /**
