@@ -124,7 +124,7 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 为旺店通聚单平台订单执行快递换仓和预下单面单打印。
+     * 为旺店通聚单平台订单执行预下单面单打印。
      *
      * @param orderInfo 订单信息
      * @param orderItems 订单项列表
