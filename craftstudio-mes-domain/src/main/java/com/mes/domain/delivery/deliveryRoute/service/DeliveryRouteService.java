@@ -12,7 +12,6 @@ import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBinding
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
@@ -160,6 +159,7 @@ public class DeliveryRouteService {
             saveRouteNodes(deliveryRoute.getId(), routeNodes);
         }
         unbindAddressesByRouteNodes(deliveryRoute.getId(), removedNodeIds);
+        clearRouteBindings(deliveryRoute.getId(), removedNodeIds);
         deleteRouteNodeBindings(removedNodeIds);
     }
 
@@ -175,7 +175,7 @@ public class DeliveryRouteService {
         if (deliveryRoute != null) {
             List<DeliveryRouteNode> routeNodes = deliveryRouteNodeRepository.listByRouteId(deliveryRoute.getId());
             List<String> routeNodeIds = collectRouteNodeIdentifiers(routeNodes);
-            clearInProductionBindings(deliveryRoute.getId(), null);
+            clearRouteBindings(deliveryRoute.getId(), null);
             deliveryRouteNodeRepository.removeByRouteId(deliveryRoute.getId());
             deliveryRouteRepository.delete(deliveryRoute);
             unbindAddressesByRoute(deliveryRoute.getId());
@@ -268,18 +268,17 @@ public class DeliveryRouteService {
         }
     }
 
-    private void clearInProductionBindings(String routeId, List<String> nodeIds) {
-        clearInProductionOrderBindings(orderInfoRepository, routeId, nodeIds);
-        clearInProductionOrderBindings(orderItemRepository, routeId, nodeIds);
-        clearInProductionPieceBindings(routeId, nodeIds);
+    private void clearRouteBindings(String routeId, List<String> nodeIds) {
+        clearOrderBindings(orderInfoRepository, routeId, nodeIds);
+        clearOrderBindings(orderItemRepository, routeId, nodeIds);
+        clearProductionPieceBindings(routeId, nodeIds);
     }
 
-    private <T extends com.mes.domain.base.BaseEntity> void clearInProductionOrderBindings(com.mes.domain.base.repository.BaseRepository<T> repository, String routeId, List<String> nodeIds) {
+    private <T extends com.mes.domain.base.BaseEntity> void clearOrderBindings(com.mes.domain.base.repository.BaseRepository<T> repository, String routeId, List<String> nodeIds) {
         if (nodeIds != null && nodeIds.isEmpty()) {
             return;
         }
         Map<String, Object> filters = buildRouteBindingFilters(routeId, nodeIds);
-        filters.put("status", OrderStatus.IN_PRODUCTION.getCode());
         while (true) {
             List<T> records = repository.filterList(1, 100, filters);
             if (records == null || records.isEmpty()) {
@@ -298,18 +297,11 @@ public class DeliveryRouteService {
         }
     }
 
-    private void clearInProductionPieceBindings(String routeId, List<String> nodeIds) {
+    private void clearProductionPieceBindings(String routeId, List<String> nodeIds) {
         if (nodeIds != null && nodeIds.isEmpty()) {
             return;
         }
         Map<String, Object> filters = buildRouteBindingFilters(routeId, nodeIds);
-        List<String> inProductionStatuses = new ArrayList<>();
-        for (ProductionPieceStatus status : ProductionPieceStatus.values()) {
-            if (!status.isFinalState()) {
-                inProductionStatuses.add(status.getCode());
-            }
-        }
-        filters.put("status_in", inProductionStatuses);
         while (true) {
             List<ProductionPiece> pieces = productionPieceRepository.filterList(1, 100, filters);
             if (pieces == null || pieces.isEmpty()) {
@@ -510,6 +502,7 @@ public class DeliveryRouteService {
             nodes.removeIf(node -> nodeId.equals(node.getId()));
             deliveryRouteNodeRepository.delete(removedNode);
             unbindAddressesByRouteNodes(routeId, removedNodeIds);
+            clearRouteBindings(routeId, removedNodeIds);
             deleteRouteNodeBindings(removedNodeIds);
 
             int order = 0;
@@ -658,12 +651,20 @@ public class DeliveryRouteService {
         Map<String, Object> orderFilters = new HashMap<>();
         orderFilters.put("orderId", orderId);
         List<OrderInfo> orderInfos = orderInfoRepository.filterList(1, 1, orderFilters);
-        if (orderInfos != null && !orderInfos.isEmpty()) {
-            OrderInfo orderInfo = orderInfos.get(0);
-            orderInfo.setRouteId(routeId);
-            orderInfo.setRouteNodeId(nodeId);
-            orderInfoRepository.update(orderInfo);
+        if (orderInfos == null || orderInfos.isEmpty()) {
+            return;
         }
+        OrderInfo orderInfo = orderInfos.get(0);
+        // Pending orders can already have route-managed pieces, so both active
+        // states participate in hierarchy synchronization. Final/inactive
+        // states must keep their existing hierarchy untouched.
+        if (orderInfo == null || (orderInfo.getStatus() != OrderStatus.PENDING
+                && orderInfo.getStatus() != OrderStatus.IN_PRODUCTION)) {
+            return;
+        }
+        orderInfo.setRouteId(routeId);
+        orderInfo.setRouteNodeId(nodeId);
+        orderInfoRepository.update(orderInfo);
 
         Map<String, Object> itemFilters = new HashMap<>();
         itemFilters.put("orderId", orderId);
@@ -675,7 +676,7 @@ public class DeliveryRouteService {
                 break;
             }
             for (OrderItem orderItem : orderItems) {
-                if (!shouldSyncOrderItemRouteBinding(orderItem)) {
+                if (orderItem == null) {
                     continue;
                 }
                 orderItem.setRouteId(routeId);
@@ -688,15 +689,6 @@ public class DeliveryRouteService {
             }
             current++;
         }
-    }
-
-    private boolean shouldSyncOrderItemRouteBinding(OrderItem orderItem) {
-        if (orderItem == null) {
-            return false;
-        }
-        return StringUtils.isNotBlank(orderItem.getRouteId())
-                || StringUtils.isNotBlank(orderItem.getRouteNodeId())
-                || OrderStatus.IN_PRODUCTION.equals(orderItem.getStatus());
     }
 
     private void syncProductionPiecesRouteBinding(String orderItemId, String routeId, String nodeId) {
@@ -715,7 +707,7 @@ public class DeliveryRouteService {
             }
             List<ProductionPiece> productionPiecesToUpdate = new ArrayList<>();
             for (ProductionPiece productionPiece : productionPieces) {
-                if (productionPiece == null || isFinalProductionPiece(productionPiece)) {
+                if (productionPiece == null) {
                     continue;
                 }
                 productionPiece.setRouteId(routeId);
@@ -730,11 +722,6 @@ public class DeliveryRouteService {
             }
             current++;
         }
-    }
-
-    private boolean isFinalProductionPiece(ProductionPiece productionPiece) {
-        ProductionPieceStatus status = ProductionPieceStatus.getByCode(productionPiece.getStatus());
-        return status != null && status.isFinalState();
     }
 
     public void unbindAddressRecognitionRecords(List<String> recordIds) {

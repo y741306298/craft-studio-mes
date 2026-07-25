@@ -368,6 +368,15 @@ public class AppDeliveryPkgService {
                 if (vo.getOrgInfo() == null) {
                     vo.setOrgInfo(orderInfo.getOrgInfo());
                 }
+                // Route bindings are denormalized across orders, items, and pieces.
+                // Older pieces may not have been synchronized when the order was
+                // assigned, so use the order as the final read-side fallback.
+                if (StringUtils.isBlank(vo.getRouteId())) {
+                    vo.setRouteId(orderInfo.getRouteId());
+                }
+                if (StringUtils.isBlank(vo.getRouteNodeId())) {
+                    vo.setRouteNodeId(orderInfo.getRouteNodeId());
+                }
                 World world = worldRepository.loadWorld();
                 Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
                 String fullAddress = address.buildFullAddressString(world);
@@ -636,6 +645,7 @@ public class AppDeliveryPkgService {
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        fillMissingRouteFromOrder(request, orderInfo);
         if (orderInfo != null && orderInfo.getChannel() != null
                 && orderInfo.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
             return packGatherPlatformOrder(request, orderInfo, selectedPieces, packageQuantityMap,
@@ -739,6 +749,24 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    /**
+     * The packaging page may omit route fields even though the order has already been
+     * assigned to a route. Keep an explicitly selected route, but otherwise inherit
+     * the order binding so the package and its printable carrier description agree
+     * with the order.
+     */
+    private void fillMissingRouteFromOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo) {
+        if (request == null || orderInfo == null) {
+            return;
+        }
+        if (StringUtils.isBlank(request.getRouteId())) {
+            request.setRouteId(orderInfo.getRouteId());
+        }
+        if (StringUtils.isBlank(request.getRouteNodeId())) {
+            request.setRouteNodeId(orderInfo.getRouteNodeId());
+        }
     }
 
     private DeliveryPkg packGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
