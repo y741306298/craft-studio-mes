@@ -2,7 +2,6 @@ package com.mes.application.command.order;
 
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
-import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
@@ -88,13 +87,13 @@ public class AppPreOrderLabelTaskService {
                 return;
             }
 
-            AppDeliveryPkgService.DeliveryPkgPrintResult printResult = isGatherPlatform(task)
+            AppDeliveryPkgService.DeliveryPkgPrintResult printResult = isGatherPlatform(orderInfo)
                     ? preOrderWdtLabel(orderInfo, orderItems)
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
             String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
             if (StringUtils.isBlank(kuaidiNum)) {
-                String failureReason = isGatherPlatform(task)
+                String failureReason = isGatherPlatform(orderInfo)
                         ? "聚单平台打印未返回物流单号"
                         : "快递100打印未返回快递单号";
                 log.warn("预下快递单批处理任务未生成快递单号，任务按已处理结束: taskId={}, orderId={}, reason={}",
@@ -109,8 +108,8 @@ public class AppPreOrderLabelTaskService {
         }
     }
 
-    private boolean isGatherPlatform(PreOrderLabelTask task) {
-        return task.getChannel() != null && task.getChannel().getType() == OrderChannelType.GATHER_PLATFORM;
+    private boolean isGatherPlatform(OrderInfo orderInfo) {
+        return orderInfo.getChannel() != null && orderInfo.getChannel().getType() == OrderChannelType.GATHER_PLATFORM;
     }
 
     /**
@@ -145,7 +144,7 @@ public class AppPreOrderLabelTaskService {
                 return null;
             }
             String remark = buildPreOrderWdtRemark(orderInfo, orderItems);
-            saveWdtLabelRecord(config, label, remark);
+            saveWdtLabelRecord(config, label, remark, orderInfo);
             return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
         } catch (Exception ex) {
             throw new IllegalStateException("旺店通快递换仓或面单打印失败: " + uniCode, ex);
@@ -182,9 +181,12 @@ public class AppPreOrderLabelTaskService {
     /**
      * 保存快递配置、完整面单数据及打印备注快照。
      */
-    private void saveWdtLabelRecord(WdtConfig config, LogisticsLabel label, String remark) {
+    private void saveWdtLabelRecord(WdtConfig config, LogisticsLabel label, String remark, OrderInfo orderInfo) {
         WdtLabelRecord record = new WdtLabelRecord();
         record.setManufacturerMetaId(config.getManufacturerMetaId());
+        record.setOrderId(orderInfo.getOrderId());
+        record.setChannelOrderId(orderInfo.getChannel().getOrderId());
+        record.setConsumeStatus(com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus.PRE_ORDERED);
         record.setWarehouseId(config.getWarehouseId());
         record.setLogisticsId(config.getLogisticsId());
         record.setLogisticsName(config.getLogisticsName());
@@ -312,27 +314,8 @@ public class AppPreOrderLabelTaskService {
         }
         for (ProductionPiece productionPiece : productionPieces) {
             productionPiece.setChannel(orderInfo.getChannel() != null ? orderInfo.getChannel() : task.getChannel());
-            if (StringUtils.isNotBlank(kuaidiNum)) {
-                appendDeliveryPkgInfo(productionPiece, orderInfo, kuaidiNum);
-            }
             productionPieceService.updateProductionPiece(productionPiece);
         }
-    }
-
-    private void appendDeliveryPkgInfo(ProductionPiece productionPiece, OrderInfo orderInfo, String kuaidiNum) {
-        List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
-        if (pkgInfos == null) {
-            pkgInfos = new ArrayList<>();
-        }
-        DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
-        deliveryPkgInfo.setKuaidiNum(kuaidiNum);
-        if (orderInfo.getLogisticsCarrierInfo() != null) {
-            deliveryPkgInfo.setCarrierId(orderInfo.getLogisticsCarrierInfo().getCarrierId());
-            deliveryPkgInfo.setCarrierName(orderInfo.getLogisticsCarrierInfo().getCarrierName());
-        }
-        deliveryPkgInfo.setQuantity(productionPiece.getQuantity());
-        pkgInfos.add(deliveryPkgInfo);
-        productionPiece.setDeliveryPkgInfos(pkgInfos);
     }
 
     @lombok.Data

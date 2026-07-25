@@ -246,11 +246,14 @@ public class DeliveryPkgController {
     }
 
     @PostMapping("/add")
-    public ApiResponse<DeliveryPkgAddResultVO> addPkg(@RequestBody DeliveryPkgAddRequest request) {
+    public ApiResponse<Object> addPkg(@RequestBody DeliveryPkgAddRequest request) {
         log.info("========== addPkg 入参开始 ==========");
         log.info("response: " + JsonLogUtil.toJSONString(request));
         log.info("========== addPkg 入参结束 ==========");
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
+        if (deliveryPkg.getWdtLabelRecord() != null) {
+            return ApiResponse.success(deliveryPkg.getWdtLabelRecord());
+        }
         return ApiResponse.success(buildAddResult(deliveryPkg));
     }
 

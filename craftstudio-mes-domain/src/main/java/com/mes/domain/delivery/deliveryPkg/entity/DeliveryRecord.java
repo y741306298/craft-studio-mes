@@ -1,6 +1,7 @@
 package com.mes.domain.delivery.deliveryPkg.entity;
 
 import com.mes.domain.base.BaseEntity;
+import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -24,6 +25,12 @@ public class DeliveryRecord extends BaseEntity {
 
     /** 快递100面单复打次数 */
     private Integer reprintCount;
+
+    /** Consumption state for a pre-ordered label. */
+    private PreOrderLabelConsumeStatus consumeStatus;
+    private Date packedAt;
+    private String deliveryPkgId;
+    private String formalPrintSiid;
     
     private String carrierId;
     

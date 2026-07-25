@@ -1,12 +1,15 @@
 package com.mes.infra.dal.delivery.deliveryPkg;
 
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryRecord;
+import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryRecordRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.delivery.deliveryPkg.po.DeliveryRecordPO;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -47,6 +50,21 @@ public class DeliveryRecordRepositoryImp extends BaseRepositoryImp<DeliveryRecor
         Query query = new Query(Criteria.where("kuaidiNum").is(kuaidiNum).and("deleteAt").is(null));
         DeliveryRecordPO po = mongoTemplate.findOne(query, DeliveryRecordPO.class);
         return po != null ? po.toDO() : null;
+    }
+
+    @Override
+    public DeliveryRecord claimForPrinting(String id, PreOrderLabelConsumeStatus expected, String formalPrintSiid) {
+        Criteria state = expected == null
+                ? new Criteria().orOperator(Criteria.where("consumeStatus").is(null),
+                    Criteria.where("consumeStatus").is(PreOrderLabelConsumeStatus.PRE_ORDERED))
+                : Criteria.where("consumeStatus").is(expected);
+        Query query = new Query(new Criteria().andOperator(Criteria.where("_id").is(id), state,
+                Criteria.where("deleteAt").is(null)));
+        Update update = new Update().set("consumeStatus", PreOrderLabelConsumeStatus.PRINTING)
+                .set("formalPrintSiid", formalPrintSiid).set("updateTime", new java.util.Date());
+        DeliveryRecordPO po = mongoTemplate.findAndModify(query, update,
+                FindAndModifyOptions.options().returnNew(true), DeliveryRecordPO.class);
+        return po == null ? null : po.toDO();
     }
 
     @Override

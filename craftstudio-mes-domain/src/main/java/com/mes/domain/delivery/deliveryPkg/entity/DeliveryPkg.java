@@ -3,6 +3,7 @@ package com.mes.domain.delivery.deliveryPkg.entity;
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem;
+import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -58,6 +59,9 @@ public class DeliveryPkg extends BaseEntity {
     private String routeNodeId;                   // 自主配送路线段ID
     private String routeDesc;                     // 路线描述
     private OrgInfo orgInfo;                       // 下单企业
+
+    /** Returned to the caller for gather-platform packages; not persisted in DeliveryPkgPO. */
+    private WdtLabelRecord wdtLabelRecord;
 
     /**
      * 添加包裹物品

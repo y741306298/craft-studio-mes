@@ -1,6 +1,7 @@
 package com.mes.domain.gatherplatform.wdt.entity;
 
 import com.mes.domain.base.BaseEntity;
+import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -14,6 +15,10 @@ import lombok.EqualsAndHashCode;
 public class WdtLabelRecord extends BaseEntity {
     /** 工厂元数据 ID。 */
     private String manufacturerMetaId;
+    private String orderId;
+    private String channelOrderId;
+    private PreOrderLabelConsumeStatus consumeStatus;
+    private String deliveryPkgId;
 
     /** 旺店通仓库 ID。 */
     private String warehouseId;
