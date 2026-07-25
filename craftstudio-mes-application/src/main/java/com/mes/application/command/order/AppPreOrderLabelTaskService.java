@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
@@ -58,8 +59,17 @@ public class AppPreOrderLabelTaskService {
     @Autowired
     private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
 
+    /**
+     * 预下快递单批处理开关，默认关闭，避免未显式配置时执行批处理。
+     */
+    @Value("${mes.pre-order-label.batch.enabled:false}")
+    private boolean batchEnabled;
+
     @Scheduled(fixedDelay = PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS)
     public void processPendingPreOrderLabelTasks() {
+        if (!batchEnabled) {
+            return;
+        }
         List<PreOrderLabelTask> tasks = preOrderLabelTaskService.findPendingTasks();
         if (tasks == null || tasks.isEmpty()) {
             return;
