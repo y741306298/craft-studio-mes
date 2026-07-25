@@ -16,12 +16,15 @@ import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryRecord;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliverySiid;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryToken;
+import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryManRepository;
 import com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
 import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
+import com.mes.domain.gatherplatform.wdt.repository.WdtLabelRecordRepository;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
@@ -102,6 +105,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private DeliveryPkgService deliveryPkgService;
+
+    @Autowired
+    private WdtLabelRecordRepository wdtLabelRecordRepository;
 
 
     public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
@@ -515,6 +521,9 @@ public class AppDeliveryPkgService {
         deliveryRecord.setKuaidiNum(kuaidinum);
         deliveryRecord.setTaskId(response.getData().getTaskId());
         deliveryRecord.setReprintCount(0);
+        if (PRE_ORDER_SIID.equals(request.getDeliverySiidId())) {
+            deliveryRecord.setConsumeStatus(PreOrderLabelConsumeStatus.PRE_ORDERED);
+        }
         deliveryRecord.setDeliveryTime(new Date());
         deliveryRecord.setIsSuccess(true);
         deliveryRecordRepository.add(deliveryRecord);
@@ -624,6 +633,15 @@ public class AppDeliveryPkgService {
             packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
 
+        // Channel is the first routing decision. Gather-platform orders must never fall
+        // through to the Kuaidi100 path based on printer/token heuristics.
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        if (orderInfo != null && orderInfo.getChannel() != null
+                && orderInfo.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
+            return packGatherPlatformOrder(request, orderInfo, selectedPieces, packageQuantityMap,
+                    carrierId, carrierName, presetType);
+        }
+
         boolean useCustomPackagingFlow = "CUSTOM".equalsIgnoreCase(presetType)
                 || StringUtils.isBlank(request.getDeliveryManId())
                 || StringUtils.isBlank(request.getDeliverySiidId());
@@ -637,7 +655,6 @@ public class AppDeliveryPkgService {
         String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
 
         if (!useCustomPackagingFlow) {
-            OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
             if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
                 DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
                 if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
@@ -645,18 +662,37 @@ public class AppDeliveryPkgService {
                     if (StringUtils.isBlank(reprintSiid)) {
                         throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100云打印设备不能为空");
                     }
-                    AuthOrderResponse reprintResponse = reprintKuaidi100Label(preOrderRecord.getTaskId(), reprintSiid);
-                    if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
-                        String errorMsg = reprintResponse == null || StringUtils.isBlank(reprintResponse.getMessage())
-                                ? "快递100预下单面单复打失败" : reprintResponse.getMessage();
-                        throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
+                    if (preOrderRecord.getConsumeStatus() != PreOrderLabelConsumeStatus.CONSUMED) {
+                        DeliveryRecord claimed = deliveryRecordRepository.claimForPrinting(preOrderRecord.getId(),
+                                preOrderRecord.getConsumeStatus(), reprintSiid);
+                        if (claimed == null) {
+                            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "面单正在打印，请勿重复提交");
+                        }
+                        AuthOrderResponse reprintResponse;
+                        try {
+                            reprintResponse = reprintKuaidi100Label(claimed.getTaskId(), reprintSiid);
+                        } catch (RuntimeException ex) {
+                            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
+                            deliveryRecordRepository.update(claimed);
+                            throw ex;
+                        }
+                        if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
+                            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
+                            claimed.setErrorMsg(reprintResponse == null ? "快递100预下单面单复打失败" : reprintResponse.getMessage());
+                            deliveryRecordRepository.update(claimed);
+                            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, claimed.getErrorMsg());
+                        }
+                        claimed.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
+                        claimed.setPackedAt(new Date());
+                        claimed.setReprintCount(claimed.getReprintCount() == null ? 1 : claimed.getReprintCount() + 1);
+                        if (StringUtils.isBlank(claimed.getDeliveryPkgId())) claimed.setDeliveryPkgId("DP" + claimed.getId());
+                        deliveryRecordRepository.update(claimed); // persist external success before local recovery work
+                        preOrderRecord = claimed;
                     }
-                    preOrderRecord.setReprintCount(preOrderRecord.getReprintCount() == null ? 1 : preOrderRecord.getReprintCount() + 1);
-                    deliveryRecordRepository.update(preOrderRecord);
-                    transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), orderInfo.getKuaidiNum());
-                    DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, orderInfo.getKuaidiNum());
-                    deliveryPkg.setDeliveryPkgCode(preOrderRecord.getTaskId());
-                    deliveryPkgService.updateDeliveryPkg(deliveryPkg);
+                    DeliveryPkg deliveryPkg = findOrCreateConsumedPkg(preOrderRecord, request, orderId, carrierId,
+                            carrierName, actualPresetType, orderInfo.getKuaidiNum());
+                    transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName,
+                            request.getRouteId(), request.getRouteNodeId(), orderInfo.getKuaidiNum());
                     orderInfo.setKuaidiNum(null);
                     orderInfoService.updateOrder(orderInfo);
                     return deliveryPkg;
@@ -703,6 +739,52 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    private DeliveryPkg packGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                                        List<ProductionPiece> pieces, Map<String, Integer> quantities,
+                                                        String carrierId, String carrierName, String presetType) {
+        String channelOrderId = orderInfo.getChannel().getOrderId();
+        WdtLabelRecord record = wdtLabelRecordRepository.findForOrder(orderInfo.getOrderId(), channelOrderId,
+                orderInfo.getKuaidiNum());
+        if (record == null) {
+            // A gather-platform order without a pre-ordered WDT label is still packable,
+            // but must return the same locally printable label as the custom flow.
+            DeliveryPkg customPkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId,
+                    carrierName, "CUSTOM", null);
+            transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
+                    request.getRouteNodeId(), null);
+            return customPkg;
+        }
+
+        String stablePkgId = StringUtils.isBlank(record.getDeliveryPkgId()) ? "DPWDT" + record.getId()
+                : record.getDeliveryPkgId();
+        List<DeliveryPkg> existing = deliveryPkgService.findByDeliveryPkgId(stablePkgId);
+        DeliveryPkg pkg = existing.isEmpty()
+                ? createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
+                    record.getLogisticsOrderId(), stablePkgId) : existing.get(0);
+        transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
+                request.getRouteNodeId(), record.getLogisticsOrderId());
+        record.setDeliveryPkgId(stablePkgId);
+        record.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
+        wdtLabelRecordRepository.update(record);
+        pkg.setWdtLabelRecord(record);
+        orderInfo.setKuaidiNum(null);
+        orderInfoService.updateOrder(orderInfo);
+        return pkg;
+    }
+
+    private DeliveryPkg findOrCreateConsumedPkg(DeliveryRecord record, DeliveryPkgAddRequest request,
+                                                     String orderId, String carrierId, String carrierName,
+                                                     String presetType, String kuaidiNum) {
+        if (StringUtils.isNotBlank(record.getDeliveryPkgId())) {
+            List<DeliveryPkg> existing = deliveryPkgService.findByDeliveryPkgId(record.getDeliveryPkgId());
+            if (!existing.isEmpty()) return existing.get(0);
+        }
+        DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType,
+                kuaidiNum, record.getDeliveryPkgId());
+        pkg.setDeliveryPkgCode(record.getTaskId());
+        return deliveryPkgService.updateDeliveryPkg(pkg);
     }
 
     private void transferPiecesToPacked(List<ProductionPiece> productionPieces, Map<String, Integer> packageQuantityMap,
@@ -755,17 +837,25 @@ public class AppDeliveryPkgService {
             if (pkgInfos == null) {
                 pkgInfos = new ArrayList<>();
             }
-            DeliveryPkgInfo deliveryPkgInfo = new DeliveryPkgInfo();
-            deliveryPkgInfo.setCarrierId(carrierId);
-            deliveryPkgInfo.setKuaidiNum(kuaidiNum);
+            DeliveryPkgInfo deliveryPkgInfo = pkgInfos.stream()
+                    .filter(Objects::nonNull)
+                    .filter(info -> Objects.equals(carrierId, info.getCarrierId())
+                            && Objects.equals(kuaidiNum, info.getKuaidiNum()))
+                    .findFirst().orElse(null);
+            if (deliveryPkgInfo == null) {
+                deliveryPkgInfo = new DeliveryPkgInfo();
+                deliveryPkgInfo.setCarrierId(carrierId);
+                deliveryPkgInfo.setKuaidiNum(kuaidiNum);
+                pkgInfos.add(deliveryPkgInfo);
+            }
             if (StringUtils.isNotBlank(carrierName)) {
                 String routeCarrierSuffix = (StringUtils.isBlank(routeId) || StringUtils.isBlank(routeNodeId))
                         ? "(未自定义路线)"
                         : "(" + routeId + "/" + routeNodeId + ")";
                 deliveryPkgInfo.setCarrierName(carrierName + routeCarrierSuffix);
             }
-            deliveryPkgInfo.setQuantity(quantity);
-            pkgInfos.add(deliveryPkgInfo);
+            int alreadyPacked = deliveryPkgInfo.getQuantity() == null ? 0 : deliveryPkgInfo.getQuantity();
+            deliveryPkgInfo.setQuantity(alreadyPacked + quantity);
             productionPiece.setDeliveryPkgInfos(pkgInfos);
             updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
         }
@@ -905,8 +995,12 @@ public class AppDeliveryPkgService {
 
 
     private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType, String kuaidiNum) {
+        return createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType, kuaidiNum, null);
+    }
+
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType, String kuaidiNum, String stablePkgId) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
-        String deliveryPkgId = IdGenerator.generateId("DP");
+        String deliveryPkgId = StringUtils.isBlank(stablePkgId) ? IdGenerator.generateId("DP") : stablePkgId;
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
         deliveryPkg.setDeliveryPkgCode(deliveryPkgId);
         deliveryPkg.setOrderId(orderId);

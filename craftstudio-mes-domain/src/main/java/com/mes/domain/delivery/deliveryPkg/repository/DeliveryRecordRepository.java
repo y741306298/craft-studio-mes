@@ -2,6 +2,7 @@ package com.mes.domain.delivery.deliveryPkg.repository;
 
 import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryRecord;
+import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
 
 import java.util.List;
 
@@ -31,4 +32,6 @@ public interface DeliveryRecordRepository extends BaseRepository<DeliveryRecord>
      * 根据制造商ID查询发货记录列表
      */
     List<DeliveryRecord> findByManufacturerMetaId(String manufacturerMetaId, int current, int size);
+    /** Atomically claims a pre-ordered label for formal printing. */
+    DeliveryRecord claimForPrinting(String id, PreOrderLabelConsumeStatus expected, String formalPrintSiid);
 }
