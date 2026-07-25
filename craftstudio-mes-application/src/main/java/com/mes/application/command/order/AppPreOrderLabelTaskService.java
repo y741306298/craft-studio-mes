@@ -14,6 +14,9 @@ import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.preOrderLabelTask.entity.PreOrderLabelTask;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
+import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -22,8 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
-import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -123,7 +124,7 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 为旺店通聚单平台订单执行快递换仓和预下单面单打印。
+     * 为旺店通聚单平台订单执行预下单面单打印。
      *
      * @param orderInfo 订单信息
      * @param orderItems 订单项列表
@@ -146,10 +147,8 @@ public class AppPreOrderLabelTaskService {
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            Object platform = getWdtPlatform();
-            platform.getClass().getMethod("configLogisticsWarehouse", String.class, String.class, String.class)
-                    .invoke(platform, config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            LogisticsLabel label = printWdtLabel(platform, uniCode);
+            LogisticsLabel label = GatherPlatform.getInstance(GatherPlatformType.WDT)
+                    .printLogisticsLabel(uniCode, "default");
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -157,34 +156,7 @@ public class AppPreOrderLabelTaskService {
             saveWdtLabelRecord(config, label, remark, orderInfo);
             return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
         } catch (Exception ex) {
-            throw new IllegalStateException("旺店通快递换仓或面单打印失败: " + uniCode, ex);
-        }
-    }
-
-    /**
-     * 获取旺店通聚单平台实例。
-     */
-    private Object getWdtPlatform() throws ReflectiveOperationException {
-        Class<?> platformClass = Class.forName("com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform");
-        return platformClass.getMethod("getInstance", GatherPlatformType.class).invoke(null, GatherPlatformType.WDT);
-    }
-
-    /**
-     * 使用默认打印机 {@code mes-siid} 打印旺店通面单。
-     */
-    private LogisticsLabel printWdtLabel(Object platform, String uniCode) throws ReflectiveOperationException {
-        try {
-            return (LogisticsLabel) platform.getClass()
-                    .getMethod("printLogisticsLabel", String.class, String.class)
-                    .invoke(platform, uniCode, "mes-siid");
-        } catch (NoSuchMethodException ignored) {
-            try {
-                return (LogisticsLabel) platform.getClass()
-                        .getMethod("printLogistics", String.class, String.class)
-                        .invoke(platform, uniCode, "mes-siid");
-            } catch (NoSuchMethodException secondIgnored) {
-                return (LogisticsLabel) platform.getClass().getMethod("printLogisticsLabel", String.class).invoke(platform, uniCode);
-            }
+            throw new IllegalStateException("旺店通面单打印失败: " + uniCode, ex);
         }
     }
 
