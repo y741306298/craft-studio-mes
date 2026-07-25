@@ -147,8 +147,9 @@ public class AppPreOrderLabelTaskService {
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            LogisticsLabel label = GatherPlatform.getInstance(GatherPlatformType.WDT)
-                    .printLogisticsLabel(uniCode, "default");
+            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
+            platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            LogisticsLabel label = printWdtLabel(platform, uniCode);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -156,8 +157,15 @@ public class AppPreOrderLabelTaskService {
             saveWdtLabelRecord(config, label, remark, orderInfo);
             return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
         } catch (Exception ex) {
-            throw new IllegalStateException("旺店通面单打印失败: " + uniCode, ex);
+            throw new IllegalStateException("旺店通快递换仓或面单打印失败: " + uniCode, ex);
         }
+    }
+
+    /**
+     * 使用默认打印机打印旺店通面单。
+     */
+    private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode) throws Exception {
+        return platform.printLogisticsLabel(uniCode, "default");
     }
 
     /**
