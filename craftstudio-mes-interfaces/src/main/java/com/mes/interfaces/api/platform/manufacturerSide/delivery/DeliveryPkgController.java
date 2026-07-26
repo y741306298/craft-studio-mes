@@ -27,6 +27,7 @@ import com.mes.domain.delivery.deliveryRoute.service.DeliveryRouteService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -179,6 +180,11 @@ public class DeliveryPkgController {
         BeanUtils.copyProperties(deliveryPkg, response);
         response.setCarrierId(deliveryPkg.getCarrierId());
         response.setCarrierName(deliveryPkg.getCarrierName());
+        LogisticsCarrierInfo logisticsCarrierInfo = new LogisticsCarrierInfo();
+        logisticsCarrierInfo.setCarrierId(deliveryPkg.getCarrierId());
+        logisticsCarrierInfo.setCarrierName(deliveryPkg.getCarrierName());
+        logisticsCarrierInfo.setPresetType(deliveryPkg.getPresetType());
+        response.setLogisticsCarrierInfo(logisticsCarrierInfo);
 
         List<DeliveryPkgListItemResponse.DeliveryPkgItemDetail> details = new ArrayList<>();
         if (deliveryPkg.getDeliveryPkgItems() != null) {
@@ -251,9 +257,6 @@ public class DeliveryPkgController {
         log.info("response: " + JsonLogUtil.toJSONString(request));
         log.info("========== addPkg 入参结束 ==========");
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
-        if (deliveryPkg.getWdtLabelRecord() != null) {
-            return ApiResponse.success(deliveryPkg.getWdtLabelRecord());
-        }
         return ApiResponse.success(buildAddResult(deliveryPkg));
     }
 
@@ -304,6 +307,7 @@ public class DeliveryPkgController {
         result.setRouteDesc(routeDesc);
         result.setRemark(deliveryPkg.getRemarks());
         result.setOrgInfo(resolveOrgInfo(deliveryPkg));
+        result.setLogisticsCloudPrintData(deliveryPkg.getLogisticsCloudPrintData());
 
         return result;
     }
