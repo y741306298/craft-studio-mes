@@ -20,6 +20,7 @@ public class DeliveryPkgAddResultVO {
     private String width;
     private String height;
     private OrgInfo orgInfo;
+    private Object logisticsCloudPrintData;
 
     @Data
     public static class QrCodeInfo {

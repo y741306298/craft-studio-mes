@@ -251,9 +251,6 @@ public class DeliveryPkgController {
         log.info("response: " + JsonLogUtil.toJSONString(request));
         log.info("========== addPkg 入参结束 ==========");
         DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
-        if (deliveryPkg.getWdtLabelRecord() != null) {
-            return ApiResponse.success(deliveryPkg.getWdtLabelRecord());
-        }
         return ApiResponse.success(buildAddResult(deliveryPkg));
     }
 
@@ -304,6 +301,7 @@ public class DeliveryPkgController {
         result.setRouteDesc(routeDesc);
         result.setRemark(deliveryPkg.getRemarks());
         result.setOrgInfo(resolveOrgInfo(deliveryPkg));
+        result.setLogisticsCloudPrintData(deliveryPkg.getLogisticsCloudPrintData());
 
         return result;
     }
