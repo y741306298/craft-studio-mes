@@ -14,9 +14,14 @@ import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.preOrderLabelTask.entity.PreOrderLabelTask;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
+import com.mes.infra.mq.LogisticsOrderInfo;
+import com.mes.infra.mq.LogisticsOrderProducer;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsCloudPrintData;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Consignee;
+import com.piliofpala.craftstudio.shared.infra.mq.message.Message;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -36,6 +41,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class AppPreOrderLabelTaskService {
+    @Autowired
+    LogisticsOrderProducer producer;
+
     private static final long PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS = 10 * 60 * 1000L;
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
 
@@ -63,8 +71,7 @@ public class AppPreOrderLabelTaskService {
     /**
      * 预下快递单批处理开关，默认关闭，避免未显式配置时执行批处理。
      */
-    @Value("${mes.pre-order-label.batch.enabled:false}")
-    private boolean batchEnabled;
+    private boolean batchEnabled = true;
 
     @Scheduled(fixedDelay = PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS)
     public void processPendingPreOrderLabelTasks() {
@@ -238,16 +245,17 @@ public class AppPreOrderLabelTaskService {
         }
 
         LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
-        logisticsOrderInfo.setKuaidiNum(kuaidiNum);
-        logisticsOrderInfo.setManufacturerMetaId(orderInfo.getManufacturerId());
-        logisticsOrderInfo.setOrderId(logisticsOrderId);
+        logisticsOrderInfo.setOrderId(Long.valueOf(orderInfo.getOrderId()));
+        logisticsOrderInfo.setLogisticsOrderId(kuaidiNum);
 
-        Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
+//        Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
         try {
-            rocketMQTemplate.syncSend(LOGISTICS_MQ_TOPIC + ":" + orderInfo.getPlatformCode(), JSON.toJSONString(message));
-            log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: topic={}, tag={}, orderId={}, kuaidiNum={}, manufacturerMetaId={}",
-                    LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
-                    logisticsOrderInfo.getKuaidiNum(), logisticsOrderInfo.getManufacturerMetaId());
+            producer.send(new Message<>(
+                    LOGISTICS_MQ_TOPIC,orderInfo.getPlatformCode(), logisticsOrderInfo
+            ));
+            log.info("预下快递单批处理任务已发送物流订单信息 MQ 通知: tag={}, orderId={}, LogisticsOrderId={}, manufacturerMetaId={}",
+                    LOGISTICS_MQ_TOPIC+orderInfo.getPlatformCode(), logisticsOrderInfo.getOrderId(),
+                    logisticsOrderInfo.getLogisticsOrderId(), orderInfo.getManufacturerId());
             return null;
         } catch (Exception ex) {
             String failureReason = "MQ通知失败：" + resolveExceptionMessage(ex);
@@ -289,8 +297,6 @@ public class AppPreOrderLabelTaskService {
 
     private Map<String, Object> buildBaseMessage(String topic, String tag, Object info) {
         Map<String, Object> message = new LinkedHashMap<>();
-        message.put("topic", topic);
-        message.put("tag", tag);
         message.put("info", info);
         return message;
     }
@@ -323,11 +329,6 @@ public class AppPreOrderLabelTaskService {
         }
     }
 
-    @lombok.Data
-    private static class LogisticsOrderInfo {
-        private String kuaidiNum;
-        private String manufacturerMetaId;
-        private String orderId;
-    }
+
 
 }
