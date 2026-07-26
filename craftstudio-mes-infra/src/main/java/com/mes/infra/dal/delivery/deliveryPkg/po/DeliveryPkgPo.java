@@ -60,6 +60,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
     private String routeId;
     private String routeNodeId;
     private OrgInfo orgInfo;
+    private Object logisticsCloudPrintData;
 
     @Override
     public DeliveryPkg toDO() {
@@ -105,6 +106,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         deliveryPkg.setRouteId(this.routeId);
         deliveryPkg.setRouteNodeId(this.routeNodeId);
         deliveryPkg.setOrgInfo(this.orgInfo);
+        deliveryPkg.setLogisticsCloudPrintData(this.logisticsCloudPrintData);
 
         return deliveryPkg;
     }
@@ -154,6 +156,7 @@ public class DeliveryPkgPo extends BasePO<DeliveryPkg> {
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
         this.orgInfo = _do.getOrgInfo();
+        this.logisticsCloudPrintData = _do.getLogisticsCloudPrintData();
 
         return this;
     }

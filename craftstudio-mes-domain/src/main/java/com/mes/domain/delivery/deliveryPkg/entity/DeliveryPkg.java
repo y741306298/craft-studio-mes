@@ -59,6 +59,7 @@ public class DeliveryPkg extends BaseEntity {
     private String routeNodeId;                   // 自主配送路线段ID
     private String routeDesc;                     // 路线描述
     private OrgInfo orgInfo;                       // 下单企业
+    private Object logisticsCloudPrintData;         // 聚单平台云打印数据
 
     /** Returned to the caller for gather-platform packages; not persisted in DeliveryPkgPO. */
     private WdtLabelRecord wdtLabelRecord;

@@ -791,6 +791,11 @@ public class AppDeliveryPkgService {
         DeliveryPkg pkg = existing.isEmpty()
                 ? createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
                     record.getLogisticsOrderId(), stablePkgId) : existing.get(0);
+        boolean shouldPersistCloudPrintData = existing.isEmpty() || pkg.getLogisticsCloudPrintData() == null;
+        pkg.setLogisticsCloudPrintData(record.getLogisticsCloudPrintData());
+        if (shouldPersistCloudPrintData) {
+            deliveryPkgService.updateDeliveryPkg(pkg);
+        }
         transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
                 request.getRouteNodeId(), record.getLogisticsOrderId());
         record.setDeliveryPkgId(stablePkgId);
