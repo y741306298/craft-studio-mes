@@ -140,6 +140,10 @@ public class AppTypesettingService {
             "\\bviewBox\\s*=\\s*[\"']\\s*[-+]?\\d*\\.?\\d+\\s+[-+]?\\d*\\.?\\d+\\s+([-+]?\\d*\\.?\\d+)\\s+([-+]?\\d*\\.?\\d+)\\s*[\"']",
             Pattern.CASE_INSENSITIVE
     );
+    private static final Pattern SPLICE_MARK_GROUP_PATTERN = Pattern.compile(
+            "<g\\b(?=[^>]*\\bid\\s*=\\s*([\"'])(?:super-width-splice|adhesive-splice|photo-splice|board-cover-splice|inkjet-splice|seamless-splice|panel-splice)-).*?</g\\s*>",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+    );
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM = 28;
@@ -3943,6 +3947,45 @@ public class AppTypesettingService {
         return "PASS";
     }
 
+    /**
+     * 镜像排版 SVG 不需要携带拼接预处理写入正面 mask 的 mark。
+     *
+     * <p>带 marks 的工件会以重写后的 mask SVG 参与排版，算法生成 nestedMirrorSvg 时会把这些
+     * super-width/adhesive/photo/board-cover/inkjet/seamless/panel splice 标识一起带入。
+     * 这里在回调落库前清理这些拼接 mark，并上传一份干净的 nestedMirrorSvg 供后续 -Mirror 印版使用。</p>
+     */
+    private String removeSpliceMarksFromNestedMirrorSvg(String nestedMirrorSvg, TypesettingInfo typesettingInfo, String templateCode) {
+        if (StringUtils.isBlank(nestedMirrorSvg)) {
+            return nestedMirrorSvg;
+        }
+        try {
+            String completeUrl = buildCompleteOssUrl(nestedMirrorSvg);
+            byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
+            if (svgBytes == null || svgBytes.length == 0) {
+                return nestedMirrorSvg;
+            }
+            String svgContent = new String(svgBytes, StandardCharsets.UTF_8);
+            Matcher matcher = SPLICE_MARK_GROUP_PATTERN.matcher(svgContent);
+            if (!matcher.find()) {
+                return nestedMirrorSvg;
+            }
+            String sanitizedSvg = matcher.replaceAll("");
+            String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
+                    ? typesettingInfo.getTypesettingId()
+                    : typesettingInfo.getId();
+            String manufacturerMetaId = StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())
+                    ? "default"
+                    : typesettingInfo.getManufacturerMetaId();
+            String safeTemplateCode = StringUtils.isBlank(templateCode) ? "default" : templateCode;
+            String uploadPath = "typesetting/" + manufacturerMetaId + "/nested-mirror-clean/" + businessId + "/";
+            return ossTagUploadService.uploadTagSvg(businessId, sanitizedSvg.getBytes(StandardCharsets.UTF_8), uploadPath, safeTemplateCode + ".svg");
+        } catch (Exception e) {
+            log.warn("清理 nestedMirrorSvg 拼接 mark 失败，继续使用原始 mirror SVG: typesettingId={}, nestedMirrorSvg={}, error={}",
+                    typesettingInfo == null ? null : typesettingInfo.getTypesettingId(), nestedMirrorSvg, e.getMessage());
+            return nestedMirrorSvg;
+        }
+    }
+
     private boolean isSpecialProcedureNode(ProcedureFlowNode node) {
         return node != null && "覆板".equals(node.getNodeName());
     }
@@ -4011,7 +4054,8 @@ public class AppTypesettingService {
                             ? callbackResult.getNestedMirrorSvg()
                             : callbackResult.getMirrorNestedSvg();
                     if (StringUtils.isNotBlank(nestedMirrorSvg)) {
-                        element.setNestedMirrorSvg(buildCompleteOssUrl(nestedMirrorSvg));
+                        String sanitizedNestedMirrorSvg = removeSpliceMarksFromNestedMirrorSvg(nestedMirrorSvg, baseTypesettingInfo, templateCode);
+                        element.setNestedMirrorSvg(buildCompleteOssUrl(sanitizedNestedMirrorSvg));
                     }
                     element.setUtilization(callbackResult.getUtilization());
                     if (callbackResult.getContainerSize() != null) {
