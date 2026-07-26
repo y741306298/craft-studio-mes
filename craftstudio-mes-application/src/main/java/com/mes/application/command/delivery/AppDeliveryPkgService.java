@@ -23,8 +23,10 @@ import com.mes.domain.delivery.deliveryPkg.repository.DeliverySiidRepository;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryTokenRepository;
 import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.domain.gatherplatform.wdt.repository.WdtLabelRecordRepository;
+import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
@@ -42,6 +44,9 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
 import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
+import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -108,6 +113,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private WdtLabelRecordRepository wdtLabelRecordRepository;
+
+    @Autowired
+    private WdtService wdtService;
 
 
     public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
@@ -776,35 +784,76 @@ public class AppDeliveryPkgService {
         WdtLabelRecord record = wdtLabelRecordRepository.findForOrder(orderInfo.getOrderId(), channelOrderId,
                 orderInfo.getKuaidiNum());
         if (record == null) {
-            // A gather-platform order without a pre-ordered WDT label is still packable,
-            // but must return the same locally printable label as the custom flow.
-            DeliveryPkg customPkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId,
-                    carrierName, "CUSTOM", null);
-            transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
-                    request.getRouteNodeId(), null);
-            return customPkg;
+            record = printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType);
+            if (record == null) {
+                // Only fall back to the local printable custom flow when no WDT logistics
+                // config exists for this gather-platform order.
+                DeliveryPkg customPkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId,
+                        carrierName, "CUSTOM", null);
+                transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
+                        request.getRouteNodeId(), null);
+                return customPkg;
+            }
         }
 
-        String stablePkgId = StringUtils.isBlank(record.getDeliveryPkgId()) ? "DPWDT" + record.getId()
-                : record.getDeliveryPkgId();
-        List<DeliveryPkg> existing = deliveryPkgService.findByDeliveryPkgId(stablePkgId);
-        DeliveryPkg pkg = existing.isEmpty()
-                ? createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
-                    record.getLogisticsOrderId(), stablePkgId) : existing.get(0);
-        boolean shouldPersistCloudPrintData = existing.isEmpty() || pkg.getLogisticsCloudPrintData() == null;
+        DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
+                record.getLogisticsOrderId());
         pkg.setLogisticsCloudPrintData(record.getLogisticsCloudPrintData());
-        if (shouldPersistCloudPrintData) {
-            deliveryPkgService.updateDeliveryPkg(pkg);
-        }
+        deliveryPkgService.updateDeliveryPkg(pkg);
         transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
                 request.getRouteNodeId(), record.getLogisticsOrderId());
-        record.setDeliveryPkgId(stablePkgId);
+        record.setDeliveryPkgId(pkg.getDeliveryPkgId());
         record.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
         wdtLabelRecordRepository.update(record);
         pkg.setWdtLabelRecord(record);
         orderInfo.setKuaidiNum(null);
         orderInfoService.updateOrder(orderInfo);
         return pkg;
+    }
+
+    private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                                               String presetType) {
+        if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
+            return null;
+        }
+        String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
+                ? orderInfo.getManufacturerId() : request.getManufacturerMetaId();
+        WdtConfig config = wdtService.findConfig(manufacturerMetaId, presetType);
+        if (config == null) {
+            log.info("旺店通打包即时打单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
+                    manufacturerMetaId, presetType);
+            return null;
+        }
+
+        String uniCode = orderInfo.getChannel().getOrderId();
+        try {
+            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
+            platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default");
+            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "旺店通打包即时打单未返回物流单号");
+            }
+            WdtLabelRecord record = new WdtLabelRecord();
+            record.setManufacturerMetaId(config.getManufacturerMetaId());
+            record.setOrderId(orderInfo.getOrderId());
+            record.setChannelOrderId(uniCode);
+            record.setConsumeStatus(PreOrderLabelConsumeStatus.PRE_ORDERED);
+            record.setWarehouseId(config.getWarehouseId());
+            record.setLogisticsId(config.getLogisticsId());
+            record.setLogisticsName(config.getLogisticsName());
+            record.setPresetType(config.getPresetType());
+            record.setLogisticsOrderId(label.getLogisticsOrderId());
+            record.setConsignee(label.getConsignee());
+            record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
+            record.setRemark(buildDeliveryPkgRemarks(orderInfo.getOrderId(), presetType, label.getLogisticsOrderId(),
+                    request.getPieces(), orderInfo));
+            return wdtLabelRecordRepository.add(record);
+        } catch (BusinessNotAllowException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
+                    "旺店通快递换仓或面单打印失败: " + uniCode);
+        }
     }
 
     private DeliveryPkg findOrCreateConsumedPkg(DeliveryRecord record, DeliveryPkgAddRequest request,
