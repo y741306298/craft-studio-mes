@@ -99,20 +99,28 @@ GET /api/manufacturerSide/wdt/6884a3406f9e020001234567
 
 ## 5. 分页查询配置
 
-- **URL**：`GET /api/manufacturerSide/wdt/list`
+- **URL**：`POST /api/manufacturerSide/wdt/list`
+- **Content-Type**：`application/json`
 - **返回类型**：`ApiResponse<PagedResult<WdtConfig>>`
 
-### 查询参数
+### 请求体参数
 
 | 参数 | 类型 | 必填 | 默认值 | 校验规则 |
 |---|---|---:|---:|---|
 | current | integer | 否 | 1 | 大于等于 1 |
 | size | integer | 否 | 20 | 1～100 |
+| manufacturerMetaId | string | 否 | - | 工厂元数据 ID，精确匹配 |
+| presetType | string | 否 | - | MES 订单物流预设类型，精确匹配 |
 
 ### 请求示例
 
-```http
-GET /api/manufacturerSide/wdt/list?current=1&size=20
+```json
+{
+  "current": 1,
+  "size": 20,
+  "manufacturerMetaId": "MFR_10001",
+  "presetType": "JITU"
+}
 ```
 
 ### 响应示例

@@ -1,13 +1,12 @@
 package com.mes.interfaces.api.platform.manufacturerSide.wdt;
 
+import com.mes.application.command.wdt.req.WdtConfigListRequest;
 import com.mes.application.command.wdt.req.WdtConfigRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -59,11 +58,12 @@ public class WdtController {
     /**
      * 分页查询配置。
      */
-    @GetMapping("/list")
-    public ApiResponse<PagedResult<WdtConfig>> list(
-            @RequestParam(defaultValue = "1") @Min(value = 1, message = "current不能小于1") long current,
-            @RequestParam(defaultValue = "20") @Min(value = 1, message = "size不能小于1")
-            @Max(value = 100, message = "size不能大于100") int size) {
-        return ApiResponse.success(new PagedResult<>(wdtService.list(current, size), wdtService.total(), size, current));
+    @PostMapping("/list")
+    public ApiResponse<PagedResult<WdtConfig>> list(@Valid @RequestBody WdtConfigListRequest request) {
+        return ApiResponse.success(new PagedResult<>(
+                wdtService.list(request.getCurrent(), request.getSize(),
+                        request.getManufacturerMetaId(), request.getPresetType()),
+                wdtService.total(request.getManufacturerMetaId(), request.getPresetType()),
+                request.getSize(), request.getCurrent()));
     }
 }
