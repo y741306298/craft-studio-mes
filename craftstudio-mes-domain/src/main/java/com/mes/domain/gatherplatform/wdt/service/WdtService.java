@@ -8,7 +8,9 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 旺店通快递配置及面单记录领域服务。
@@ -72,19 +74,38 @@ public class WdtService {
      *
      * @param current 当前页码
      * @param size 每页数量
+     * @param manufacturerMetaId 工厂元数据 ID，可为空
+     * @param presetType MES 订单物流预设类型，可为空
      * @return 当前页配置列表
      */
-    public List<WdtConfig> list(long current, int size) {
-        return configRepository.list(current, size);
+    public List<WdtConfig> list(long current, int size, String manufacturerMetaId, String presetType) {
+        Map<String, Object> filters = buildFilters(manufacturerMetaId, presetType);
+        return filters.isEmpty()
+                ? configRepository.list(current, size)
+                : configRepository.filterList(current, size, filters);
     }
 
     /**
      * 查询快递配置总数。
      *
+     * @param manufacturerMetaId 工厂元数据 ID，可为空
+     * @param presetType MES 订单物流预设类型，可为空
      * @return 配置总数
      */
-    public long total() {
-        return configRepository.total();
+    public long total(String manufacturerMetaId, String presetType) {
+        Map<String, Object> filters = buildFilters(manufacturerMetaId, presetType);
+        return filters.isEmpty() ? configRepository.total() : configRepository.filterTotal(filters);
+    }
+
+    private Map<String, Object> buildFilters(String manufacturerMetaId, String presetType) {
+        Map<String, Object> filters = new LinkedHashMap<>();
+        if (StringUtils.isNotBlank(manufacturerMetaId)) {
+            filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        if (StringUtils.isNotBlank(presetType)) {
+            filters.put("presetType", presetType);
+        }
+        return filters;
     }
 
     /**
