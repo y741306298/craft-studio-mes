@@ -48,6 +48,7 @@ import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.Gat
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import io.micrometer.common.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -68,6 +69,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class AppDeliveryPkgService {
 
