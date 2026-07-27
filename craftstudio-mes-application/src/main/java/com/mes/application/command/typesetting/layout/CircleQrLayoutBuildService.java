@@ -76,7 +76,8 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        BigDecimal anchorSize = BigDecimal.valueOf(ANCHOR_SIZE_MM);
+        int anchorSizeMm = resolveAnchorSizeMm(context, ANCHOR_SIZE_MM);
+        BigDecimal anchorSize = BigDecimal.valueOf(anchorSizeMm);
         // 1) 基于 mode 规则确定 margin 与元素原点（扩展矩形左上角为坐标原点）
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         BigDecimal marginHeight = context.getMarginHeight();
@@ -146,14 +147,14 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         result.setMarks(marks);
 
         // 4) 在上/下 margin 区域插入 4 个圆形定位点（左右各 70mm）
-        int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - ANCHOR_SIZE_MM;
+        int topY = marginTop - ANCHOR_GAP_TO_MARGIN_BOTTOM_MM - anchorSizeMm;
         int bottomY = elementOriginY + nestedHeight + ANCHOR_GAP_TO_MARGIN_BOTTOM_MM;
         int width = context.getNestedWidth().intValue();
         int expandedWidth = width + marginLeft + marginRight;
         int topLeftX = elementOriginX + TOP_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
-        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM - ANCHOR_INNER_SHIFT_MM, topLeftX);
+        int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, topLeftX);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
-        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - ANCHOR_SIZE_MM - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
+        int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
         String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
@@ -185,10 +186,10 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         br.setPosition(createPosition(bottomRightX, bottomY));
         List<FormeGenerationRequest.AnchorPoint> anchorPoints = new ArrayList<>(Arrays.asList(tl, tr, bl, br));
         if (needSideExpand) {
-            int leftExpandCenterX = elementOriginX + (marginLeft / 2) - ANCHOR_SIZE_MM / 2;
-            int rightExpandCenterX = elementOriginX + expandedWidth - (marginRight / 2) - ANCHOR_SIZE_MM / 2;
+            int leftExpandCenterX = elementOriginX + (marginLeft / 2) - anchorSizeMm / 2;
+            int rightExpandCenterX = elementOriginX + expandedWidth - (marginRight / 2) - anchorSizeMm / 2;
             for (int offsetY = SIDE_ANCHOR_INTERVAL_MM; offsetY <= nestedHeight; offsetY += SIDE_ANCHOR_INTERVAL_MM) {
-                int pointY = elementOriginY + offsetY - ANCHOR_SIZE_MM / 2;
+                int pointY = elementOriginY + offsetY - anchorSizeMm / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
                 leftPoint.setImg("circle.png");

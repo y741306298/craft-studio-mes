@@ -22,6 +22,8 @@ import java.util.regex.Pattern;
  * createSize / createPosition / default outputs。
  */
 public abstract class AbstractLayoutModeBuildService implements TypesettingLayoutModeBuildService {
+    private static final String LARGE_ANCHOR_MANUFACTURER_META_ID = "69f95b080ff1ad90a9611468";
+    private static final int LARGE_ANCHOR_SIZE_MM = 6;
     private static final Pattern MATRIX_PATTERN = Pattern.compile("matrix\\s*\\(([^)]*)\\)");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("[-+]?\\d*\\.?\\d+");
 
@@ -97,6 +99,16 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         size.setWidth(width);
         size.setHeight(height);
         return size;
+    }
+
+    /** 特定工厂统一使用 6mm × 6mm 定位点，其余工厂沿用排版模式的默认尺寸。 */
+    protected int resolveAnchorSizeMm(FormeBuildContext context, int defaultSizeMm) {
+        if (context != null
+                && context.getTypesettingInfo() != null
+                && LARGE_ANCHOR_MANUFACTURER_META_ID.equals(context.getTypesettingInfo().getManufacturerMetaId())) {
+            return LARGE_ANCHOR_SIZE_MM;
+        }
+        return defaultSizeMm;
     }
 
     /** 构建坐标对象（坐标系原点：扩展矩形左上角）。 */
