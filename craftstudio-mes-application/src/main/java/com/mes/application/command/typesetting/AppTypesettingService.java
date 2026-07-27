@@ -2209,11 +2209,9 @@ public class AppTypesettingService {
         return Stream.concat(productionPieceMaterialIds, typesettingMaterialIds)
                 .filter(StringUtils::isNotBlank)
                 .map(String::trim)
-                .distinct()
-                .limit(2)
-                .reduce((first, second) -> {
-                    throw new IllegalArgumentException("同一次排版只能根据一组 materialId + layoutMode 匹配 containers.width 内缩值");
-                })
+                // toLayout 已按材料名称校验同材料；同名材料可能来自不同订单并携带不同 ID。
+                // 此处只需要一个代表 ID 查询容器内缩配置，不应再将 ID 不同判定为材料不同。
+                .findFirst()
                 .orElse(null);
     }
 
