@@ -96,17 +96,19 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         if (param == null) {
             return null;
         }
-        Object accessoryId = getFieldValue(param, "accessoryId");
         Object type = getFieldValue(param, "type");
         Object accessorySnapshot = getFieldValue(param, "accessorySnapshot");
         Object accessoryName = getFieldValue(accessorySnapshot, "name");
-        if (accessoryId == null && type == null && accessoryName == null) {
+        if (type == null && accessoryName == null) {
             return null;
         }
 
-        MaterialConfig materialConfig = new MaterialConfig();
+        // 镜像印版仍归属正面材料：保留原 materialId，只用配件名称覆盖展示名称。
+        // 配件工艺继续写入 materialType，供后续工艺处理使用。
+        MaterialConfig materialConfig = originMaterialConfig == null
+                ? new MaterialConfig()
+                : JSON.parseObject(JSON.toJSONString(originMaterialConfig), MaterialConfig.class);
         preserveOriginalMaterial(materialConfig, originMaterialConfig);
-        setFieldValue(materialConfig, "materialId", accessoryId);
         setFieldValue(materialConfig, "materialType", type);
         if (accessoryName != null) {
             setMaterialSnapshotName(materialConfig, accessoryName);
