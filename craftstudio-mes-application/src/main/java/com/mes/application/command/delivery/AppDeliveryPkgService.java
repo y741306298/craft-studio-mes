@@ -50,6 +50,7 @@ import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -80,6 +81,8 @@ public class AppDeliveryPkgService {
     private static final String NODE_NAME_PENDING_PACKING = "待打包";
     private static final String NODE_NAME_PACKED = "已打包";
     private static final String PRE_ORDER_SIID = "KX100L3AD65411C274";
+    private static final String TEST_KUAIDI100_TASK_ID = "TEST_KUAIDI100_TASK_ID";
+    private static final String TEST_KUAIDI100_NUM = "TEST_KUAIDI100_NUM";
 
     @Autowired
     private WorldRepository worldRepository;
@@ -118,6 +121,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private WdtService wdtService;
+
+    @Value("${kuaidi100:prod}")
+    private String kuaidi100Environment;
 
 
     public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
@@ -518,9 +524,14 @@ public class AppDeliveryPkgService {
         Kuaidi100OrderParam kuaidi100OrderParam = Kuaidi100OrderParam.createKuaidi100OrderParam(request, deliveryToken, deliveryMan, customer);
         kuaidi100OrderParam.setSiid(resolveKuaidi100SiidForPkg(deliverySiidId, manufacturerMetaId, deliveryToken));
         String paramStr = JSON.toJSONString(kuaidi100OrderParam);
-        // 5. 调用快递100 API
-        String result = callPost(url, paramStr, "label.order");
-        AuthOrderResponse response = JSON.parseObject(result, AuthOrderResponse.class);
+        // 5. 调用快递100 API；测试环境仅返回默认面单数据，避免真实下单。
+        AuthOrderResponse response;
+        if (isKuaidi100TestEnvironment()) {
+            response = buildTestKuaidi100OrderResponse();
+        } else {
+            String result = callPost(url, paramStr, "label.order");
+            response = JSON.parseObject(result, AuthOrderResponse.class);
+        }
         boolean isResponseSuccess = response != null
                 && response.getCode() == ApiResponse.RepStatusCode.success
                 && Boolean.TRUE.equals(response.getSuccess())
@@ -1266,11 +1277,30 @@ public class AppDeliveryPkgService {
 
 
     private AuthOrderResponse reprintKuaidi100Label(String taskId, String siid) {
+        if (isKuaidi100TestEnvironment()) {
+            return buildTestKuaidi100OrderResponse();
+        }
         Map<String, String> fdParam = new HashMap<>();
         fdParam.put("taskId", taskId);
         fdParam.put("siid", siid);
         String result = callPost("https://api.kuaidi100.com/label/order", JSON.toJSONString(fdParam), "printOld");
         return JSON.parseObject(result, AuthOrderResponse.class);
+    }
+
+    private boolean isKuaidi100TestEnvironment() {
+        return "test".equalsIgnoreCase(kuaidi100Environment);
+    }
+
+    private AuthOrderResponse buildTestKuaidi100OrderResponse() {
+        AuthOrderResponse response = new AuthOrderResponse();
+        response.setSuccess(true);
+        response.setCode(ApiResponse.RepStatusCode.success);
+        response.setMessage("测试环境快递100默认响应");
+        AuthOrderResponse.OrderResult data = response.new OrderResult();
+        data.setTaskId(TEST_KUAIDI100_TASK_ID);
+        data.setKuaidinum(TEST_KUAIDI100_NUM);
+        response.setData(data);
+        return response;
     }
 
     public DeliveryPkgPrintResult preOrderKuaidi100Label(OrderInfo orderInfo) {
