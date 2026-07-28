@@ -32,6 +32,7 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -1467,7 +1468,7 @@ public class AppDeliveryPkgService {
                         packedNode.setNodeStatus(NodeStatus.PENDING);
                     }
                     if (TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
-                        piece.setStatus(TypesettingStatus.PRINTING.getCode());
+                        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
                     }
                     if (StringUtils.isNotBlank(piece.getOrderItemId())) {
                         touchedOrderItemIds.add(piece.getOrderItemId());

@@ -29,6 +29,7 @@ public class ProductionPiece extends BaseEntity {
     private String procedureFlowId;
     private String status;
     private Boolean isUrgent;
+    private Boolean isRedo;
     private String productionPieceType;
     private MaterialConfig materialConfig;
     private Integer quantity;
