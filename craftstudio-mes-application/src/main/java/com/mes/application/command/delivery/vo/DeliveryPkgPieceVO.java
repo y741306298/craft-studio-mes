@@ -3,6 +3,7 @@ package com.mes.application.command.delivery.vo;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
@@ -17,6 +18,7 @@ public class DeliveryPkgPieceVO {
 
     private String productionPieceId;
     private String orderItemId;
+    private OrderChannelInfo channel;
     private String orderId;
     private String routeId;
     private String routeNodeId;
@@ -43,6 +45,7 @@ public class DeliveryPkgPieceVO {
         DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
         vo.setProductionPieceId(piece.getProductionPieceId());
         vo.setOrderItemId(piece.getOrderItemId());
+        vo.setChannel(piece.getChannel());
         vo.setRouteId(piece.getRouteId());
         vo.setRouteNodeId(piece.getRouteNodeId());
         vo.setQuantity(piece.getQuantity());
