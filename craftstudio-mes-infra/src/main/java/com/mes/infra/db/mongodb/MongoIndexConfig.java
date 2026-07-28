@@ -27,6 +27,18 @@ public class MongoIndexConfig {
                 .ensureIndex(new Index()
                         .on("manufacturerId", Sort.Direction.ASC)
                         .named("idx_production_piece_manufacturer_id"));
+        mongoTemplate.indexOps("productionPiece")
+                .ensureIndex(new Index()
+                        .on("manufacturerId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .named("idx_production_piece_manufacturer_status"));
+        mongoTemplate.indexOps("productionPiece")
+                .ensureIndex(new Index()
+                        .on("manufacturerId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .on("procedureFlow.nodes.nodeName", Sort.Direction.ASC)
+                        .on("procedureFlow.nodes.pieceQuantity", Sort.Direction.ASC)
+                        .named("idx_production_piece_pending_node"));
     }
 
     private void ensureTypesettingIndexes() {
@@ -34,5 +46,10 @@ public class MongoIndexConfig {
                 .ensureIndex(new Index()
                         .on("manufacturerMetaId", Sort.Direction.ASC)
                         .named("idx_typesetting_manufacturer_meta_id"));
+        mongoTemplate.indexOps("typesetting")
+                .ensureIndex(new Index()
+                        .on("manufacturerMetaId", Sort.Direction.ASC)
+                        .on("status", Sort.Direction.ASC)
+                        .named("idx_typesetting_manufacturer_status"));
     }
 }

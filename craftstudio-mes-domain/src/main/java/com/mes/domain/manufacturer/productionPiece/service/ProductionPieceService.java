@@ -156,6 +156,20 @@ public class ProductionPieceService {
         return productionPieceRepository.filterList(current, size, filters);
     }
 
+    public List<ProductionPiece> findPendingTypesettingPiecesByProcessingConditions(
+            String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
+            String orderItemId, String routeId, Date startTime, Date endTime) {
+        return productionPieceRepository.listPendingTypesettingPiecesByConditions(
+                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime);
+    }
+
+    public long normalizeInProgressStatuses(String manufacturerId, String packedStatus) {
+        if (StringUtils.isBlank(manufacturerId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+        return productionPieceRepository.normalizeInProgressStatuses(manufacturerId, packedStatus);
+    }
+
     public List<ProductionPiece> findProductionPiecesByProcessingConditions(
             String manufacturerId,
             String status,
@@ -574,7 +588,7 @@ public class ProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始排版，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.TYPESITTING.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -588,11 +602,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (currentStatus != ProductionPieceStatus.TYPESITTING) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有排版中的工件才能完成排版，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -606,11 +620,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (currentStatus != ProductionPieceStatus.TYPESITTING_PENDING_CONFIRM) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有排版待确认的工件才能确认排版，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.PENDING_PRINT.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -624,11 +638,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (!currentStatus.canPrint()) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始打印，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.PRINTING.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -642,11 +656,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (currentStatus != ProductionPieceStatus.PRINTING) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有打印中的工件才能完成打印，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.PENDING_CUTTING.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -660,11 +674,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (!currentStatus.canCut()) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始切割，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.CUTTING.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -678,16 +692,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (currentStatus != ProductionPieceStatus.CUTTING) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有切割中的工件才能完成切割，当前状态：" + currentStatus.getDescription());
         }
 
-        boolean hasFuBanProcedure = checkHasFuBanProcedure(piece);
-        if (hasFuBanProcedure) {
-            piece.setStatus(ProductionPieceStatus.PENDING_FUBAN.getCode());
-        } else {
-            piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
-        }
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -701,11 +710,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (!currentStatus.canFuBan()) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始覆板，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.FUBAN.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -719,11 +728,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (currentStatus != ProductionPieceStatus.FUBAN) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "只有覆板中的工件才能完成覆板，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.PENDING_PACKING.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 
@@ -737,11 +746,11 @@ public class ProductionPieceService {
         validatePieceExists(piece, id);
 
         ProductionPieceStatus currentStatus = getCurrentStatus(piece);
-        if (!currentStatus.canPack()) {
+        if (currentStatus != ProductionPieceStatus.PROCESSING) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "当前状态不能开始打包，当前状态：" + currentStatus.getDescription());
         }
 
-        piece.setStatus(ProductionPieceStatus.PACKING_COMPLETED.getCode());
+        piece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         updateProductionPieceWithOrderMetadata(piece);
     }
 

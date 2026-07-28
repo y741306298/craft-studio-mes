@@ -4,6 +4,7 @@ import com.mes.application.command.productionPiece.AppProductionPieceService;
 import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceRequest;
 import com.mes.application.dto.req.productionpiece.ProductionPieceListRequest;
 import com.mes.application.dto.req.productionpiece.UpdatePendingTypesettingQuantityRequest;
+import com.mes.application.dto.req.productionpiece.NormalizeProductionPieceStatusRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.productionpiece.ProductionPieceResponse;
@@ -124,11 +125,17 @@ public class ProductionPieceController {
         return ApiResponse.success(ProductionPieceResponse.from(piece));
     }
 
+    @PostMapping("/normalizeInProgressStatuses")
+    public ApiResponse<Long> normalizeInProgressStatuses(
+            @Valid @RequestBody NormalizeProductionPieceStatusRequest request) {
+        return ApiResponse.success(appProductionPieceService.normalizeInProgressStatuses(request.getManufacturerMetaId()));
+    }
+
     @PostMapping("/batchRedo")
     public ApiResponse<List<ProductionPieceResponse>> batchRedo(
             @Valid @RequestBody BatchRedoProductionPieceRequest request) {
         List<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> pieces =
-                appProductionPieceService.batchIncreasePendingTypesettingQuantity(
+                appProductionPieceService.batchRedo(
                         request.getPieces()
                 );
 
