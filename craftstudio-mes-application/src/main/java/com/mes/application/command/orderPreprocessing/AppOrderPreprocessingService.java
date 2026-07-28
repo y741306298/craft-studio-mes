@@ -190,8 +190,7 @@ public class AppOrderPreprocessingService {
                     //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
                     for (ProductionPiece resultPiece : pieces) {
                         movePretreatmentToPendingTypesetting(resultPiece.getProductionPieceId());
-                        //暂时默认将零件状态改为待排版
-                        productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PENDING_TYPESITTING);
+                        productionPieceService.updateProductionPieceStatusByproductionPieceId(resultPiece.getProductionPieceId(), ProductionPieceStatus.PROCESSING);
                     }
                 }
                 log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
@@ -984,7 +983,7 @@ public class AppOrderPreprocessingService {
                     movePretreatmentToPendingTypesetting(resultPiece.getProductionPieceId());
                     productionPieceService.updateProductionPieceStatusByproductionPieceId(
                             resultPiece.getProductionPieceId(), 
-                            ProductionPieceStatus.PENDING_TYPESITTING
+                            ProductionPieceStatus.PROCESSING
                     );
                 }
                 

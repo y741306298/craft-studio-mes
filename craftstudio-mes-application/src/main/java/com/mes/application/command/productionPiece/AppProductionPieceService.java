@@ -4,6 +4,8 @@ import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceReque
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
@@ -13,8 +15,10 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.BeanUtils;
 
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +29,11 @@ public class AppProductionPieceService {
 
     @Autowired
     private ProductionPieceService domainProductionPieceService;
+
+    public long normalizeInProgressStatuses(String manufacturerMetaId) {
+        return domainProductionPieceService.normalizeInProgressStatuses(
+                manufacturerMetaId, com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.COMPLETED.getCode());
+    }
 
     /**
      * 分页查询生产工件列表
@@ -131,24 +140,43 @@ public class AppProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件未配置工序节点");
         }
 
-        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
+        ProductionPiece redoPiece = copyForRedo(piece);
+        List<ProcedureFlowNode> nodes = redoPiece.getProcedureFlow().getNodes();
         ProcedureFlowNode pendingTypesettingNode = nodes.stream()
                 .filter(node -> node != null && "待排版".equals(node.getNodeName()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到“待排版”节点"));
 
-        int currentPendingQuantity = pendingTypesettingNode.getPieceQuantity() == null ? 0 : pendingTypesettingNode.getPieceQuantity();
-        pendingTypesettingNode.setPieceQuantity(currentPendingQuantity + increaseQuantity);
+        pendingTypesettingNode.setPieceQuantity(increaseQuantity);
+        redoPiece.setQuantity(increaseQuantity);
+        redoPiece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
+        redoPiece.setIsRedo(true);
 
-        int currentPieceQuantity = piece.getQuantity() == null ? 0 : piece.getQuantity();
-        piece.setQuantity(currentPieceQuantity + increaseQuantity);
-        piece.setIsUrgent(true);
-
-        domainProductionPieceService.updateProductionPieceByProductionPieceId(productionPieceId, piece);
-        return piece;
+        return domainProductionPieceService.addProductionPiece(redoPiece);
     }
 
-    public List<ProductionPiece> batchIncreasePendingTypesettingQuantity(List<BatchRedoProductionPieceRequest.PieceRedoItem> pieceRedoItems) {
+    private ProductionPiece copyForRedo(ProductionPiece source) {
+        ProductionPiece copy = new ProductionPiece();
+        BeanUtils.copyProperties(source, copy, "id", "productionPieceId", "createTime", "updateTime", "procedureFlow");
+
+        ProcedureFlow flowCopy = new ProcedureFlow();
+        BeanUtils.copyProperties(source.getProcedureFlow(), flowCopy, "nodes");
+        List<ProcedureFlowNode> nodeCopies = new ArrayList<>();
+        for (ProcedureFlowNode sourceNode : source.getProcedureFlow().getNodes()) {
+            if (sourceNode == null) {
+                nodeCopies.add(null);
+                continue;
+            }
+            ProcedureFlowNode nodeCopy = new ProcedureFlowNode();
+            BeanUtils.copyProperties(sourceNode, nodeCopy);
+            nodeCopies.add(nodeCopy);
+        }
+        flowCopy.setNodes(nodeCopies);
+        copy.setProcedureFlow(flowCopy);
+        return copy;
+    }
+
+    public List<ProductionPiece> batchRedo(List<BatchRedoProductionPieceRequest.PieceRedoItem> pieceRedoItems) {
         if (pieceRedoItems == null || pieceRedoItems.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "pieces 不能为空");
         }

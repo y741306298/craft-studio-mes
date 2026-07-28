@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Repository
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
@@ -82,6 +83,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<ProcessingFlowCondition> processNames, Double width, String routeId) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteriaList.add(Criteria.where("status").is(com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode()));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
                 Criteria.where("nodeName").is("待打包").and("pieceQuantity").gt(0)
         ));
@@ -112,5 +114,58 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         query.addCriteria(Criteria.where("deleteAt").is(null));
         return mongoTemplate.find(query, ProductionPiecePo.class)
                 .stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
+            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime) {
+        List<Criteria> criteriaList = new ArrayList<>();
+        criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteriaList.add(Criteria.where("status").is(com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode()));
+        criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
+                Criteria.where("nodeName").is("待排版").and("pieceQuantity").gt(0)));
+        if (materialName != null && !materialName.isBlank()) {
+            criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name")
+                    .regex(Pattern.quote(materialName), "i"));
+        }
+        if (processNames != null) {
+            processNames.stream().filter(Objects::nonNull)
+                    .filter(condition -> condition.getProcessName() != null && !condition.getProcessName().isBlank())
+                    .forEach(condition -> {
+                        Criteria node = Criteria.where("nodeName").is(condition.getProcessName().trim());
+                        if (condition.getAccessoryName() != null && !condition.getAccessoryName().isBlank()) {
+                            node.and("paramConfigs.param.accessorySnapshot.name").is(condition.getAccessoryName().trim());
+                        }
+                        criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(node));
+                    });
+        }
+        if (orderItemId != null && !orderItemId.isBlank()) {
+            criteriaList.add(Criteria.where("orderItemId").is(orderItemId));
+        }
+        if (routeId != null && !routeId.isBlank()) {
+            criteriaList.add(Criteria.where("routeId").is(routeId));
+        }
+        if (startTime != null) {
+            criteriaList.add(Criteria.where("createTime").gte(startTime));
+        }
+        if (endTime != null) {
+            criteriaList.add(Criteria.where("createTime").lte(endTime));
+        }
+        Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
+        query.addCriteria(Criteria.where("deleteAt").is(null));
+        return mongoTemplate.find(query, ProductionPiecePo.class).stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public long normalizeInProgressStatuses(String manufacturerId, String packedStatus) {
+        Query query = new SoftDeleteQuery(Criteria.where("manufacturerId").is(manufacturerId)
+                .and("status").nin(
+                        com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode(),
+                        com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.RETURNED.getCode(),
+                        packedStatus));
+        Update update = new Update()
+                .set("status", com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode())
+                .set("updateTime", new Date());
+        return mongoTemplate.updateMulti(query, update, ProductionPiecePo.class).getModifiedCount();
     }
 }

@@ -25,6 +25,8 @@ public class ProductionPieceResponse {
 
     private Integer quantity;
 
+    private Boolean isRedo;
+
     private String templateCode;
 
     private String positionType;
@@ -60,6 +62,7 @@ public class ProductionPieceResponse {
 
         response.setProductionPieceType(piece.getProductionPieceType());
         response.setQuantity(piece.getQuantity());
+        response.setIsRedo(piece.getIsRedo());
         response.setTemplateCode(piece.getTemplateCode());
         response.setPositionType(piece.getPositionType());
         response.setPositionCode(piece.getPositionCode());

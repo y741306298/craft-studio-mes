@@ -54,7 +54,6 @@ import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingContainerWidthInset;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -327,33 +326,22 @@ public class AppTypesettingService {
     /**
      * 查询仍有待排版数量的零件。
      * <p>
-     * 除常规待排版状态外，已打包的零件也可能因历史数据或补排版流程保留待排版数量。
-     * 已打包零件在不同流程中可能使用 {@code PACKING_COMPLETED} 或 {@code completed} 状态，
-     * 因此需要一并查询，并由调用方根据“待排版”节点数量过滤。
+     * 生产中的零件可能同时在多个工序节点保有数量。先通过顶层“生产中”状态缩小数据库
+     * 查询范围，再由调用方根据“待排版”节点的 pieceQuantity 过滤。
      *
      * @param query 查询条件
-     * @return 待排版或已打包状态的零件
+     * @return 符合基础条件的生产零件
      */
     private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query) {
-        List<ProductionPiece> productionPieces = new ArrayList<>();
-        for (String status : List.of(
-                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
-                ProductionPieceStatus.PACKING_COMPLETED.getCode(),
-                TypesettingStatus.COMPLETED.getCode())) {
-            productionPieces.addAll(productionPieceService.findProductionPiecesByProcessingConditions(
-                    query.getManufacturerMetaId(),
-                    status,
-                    query.getMaterialName(),
-                    query.getProcessingName(),
-                    query.getOrderItemId(),
-                    query.getRouteId(),
-                    query.getStartTime(),
-                    query.getEndTime(),
-                    1,
-                    Integer.MAX_VALUE
-            ));
-        }
-        return productionPieces;
+        return productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
+                query.getManufacturerMetaId(),
+                query.getMaterialName(),
+                query.getProcessingName(),
+                query.getOrderItemId(),
+                query.getRouteId(),
+                query.getStartTime(),
+                query.getEndTime()
+        );
     }
 
     /**
@@ -985,21 +973,18 @@ public class AppTypesettingService {
     }
 
     /**
-     * 只查询零件（待排版状态）
+     * 只查询生产中且仍有待排版节点数量的零件。
      */
     private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
         // 不走分页查询：先按 manufacturerId 查询符合基础条件的全部零件，再在内存中过滤“待排版数量>0”
-        List<ProductionPiece> parts = productionPieceService.findProductionPiecesByProcessingConditions(
+        List<ProductionPiece> parts = productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
                 query.getManufacturerMetaId(),
-                ProductionPieceStatus.PENDING_TYPESITTING.getCode(),
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getOrderItemId(),
                 query.getRouteId(),
                 query.getStartTime(),
-                query.getEndTime(),
-                1,
-                Integer.MAX_VALUE
+                query.getEndTime()
         );
 
         // 转换为 VO
