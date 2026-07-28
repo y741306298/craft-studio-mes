@@ -122,7 +122,7 @@ public class AppDeliveryPkgService {
     @Autowired
     private WdtService wdtService;
 
-    @Value("${kuaidi100:prod}")
+    @Value("${kuaidi100}")
     private String kuaidi100Environment;
 
 

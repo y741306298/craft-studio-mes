@@ -17,17 +17,14 @@ import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import com.mes.infra.mq.LogisticsOrderInfo;
 import com.mes.infra.mq.LogisticsOrderProducer;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
-import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsCloudPrintData;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
-import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Consignee;
 import com.piliofpala.craftstudio.shared.infra.mq.message.Message;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
