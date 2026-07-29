@@ -8,6 +8,7 @@ import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.order.enums.OrderChannelType;
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
@@ -41,7 +42,7 @@ public class AppPreOrderLabelTaskService {
     @Autowired
     LogisticsOrderProducer producer;
 
-    private static final long PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS = 10 * 60 * 1000L;
+    private static final long PRE_ORDER_LABEL_TASK_FIXED_RATE_MS = 10 * 60 * 1000L;
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
 
     @Autowired
@@ -70,7 +71,7 @@ public class AppPreOrderLabelTaskService {
      */
     private boolean batchEnabled = true;
 
-    @Scheduled(fixedDelay = PRE_ORDER_LABEL_TASK_FIXED_DELAY_MS)
+    @Scheduled(fixedRate = PRE_ORDER_LABEL_TASK_FIXED_RATE_MS)
     public void processPendingPreOrderLabelTasks() {
         if (!batchEnabled) {
             return;
@@ -89,16 +90,21 @@ public class AppPreOrderLabelTaskService {
             return;
         }
         try {
+            OrderInfo orderInfo = orderInfoService.findByOrderId(task.getOrderId());
+            if (orderInfo == null) {
+                log.warn("预下快递单批处理任务跳过，订单不存在: taskId={}, orderId={}", task.getId(), task.getOrderId());
+                return;
+            }
+            if (OrderStatus.RETURNED.equals(orderInfo.getStatus())) {
+                preOrderLabelTaskService.delete(task);
+                log.info("预下快递单批处理任务已删除，订单已退单: taskId={}, orderId={}", task.getId(), task.getOrderId());
+                return;
+            }
+
             List<OrderItem> orderItems = orderItemService.findByOrderId(task.getOrderId(), null, 1, 100);
             List<ProductionPiece> productionPieces = findProductionPieces(orderItems);
             if (productionPieces.isEmpty()) {
                 log.info("预下快递单批处理任务跳过，生产工件尚未生成: taskId={}, orderId={}", task.getId(), task.getOrderId());
-                return;
-            }
-
-            OrderInfo orderInfo = orderInfoService.findByOrderId(task.getOrderId());
-            if (orderInfo == null) {
-                log.warn("预下快递单批处理任务跳过，订单不存在: taskId={}, orderId={}", task.getId(), task.getOrderId());
                 return;
             }
 

@@ -36,6 +36,12 @@ public class PreOrderLabelTaskService {
         return preOrderLabelTaskRepository.filterList(1, DEFAULT_PENDING_PAGE_SIZE, filters);
     }
 
+    public void delete(PreOrderLabelTask task) {
+        if (task != null) {
+            preOrderLabelTaskRepository.delete(task);
+        }
+    }
+
     public void markProcessed(PreOrderLabelTask task, String kuaidiNum) {
         markProcessed(task, kuaidiNum, null);
     }
