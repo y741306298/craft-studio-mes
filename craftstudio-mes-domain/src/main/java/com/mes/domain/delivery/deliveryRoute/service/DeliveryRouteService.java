@@ -620,7 +620,10 @@ public class DeliveryRouteService {
         Map<String, Object> orderFilters = new HashMap<>();
         orderFilters.put("customer.address.terminalRegionCode", record.getAddress().getTerminalRegionCode());
         orderFilters.put("customer.address.detailAddress", record.getAddress().getDetailAddress());
-        orderFilters.put("status", OrderStatus.IN_PRODUCTION.getCode());
+        orderFilters.put("status_in", List.of(
+                OrderStatus.PENDING.getCode(),
+                OrderStatus.IN_PRODUCTION.getCode()
+        ));
 
         List<String> orderIds = new ArrayList<>();
         long current = 1;
