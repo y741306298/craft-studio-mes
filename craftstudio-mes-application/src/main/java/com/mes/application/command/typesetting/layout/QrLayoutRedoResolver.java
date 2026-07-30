@@ -8,6 +8,8 @@ import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class QrLayoutRedoResolver {
 
@@ -24,10 +26,15 @@ public class QrLayoutRedoResolver {
         if (info == null || info.getTypesettingCells() == null) {
             return false;
         }
-        return info.getTypesettingCells().stream()
+        List<TypesettingSourceCell> productionPieceCells = info.getTypesettingCells().stream()
                 .filter(cell -> cell != null
                         && TypesettingSourceType.PART.getCode().equals(cell.getSourceType())
                         && StringUtils.isNotBlank(cell.getSourceId()))
+                .toList();
+        if (productionPieceCells.stream().anyMatch(cell -> Boolean.TRUE.equals(cell.getIsRedo()))) {
+            return true;
+        }
+        return productionPieceCells.stream()
                 .map(TypesettingSourceCell::getSourceId)
                 .map(productionPieceService::findById)
                 .anyMatch(this::isRedo);
