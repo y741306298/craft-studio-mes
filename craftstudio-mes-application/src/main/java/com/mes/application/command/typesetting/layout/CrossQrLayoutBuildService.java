@@ -10,6 +10,7 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -60,12 +61,21 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
     private final QrLayoutRedoResolver qrLayoutRedoResolver;
 
+    @Autowired
     public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService,
                                        QrLayoutOrderIdResolver qrLayoutOrderIdResolver,
                                        QrLayoutRedoResolver qrLayoutRedoResolver) {
         this.ossTagUploadService = ossTagUploadService;
         this.qrLayoutOrderIdResolver = qrLayoutOrderIdResolver;
         this.qrLayoutRedoResolver = qrLayoutRedoResolver;
+    }
+
+    /**
+     * 保留给不关心重做标记的旧调用方；Spring 运行时使用三参数构造器。
+     */
+    public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService,
+                                      QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
+        this(ossTagUploadService, qrLayoutOrderIdResolver, null);
     }
 
     /**
@@ -116,7 +126,8 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
-        boolean hasRedoProductionPiece = qrLayoutRedoResolver.hasRedoProductionPiece(context.getTypesettingInfo());
+        boolean hasRedoProductionPiece = qrLayoutRedoResolver != null
+                && qrLayoutRedoResolver.hasRedoProductionPiece(context.getTypesettingInfo());
         BigDecimal tagContentMaxWidth = context.getNestedWidth().add(BigDecimal.valueOf(marginRight));
         String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, false, hasRedoProductionPiece);
         String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, true, hasRedoProductionPiece);

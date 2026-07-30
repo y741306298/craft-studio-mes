@@ -1192,6 +1192,7 @@ public class AppTypesettingService {
                 }
                 dbPiece.setQuantity(quantity);
                 cell.setQuantity(quantity);
+                cell.setIsRedo(dbPiece.getIsRedo());
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
@@ -4380,6 +4381,7 @@ public class AppTypesettingService {
                     sourceCell.setSourceId(cell.getSourceId());
                     sourceCell.setOrderItemId(cell.getOrderItemId());
                     sourceCell.setQuantity(cell.getQuantity());
+                    sourceCell.setIsRedo(cell.getIsRedo());
                     return sourceCell;
                 })
                 .collect(Collectors.toList());
