@@ -58,11 +58,14 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
 
     private final OssTagUploadService ossTagUploadService;
     private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
+    private final QrLayoutRedoResolver qrLayoutRedoResolver;
 
     public CrossQrLayoutBuildService(OssTagUploadService ossTagUploadService,
-                                       QrLayoutOrderIdResolver qrLayoutOrderIdResolver) {
+                                       QrLayoutOrderIdResolver qrLayoutOrderIdResolver,
+                                       QrLayoutRedoResolver qrLayoutRedoResolver) {
         this.ossTagUploadService = ossTagUploadService;
         this.qrLayoutOrderIdResolver = qrLayoutOrderIdResolver;
+        this.qrLayoutRedoResolver = qrLayoutRedoResolver;
     }
 
     /**
@@ -113,9 +116,10 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String elementCC = context.getQrDataUriGenerator().apply(elementBB);
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId();
+        boolean hasRedoProductionPiece = qrLayoutRedoResolver.hasRedoProductionPiece(context.getTypesettingInfo());
         BigDecimal tagContentMaxWidth = context.getNestedWidth().add(BigDecimal.valueOf(marginRight));
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, true);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, false, hasRedoProductionPiece);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), tagContentMaxWidth, marginHeight, true, hasRedoProductionPiece);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -336,7 +340,8 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                         BigDecimal stripWidth,
                                         BigDecimal tagContentMaxWidth,
                                         BigDecimal stripHeight,
-                                        boolean rotate180) {
+                                        boolean rotate180,
+                                        boolean hasRedoProductionPiece) {
         // 生成标签条 PNG 并上传至 OSS 的 /tag 路径，返回可访问 URL
         int stripHeightInt = stripHeight.intValue();
         int stripWidthInt = stripWidth.intValue();
@@ -349,7 +354,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int bX = qrLeftPx + qrSizePx + mmToPx(ELEMENT_GAP_MM);
         int textHeight = Math.max(mmToPx(4), 1);
         int maxContentWidthPx = mmToPx(tagContentMaxWidth == null ? stripWidthInt : tagContentMaxWidth.doubleValue());
-        TagTextLayout tagTextLayout = resolveTagTextLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx);
+        TagTextLayout tagTextLayout = resolveTagTextLayout(elementA, elementAExtInfos, commonOrderId, elementB, bX, textHeight, maxContentWidthPx, hasRedoProductionPiece);
 
         BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = canvas.createGraphics();
@@ -410,9 +415,10 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                                                String elementB,
                                                int textStartX,
                                                int textHeight,
-                                               int maxContentWidthPx) {
+                                               int maxContentWidthPx,
+                                               boolean hasRedoProductionPiece) {
         FontMetrics metrics = createFontMetrics(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
-        List<String> tagTexts = buildTagTexts(elementA, elementAExtInfos, commonOrderId, elementB);
+        List<String> tagTexts = buildTagTexts(elementA, elementAExtInfos, commonOrderId, elementB, hasRedoProductionPiece);
         int singleRowEndX = textStartX + measureJoinedWidth(tagTexts, metrics);
         if (singleRowEndX <= maxContentWidthPx) {
             return new TagTextLayout(false, tagTexts, new ArrayList<>());
@@ -437,8 +443,12 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private List<String> buildTagTexts(String elementA,
                                        List<String> elementAExtInfos,
                                        String commonOrderId,
-                                       String elementB) {
+                                       String elementB,
+                                       boolean hasRedoProductionPiece) {
         List<String> tagTexts = new ArrayList<>();
+        if (hasRedoProductionPiece) {
+            tagTexts.add("<font color='red'>重做</font>");
+        }
         if (StringUtils.isNotBlank(elementB)) {
             tagTexts.add(elementB);
         }
