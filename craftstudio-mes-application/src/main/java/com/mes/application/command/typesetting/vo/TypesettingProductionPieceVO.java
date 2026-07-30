@@ -104,6 +104,11 @@ public class TypesettingProductionPieceVO {
     private Boolean isUrgent;
 
     /**
+     * 是否重做（仅生产工件来源）
+     */
+    private Boolean isRedo;
+
+    /**
      * 排版轮廓 SVG（排版来源）
      */
     private String maskSvg;
@@ -172,6 +177,7 @@ public class TypesettingProductionPieceVO {
         typesettingProductionPieceVO.setHeight(toCentimeters(resolveDisplayHeight(piece)));
         typesettingProductionPieceVO.setCreateTime(piece.getCreateTime());
         typesettingProductionPieceVO.setIsUrgent(piece.getIsUrgent());
+        typesettingProductionPieceVO.setIsRedo(piece.getIsRedo());
         typesettingProductionPieceVO.setStatus(ProductionPieceStatus.PENDING_TYPESITTING.getCode());
         typesettingProductionPieceVO.setRemark(piece.getRemark());
         return typesettingProductionPieceVO;
@@ -248,6 +254,7 @@ public class TypesettingProductionPieceVO {
         piece.setTemplateCode(this.templateCode);
         piece.setStatus(this.status);
         piece.setIsUrgent(this.isUrgent);
+        piece.setIsRedo(this.isRedo);
         piece.setCreateTime(this.createTime);
         return piece;
     }

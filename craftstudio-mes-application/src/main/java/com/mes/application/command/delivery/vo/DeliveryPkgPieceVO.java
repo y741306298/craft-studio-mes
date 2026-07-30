@@ -28,6 +28,7 @@ public class DeliveryPkgPieceVO {
     private String address;
     private String status;
     private Boolean isUrgent;
+    private Boolean isRedo;
     private String previewUrl;
     private java.util.Date createTime;
     private Double width;
@@ -50,6 +51,7 @@ public class DeliveryPkgPieceVO {
         vo.setRouteNodeId(piece.getRouteNodeId());
         vo.setQuantity(piece.getQuantity());
         vo.setIsUrgent(piece.getIsUrgent());
+        vo.setIsRedo(piece.getIsRedo());
         vo.setMaterialConfig(piece.getMaterialConfig());
         vo.setProcedureFlow(piece.getProcedureFlow());
         vo.setProcessingFlow(piece.getProcessingFlow());

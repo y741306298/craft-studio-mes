@@ -151,6 +151,7 @@ public class AppProductionPieceService {
         redoPiece.setQuantity(increaseQuantity);
         redoPiece.setStatus(ProductionPieceStatus.PROCESSING.getCode());
         redoPiece.setIsRedo(true);
+        redoPiece.setIsUrgent(true);
 
         return domainProductionPieceService.addProductionPiece(redoPiece);
     }
