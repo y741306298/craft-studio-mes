@@ -299,6 +299,9 @@ public class AppOrderService {
                 continue;
             }
             List<OrderItem> orderItems = findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, null);
+            if (status == null && isReturnedOrder(order, orderItems)) {
+                continue;
+            }
             for (OrderItem item : orderItems) {
                 if (item == null) {
                     continue;
@@ -391,6 +394,15 @@ public class AppOrderService {
             current++;
         }
         return orders;
+    }
+
+    private boolean isReturnedOrder(OrderInfo order, List<OrderItem> orderItems) {
+        if (order.getStatus() == OrderStatus.RETURNED) {
+            return true;
+        }
+        return orderItems.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(item -> item.getStatus() == OrderStatus.RETURNED);
     }
 
     private List<OrderItem> findAllOrderItemsByOrder(String orderId, String manufacturerId, String materialId) {
