@@ -20,6 +20,7 @@ import com.mes.infra.mq.LogisticsOrderProducer;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
+import com.piliofpala.craftstudio.shared.domain.logistics.vo.LogisticsCarrierPresetType;
 import com.piliofpala.craftstudio.shared.infra.mq.message.Message;
 import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -159,7 +160,7 @@ public class AppPreOrderLabelTaskService {
         try {
             GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
             platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            LogisticsLabel label = printWdtLabel(platform, uniCode);
+            LogisticsLabel label = printWdtLabel(platform, uniCode, presetType);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -174,8 +175,8 @@ public class AppPreOrderLabelTaskService {
     /**
      * 使用默认打印机打印旺店通面单。
      */
-    private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode) throws Exception {
-        return platform.printLogisticsLabel(uniCode, "default");
+    private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
+        return platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
     }
 
     /**

@@ -843,7 +843,7 @@ public class AppDeliveryPkgService {
         try {
             GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
             platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default");
+            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "旺店通打包即时打单未返回物流单号");
             }
