@@ -83,6 +83,8 @@ import java.util.Objects;
 public class AppOrderPreprocessingService {
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
+    /** 抠图算法返回的尺寸单位为毫米；宽度小于 2cm 的结果视为噪点。 */
+    static final double MIN_ALGORITHM_PIECE_WIDTH_MM = 20D;
 
     @Autowired
     private OrderItemService orderItemService;
@@ -908,6 +910,11 @@ public class AppOrderPreprocessingService {
                         Double pieceHeight = svgSize[1] != null
                                 ? svgSize[1]
                                 : toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+                        if (shouldIgnoreAlgorithmPiece(pieceWidth)) {
+                            log.info("忽略宽度过小的抠图算法结果: orderItemId={}, group={}, seq={}, widthMm={}, minWidthMm={}",
+                                    orderItemId, rawGroup, seq, pieceWidth, MIN_ALGORITHM_PIECE_WIDTH_MM);
+                            continue;
+                        }
                         ProductionPiece piece = procedureService.createProductionPiece(
                                 orderItem,
                                 "ORIGINAL",
@@ -1001,6 +1008,10 @@ public class AppOrderPreprocessingService {
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
         }
+    }
+
+    static boolean shouldIgnoreAlgorithmPiece(Double widthMm) {
+        return widthMm != null && widthMm < MIN_ALGORITHM_PIECE_WIDTH_MM;
     }
 
 
