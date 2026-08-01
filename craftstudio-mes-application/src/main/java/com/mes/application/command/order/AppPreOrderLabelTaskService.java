@@ -45,6 +45,7 @@ public class AppPreOrderLabelTaskService {
 
     private static final long PRE_ORDER_LABEL_TASK_FIXED_RATE_MS = 10 * 60 * 1000L;
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
+    private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -87,13 +88,18 @@ public class AppPreOrderLabelTaskService {
     }
 
     private void processTask(PreOrderLabelTask task) {
-        if (task == null || StringUtils.isBlank(task.getOrderId())) {
+        if (task == null) {
             return;
         }
+        if (StringUtils.isBlank(task.getOrderId())) {
+            markTaskFailed(task, null, "订单ID为空");
+            return;
+        }
+        String kuaidiNum = null;
         try {
             OrderInfo orderInfo = orderInfoService.findByOrderId(task.getOrderId());
             if (orderInfo == null) {
-                log.warn("预下快递单批处理任务跳过，订单不存在: taskId={}, orderId={}", task.getId(), task.getOrderId());
+                markTaskFailed(task, null, "订单不存在");
                 return;
             }
             if (OrderStatus.RETURNED.equals(orderInfo.getStatus())) {
@@ -112,21 +118,35 @@ public class AppPreOrderLabelTaskService {
             AppDeliveryPkgService.DeliveryPkgPrintResult printResult = isGatherPlatform(orderInfo)
                     ? preOrderWdtLabel(orderInfo, orderItems)
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
-            String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
+            kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
             if (StringUtils.isBlank(kuaidiNum)) {
                 String failureReason = isGatherPlatform(orderInfo)
                         ? "聚单平台打印未返回物流单号"
                         : "快递100打印未返回快递单号";
-                log.warn("预下快递单批处理任务未生成快递单号，任务按已处理结束: taskId={}, orderId={}, reason={}",
+                log.warn("预下快递单批处理任务未生成快递单号，任务已标记失败: taskId={}, orderId={}, reason={}",
                         task.getId(), task.getOrderId(), failureReason);
-                preOrderLabelTaskService.markProcessed(task, null, failureReason);
+                preOrderLabelTaskService.markFailed(task, null, failureReason);
                 return;
             }
             String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, kuaidiNum);
-            preOrderLabelTaskService.markProcessed(task, kuaidiNum, mqFailureReason);
+            if (StringUtils.isBlank(mqFailureReason)) {
+                preOrderLabelTaskService.markProcessed(task, kuaidiNum);
+            } else {
+                preOrderLabelTaskService.markFailed(task, kuaidiNum, mqFailureReason);
+            }
         } catch (Exception ex) {
-            log.warn("预下快递单批处理任务处理失败，等待下次重试: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
+            markTaskFailed(task, kuaidiNum, resolveExceptionMessage(ex));
+            log.warn("预下快递单批处理任务处理失败，已标记失败: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
+        }
+    }
+
+    private void markTaskFailed(PreOrderLabelTask task, String kuaidiNum, String failureReason) {
+        try {
+            preOrderLabelTaskService.markFailed(task, kuaidiNum, failureReason);
+        } catch (Exception markException) {
+            log.error("预下快递单批处理任务标记失败状态异常: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId(), markException);
         }
     }
 
@@ -159,8 +179,15 @@ public class AppPreOrderLabelTaskService {
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
             GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
-            platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            LogisticsLabel label = printWdtLabel(platform, uniCode, presetType);
+            try {
+                platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            } catch (Exception warehouseException) {
+                if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
+                    throw warehouseException;
+                }
+                log.info("旺店通订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
+            }
+            LogisticsLabel label = printWdtLabel(platform, uniCode);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -297,6 +324,17 @@ public class AppPreOrderLabelTaskService {
         return StringUtils.isBlank(current.getMessage())
                 ? current.getClass().getSimpleName()
                 : current.getMessage();
+    }
+
+    private boolean containsExceptionMessage(Throwable throwable, String expectedMessage) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (StringUtils.isNotBlank(current.getMessage()) && current.getMessage().contains(expectedMessage)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private Map<String, Object> buildBaseMessage(String topic, String tag, Object info) {

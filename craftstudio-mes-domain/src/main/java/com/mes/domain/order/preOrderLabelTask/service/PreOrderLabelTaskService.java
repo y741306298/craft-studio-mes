@@ -62,4 +62,17 @@ public class PreOrderLabelTaskService {
         task.setFailureReason(failureReason);
         preOrderLabelTaskRepository.update(task);
     }
+
+    /**
+     * 将任务标记为失败，使其不再被后续待处理批次重复执行。
+     */
+    public void markFailed(PreOrderLabelTask task, String kuaidiNum, String failureReason) {
+        if (task == null) {
+            return;
+        }
+        task.setStatus(PreOrderLabelTaskStatus.FAILED);
+        task.setKuaidiNum(kuaidiNum);
+        task.setFailureReason(failureReason);
+        preOrderLabelTaskRepository.update(task);
+    }
 }

@@ -5,6 +5,7 @@ package com.mes.domain.order.preOrderLabelTask.enums;
  */
 public enum PreOrderLabelTaskStatus {
     PENDING("PENDING", "待处理"),
+    FAILED("FAILED", "处理失败"),
     PROCESSED("PROCESSED", "已处理");
 
     private final String code;
