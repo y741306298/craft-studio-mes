@@ -227,7 +227,11 @@ public class AppManufacturerDeviceCfgService {
                     continue;
                 }
                 if (task.getData() != null) {
-                    result.add(task.getData());
+                    TypesettingDownloadTaskData claimData = copyDownloadTaskData(task.getData());
+                    if (StringUtils.isNotBlank(task.getTypesettingCode())) {
+                        claimData.setId(task.getTypesettingCode());
+                    }
+                    result.add(claimData);
                 }
                 List<String> remainDeviceCodes = new ArrayList<String>(targetDeviceCodes);
                 remainDeviceCodes.removeIf(currentDeviceCode::equals);
@@ -252,6 +256,23 @@ public class AppManufacturerDeviceCfgService {
             current++;
         }
         return result;
+    }
+
+    private TypesettingDownloadTaskData copyDownloadTaskData(TypesettingDownloadTaskData source) {
+        TypesettingDownloadTaskData copy = new TypesettingDownloadTaskData();
+        copy.setId(source.getId());
+        copy.setImamges(copyStringList(source.getImamges()));
+        copy.setPlts(copyStringList(source.getPlts()));
+        copy.setJsons(copyStringList(source.getJsons()));
+        copy.setMarks(copyStringList(source.getMarks()));
+        copy.setDeviceInfoId(source.getDeviceInfoId());
+        copy.setDeviceInfoIds(copyStringList(source.getDeviceInfoIds()));
+        copy.setDeviceCodes(copyStringList(source.getDeviceCodes()));
+        return copy;
+    }
+
+    private List<String> copyStringList(List<String> source) {
+        return source == null ? null : new ArrayList<String>(source);
     }
 
 
