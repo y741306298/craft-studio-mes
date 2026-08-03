@@ -3465,6 +3465,9 @@ public class AppTypesettingService {
             }
         }
         if (data != null) {
+            if (StringUtils.isNotBlank(typesettingCode)) {
+                data.setId(typesettingCode);
+            }
             data.setDeviceInfoIds(normalizedDeviceInfoIds);
             data.setDeviceCodes(normalizedDeviceCodes);
             if (StringUtils.isBlank(data.getDeviceInfoId()) && !normalizedDeviceInfoIds.isEmpty()) {
