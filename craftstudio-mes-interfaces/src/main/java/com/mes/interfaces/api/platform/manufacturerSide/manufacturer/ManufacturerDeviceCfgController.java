@@ -236,6 +236,7 @@ public class ManufacturerDeviceCfgController {
         }
         ManufacturerFactoryDownloadTaskResp response = new ManufacturerFactoryDownloadTaskResp();
         response = this.buildDownloadTaskResp( task);
+        response.setId(id);
         ApiResponse<ManufacturerFactoryDownloadTaskResp> apiResponse = ApiResponse.success(response);
         apiResponse.setMessage("succes");
         return apiResponse;

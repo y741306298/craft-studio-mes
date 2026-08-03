@@ -257,6 +257,23 @@ public class AppManufacturerDeviceCfgService {
         return result;
     }
 
+    private TypesettingDownloadTaskData copyDownloadTaskData(TypesettingDownloadTaskData source) {
+        TypesettingDownloadTaskData copy = new TypesettingDownloadTaskData();
+        copy.setId(source.getId());
+        copy.setImamges(copyStringList(source.getImamges()));
+        copy.setPlts(copyStringList(source.getPlts()));
+        copy.setJsons(copyStringList(source.getJsons()));
+        copy.setMarks(copyStringList(source.getMarks()));
+        copy.setDeviceInfoId(source.getDeviceInfoId());
+        copy.setDeviceInfoIds(copyStringList(source.getDeviceInfoIds()));
+        copy.setDeviceCodes(copyStringList(source.getDeviceCodes()));
+        return copy;
+    }
+
+    private List<String> copyStringList(List<String> source) {
+        return source == null ? null : new ArrayList<String>(source);
+    }
+
 
     public TypesettingDownloadTaskData listDownloadTasksByTypesettingCode(String typesettingCode) {
         if (StringUtils.isBlank(typesettingCode)) {
