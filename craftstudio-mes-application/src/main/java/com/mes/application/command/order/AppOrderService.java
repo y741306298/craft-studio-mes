@@ -277,6 +277,7 @@ public class AppOrderService {
                                                      String materialId,
                                                      String materialName,
                                                      String materialType,
+                                                     String orgName,
                                                      PagedQuery pagedQuery) {
         if (pagedQuery == null) {
             throw new IllegalArgumentException("分页参数不能为空");
@@ -287,6 +288,7 @@ public class AppOrderService {
 
         List<OrderInfo> orders = findStatisticOrders(orderId, status, startTime, endTime, routeId);
         LinkedHashMap<String, OrderStatisticsMaterialVO> materialMap = new LinkedHashMap<>();
+        Set<String> orgNames = new LinkedHashSet<>();
         LinkedHashMap<String, OrderStatisticsItemVO> orderMap = new LinkedHashMap<>();
         BigDecimal totalArea = BigDecimal.ZERO;
         BigDecimal totalAmount = BigDecimal.ZERO;
@@ -296,6 +298,15 @@ public class AppOrderService {
                 continue;
             }
             if (StringUtils.isNotBlank(manufacturerId) && !manufacturerId.equals(order.getManufacturerId())) {
+                continue;
+            }
+            if (order.getOrgInfo() != null && StringUtils.isNotBlank(order.getOrgInfo().getName())) {
+                orgNames.add(order.getOrgInfo().getName());
+            }
+            if (StringUtils.isNotBlank(orgName)
+                    && (order.getOrgInfo() == null
+                    || StringUtils.isBlank(order.getOrgInfo().getName())
+                    || !order.getOrgInfo().getName().contains(orgName.trim()))) {
                 continue;
             }
             List<OrderItem> orderItems = findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, null);
@@ -348,7 +359,8 @@ public class AppOrderService {
                 scaleStatisticsDecimal(totalArea),
                 scaleStatisticsDecimal(totalAmount),
                 new ArrayList<>(materialMap.values()),
-                buildOrderStatisticsStatusList());
+                buildOrderStatisticsStatusList(),
+                new ArrayList<>(orgNames));
     }
 
     private List<OrderStatisticsStatusVO> buildOrderStatisticsStatusList() {
