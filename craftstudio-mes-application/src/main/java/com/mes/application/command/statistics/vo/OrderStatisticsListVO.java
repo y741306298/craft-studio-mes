@@ -18,4 +18,5 @@ public class OrderStatisticsListVO {
     private BigDecimal totalAmount;
     private List<OrderStatisticsMaterialVO> materialList;
     private List<OrderStatisticsStatusVO> statusList;
+    private List<String> orgNameList;
 }

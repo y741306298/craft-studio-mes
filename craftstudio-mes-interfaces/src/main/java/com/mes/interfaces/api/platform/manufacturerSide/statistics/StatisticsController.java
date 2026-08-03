@@ -46,6 +46,7 @@ public class StatisticsController {
                 request.getMaterialId(),
                 request.getMaterialName(),
                 request.getMaterialType(),
+                request.getOrgName(),
                 request.toPagedQuery());
 
         PagedQuery query = request.toPagedQuery();
@@ -59,6 +60,7 @@ public class StatisticsController {
                 result.getTotalAmount());
         response.getData().setMaterialList(result.getMaterialList());
         response.getData().setStatusList(result.getStatusList());
+        response.getData().setOrgNameList(result.getOrgNameList());
         return response;
     }
 

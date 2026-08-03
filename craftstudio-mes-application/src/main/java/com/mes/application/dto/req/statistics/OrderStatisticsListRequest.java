@@ -16,4 +16,5 @@ public class OrderStatisticsListRequest extends PagedApiRequest {
     private String materialId;
     private String materialName;
     private String materialType;
+    private String orgName;
 }
