@@ -25,6 +25,8 @@ public class ProductionPieceResponse {
 
     private Integer quantity;
 
+    private Boolean isUrgent;
+
     private Boolean isRedo;
 
     private String templateCode;
@@ -62,6 +64,7 @@ public class ProductionPieceResponse {
 
         response.setProductionPieceType(piece.getProductionPieceType());
         response.setQuantity(piece.getQuantity());
+        response.setIsUrgent(piece.getIsUrgent());
         response.setIsRedo(piece.getIsRedo());
         response.setTemplateCode(piece.getTemplateCode());
         response.setPositionType(piece.getPositionType());
