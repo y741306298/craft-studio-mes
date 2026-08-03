@@ -227,11 +227,10 @@ public class AppManufacturerDeviceCfgService {
                     continue;
                 }
                 if (task.getData() != null) {
-                    TypesettingDownloadTaskData claimData = copyDownloadTaskData(task.getData());
                     if (StringUtils.isNotBlank(task.getTypesettingCode())) {
-                        claimData.setId(task.getTypesettingCode());
+                        task.getData().setId(task.getTypesettingCode());
                     }
-                    result.add(claimData);
+                    result.add(task.getData());
                 }
                 List<String> remainDeviceCodes = new ArrayList<String>(targetDeviceCodes);
                 remainDeviceCodes.removeIf(currentDeviceCode::equals);
@@ -301,7 +300,9 @@ public class AppManufacturerDeviceCfgService {
             }
             TypesettingDownloadTaskData data = task.getData();
             if (StringUtils.isBlank(merged.getId())) {
-                merged.setId(data.getId());
+                merged.setId(StringUtils.isNotBlank(task.getTypesettingCode())
+                        ? task.getTypesettingCode()
+                        : data.getId());
             }
             if (StringUtils.isBlank(merged.getDeviceInfoId())) {
                 merged.setDeviceInfoId(data.getDeviceInfoId());
