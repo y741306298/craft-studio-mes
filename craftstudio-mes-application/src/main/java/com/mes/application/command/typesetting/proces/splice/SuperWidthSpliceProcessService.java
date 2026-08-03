@@ -200,7 +200,7 @@ public class SuperWidthSpliceProcessService {
             double angle = verticalEdge ? 90D : 0D;
             BufferedImage yellowTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createYellowColor(20)), angle);
             BufferedImage grayTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createGrayColor(20)), angle);
-            BufferedImage stripeImage = rotateImageByAngle(createStripeImage(6, 1), angle);
+            BufferedImage stripeImage = rotateImageByAngle(createStripeImage(6, 1, createGrayColor(20)), angle);
             String yellowText = ossTagUploadService.uploadTagPng(businessId, toPng(yellowTextImage), markSubDir);
             String grayText = ossTagUploadService.uploadTagPng(businessId, toPng(grayTextImage), markSubDir);
             String stripe = ossTagUploadService.uploadTagPng(businessId, toPng(stripeImage), markSubDir);
@@ -252,9 +252,9 @@ public class SuperWidthSpliceProcessService {
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 18D, shapeEdgeSpans)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 16D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 18D, shapeEdgeSpans)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 16D, shapeEdgeSpans)));
             index++;
         }
         return builder.toString();
@@ -553,12 +553,16 @@ public class SuperWidthSpliceProcessService {
     }
 
     private BufferedImage createStripeImage(int width, int height) {
+        return createStripeImage(width, height, Color.BLACK);
+    }
+
+    private BufferedImage createStripeImage(int width, int height, Color darkBandColor) {
         BufferedImage image = new BufferedImage(Math.max(1, width), Math.max(1, height), BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setComposite(AlphaComposite.Src);
         for (int y = 0; y < image.getHeight(); y++) {
             boolean blackBand = y % 2 == 0;
-            Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
+            Color bandColor = blackBand ? darkBandColor : Color.WHITE;
             g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
             g.fillRect(0, y, image.getWidth(), 1);
         }
