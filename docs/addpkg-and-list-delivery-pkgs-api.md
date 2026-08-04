@@ -290,7 +290,7 @@
 3. 每个包裹会根据 `routeId`、`routeNodeId` 计算 `routeDesc`；路线信息不完整或路线不存在时返回 `未定义路线`。
 4. 根据包裹保存的 `carrierId`、`carrierName` 和 `presetType` 组装 `logisticsCarrierInfo`，方便调用方直接复用统一物流信息结构。
 5. 对每条 `deliveryPkgItems` 补充生产零件的材料配置、加工流程、宽高以及订单 ID。
-6. 当前列表 DTO **不返回** `logisticsCloudPrintData`。云打印数据由 `addPkg` 响应返回，并已持久化在 `DeliveryPkg`；如果列表接口也需要该字段，需要单独扩展 `DeliveryPkgListItemResponse`。
+6. 将持久化在 `DeliveryPkg` 中的 `logisticsCloudPrintData` 原样返回，使列表页也能使用与 `addPkg` 一致的云打印参数。
 
 ### 2.5 返回结构
 
@@ -339,6 +339,7 @@
 | `routeId` | string/null | 路线 ID。 |
 | `routeNodeId` | string/null | 路线节点 ID。 |
 | `routeDesc` | string | 路线描述。 |
+| `logisticsCloudPrintData` | object/array/string/null | WDT 返回并保存的原始云打印数据，与 `addPkg` 返回值一致；无云打印数据时为 `null`。 |
 | `deliveryPkgItems` | array | 包裹明细。 |
 | `createTime` / `updateTime` | string/null | 基础实体创建、更新时间。 |
 

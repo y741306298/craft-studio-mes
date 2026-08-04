@@ -54,6 +54,7 @@ public class DeliveryPkgListItemResponse extends BaseEntity {
     private String routeId;
     private String routeNodeId;
     private String routeDesc;
+    private Object logisticsCloudPrintData;
 
     @Data
     public static class DeliveryPkgItemDetail {
