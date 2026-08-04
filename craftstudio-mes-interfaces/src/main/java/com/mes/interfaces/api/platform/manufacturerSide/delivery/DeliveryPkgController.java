@@ -185,6 +185,7 @@ public class DeliveryPkgController {
         logisticsCarrierInfo.setCarrierName(deliveryPkg.getCarrierName());
         logisticsCarrierInfo.setPresetType(deliveryPkg.getPresetType());
         response.setLogisticsCarrierInfo(logisticsCarrierInfo);
+        response.setLogisticsCloudPrintData(deliveryPkg.getLogisticsCloudPrintData());
 
         List<DeliveryPkgListItemResponse.DeliveryPkgItemDetail> details = new ArrayList<>();
         if (deliveryPkg.getDeliveryPkgItems() != null) {
