@@ -155,24 +155,24 @@
         <dependency>
             <groupId>com.piliofpala.craftstudio</groupId>
             <artifactId>craftstudio-pangolin-domain</artifactId>
-            <version>0.0.1</version>
+            <version>0.0.2</version>
         </dependency>
         <dependency>
             <groupId>com.piliofpala.craftstudio</groupId>
             <artifactId>craftstudio-pangolin-infra</artifactId>
-            <version>0.0.1</version>
+            <version>0.0.2</version>
         </dependency>
 
         <dependency>
             <groupId>com.piliofpala.craftstudio.shared</groupId>
             <artifactId>craftstudio-shared-infra</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.piliofpala.craftstudio.shared</groupId>
             <artifactId>craftstudio-shared-application</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
