@@ -25,6 +25,7 @@ import com.mes.domain.delivery.deliveryPkg.vo.AuthOrderResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
+import com.mes.domain.gatherplatform.wdt.enums.LogisticsCloudPrintPlatform;
 import com.mes.domain.gatherplatform.wdt.repository.WdtLabelRecordRepository;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
@@ -811,6 +812,10 @@ public class AppDeliveryPkgService {
             }
         }
 
+        if (resolveCloudPrintPlatform(record) == LogisticsCloudPrintPlatform.DY) {
+            record = reprintGatherPlatformLabel(record);
+        }
+
         DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
                 record.getLogisticsOrderId());
         pkg.setLogisticsCloudPrintData(record.getLogisticsCloudPrintData());
@@ -824,6 +829,71 @@ public class AppDeliveryPkgService {
         orderInfo.setKuaidiNum(null);
         orderInfoService.updateOrder(orderInfo);
         return pkg;
+    }
+
+    /**
+     * 聚单平台复打。抖音面单必须重新向聚单平台取得打印数据；其他平台维持原有的本地复打逻辑。
+     */
+    public DeliveryPkg reprintGatherPlatformLabel(DeliveryPkgActionRequest request) {
+        if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "包裹ID不能为空");
+        }
+        DeliveryPkg pkg = findByDeliveryPkgId(request.getDeliveryPkgId());
+        OrderInfo orderInfo = orderInfoService.findByOrderId(pkg.getOrderId());
+        if (orderInfo == null || orderInfo.getChannel() == null
+                || orderInfo.getChannel().getType() != com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该包裹不是聚单平台订单");
+        }
+        WdtLabelRecord record = wdtLabelRecordRepository.findByDeliveryPkgId(pkg.getDeliveryPkgId());
+        if (record == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到聚单平台面单记录");
+        }
+        if (resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
+            pkg.setWdtLabelRecord(record);
+            return pkg;
+        }
+        record = reprintGatherPlatformLabel(record);
+        pkg.setKuaidiNum(record.getLogisticsOrderId());
+        pkg.setLogisticsCloudPrintData(record.getLogisticsCloudPrintData());
+        pkg.setWdtLabelRecord(record);
+        return deliveryPkgService.updateDeliveryPkg(pkg);
+    }
+
+    private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record) {
+        try {
+            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
+            LogisticsLabel label = platform.rePrintLogistics(record.getChannelOrderId(), "mes-logistics", true,
+                    LogisticsCarrierPresetType.valueOf(record.getPresetType()));
+            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
+            }
+            record.setLogisticsOrderId(label.getLogisticsOrderId());
+            record.setConsignee(label.getConsignee());
+            record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
+            wdtLabelRecordRepository.update(record);
+            return record;
+        } catch (BusinessNotAllowException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("聚单平台面单复打失败: channelOrderId={}", record.getChannelOrderId(), ex);
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
+                    "聚单平台面单复打失败: " + record.getChannelOrderId());
+        }
+    }
+
+    private LogisticsCloudPrintPlatform resolveCloudPrintPlatform(WdtLabelRecord record) {
+        if (record == null || record.getLogisticsCloudPrintData() == null) {
+            return LogisticsCloudPrintPlatform.UNKNOWN;
+        }
+        try {
+            String value = JSON.parseObject(JSON.toJSONString(record.getLogisticsCloudPrintData()))
+                    .getString("cloudPrintPlatform");
+            return StringUtils.isBlank(value) ? LogisticsCloudPrintPlatform.UNKNOWN
+                    : LogisticsCloudPrintPlatform.valueOf(value.toUpperCase());
+        } catch (RuntimeException ex) {
+            log.warn("无法识别聚单平台云打印类型: recordId={}", record.getId());
+            return LogisticsCloudPrintPlatform.UNKNOWN;
+        }
     }
 
     private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,

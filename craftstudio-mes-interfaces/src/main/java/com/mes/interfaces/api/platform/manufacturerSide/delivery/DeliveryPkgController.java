@@ -270,6 +270,12 @@ public class DeliveryPkgController {
         return ApiResponse.success(appDeliveryPkgService.reprintKuaidi100Label(request));
     }
 
+    /** 聚单平台面单复打，抖音面单会重新获取云打印数据。 */
+    @PostMapping("/gather-platform/reprint")
+    public ApiResponse<Object> gatherPlatformReprint(@RequestBody DeliveryPkgActionRequest request) {
+        return ApiResponse.success(buildAddResult(appDeliveryPkgService.reprintGatherPlatformLabel(request)));
+    }
+
     @PostMapping("/release")
     public ApiResponse<Boolean> release(@RequestBody DeliveryPkgActionRequest request) {
         appDeliveryPkgService.releasePkg(request.getDeliveryPkgId());

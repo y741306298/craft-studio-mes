@@ -29,4 +29,12 @@ public class WdtLabelRecordRepositoryImp extends BaseRepositoryImp<WdtLabelRecor
                 Criteria.where("deleteAt").is(null))), WdtLabelRecordPO.class);
         return po == null ? null : po.toDO();
     }
+
+    @Override
+    public WdtLabelRecord findByDeliveryPkgId(String deliveryPkgId) {
+        WdtLabelRecordPO po = mongoTemplate.findOne(new Query(new Criteria().andOperator(
+                Criteria.where("deliveryPkgId").is(deliveryPkgId), Criteria.where("deleteAt").is(null))),
+                WdtLabelRecordPO.class);
+        return po == null ? null : po.toDO();
+    }
 }

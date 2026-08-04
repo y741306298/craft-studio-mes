@@ -8,4 +8,6 @@ import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
  */
 public interface WdtLabelRecordRepository extends BaseRepository<WdtLabelRecord> {
     WdtLabelRecord findForOrder(String orderId, String channelOrderId, String logisticsOrderId);
+
+    WdtLabelRecord findByDeliveryPkgId(String deliveryPkgId);
 }
