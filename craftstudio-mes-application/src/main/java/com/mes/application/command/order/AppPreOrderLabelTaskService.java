@@ -187,7 +187,7 @@ public class AppPreOrderLabelTaskService {
                 }
                 log.info("旺店通订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
             }
-            LogisticsLabel label = printWdtLabel(platform, uniCode);
+            LogisticsLabel label = printWdtLabel(platform, uniCode,presetType);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }

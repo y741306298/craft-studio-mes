@@ -33,6 +33,7 @@ import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.DeliveryPkgInfo;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.piliofpala.craftstudio.shared.domain.logistics.vo.LogisticsCarrierPresetType;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -843,7 +844,7 @@ public class AppDeliveryPkgService {
         try {
             GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
             platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true);
+            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "旺店通打包即时打单未返回物流单号");
             }
