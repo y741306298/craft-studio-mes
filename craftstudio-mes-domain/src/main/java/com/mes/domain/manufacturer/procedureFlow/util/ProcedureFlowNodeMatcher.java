@@ -14,6 +14,14 @@ public final class ProcedureFlowNodeMatcher {
     public static final String COVER_DOUBLE_SIDE_KEYWORD = "覆双面";
     public static final String DOUBLE_SIDE_PRINTING_KEYWORD = "双面喷";
     public static final String BACK_SIDE_DOUBLE_SIDE_TAPE_KEYWORD = "反面覆双面胶";
+    public static final String ULTRA_THIN_SPONGE_DOUBLE_SIDE_TAPE_KEYWORD = "覆超薄海绵双面胶";
+    public static final String DOUBLE_SIDE_TAPE_KEYWORD = "覆双面胶";
+
+    private static final String[] EXCLUDED_DOUBLE_SIDE_TAPE_KEYWORDS = {
+            BACK_SIDE_DOUBLE_SIDE_TAPE_KEYWORD,
+            ULTRA_THIN_SPONGE_DOUBLE_SIDE_TAPE_KEYWORD,
+            DOUBLE_SIDE_TAPE_KEYWORD
+    };
 
     private ProcedureFlowNodeMatcher() {
     }
@@ -37,7 +45,7 @@ public final class ProcedureFlowNodeMatcher {
             return false;
         }
         for (ProcedureFlowNode node : nodes) {
-            if (node == null || node.getNodeName() == null || isBackSideDoubleSideTapeNode(node.getNodeName())) {
+            if (node == null || node.getNodeName() == null || isExcludedDoubleSideTapeNode(node.getNodeName())) {
                 continue;
             }
             for (String keyword : keywords) {
@@ -50,7 +58,7 @@ public final class ProcedureFlowNodeMatcher {
     }
 
     public static boolean isDoubleSideMountingNodeName(String nodeName) {
-        if (nodeName == null || isBackSideDoubleSideTapeNode(nodeName)) {
+        if (nodeName == null || isExcludedDoubleSideTapeNode(nodeName)) {
             return false;
         }
         return nodeName.contains(DOUBLE_SIDE_MOUNTING_KEYWORD)
@@ -62,13 +70,24 @@ public final class ProcedureFlowNodeMatcher {
         if (value == null) {
             return false;
         }
-        String normalizedValue = value.replace(BACK_SIDE_DOUBLE_SIDE_TAPE_KEYWORD, "");
+        String normalizedValue = value;
+        for (String excludedKeyword : EXCLUDED_DOUBLE_SIDE_TAPE_KEYWORDS) {
+            normalizedValue = normalizedValue.replace(excludedKeyword, "");
+        }
         return normalizedValue.contains(DOUBLE_SIDE_MOUNTING_KEYWORD)
                 || normalizedValue.contains(COVER_DOUBLE_SIDE_KEYWORD)
                 || normalizedValue.contains(DOUBLE_SIDE_PRINTING_KEYWORD);
     }
 
-    private static boolean isBackSideDoubleSideTapeNode(String nodeName) {
-        return nodeName != null && nodeName.contains(BACK_SIDE_DOUBLE_SIDE_TAPE_KEYWORD);
+    private static boolean isExcludedDoubleSideTapeNode(String nodeName) {
+        if (nodeName == null) {
+            return false;
+        }
+        for (String excludedKeyword : EXCLUDED_DOUBLE_SIDE_TAPE_KEYWORDS) {
+            if (nodeName.contains(excludedKeyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
