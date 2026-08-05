@@ -862,8 +862,8 @@ public class AppDeliveryPkgService {
     private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record) {
         try {
             GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
-            LogisticsLabel label = platform.rePrintLogistics(record.getChannelOrderId(), "mes-logistics", true,
-                    LogisticsCarrierPresetType.valueOf(record.getPresetType()));
+            LogisticsLabel label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
+                    LogisticsCarrierPresetType.valueOf(record.getPresetType()),record.getLogisticsOrderId());
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
             }
