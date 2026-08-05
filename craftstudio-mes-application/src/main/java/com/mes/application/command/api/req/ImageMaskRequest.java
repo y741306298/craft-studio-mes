@@ -239,11 +239,13 @@ public class ImageMaskRequest {
         if (bloodMm == null) {
             return null;
         }
+        // 拼接抠图接口约定：slice blood 传负数，表示竖切向左侧、横切向上侧生成出血。
+        int normalizedBloodMm = -Math.abs(bloodMm);
         double dpi = resolveAxisDpi(axis, rawImage);
         if (dpi <= 0) {
-            return bloodMm;
+            return normalizedBloodMm;
         }
-        return (int) Math.round((bloodMm / 25.4D) * dpi);
+        return (int) Math.round((normalizedBloodMm / 25.4D) * dpi);
     }
 
     private static Integer convertValueToPx(Integer value, String axis, OrderItem orderItem, RawImage rawImage) {

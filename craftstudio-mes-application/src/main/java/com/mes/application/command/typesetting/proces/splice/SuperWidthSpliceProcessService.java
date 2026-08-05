@@ -243,18 +243,19 @@ public class SuperWidthSpliceProcessService {
             if (edgeAssets == null) {
                 continue;
             }
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D, shapeEdgeSpans)));
+            // 被出血边置换到右/下侧后，按视觉方向仍保持“线条、文字、文字”的顺序。
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 16D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 16D, shapeEdgeSpans)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D, shapeEdgeSpans)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D, shapeEdgeSpans)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D, shapeEdgeSpans)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+                    edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D, shapeEdgeSpans)));
             index++;
         }
         return builder.toString();
@@ -369,7 +370,10 @@ public class SuperWidthSpliceProcessService {
      * 拼接自身标识的出血/被出血边判断。
      *
      * <p>这里只影响拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
-     * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。</p>
+     * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。
+     * 由于调用抠图接口时拼接 blood 统一改为负数，竖切时算法侧出血边变为左边、被出血边变为右边；
+     * 横切时算法侧出血边变为上边、被出血边变为下边；
+     * 因此首片只有被出血边，尾片只有出血边，中间片同时具备两类边。</p>
      */
     private SpliceEdges resolveSpliceEdges(ProcedureFlow procedureFlow, SpliceProcessConfig processConfig, ProductionPiece piece, Blood firstSeqBlood) {
         Set<SpliceEdge> bleedEdges = EnumSet.noneOf(SpliceEdge.class);
@@ -387,18 +391,18 @@ public class SuperWidthSpliceProcessService {
         if (cutDirection == SpliceCutDirection.UNKNOWN) {
             return new SpliceEdges(bleedEdges, coveredEdges);
         }
-        for (SpliceEdge firstBleedEdge : firstBleedEdges(cutDirection)) {
-            SpliceEdge lastCoveredEdge = oppositeEdge(firstBleedEdge);
+        for (SpliceEdge bleedEdge : resolveBleedEdges(cutDirection, firstSeqBlood)) {
+            SpliceEdge coveredEdge = oppositeEdge(bleedEdge);
             if (currentSeq == 1) {
-                if (processConfig.bleedMarksEnabled) {
-                    bleedEdges.add(firstBleedEdge);
-                }
+                coveredEdges.add(coveredEdge);
             } else if (currentSeq.intValue() == maxSeq.intValue()) {
-                coveredEdges.add(lastCoveredEdge);
-            } else if (currentSeq > 1 && currentSeq < maxSeq) {
-                coveredEdges.add(lastCoveredEdge);
                 if (processConfig.bleedMarksEnabled) {
-                    bleedEdges.add(firstBleedEdge);
+                    bleedEdges.add(bleedEdge);
+                }
+            } else if (currentSeq > 1 && currentSeq < maxSeq) {
+                coveredEdges.add(coveredEdge);
+                if (processConfig.bleedMarksEnabled) {
+                    bleedEdges.add(bleedEdge);
                 }
             }
         }
@@ -452,15 +456,31 @@ public class SuperWidthSpliceProcessService {
         return SpliceCutDirection.UNKNOWN;
     }
 
-    private Set<SpliceEdge> firstBleedEdges(SpliceCutDirection cutDirection) {
+    private Set<SpliceEdge> resolveBleedEdges(SpliceCutDirection cutDirection, Blood firstSeqBlood) {
         Set<SpliceEdge> edges = EnumSet.noneOf(SpliceEdge.class);
         if (cutDirection == SpliceCutDirection.HORIZONTAL || cutDirection == SpliceCutDirection.BOTH) {
-            edges.add(SpliceEdge.BOTTOM);
+            edges.add(resolveHorizontalBleedEdge(firstSeqBlood));
         }
         if (cutDirection == SpliceCutDirection.VERTICAL || cutDirection == SpliceCutDirection.BOTH) {
-            edges.add(SpliceEdge.RIGHT);
+            edges.add(resolveVerticalBleedEdge(firstSeqBlood));
         }
         return edges;
+    }
+
+    private SpliceEdge resolveVerticalBleedEdge(Blood firstSeqBlood) {
+        Integer x = firstSeqBlood == null ? null : firstSeqBlood.getX();
+        if (x != null && x > 0) {
+            return SpliceEdge.RIGHT;
+        }
+        return SpliceEdge.LEFT;
+    }
+
+    private SpliceEdge resolveHorizontalBleedEdge(Blood firstSeqBlood) {
+        Integer y = firstSeqBlood == null ? null : firstSeqBlood.getY();
+        if (y != null && y > 0) {
+            return SpliceEdge.BOTTOM;
+        }
+        return SpliceEdge.TOP;
     }
 
 

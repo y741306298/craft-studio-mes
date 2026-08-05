@@ -949,7 +949,8 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 拼接 callback 路线：先按拼接工艺出血/被出血边写入标识，再按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
+                        // 拼接 callback 路线：先按算法回写的负数 blood 语义置换出血/被出血边并写入拼接 mark，
+                        // 再按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
                         applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
                         applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
