@@ -4449,12 +4449,7 @@ public class AppTypesettingService {
                     continue;
                 }
                 TypesettingSourceCell usedCell = usedCellMap.computeIfAbsent(sourceCellKey, key -> {
-                    TypesettingSourceCell newCell = new TypesettingSourceCell();
-                    newCell.setSourceType(matchedCell.getSourceType());
-                    newCell.setSourceId(matchedCell.getSourceId());
-                    newCell.setOrderItemId(matchedCell.getOrderItemId());
-                    newCell.setQuantity(0);
-                    return newCell;
+                    return createUsedSourceCell(matchedCell);
                 });
                 usedCell.setQuantity((usedCell.getQuantity() == null ? 0 : usedCell.getQuantity()) + entry.getValue());
             }
@@ -4471,6 +4466,23 @@ public class AppTypesettingService {
                 }
             }
         }
+    }
+
+    /**
+     * 从 toLayout 请求快照创建回调使用的来源 cell。
+     *
+     * <p>存在拼接工艺的零件会携带 marks，并以 {@code marked-nesting-*} 外层元素参与排版；回调时原始
+     * cell 会被该外层元素对应的新 cell 替换。普通零件通常还能凭原 sourceId 查询数据库中的 isRedo
+     * 兜底，而拼接路径若不复制此字段，就会在这次替换中只丢失拼接零件的“重做”快照。</p>
+     */
+    static TypesettingSourceCell createUsedSourceCell(TypesettingProductionPieceVO matchedCell) {
+        TypesettingSourceCell newCell = new TypesettingSourceCell();
+        newCell.setSourceType(matchedCell.getSourceType());
+        newCell.setSourceId(matchedCell.getSourceId());
+        newCell.setOrderItemId(matchedCell.getOrderItemId());
+        newCell.setQuantity(0);
+        newCell.setIsRedo(matchedCell.getIsRedo());
+        return newCell;
     }
 
     private Set<String> resolveMarkedSourceCellKeys(Set<String> nestedElementIds, List<TypesettingProductionPieceVO> sourceCells) {
