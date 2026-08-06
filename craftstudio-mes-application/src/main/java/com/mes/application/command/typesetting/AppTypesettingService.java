@@ -2275,12 +2275,13 @@ public class AppTypesettingService {
                     element.setHGravity("left");
                     element.setHMargin(0);
                 }
-                boolean spliceLastSeqPiece = isSpliceLastSeqPiece(piece);
-                boolean spliceLastHasVerticalCut = spliceLastSeqPiece && hasVerticalCut(piece);
-                if (spliceLastSeqPiece) {
-                    if (!spliceLastHasVerticalCut) {
-                        element.setRotation(-90);
-                    }
+                boolean spliceBleedPiece = isSpliceBleedPiece(piece);
+                boolean spliceBleedHasVerticalCut = spliceBleedPiece && hasVerticalCut(piece);
+                if (spliceBleedPiece) {
+                    // 拼接算法当前把主动出血边回写在左边（竖切）或上边（横切）。
+                    // 排版时只记录旋转角度，让算法把主动出血边转到右侧后贴紧排放：
+                    // 竖切旋转 180°，横切顺时针旋转 90°。
+                    element.setRotation(spliceBleedHasVerticalCut ? 180 : 90);
                 } else if (isBloodBasedRotationCandidate(piece)) {
                     element.setRotation(-90);
                 }
@@ -2290,8 +2291,8 @@ public class AppTypesettingService {
                 if (nestingRequestRuleService != null && hasBloodPiece) {
                     nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
                 }
-                if (spliceLastSeqPiece) {
-                    element.setAlign("left");
+                if (spliceBleedPiece) {
+                    element.setAlign("right");
                     element.setSafeDistance(0D);
                 } else {
                     applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
@@ -2624,20 +2625,14 @@ public class AppTypesettingService {
     }
 
 
-    private boolean isSpliceLastSeqPiece(ProductionPiece piece) {
+    /**
+     * 当前拼接切片中，第一个分片只有被出血边；从第二片开始才有位于左边或上边的主动出血边。
+     */
+    private boolean isSpliceBleedPiece(ProductionPiece piece) {
         if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup()) || !hasSupportedSpliceNode(piece)) {
             return false;
         }
-        Matcher matcher = Pattern.compile("#\\s*\\d+-(\\d+)").matcher(piece.getGroup());
-        if (!matcher.find()) {
-            return false;
-        }
-        try {
-            int maxSeq = Integer.parseInt(matcher.group(1));
-            return maxSeq > 0 && piece.getSeq() == maxSeq;
-        } catch (Exception ignore) {
-            return false;
-        }
+        return piece.getSeq() > 1;
     }
 
     private boolean hasSupportedSpliceNode(ProductionPiece piece) {
