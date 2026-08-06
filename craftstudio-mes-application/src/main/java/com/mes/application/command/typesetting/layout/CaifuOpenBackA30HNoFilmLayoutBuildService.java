@@ -133,6 +133,16 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
                     expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY + contentOffsetY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                     expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
+            if (isBlood) {
+                // 保持 X 坐标不变，仅沿版面上下翻转，在右下角补齐与右上角相同的两条辅助线。
+                double mirroredLineY = expandedHeight - lineY - lineHeight;
+                if (mirroredLineY >= 0 && Math.abs(mirroredLineY - lineY) > 0.0001) {
+                    marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                    marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                }
+            }
         }
 
         if (context.getTypesettingInfo() != null) {
