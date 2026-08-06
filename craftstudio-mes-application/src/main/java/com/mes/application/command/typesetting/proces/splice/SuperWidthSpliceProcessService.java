@@ -68,19 +68,19 @@ public class SuperWidthSpliceProcessService {
     private static final double TEXT_PNG_DPI = 300D;
     private static final double MM_PER_INCH = 25.4D;
     private static final SpliceProcessConfig SUPER_WIDTH_SPLICE_CONFIG = new SpliceProcessConfig(
-            SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 20D, 30D, true);
+            SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 30D, true);
     private static final SpliceProcessConfig ADHESIVE_SPLICE_CONFIG = new SpliceProcessConfig(
-            ADHESIVE_SPLICE_NODE_NAME, "adhesive-splice", 10D, 20D, true);
+            ADHESIVE_SPLICE_NODE_NAME, "adhesive-splice", 20D, true);
     private static final SpliceProcessConfig PHOTO_SPLICE_CONFIG = new SpliceProcessConfig(
-            PHOTO_SPLICE_NODE_NAME, "photo-splice", 0D, 0D, false);
+            PHOTO_SPLICE_NODE_NAME, "photo-splice", 0D, false);
     private static final SpliceProcessConfig BOARD_COVER_SPLICE_CONFIG = new SpliceProcessConfig(
-            BOARD_COVER_SPLICE_NODE_NAME, "board-cover-splice", 10D, 20D, true);
+            BOARD_COVER_SPLICE_NODE_NAME, "board-cover-splice", 20D, true);
     private static final SpliceProcessConfig INKJET_SPLICE_CONFIG = new SpliceProcessConfig(
-            INKJET_SPLICE_NODE_NAME, "inkjet-splice", 20D, 30D, true);
+            INKJET_SPLICE_NODE_NAME, "inkjet-splice", 30D, true);
     private static final SpliceProcessConfig SEAMLESS_SPLICE_CONFIG = new SpliceProcessConfig(
-            SEAMLESS_SPLICE_NODE_NAME, "seamless-splice", 0D, 0D, false);
+            SEAMLESS_SPLICE_NODE_NAME, "seamless-splice", 0D, false);
     private static final SpliceProcessConfig PANEL_SPLICE_CONFIG = new SpliceProcessConfig(
-            PANEL_SPLICE_NODE_NAME, "panel-splice", 0D, 0D, false);
+            PANEL_SPLICE_NODE_NAME, "panel-splice", 0D, false);
     private static final SpliceProcessConfig[] SPLICE_PROCESS_CONFIGS = {
             SUPER_WIDTH_SPLICE_CONFIG,
             ADHESIVE_SPLICE_CONFIG,
@@ -193,7 +193,7 @@ public class SuperWidthSpliceProcessService {
         String horizontalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(6, 1), markSubDir);
         String verticalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
         double textWidthMm = Math.max(24D, groupText.length() * 8D);
-        double textHeightMm = 10D;
+        double textHeightMm = 8D;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
         for (SpliceEdge edge : SpliceEdge.values()) {
             boolean verticalEdge = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT;
@@ -226,16 +226,11 @@ public class SuperWidthSpliceProcessService {
         for (SpliceEdge edgeType : bleedEdges) {
             String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
             BleedMarkAsset bleedMarkAsset = assets.bleedMarkAsset(edgeType);
-            String startOffsetLabel = formatOffsetLabel(processConfig.bleedStartOffsetMm);
-            String endOffsetLabel = formatOffsetLabel(processConfig.bleedEndOffsetMm);
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedStartOffsetMm, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedEndOffsetMm, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + startOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedStartOffsetMm, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + endOffsetLabel + "mm-" + index + "-" + pieceMongoId,
-                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedEndOffsetMm, shapeEdgeSpans)));
+            String offsetLabel = formatOffsetLabel(processConfig.bleedOffsetMm);
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedOffsetMm, shapeEdgeSpans)));
+            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
+                    bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedOffsetMm, shapeEdgeSpans)));
             index++;
         }
         for (SpliceEdge edgeType : coveredEdges) {
@@ -245,13 +240,13 @@ public class SuperWidthSpliceProcessService {
             }
             // 被出血边置换到右/下侧后，按视觉方向仍保持“线条、文字、文字”的顺序。
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 16D, shapeEdgeSpans)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 19D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 16D, shapeEdgeSpans)));
+                    edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 19D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 10D, shapeEdgeSpans)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 8D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
-                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 10D, shapeEdgeSpans)));
+                    edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 8D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D, shapeEdgeSpans)));
             builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
@@ -285,11 +280,11 @@ public class SuperWidthSpliceProcessService {
     }
 
     /**
-     * 出血边在自身的两个相邻角各放一组工艺配置距离的 1x6 黑白条。
+     * 出血边在自身的两个相邻角各放一条工艺配置距离的 1x6 黑白条。
      *
      * <p>{@code edgeOffset} 表示从出血边向画面内侧量起的距离，{@code fromStartCorner}
-     * 用来选择贴住出血边的起点相邻边还是终点相邻边。因此每条出血边会生成 4 个 mark：
-     * 起点角较小偏移、起点角较大偏移、终点角较小偏移、终点角较大偏移。</p>
+     * 用来选择贴住出血边的起点相邻边还是终点相邻边。因此每条出血边会生成 2 个 mark，
+     * 分别位于起点角和终点角。</p>
      */
     private Rect bleedRectOnEdge(SpliceEdge edgeType, double pieceWidth, double pieceHeight,
                                  double markWidth, double markHeight, boolean fromStartCorner, double edgeOffset,
@@ -969,15 +964,13 @@ public class SuperWidthSpliceProcessService {
     private static class SpliceProcessConfig {
         private final String nodeName;
         private final String markPrefix;
-        private final double bleedStartOffsetMm;
-        private final double bleedEndOffsetMm;
+        private final double bleedOffsetMm;
         private final boolean bleedMarksEnabled;
 
-        private SpliceProcessConfig(String nodeName, String markPrefix, double bleedStartOffsetMm, double bleedEndOffsetMm, boolean bleedMarksEnabled) {
+        private SpliceProcessConfig(String nodeName, String markPrefix, double bleedOffsetMm, boolean bleedMarksEnabled) {
             this.nodeName = nodeName;
             this.markPrefix = markPrefix;
-            this.bleedStartOffsetMm = bleedStartOffsetMm;
-            this.bleedEndOffsetMm = bleedEndOffsetMm;
+            this.bleedOffsetMm = bleedOffsetMm;
             this.bleedMarksEnabled = bleedMarksEnabled;
         }
     }
