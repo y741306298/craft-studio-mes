@@ -125,6 +125,8 @@ public class AppTypesettingService {
     private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
+    private static final long NESTING_CALLBACK_RECORD_WAIT_MILLIS = 10_000;
+    private static final long NESTING_CALLBACK_RECORD_POLL_MILLIS = 100;
     private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
@@ -3977,7 +3979,7 @@ public class AppTypesettingService {
         }
 
         String typesettingId = response.getId();
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+        List<TypesettingInfo> typesettingInfos = waitForTypesettingRecords(typesettingId);
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             throw new RuntimeException("排版信息不存在：" + typesettingId);
         }
@@ -4048,6 +4050,29 @@ public class AppTypesettingService {
             markTypesettingsFailed(typesettingInfos, failureReason);
             throw new RuntimeException(failureReason, e);
         }
+    }
+
+    /**
+     * 算法服务可能在 toLayout 完成初始排版记录落库前就发起回调。
+     * 在这个很短的并发窗口内立即判定记录不存在，会丢失本次成功回调，
+     * 并使新建印版一直停留在 in_progress。
+     */
+    private List<TypesettingInfo> waitForTypesettingRecords(String typesettingId) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(NESTING_CALLBACK_RECORD_WAIT_MILLIS);
+        List<TypesettingInfo> typesettingInfos;
+        do {
+            typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+            if (typesettingInfos != null && !typesettingInfos.isEmpty()) {
+                return typesettingInfos;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(NESTING_CALLBACK_RECORD_POLL_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("等待排版信息落库时被中断：" + typesettingId, e);
+            }
+        } while (System.nanoTime() < deadline);
+        return typesettingInfos;
     }
 
 
