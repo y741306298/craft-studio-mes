@@ -8,7 +8,11 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 @Service
 public class CaifuOpenBackA30HFilmNestingRuleService implements NestingRequestRuleService {
@@ -48,6 +52,32 @@ public class CaifuOpenBackA30HFilmNestingRuleService implements NestingRequestRu
         element.setHGravity("right");
         element.setVMargin(0);
         element.setHMargin(isBloodElement ? 0 : 30);
+    }
+
+    @Override
+    public void arrangeElementSources(List<ProductionPiece> productionPieces,
+                                      List<TypesettingInfo> typesettingInfos) {
+        groupConsecutively(productionPieces, ProductionPiece::getOrderItemId);
+        groupConsecutively(typesettingInfos, TypesettingInfo::getTypesettingId);
+    }
+
+    /**
+     * Keeps the first-seen group order while making every non-blank group contiguous.
+     * Blank identifiers deliberately receive independent keys and therefore retain
+     * their relative positions instead of being treated as one business group.
+     */
+    private <T> void groupConsecutively(List<T> sources, Function<T, String> groupIdResolver) {
+        if (sources == null || sources.size() < 2) {
+            return;
+        }
+        Map<Object, List<T>> groups = new LinkedHashMap<>();
+        for (T source : sources) {
+            String groupId = source == null ? null : groupIdResolver.apply(source);
+            Object groupKey = StringUtils.isBlank(groupId) ? new Object() : groupId;
+            groups.computeIfAbsent(groupKey, ignored -> new ArrayList<>()).add(source);
+        }
+        sources.clear();
+        groups.values().forEach(sources::addAll);
     }
 
     private double resolveMaxContainerWidth(LayoutConfirmRequest request) {

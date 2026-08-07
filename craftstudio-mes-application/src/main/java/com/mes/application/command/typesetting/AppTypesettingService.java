@@ -2247,6 +2247,10 @@ public class AppTypesettingService {
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
         boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
+        NestingRequestRuleService elementArrangementRule = nestingRequestRuleServiceMap.get(layoutMode);
+        if (elementArrangementRule != null) {
+            elementArrangementRule.arrangeElementSources(productionPieces, typesettingInfos);
+        }
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
