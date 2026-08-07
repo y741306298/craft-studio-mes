@@ -12,6 +12,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.application.support.PodvOrgInfoHelper;
 import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.repository.ManufacturerUserRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
@@ -610,6 +611,7 @@ public class AppOrderService {
     public OrderInfo addOrderWithItems(OrderAddRequest request) {
         //订单对象转化
         OrderInfo orderInfo = request.toOrderInfo();
+        orderInfo.setOrgInfo(PodvOrgInfoHelper.normalize(orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);

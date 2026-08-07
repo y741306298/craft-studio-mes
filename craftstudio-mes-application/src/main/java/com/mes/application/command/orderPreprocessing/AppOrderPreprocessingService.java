@@ -15,6 +15,7 @@ import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.support.PodvOrgInfoHelper;
 import com.mes.application.command.typesetting.proces.buckle.FourCornerBuckleProcessService;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContext;
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
@@ -928,7 +929,8 @@ public class AppOrderPreprocessingService {
 
                         OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
                         if (orderInfo != null) {
-                            piece.setOrgInfo(orderInfo.getOrgInfo());
+                            piece.setOrgInfo(PodvOrgInfoHelper.normalize(
+                                    orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
                             if (StringUtils.isNotBlank(orderInfo.getRemark())) {
                                 piece.setRemark(orderInfo.getRemark());
                             }
