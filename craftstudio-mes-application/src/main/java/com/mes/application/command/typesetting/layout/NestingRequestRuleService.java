@@ -22,4 +22,11 @@ public interface NestingRequestRuleService {
 
     default void applyElementStyle(NestingRequest.Element element, boolean isBloodElement) {
     }
+
+    /**
+     * Adjusts source ordering before the algorithm elements are assembled.
+     */
+    default void arrangeElementSources(List<ProductionPiece> productionPieces,
+                                       List<TypesettingInfo> typesettingInfos) {
+    }
 }
