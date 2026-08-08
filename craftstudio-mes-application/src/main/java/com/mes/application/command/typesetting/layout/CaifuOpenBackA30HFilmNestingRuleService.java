@@ -51,7 +51,7 @@ public class CaifuOpenBackA30HFilmNestingRuleService implements NestingRequestRu
     public void applyElementStyle(NestingRequest.Element element, boolean isBloodElement) {
         element.setHGravity("right");
         element.setVMargin(0);
-        element.setHMargin(isBloodElement ? 0 : 30);
+        element.setHMargin(0);
     }
 
     @Override
