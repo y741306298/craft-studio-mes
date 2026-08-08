@@ -261,6 +261,13 @@ public class DeliveryPkgController {
         return ApiResponse.success(buildAddResult(deliveryPkg));
     }
 
+    /** 手动注销待打包零件，不触发任何面单下单或打印。 */
+    @PostMapping("/manual-cancel")
+    public ApiResponse<Object> manualCancel(@RequestBody DeliveryPkgAddRequest request) {
+        DeliveryPkg deliveryPkg = appDeliveryPkgService.manualCancel(request);
+        return ApiResponse.success(buildAddResult(deliveryPkg));
+    }
+
     @PostMapping("/reprint")
     public ApiResponse<Object> reprint(@RequestBody DeliveryPkgActionRequest request) {
         DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId());

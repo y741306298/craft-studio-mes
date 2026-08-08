@@ -776,6 +776,63 @@ public class AppDeliveryPkgService {
     }
 
     /**
+     * Manually writes off the selected pieces. Unlike {@link #addPkg(DeliveryPkgAddRequest)},
+     * this flow never requests or prints a shipping label: it creates a local default
+     * package and moves every remaining pending quantity of each piece to packed.
+     */
+    public DeliveryPkg manualCancel(DeliveryPkgAddRequest request) {
+        if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "注销零件不能为空");
+        }
+
+        String orderId = null;
+        String carrierId = null;
+        String carrierName = null;
+        List<ProductionPiece> selectedPieces = new ArrayList<>();
+        Map<String, Integer> packageQuantityMap = new HashMap<>();
+        for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
+            if (item == null || item.getPiece() == null
+                    || StringUtils.isBlank(item.getPiece().getProductionPieceId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件信息不完整");
+            }
+            DeliveryPkgPieceVO pieceVO = item.getPiece();
+            if (StringUtils.isBlank(orderId)) {
+                orderId = pieceVO.getOrderId();
+                if (pieceVO.getLogisticsCarrierInfo() != null) {
+                    carrierId = pieceVO.getLogisticsCarrierInfo().getCarrierId();
+                    carrierName = pieceVO.getLogisticsCarrierInfo().getCarrierName();
+                }
+            } else if (!Objects.equals(orderId, pieceVO.getOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单的零件一起注销");
+            }
+
+            ProductionPiece sourcePiece = productionPieceService.findByProductionPieceId(pieceVO.getProductionPieceId());
+            if (sourcePiece == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
+            }
+            int pendingQuantity = getNodeQuantity(sourcePiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
+            if (pendingQuantity <= 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "零件[" + pieceVO.getProductionPieceId() + "]没有待打包数量");
+            }
+            item.setQuantity(pendingQuantity);
+            selectedPieces.add(sourcePiece);
+            packageQuantityMap.put(sourcePiece.getId(), pendingQuantity);
+        }
+
+        if (StringUtils.isBlank(carrierId)) {
+            carrierId = request.getCarrierId();
+        }
+        OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        fillMissingRouteFromOrder(request, orderInfo);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName,
+                "CUSTOM", null);
+        transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName,
+                request.getRouteId(), request.getRouteNodeId(), null);
+        return deliveryPkg;
+    }
+
+    /**
      * The packaging page may omit route fields even though the order has already been
      * assigned to a route. Keep an explicitly selected route, but otherwise inherit
      * the order binding so the package and its printable carrier description agree
