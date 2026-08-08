@@ -1,5 +1,6 @@
 package com.mes.application.command.typesetting.layout;
 
+import com.mes.application.command.api.req.NestingRequest;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,22 @@ class CaifuOpenBackA30HFilmNestingRuleServiceTest {
 
     private final CaifuOpenBackA30HFilmNestingRuleService service =
             new CaifuOpenBackA30HFilmNestingRuleService();
+
+    @Test
+    void applyElementStyleDoesNotAddHorizontalMargin() {
+        NestingRequest.Element bloodElement = new NestingRequest.Element();
+        NestingRequest.Element nonBloodElement = new NestingRequest.Element();
+
+        service.applyElementStyle(bloodElement, true);
+        service.applyElementStyle(nonBloodElement, false);
+
+        assertThat(bloodElement.getHGravity()).isEqualTo("right");
+        assertThat(bloodElement.getVMargin()).isZero();
+        assertThat(bloodElement.getHMargin()).isZero();
+        assertThat(nonBloodElement.getHGravity()).isEqualTo("right");
+        assertThat(nonBloodElement.getVMargin()).isZero();
+        assertThat(nonBloodElement.getHMargin()).isZero();
+    }
 
     @Test
     void arrangeElementSourcesGroupsPartsByOrderItemIdAndPlatesByTypesettingId() {
