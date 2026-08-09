@@ -55,6 +55,20 @@ public class CaifuOpenBackA30HFilmNestingRuleService implements NestingRequestRu
     }
 
     @Override
+    public void applyElementStyle(NestingRequest.Element element,
+                                  boolean isBloodElement,
+                                  boolean hasBloodElement,
+                                  boolean hasTypesettingElement) {
+        if (!hasBloodElement && !hasTypesettingElement) {
+            return;
+        }
+        applyElementStyle(element, isBloodElement);
+        if (!hasBloodElement) {
+            element.setHMargin(30);
+        }
+    }
+
+    @Override
     public void arrangeElementSources(List<ProductionPiece> productionPieces,
                                       List<TypesettingInfo> typesettingInfos) {
         groupConsecutively(productionPieces, ProductionPiece::getOrderItemId);

@@ -24,6 +24,18 @@ public interface NestingRequestRuleService {
     }
 
     /**
+     * Applies an element style with information about all cells in the current request.
+     */
+    default void applyElementStyle(NestingRequest.Element element,
+                                   boolean isBloodElement,
+                                   boolean hasBloodElement,
+                                   boolean hasTypesettingElement) {
+        if (hasBloodElement) {
+            applyElementStyle(element, isBloodElement);
+        }
+    }
+
+    /**
      * Adjusts source ordering before the algorithm elements are assembled.
      */
     default void arrangeElementSources(List<ProductionPiece> productionPieces,
