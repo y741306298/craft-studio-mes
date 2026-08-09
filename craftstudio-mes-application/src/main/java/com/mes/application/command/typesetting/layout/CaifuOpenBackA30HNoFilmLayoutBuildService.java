@@ -134,8 +134,9 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                     expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
             if (isBlood) {
-                // 保持 X 坐标不变，仅沿版面上下翻转，在右下角补齐与右上角相同的两条辅助线。
-                double mirroredLineY = expandedHeight - lineY - lineHeight;
+                // 下方还有一条与顶部等高的标签带；镜像时必须把它计入版面总高度，
+                // 保证右下角标记距版面下边的距离与右上角标记距版面上边一致。
+                double mirroredLineY = expandedHeight + contentOffsetY - lineY - lineHeight;
                 if (mirroredLineY >= 0 && Math.abs(mirroredLineY - lineY) > 0.0001) {
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                             expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
