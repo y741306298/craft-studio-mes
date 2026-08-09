@@ -2632,13 +2632,16 @@ public class AppTypesettingService {
 
 
     /**
-     * 当前拼接切片中，第一个分片只有被出血边；从第二片开始才有位于左边或上边的主动出血边。
+     * 判断当前零件是否为拼接出血分片。
+     *
+     * <p>分片序号只用于识别拼接位置，是否出血仍以 blood 坐标为准，避免 blood.x / blood.y
+     * 均为 0 的后续分片被误当作出血零件。</p>
      */
     private boolean isSpliceBleedPiece(ProductionPiece piece) {
         if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup()) || !hasSupportedSpliceNode(piece)) {
             return false;
         }
-        return piece.getSeq() > 1;
+        return piece.getSeq() > 1 && isBloodPieceByCoordinates(piece);
     }
 
     private boolean hasSupportedSpliceNode(ProductionPiece piece) {
