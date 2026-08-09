@@ -2247,6 +2247,10 @@ public class AppTypesettingService {
         // 步骤备注2：计算本次排版全局血位标记（用于align/safeDistance）
         boolean hasBloodPiece = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
                 || typesettingInfos.stream().anyMatch(info -> info != null && Boolean.TRUE.equals(info.getHaveBlood()));
+        NestingRequestRuleService elementArrangementRule = nestingRequestRuleServiceMap.get(layoutMode);
+        if (elementArrangementRule != null) {
+            elementArrangementRule.arrangeElementSources(productionPieces, typesettingInfos);
+        }
         List<NestingRequest.Element> elements = new ArrayList<>();
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
@@ -2289,13 +2293,13 @@ public class AppTypesettingService {
                 }
                 boolean currentPieceNeedRightAlign = isBloodPieceByCoordinates(piece);
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
-                // 仅当本次排版存在出血件/印版时，才需要按规则给非出血元素留 30mm 隔离。
-                if (nestingRequestRuleService != null && hasBloodPiece) {
-                    nestingRequestRuleService.applyElementStyle(element, currentPieceNeedRightAlign);
+                if (nestingRequestRuleService != null) {
+                    nestingRequestRuleService.applyElementStyle(
+                            element, currentPieceNeedRightAlign, hasBloodPiece, !typesettingInfos.isEmpty());
                 }
                 if (spliceBleedPiece) {
                     element.setAlign("right");
-                    element.setSafeDistance(0D);
+                    element.setSafeDistance(30D);
                 } else {
                     applyElementAlignAndSafeDistance(element, hasBloodPiece, currentPieceNeedRightAlign);
                 }
@@ -2322,9 +2326,9 @@ public class AppTypesettingService {
                     element.setHMargin(0);
                 }
                 NestingRequestRuleService nestingRequestRuleService = nestingRequestRuleServiceMap.get(layoutMode);
-                // 仅当本次排版存在出血件/印版时，才需要按规则给非出血元素留 30mm 隔离。
-                if (nestingRequestRuleService != null && hasBloodPiece) {
-                    nestingRequestRuleService.applyElementStyle(element, Boolean.TRUE.equals(info.getHaveBlood()));
+                if (nestingRequestRuleService != null) {
+                    nestingRequestRuleService.applyElementStyle(
+                            element, Boolean.TRUE.equals(info.getHaveBlood()), hasBloodPiece, !typesettingInfos.isEmpty());
                 }
                 applyElementAlignAndSafeDistance(element, hasBloodPiece, Boolean.TRUE.equals(info.getHaveBlood()));
                 elements.add(element);
@@ -2628,13 +2632,16 @@ public class AppTypesettingService {
 
 
     /**
-     * 当前拼接切片中，第一个分片只有被出血边；从第二片开始才有位于左边或上边的主动出血边。
+     * 判断当前零件是否为拼接出血分片。
+     *
+     * <p>分片序号只用于识别拼接位置，是否出血仍以 blood 坐标为准，避免 blood.x / blood.y
+     * 均为 0 的后续分片被误当作出血零件。</p>
      */
     private boolean isSpliceBleedPiece(ProductionPiece piece) {
         if (piece == null || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup()) || !hasSupportedSpliceNode(piece)) {
             return false;
         }
-        return piece.getSeq() > 1;
+        return piece.getSeq() > 1 && isBloodPieceByCoordinates(piece);
     }
 
     private boolean hasSupportedSpliceNode(ProductionPiece piece) {
@@ -3993,8 +4000,18 @@ public class AppTypesettingService {
                 }
                 // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
                 int total = results.size();
+                List<List<TypesettingSourceCell>> usedCellsByResult = new ArrayList<>(total);
+                boolean taskHaveBlood = false;
+                for (NestingResponse.Result callbackResult : results) {
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                    usedCellsByResult.add(usedCells);
+                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells))) {
+                        taskHaveBlood = true;
+                    }
+                }
                 for (int i = 0; i < total; i++) {
                     NestingResponse.Result callbackResult = results.get(i);
+                    List<TypesettingSourceCell> usedCells = usedCellsByResult.get(i);
                     String templateCode = buildTemplateCode(i + 1, total);
                     TypesettingElement element = new TypesettingElement();
                     element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
@@ -4022,9 +4039,8 @@ public class AppTypesettingService {
                     if (i == 0) {
                         baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                         baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
-                        List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
                         baseTypesettingInfo.setTypesettingCells(usedCells);
-                        baseTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                        baseTypesettingInfo.setHaveBlood(taskHaveBlood);
                         baseTypesettingInfo.setTemplateCode(templateCode);
                         domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                         continue;
@@ -4033,9 +4049,8 @@ public class AppTypesettingService {
                     newTypesettingInfo.setId(null);
                     newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                     newTypesettingInfo.setElement(element);
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
                     newTypesettingInfo.setTypesettingCells(usedCells);
-                    newTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                    newTypesettingInfo.setHaveBlood(taskHaveBlood);
                     newTypesettingInfo.setTemplateCode(templateCode);
                     newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     domainTypesettingService.addTypesetting(newTypesettingInfo);

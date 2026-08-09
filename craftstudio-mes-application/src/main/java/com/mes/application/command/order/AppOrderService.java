@@ -12,6 +12,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
+import com.mes.application.support.PodvOrgInfoHelper;
 import com.mes.domain.auth.entity.ManufacturerUser;
 import com.mes.domain.auth.repository.ManufacturerUserRepository;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerMeta;
@@ -610,6 +611,7 @@ public class AppOrderService {
     public OrderInfo addOrderWithItems(OrderAddRequest request) {
         //订单对象转化
         OrderInfo orderInfo = request.toOrderInfo();
+        orderInfo.setOrgInfo(PodvOrgInfoHelper.normalize(orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
@@ -846,6 +848,7 @@ public class AppOrderService {
 
         Map<String, OrderItem> orderItemById = new HashMap<>();
         Map<String, List<ProductionPiece>> productionPiecesByOrderItemId = new HashMap<>();
+        BigDecimal transferredAmount = BigDecimal.ZERO;
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             if (itemDto == null || StringUtils.isBlank(itemDto.getOrderItemId())) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
@@ -877,6 +880,7 @@ public class AppOrderService {
 
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
+            transferredAmount = transferredAmount.add(calculateTransferredAmount(orderItem, itemDto.getQuantity()));
         }
 
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
@@ -926,6 +930,8 @@ public class AppOrderService {
             ));
         }
         orderTransferRecordService.batchAdd(transferRecords);
+        adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), transferredAmount.negate());
+        adjustOrderDailyStatisticsAmount(targetManufacturerMetaId, transferredAmount);
 
         return ApiResponse.success("success");
     }
@@ -1016,6 +1022,9 @@ public class AppOrderService {
         if (orderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + orderId);
         }
+        if (orderInfo.getStatus() == OrderStatus.RETURNED) {
+            return ApiResponse.success("success");
+        }
 
         List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, null, 1, 100);
         if (orderItems == null || orderItems.isEmpty()) {
@@ -1049,7 +1058,45 @@ public class AppOrderService {
             }
         }
 
+        BigDecimal cancelledAmount = orderInfo.getPrice() == null
+                ? BigDecimal.ZERO
+                : orderInfo.getPrice().getPaymentPrice();
+        String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
+                ? orderInfo.getManufacturerId()
+                : orderItems.stream()
+                        .map(OrderItem::getManufacturerId)
+                        .filter(StringUtils::isNotBlank)
+                        .findFirst()
+                        .orElse(null);
+        adjustOrderDailyStatisticsAmount(manufacturerMetaId,
+                cancelledAmount == null ? BigDecimal.ZERO : cancelledAmount.negate());
+
         return ApiResponse.success("success");
+    }
+
+    private BigDecimal calculateTransferredAmount(OrderItem orderItem, int transferQuantity) {
+        if (orderItem.getPrice() == null || orderItem.getPrice().getActualPrice() == null) {
+            return BigDecimal.ZERO;
+        }
+        int sourceQuantity = safeQuantity(orderItem.getQuantity());
+        if (sourceQuantity <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return orderItem.getPrice().getActualPrice()
+                .multiply(BigDecimal.valueOf(transferQuantity))
+                .divide(BigDecimal.valueOf(sourceQuantity), 8, RoundingMode.HALF_UP);
+    }
+
+    private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, BigDecimal amount) {
+        if (StringUtils.isBlank(manufacturerMetaId) || amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+            return;
+        }
+        orderDailyStatisticsService.increment(
+                manufacturerMetaId,
+                LocalDate.now(BEIJING_ZONE),
+                0,
+                BigDecimal.ZERO,
+                scaleStatisticsDecimal(amount));
     }
 
 
