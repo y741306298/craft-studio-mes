@@ -3997,8 +3997,18 @@ public class AppTypesettingService {
                 }
                 // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
                 int total = results.size();
+                List<List<TypesettingSourceCell>> usedCellsByResult = new ArrayList<>(total);
+                boolean taskHaveBlood = false;
+                for (NestingResponse.Result callbackResult : results) {
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                    usedCellsByResult.add(usedCells);
+                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells))) {
+                        taskHaveBlood = true;
+                    }
+                }
                 for (int i = 0; i < total; i++) {
                     NestingResponse.Result callbackResult = results.get(i);
+                    List<TypesettingSourceCell> usedCells = usedCellsByResult.get(i);
                     String templateCode = buildTemplateCode(i + 1, total);
                     TypesettingElement element = new TypesettingElement();
                     element.setNestedSvg(buildCompleteOssUrl(callbackResult.getNestedSvg()));
@@ -4026,9 +4036,8 @@ public class AppTypesettingService {
                     if (i == 0) {
                         baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                         baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
-                        List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
                         baseTypesettingInfo.setTypesettingCells(usedCells);
-                        baseTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                        baseTypesettingInfo.setHaveBlood(taskHaveBlood);
                         baseTypesettingInfo.setTemplateCode(templateCode);
                         domainTypesettingService.updateTypesetting(baseTypesettingInfo);
                         continue;
@@ -4037,9 +4046,8 @@ public class AppTypesettingService {
                     newTypesettingInfo.setId(null);
                     newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                     newTypesettingInfo.setElement(element);
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
                     newTypesettingInfo.setTypesettingCells(usedCells);
-                    newTypesettingInfo.setHaveBlood(resolveCallbackResultHaveBlood(callbackResult, usedCells));
+                    newTypesettingInfo.setHaveBlood(taskHaveBlood);
                     newTypesettingInfo.setTemplateCode(templateCode);
                     newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                     domainTypesettingService.addTypesetting(newTypesettingInfo);
