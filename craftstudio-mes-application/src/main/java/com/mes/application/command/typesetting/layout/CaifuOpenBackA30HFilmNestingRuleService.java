@@ -63,7 +63,7 @@ public class CaifuOpenBackA30HFilmNestingRuleService implements NestingRequestRu
             return;
         }
         applyElementStyle(element, isBloodElement);
-        if (!hasBloodElement) {
+        if (!isBloodElement) {
             element.setHMargin(30);
         }
     }

@@ -22,10 +22,21 @@ class CaifuOpenBackA30HFilmNestingRuleServiceTest {
     }
 
     @Test
-    void shouldKeepExistingBloodLayoutMargin() {
+    void shouldAddRightMarginToNonBloodElementWhenRequestHasBloodPlate() {
         NestingRequest.Element element = new NestingRequest.Element();
 
         service.applyElementStyle(element, false, true, true);
+
+        assertEquals("right", element.getHGravity());
+        assertEquals(30, element.getHMargin());
+        assertEquals(0, element.getVMargin());
+    }
+
+    @Test
+    void shouldKeepZeroMarginForBloodElementWhenRequestHasBloodPlate() {
+        NestingRequest.Element element = new NestingRequest.Element();
+
+        service.applyElementStyle(element, true, true, true);
 
         assertEquals("right", element.getHGravity());
         assertEquals(0, element.getHMargin());
