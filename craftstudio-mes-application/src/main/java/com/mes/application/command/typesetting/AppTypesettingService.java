@@ -114,6 +114,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.Comparator;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -295,17 +296,18 @@ public class AppTypesettingService {
         }
 
         if (!queryPartOnly && !queryProductionPiecesByRoute) {
-            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
-                    query.getManufacturerMetaId(),
-                    TypesettingStatus.PENDING.getCode(),
-                    query.getMaterialName(),
-                    query.getProcessingName(),
-                    query.getStartTime(),
-                    query.getEndTime(),
-                    null,
-                    1,
-                    Integer.MAX_VALUE
-            );
+            List<TypesettingInfo> typesettingInfos = timeMongoQuery("findPendingTypesettingInfos", () ->
+                    domainTypesettingService.findTypesettingByProcessingConditions(
+                            query.getManufacturerMetaId(),
+                            TypesettingStatus.PENDING.getCode(),
+                            query.getMaterialName(),
+                            query.getProcessingName(),
+                            query.getStartTime(),
+                            query.getEndTime(),
+                            null,
+                            1,
+                            Integer.MAX_VALUE
+                    ));
             for (TypesettingInfo info : typesettingInfos) {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
                 boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
@@ -335,15 +337,16 @@ public class AppTypesettingService {
      * @return 符合基础条件的生产零件
      */
     private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query) {
-        return productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
-                query.getManufacturerMetaId(),
-                query.getMaterialName(),
-                query.getProcessingName(),
-                query.getOrderItemId(),
-                query.getRouteId(),
-                query.getStartTime(),
-                query.getEndTime()
-        );
+        return timeMongoQuery("findPendingTypesettingProductionPieces", () ->
+                productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
+                        query.getManufacturerMetaId(),
+                        query.getMaterialName(),
+                        query.getProcessingName(),
+                        query.getOrderItemId(),
+                        query.getRouteId(),
+                        query.getStartTime(),
+                        query.getEndTime()
+                ));
     }
 
     /**
@@ -514,7 +517,9 @@ public class AppTypesettingService {
         }
 
         Map<String, String> orderIdsByItemId = new HashMap<>();
-        for (OrderItem orderItem : orderItemService.findByOrderItemIds(orderItemIds)) {
+        List<OrderItem> orderItems = timeMongoQuery("findOrderItemsForECommerceGroups",
+                () -> orderItemService.findByOrderItemIds(orderItemIds));
+        for (OrderItem orderItem : orderItems) {
             if (orderItem == null) {
                 continue;
             }
@@ -527,6 +532,19 @@ public class AppTypesettingService {
             }
         }
         return orderIdsByItemId;
+    }
+
+    /**
+     * 仅对本列表接口显式发起的 MongoDB 查询计时，避免注册影响全局的驱动监听器。
+     */
+    private <T> T timeMongoQuery(String queryName, Supplier<T> queryAction) {
+        long start = System.nanoTime();
+        try {
+            return queryAction.get();
+        } finally {
+            log.info("listTypesettingAndProductionPieces MongoDB query completed: query={}, elapsedMs={}",
+                    queryName, (System.nanoTime() - start) / 1_000_000.0);
+        }
     }
 
     private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
