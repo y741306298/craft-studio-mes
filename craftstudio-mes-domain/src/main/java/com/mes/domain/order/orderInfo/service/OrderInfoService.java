@@ -63,6 +63,13 @@ public class OrderInfoService {
         return findByOrderIdAndPlatformCode(orderId, null);
     }
 
+    public List<OrderInfo> findByOrderIds(Collection<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return orderInfoRepository.findByOrderIds(orderIds);
+    }
+
     /**
      * 根据订单号和平台号查询订单信息。
      * @param orderId 订单号

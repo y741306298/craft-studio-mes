@@ -5,8 +5,11 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Collection;
 
 public interface OrderItemRepository extends BaseRepository<OrderItem> {
+
+    List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds);
 
     /**
      * 根据条件过滤订单项列表，并优先返回加急订单项。

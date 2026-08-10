@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -19,6 +20,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 @Repository
+@Slf4j
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
 
     @Override
@@ -112,8 +114,11 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
 
         Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
         query.addCriteria(Criteria.where("deleteAt").is(null));
-        return mongoTemplate.find(query, ProductionPiecePo.class)
-                .stream().map(ProductionPiecePo::toDO).toList();
+        long start = System.nanoTime();
+        List<ProductionPiecePo> pos = mongoTemplate.find(query, ProductionPiecePo.class);
+        log.info("MongoDB query listPendingPackagingPiecesByConditions completed: manufacturerId={}, results={}, elapsedMs={}",
+                manufacturerId, pos.size(), (System.nanoTime() - start) / 1_000_000.0);
+        return pos.stream().map(ProductionPiecePo::toDO).toList();
     }
 
     @Override
