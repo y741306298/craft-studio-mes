@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 @RestController
@@ -57,11 +58,13 @@ public class ManufacturerDeviceCfgController {
         PagedResult<ManufacturerDeviceCfg> result = appDeviceCfgService.findDeviceCfgsByConditions(
                 manufacturerMetaId, request.getDeviceName(), request.getDeviceType(), query);
         Collection<ManufacturerDeviceCfg> items = result.items();
+        Map<String, Device> devicesByInfoId = appDeviceService.findByDeviceInfoIds(
+                items.stream().map(ManufacturerDeviceCfg::getDeviceInfoId).toList());
         List<DeviceCfgSummary> responses = new ArrayList<DeviceCfgSummary>();
         for (ManufacturerDeviceCfg item : items) {
             String deviceInfoId = item.getDeviceInfoId();
             DeviceCfgSummary summary = DeviceCfgSummary.from(item);
-            Device byDeviceInfoId = appDeviceService.findByDeviceInfoId(deviceInfoId);
+            Device byDeviceInfoId = devicesByInfoId.get(deviceInfoId);
             if (byDeviceInfoId != null) {
                 summary.setBrand(byDeviceInfoId.getBrand());
                 summary.setDeviceProcedures(byDeviceInfoId.getDeviceProcedures());

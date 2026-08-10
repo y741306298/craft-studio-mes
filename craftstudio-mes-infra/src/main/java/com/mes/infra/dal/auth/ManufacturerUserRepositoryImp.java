@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 
 @Repository
 public class ManufacturerUserRepositoryImp extends BaseRepositoryImp<ManufacturerUser, ManufacturerUserPo> implements ManufacturerUserRepository {
@@ -55,6 +57,18 @@ public class ManufacturerUserRepositoryImp extends BaseRepositoryImp<Manufacture
                         .limit(size),
                 ManufacturerUserPo.class
         );
+        return pos.stream().map(ManufacturerUserPo::toDO).toList();
+    }
+
+    @Override
+    public List<ManufacturerUser> listByManufacturerMetaIds(Collection<String> manufacturerMetaIds) {
+        if (manufacturerMetaIds == null || manufacturerMetaIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ManufacturerUserPo> pos = mongoTemplate.find(
+                new SoftDeleteQuery(Criteria.where("manufacturerMetaId").in(manufacturerMetaIds))
+                        .with(Sort.by(Sort.Direction.DESC, "updateTime")),
+                ManufacturerUserPo.class);
         return pos.stream().map(ManufacturerUserPo::toDO).toList();
     }
 

@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.Collection;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import java.util.HashMap;
 import java.util.List;
@@ -453,6 +454,13 @@ public class ProductionPieceService {
         }
         
         return pieces.get(0);
+    }
+
+    public List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds) {
+        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return productionPieceRepository.findByProductionPieceIds(productionPieceIds);
     }
 
     /**

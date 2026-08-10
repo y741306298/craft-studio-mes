@@ -11,7 +11,12 @@ import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AppDeviceService {
@@ -111,5 +116,13 @@ public class AppDeviceService {
         }
         
         return devices.get(0);
+    }
+
+    public Map<String, Device> findByDeviceInfoIds(Collection<String> deviceInfoIds) {
+        if (deviceInfoIds == null || deviceInfoIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return deviceInfoRepository.findByDeviceInfoIds(deviceInfoIds).stream()
+                .collect(Collectors.toMap(Device::getDeviceInfoId, Function.identity(), (first, ignored) -> first));
     }
 }

@@ -405,20 +405,25 @@ public class AppManufacturerMetaService {
             total = domainManufacturerMetaService.getTotalCount(name, manufacturerType);
         }
 
-        // 为每个制造商查询设备数量
+        Set<String> manufacturerMetaIds = items.stream()
+                .map(ManufacturerMeta::getManufacturerMetaId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        Map<String, Long> deviceCounts = manufacturerDeviceCfgRepository.countByManufacturerMetaIds(manufacturerMetaIds);
+        Map<String, ManufacturerUser> firstUsers = manufacturerUserService.listByManufacturerMetaIds(manufacturerMetaIds)
+                .stream().collect(Collectors.toMap(ManufacturerUser::getManufacturerMetaId,
+                        user -> user, (first, ignored) -> first));
+
         List<ManufacturerMetaWithDeviceCount> itemsWithDeviceCount = new ArrayList<>();
         for (ManufacturerMeta meta : items) {
             ManufacturerMetaWithDeviceCount metaWithDeviceCount = new ManufacturerMetaWithDeviceCount(meta);
 
             // 查询设备数量
             if (meta.getManufacturerMetaId() != null) {
-                PagedQuery deviceQuery = new PagedQuery(1, 1);
-                PagedResult<ManufacturerDeviceCfg> deviceResult = appDeviceCfgService.findDeviceCfgsByManufacturerId(meta.getManufacturerMetaId(), deviceQuery);
-                metaWithDeviceCount.setDeviceCount((int) deviceResult.total());
+                metaWithDeviceCount.setDeviceCount(Math.toIntExact(deviceCounts.getOrDefault(meta.getManufacturerMetaId(), 0L)));
 
-                List<ManufacturerUser> users = manufacturerUserService.listByManufacturerMetaId(meta.getManufacturerMetaId(), null, 1, 1);
-                if (users != null && !users.isEmpty()) {
-                    ManufacturerUser firstUser = users.get(0);
+                ManufacturerUser firstUser = firstUsers.get(meta.getManufacturerMetaId());
+                if (firstUser != null) {
                     metaWithDeviceCount.setAdminName(firstUser.getName());
                     metaWithDeviceCount.setAdminPhone(firstUser.getPhone());
                     metaWithDeviceCount.setAdminAccount(firstUser.getAccount());

@@ -4,7 +4,12 @@ import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 
+import java.util.Collection;
+import java.util.List;
+
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
+
+    List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds);
     
     /**
      * 根据 productionPieceId 更新生产工件

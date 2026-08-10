@@ -11,6 +11,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -28,6 +30,16 @@ public class DeliveryRouteNodeRepositoryImp extends BaseRepositoryImp<DeliveryRo
         query.with(Sort.by(Sort.Direction.ASC, "nodeOrder").and(Sort.by(Sort.Direction.ASC, "createTime")));
         List<DeliveryRouteNodePo> pos = mongoTemplate.find(query, poClass());
         return pos.stream().map(DeliveryRouteNodePo::toDO).toList();
+    }
+
+    @Override
+    public List<DeliveryRouteNode> listByRouteIds(Collection<String> routeIds) {
+        if (routeIds == null || routeIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Query query = new SoftDeleteQuery(Criteria.where("routeId").in(routeIds));
+        query.with(Sort.by(Sort.Direction.ASC, "nodeOrder").and(Sort.by(Sort.Direction.ASC, "createTime")));
+        return mongoTemplate.find(query, poClass()).stream().map(DeliveryRouteNodePo::toDO).toList();
     }
 
     @Override
