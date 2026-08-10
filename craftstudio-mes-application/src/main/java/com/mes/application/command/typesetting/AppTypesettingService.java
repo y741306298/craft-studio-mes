@@ -114,6 +114,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.Comparator;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -284,7 +285,7 @@ public class AppTypesettingService {
 
         if (!queryTypesettingOnly) {
             List<ProductionPiece> productionPieces = findPendingTypesettingProductionPieces(query);
-            Map<String, String> orderGroupIdCache = new HashMap<>();
+            Map<String, String> orderGroupIdCache = loadOrderGroupIds(productionPieces, query);
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) > 0) {
                     TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
@@ -295,17 +296,18 @@ public class AppTypesettingService {
         }
 
         if (!queryPartOnly && !queryProductionPiecesByRoute) {
-            List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
-                    query.getManufacturerMetaId(),
-                    TypesettingStatus.PENDING.getCode(),
-                    query.getMaterialName(),
-                    query.getProcessingName(),
-                    query.getStartTime(),
-                    query.getEndTime(),
-                    null,
-                    1,
-                    Integer.MAX_VALUE
-            );
+            List<TypesettingInfo> typesettingInfos = timeMongoQuery("findPendingTypesettingInfos", () ->
+                    domainTypesettingService.findTypesettingByProcessingConditions(
+                            query.getManufacturerMetaId(),
+                            TypesettingStatus.PENDING.getCode(),
+                            query.getMaterialName(),
+                            query.getProcessingName(),
+                            query.getStartTime(),
+                            query.getEndTime(),
+                            null,
+                            1,
+                            Integer.MAX_VALUE
+                    ));
             for (TypesettingInfo info : typesettingInfos) {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
                 boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
@@ -335,15 +337,16 @@ public class AppTypesettingService {
      * @return 符合基础条件的生产零件
      */
     private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query) {
-        return productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
-                query.getManufacturerMetaId(),
-                query.getMaterialName(),
-                query.getProcessingName(),
-                query.getOrderItemId(),
-                query.getRouteId(),
-                query.getStartTime(),
-                query.getEndTime()
-        );
+        return timeMongoQuery("findPendingTypesettingProductionPieces", () ->
+                productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
+                        query.getManufacturerMetaId(),
+                        query.getMaterialName(),
+                        query.getProcessingName(),
+                        query.getOrderItemId(),
+                        query.getRouteId(),
+                        query.getStartTime(),
+                        query.getEndTime()
+                ));
     }
 
     /**
@@ -415,8 +418,7 @@ public class AppTypesettingService {
                 ? findOrderItemIdsByOrderId(query.getOrderId(), query.getManufacturerMetaId())
                 : Collections.singletonList(query.getOrderItemId());
 
-        List<TypesettingProductionPieceVO> items = new ArrayList<>();
-        Map<String, String> orderGroupIdCache = new HashMap<>();
+        List<ProductionPiece> matchedPieces = new ArrayList<>();
         for (String orderItemId : orderItemIds) {
             if (StringUtils.isBlank(orderItemId)) {
                 continue;
@@ -434,13 +436,18 @@ public class AppTypesettingService {
                     SCOPED_FULL_LIST_SIZE
             );
             for (ProductionPiece piece : productionPieces) {
-                if (getPendingTypesettingQuantity(piece) <= 0) {
-                    continue;
+                if (getPendingTypesettingQuantity(piece) > 0) {
+                    matchedPieces.add(piece);
                 }
-                TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
-                applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
-                items.add(vo);
             }
+        }
+
+        List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        Map<String, String> orderGroupIdCache = loadOrderGroupIds(matchedPieces, query);
+        for (ProductionPiece piece : matchedPieces) {
+            TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
+            applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
+            items.add(vo);
         }
         return items;
     }
@@ -486,29 +493,58 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(orderItemId)) {
             return;
         }
-        String orderId = resolveOrderIdByOrderItemId(orderItemId, orderGroupIdCache);
+        String orderId = orderGroupIdCache.get(orderItemId.trim());
         if (StringUtils.isNotBlank(orderId)) {
             vo.setGroupId(orderId);
         }
     }
 
-    private String resolveOrderIdByOrderItemId(String orderItemId, Map<String, String> orderGroupIdCache) {
-        if (StringUtils.isBlank(orderItemId)) {
-            return null;
+    /**
+     * 批量加载电商分组信息，避免为列表中的每一个工件单独查询订单项。
+     */
+    private Map<String, String> loadOrderGroupIds(List<ProductionPiece> pieces, TypesettingQuery query) {
+        if (query == null || !Boolean.TRUE.equals(query.getECommerceMmodel()) || CollectionUtils.isEmpty(pieces)) {
+            return Collections.emptyMap();
         }
-        String normalizedOrderItemId = orderItemId.trim();
-        if (orderGroupIdCache != null && orderGroupIdCache.containsKey(normalizedOrderItemId)) {
-            return orderGroupIdCache.get(normalizedOrderItemId);
+        Set<String> orderItemIds = pieces.stream()
+                .filter(Objects::nonNull)
+                .map(ProductionPiece::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        if (orderItemIds.isEmpty()) {
+            return Collections.emptyMap();
         }
-        OrderItem orderItem = orderItemService.findByOrderItemId(normalizedOrderItemId);
-        if (orderItem == null) {
-            orderItem = orderItemService.findById(normalizedOrderItemId);
+
+        Map<String, String> orderIdsByItemId = new HashMap<>();
+        List<OrderItem> orderItems = timeMongoQuery("findOrderItemsForECommerceGroups",
+                () -> orderItemService.findByOrderItemIds(orderItemIds));
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem == null) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(orderItem.getOrderItemId())) {
+                orderIdsByItemId.put(orderItem.getOrderItemId().trim(), orderItem.getOrderId());
+            }
+            // 兼容历史数据中 productionPiece.orderItemId 保存 MongoDB 主键的情况。
+            if (StringUtils.isNotBlank(orderItem.getId())) {
+                orderIdsByItemId.put(orderItem.getId().trim(), orderItem.getOrderId());
+            }
         }
-        String orderId = orderItem == null ? null : orderItem.getOrderId();
-        if (orderGroupIdCache != null) {
-            orderGroupIdCache.put(normalizedOrderItemId, orderId);
+        return orderIdsByItemId;
+    }
+
+    /**
+     * 仅对本列表接口显式发起的 MongoDB 查询计时，避免注册影响全局的驱动监听器。
+     */
+    private <T> T timeMongoQuery(String queryName, Supplier<T> queryAction) {
+        long start = System.nanoTime();
+        try {
+            return queryAction.get();
+        } finally {
+            log.info("listTypesettingAndProductionPieces MongoDB query completed: query={}, elapsedMs={}",
+                    queryName, (System.nanoTime() - start) / 1_000_000.0);
         }
-        return orderId;
     }
 
     private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
@@ -991,7 +1027,7 @@ public class AppTypesettingService {
 
         // 转换为 VO
         List<TypesettingProductionPieceVO> voList = new ArrayList<>();
-        Map<String, String> orderGroupIdCache = new HashMap<>();
+        Map<String, String> orderGroupIdCache = loadOrderGroupIds(parts, query);
         for (ProductionPiece piece : parts) {
             if (getPendingTypesettingQuantity(piece) <= 0) {
                 continue;

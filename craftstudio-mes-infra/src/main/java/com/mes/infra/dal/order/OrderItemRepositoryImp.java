@@ -27,7 +27,11 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
     public List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds) {
         long start = System.nanoTime();
         List<OrderItemPo> pos = mongoTemplate.find(
-                new Query(Criteria.where("orderItemId").in(orderItemIds).and("deleteAt").is(null)), poClass());
+                new Query(new Criteria().andOperator(
+                        Criteria.where("deleteAt").is(null),
+                        new Criteria().orOperator(
+                                Criteria.where("orderItemId").in(orderItemIds),
+                                Criteria.where("_id").in(orderItemIds)))), poClass());
         log.info("MongoDB query findByOrderItemIds completed: ids={}, results={}, elapsedMs={}",
                 orderItemIds.size(), pos.size(), (System.nanoTime() - start) / 1_000_000.0);
         return pos.stream().map(OrderItemPo::toDO).toList();
