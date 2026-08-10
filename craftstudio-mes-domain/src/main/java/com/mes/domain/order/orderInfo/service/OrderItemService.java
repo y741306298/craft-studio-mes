@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Collection;
+import java.util.List;
 
 @Service
 public class OrderItemService {
@@ -49,6 +51,13 @@ public class OrderItemService {
         }
         
         return items.get(0);
+    }
+
+    public List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return orderItemRepository.findByOrderItemIds(orderItemIds);
     }
 
     /**

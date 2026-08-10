@@ -130,6 +130,7 @@ public class AppDeliveryPkgService {
 
 
     public List<DeliveryPkgPieceVO> listPendingPackagingPieces(DeliveryPkgRequest request) {
+        long start = System.nanoTime();
         String manufacturerMetaId = request.getManufacturerMetaId();
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
@@ -142,18 +143,9 @@ public class AppDeliveryPkgService {
                 request.getWidth(),
                 request.getRouteId());
 
-        List<DeliveryPkgPieceVO> items = new ArrayList<>();
-        if (productionPieces == null) {
-            productionPieces = new ArrayList<>();
-        }
-        for (ProductionPiece productionPiece : productionPieces) {
-            DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
-            if (vo != null) {
-                items.add(vo);
-            }
-        }
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(productionPieces);
 
-        return items.stream().filter(item -> {
+        List<DeliveryPkgPieceVO> result = items.stream().filter(item -> {
             boolean matchOrderId = StringUtils.isBlank(request.getOrderId())
                     || (StringUtils.isNotBlank(item.getOrderId()) && item.getOrderId().contains(request.getOrderId()));
             boolean matchOrderItemId = StringUtils.isBlank(request.getOrderItemId())
@@ -179,6 +171,9 @@ public class AppDeliveryPkgService {
                 .thenComparing(DeliveryPkgPieceVO::getCreateTime,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
+        log.info("listPendingPackagingPieces completed: manufacturerId={}, pieces={}, elapsedMs={}",
+                manufacturerMetaId, result.size(), (System.nanoTime() - start) / 1_000_000.0);
+        return result;
     }
 
 
@@ -213,16 +208,7 @@ public class AppDeliveryPkgService {
             productionPieces.addAll(listPendingPackagingPiecesByOrderItemId(request, request.getOrderItemId()));
         }
 
-        List<DeliveryPkgPieceVO> items = new ArrayList<>();
-        if (productionPieces == null) {
-            productionPieces = new ArrayList<>();
-        }
-        for (ProductionPiece productionPiece : productionPieces) {
-            DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(productionPiece);
-            if (vo != null) {
-                items.add(vo);
-            }
-        }
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(productionPieces);
 
         return items.stream()
                 .filter(item -> matchesDeliveryScopedRequest(item, request))
@@ -349,6 +335,59 @@ public class AppDeliveryPkgService {
         if (productionPiece == null) {
             return null;
         }
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(Collections.singletonList(productionPiece));
+        return items.isEmpty() ? null : items.get(0);
+    }
+
+    private List<DeliveryPkgPieceVO> buildPendingPackagingPieceVOs(List<ProductionPiece> productionPieces) {
+        if (productionPieces == null || productionPieces.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> orderItemIds = productionPieces.stream()
+                .filter(Objects::nonNull)
+                .map(ProductionPiece::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, OrderItem> orderItems = orderItemService.findByOrderItemIds(orderItemIds).stream()
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
+
+        LinkedHashSet<String> orderIds = productionPieces.stream()
+                .filter(Objects::nonNull)
+                .map(piece -> {
+                    OrderItem item = orderItems.get(piece.getOrderItemId());
+                    return item == null ? null : item.getOrderId();
+                })
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, OrderInfo> orders = orderInfoService.findByOrderIds(orderIds).stream()
+                .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (left, right) -> left));
+        World world = null;
+        if (!orders.isEmpty()) {
+            long worldQueryStart = System.nanoTime();
+            world = worldRepository.loadWorld();
+            log.info("MongoDB query loadWorld completed: elapsedMs={}",
+                    (System.nanoTime() - worldQueryStart) / 1_000_000.0);
+        }
+
+        List<DeliveryPkgPieceVO> result = new ArrayList<>();
+        for (ProductionPiece productionPiece : productionPieces) {
+            if (productionPiece == null) {
+                continue;
+            }
+            DeliveryPkgPieceVO vo = buildPendingPackagingPieceVO(
+                    productionPiece, orderItems.get(productionPiece.getOrderItemId()), orders, world);
+            if (vo != null) {
+                result.add(vo);
+            }
+        }
+        return result;
+    }
+
+    private DeliveryPkgPieceVO buildPendingPackagingPieceVO(ProductionPiece productionPiece, OrderItem orderItem,
+            Map<String, OrderInfo> orders, World world) {
+        if (productionPiece == null) {
+            return null;
+        }
         int pendingQty = getNodeQuantity(productionPiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
         if (pendingQty <= 0) {
             return null;
@@ -360,7 +399,6 @@ public class AppDeliveryPkgService {
         vo.setPackedQuantity(packedQty);
         vo.setStatus(resolvePackagingStatus(pendingQty, packedQty));
 
-        OrderItem orderItem = orderItemService.findByOrderItemId(productionPiece.getOrderItemId());
         if (orderItem != null) {
             vo.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
             if (vo.getOrgInfo() == null) {
@@ -381,7 +419,7 @@ public class AppDeliveryPkgService {
         }
 
         if (StringUtils.isNotBlank(vo.getOrderId())) {
-            OrderInfo orderInfo = orderInfoService.findByOrderId(vo.getOrderId());
+            OrderInfo orderInfo = orders.get(vo.getOrderId());
             if (orderInfo != null) {
                 vo.setOrderCustomer(orderInfo.getCustomer());
                 if (vo.getOrgInfo() == null) {
@@ -396,10 +434,11 @@ public class AppDeliveryPkgService {
                 if (StringUtils.isBlank(vo.getRouteNodeId())) {
                     vo.setRouteNodeId(orderInfo.getRouteNodeId());
                 }
-                World world = worldRepository.loadWorld();
-                Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
-                String fullAddress = address.buildFullAddressString(world);
-                vo.setAddress(fullAddress);
+                if (world != null && orderInfo.getCustomer() != null && orderInfo.getCustomer().getAddress() != null) {
+                    Address address = new Address(orderInfo.getCustomer().getAddress().getTerminalRegionCode(), orderInfo.getCustomer().getAddress().getDetailAddress());
+                    String fullAddress = address.buildFullAddressString(world);
+                    vo.setAddress(fullAddress);
+                }
             }
         }
         return vo;
