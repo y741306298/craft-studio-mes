@@ -60,6 +60,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class AppOrderService {
@@ -464,12 +465,16 @@ public class AppOrderService {
         if (orderItems == null) {
             return result;
         }
+        Map<String, OrderInfo> ordersById = domainOrderInfoService.findByOrderIds(orderItems.stream()
+                        .filter(Objects::nonNull).map(OrderItem::getOrderId)
+                        .filter(StringUtils::isNotBlank).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
         for (OrderItem item : orderItems) {
             if (item == null) {
                 continue;
             }
             String oid = item.getOrderId();
-            OrderInfo orderInfo = domainOrderInfoService.findByOrderId(oid);
+            OrderInfo orderInfo = ordersById.get(oid);
             OrderItemVO orderWithItemsVO = new OrderItemVO();
             BeanUtils.copyProperties(item, orderWithItemsVO);
             if (orderInfo != null) {

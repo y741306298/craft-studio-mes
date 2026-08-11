@@ -55,6 +55,8 @@ import java.util.Base64;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
@@ -147,9 +149,32 @@ public class DeliveryPkgController {
                 request.getCurrent(),
                 request.getSize()
         );
-        items.forEach(item -> item.setRouteDesc(buildRouteDesc(item)));
+        Map<String, DeliveryRoute> routesById = deliveryRouteService.findByIds(items.stream()
+                .map(DeliveryPkg::getRouteId).filter(StringUtils::isNotBlank).collect(Collectors.toSet()));
+        LinkedHashSet<String> pieceIds = items.stream()
+                .filter(Objects::nonNull)
+                .flatMap(item -> item.getDeliveryPkgItems() == null
+                        ? java.util.stream.Stream.empty() : item.getDeliveryPkgItems().stream())
+                .filter(Objects::nonNull)
+                .filter(item -> item.getProductionPieceId() != null)
+                .flatMap(ids -> ids.getProductionPieceId().stream())
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, ProductionPiece> piecesById = indexProductionPieces(
+                productionPieceService.findByProductionPieceIds(pieceIds));
+        LinkedHashSet<String> orderItemIds = items.stream()
+                .filter(Objects::nonNull)
+                .flatMap(item -> item.getDeliveryPkgItems() == null
+                        ? java.util.stream.Stream.empty() : item.getDeliveryPkgItems().stream())
+                .filter(Objects::nonNull)
+                .map(item -> resolveOrderItemId(item.getOrderItemId(), item.getProductionPieceId(), piecesById))
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, OrderItem> orderItemsById = indexOrderItems(orderItemService.findByOrderItemIds(orderItemIds));
+
+        items.forEach(item -> item.setRouteDesc(buildRouteDesc(item, routesById.get(item.getRouteId()))));
         List<DeliveryPkgListItemResponse> responseItems = items.stream()
-                .map(this::buildDeliveryPkgListItemResponse)
+                .map(item -> buildDeliveryPkgListItemResponse(item, piecesById, orderItemsById))
                 .collect(Collectors.toList());
         long total = deliveryPkgService.countByConditions(
                 status,
@@ -176,6 +201,11 @@ public class DeliveryPkgController {
 
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
+        return buildDeliveryPkgListItemResponse(deliveryPkg, null, null);
+    }
+
+    private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg,
+            Map<String, ProductionPiece> piecesById, Map<String, OrderItem> orderItemsById) {
         DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
         BeanUtils.copyProperties(deliveryPkg, response);
         response.setCarrierId(deliveryPkg.getCarrierId());
@@ -196,13 +226,11 @@ public class DeliveryPkgController {
                 detail.setQuantity(item.getQuantity());
                 detail.setPreviewUrl(item.getPreviewUrl());
 
-                String pieceId = item.getProductionPieceId().get(0);
+                String pieceId = item.getProductionPieceId() == null || item.getProductionPieceId().isEmpty()
+                        ? null : item.getProductionPieceId().get(0);
 
                 if (StringUtils.isNotBlank(pieceId)) {
-                    ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(pieceId);
-                    if (productionPiece == null) {
-                        productionPiece = productionPieceService.findById(pieceId);
-                    }
+                    ProductionPiece productionPiece = piecesById == null ? findProductionPiece(pieceId) : piecesById.get(pieceId);
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
                         detail.setProcessingFlow(productionPiece.getProcessingFlow());
@@ -217,10 +245,7 @@ public class DeliveryPkgController {
                 if (StringUtils.isNotBlank(detail.getOrderItemId())) {
                     String orderItemId = detail.getOrderItemId().trim();
                     detail.setOrderItemId(orderItemId);
-                    OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
-                    if (orderItem == null) {
-                        orderItem = orderItemService.findById(orderItemId);
-                    }
+                    OrderItem orderItem = orderItemsById == null ? findOrderItem(orderItemId) : orderItemsById.get(orderItemId);
                     if (orderItem != null) {
                         detail.setOrderId(orderItem.getOrderId());
                     }
@@ -231,6 +256,50 @@ public class DeliveryPkgController {
         }
         response.setDeliveryPkgItems(details);
         return response;
+    }
+
+    private ProductionPiece findProductionPiece(String pieceId) {
+        ProductionPiece piece = productionPieceService.findByProductionPieceId(pieceId);
+        return piece == null ? productionPieceService.findById(pieceId) : piece;
+    }
+
+    private OrderItem findOrderItem(String orderItemId) {
+        OrderItem item = orderItemService.findByOrderItemId(orderItemId);
+        return item == null ? orderItemService.findById(orderItemId) : item;
+    }
+
+    private Map<String, ProductionPiece> indexProductionPieces(List<ProductionPiece> pieces) {
+        Map<String, ProductionPiece> result = new java.util.HashMap<>();
+        for (ProductionPiece piece : pieces) {
+            if (piece == null) continue;
+            if (StringUtils.isNotBlank(piece.getId())) result.putIfAbsent(piece.getId(), piece);
+            if (StringUtils.isNotBlank(piece.getProductionPieceId())) {
+                result.putIfAbsent(piece.getProductionPieceId(), piece);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, OrderItem> indexOrderItems(List<OrderItem> orderItems) {
+        Map<String, OrderItem> result = new java.util.HashMap<>();
+        for (OrderItem item : orderItems) {
+            if (item == null) continue;
+            if (StringUtils.isNotBlank(item.getId())) result.putIfAbsent(item.getId(), item);
+            if (StringUtils.isNotBlank(item.getOrderItemId())) result.putIfAbsent(item.getOrderItemId(), item);
+        }
+        return result;
+    }
+
+    private String resolveOrderItemId(String orderItemId, List<String> pieceIds,
+            Map<String, ProductionPiece> piecesById) {
+        if (StringUtils.isNotBlank(orderItemId)) {
+            return orderItemId.trim();
+        }
+        if (pieceIds == null || pieceIds.isEmpty()) {
+            return null;
+        }
+        ProductionPiece piece = piecesById.get(pieceIds.get(0));
+        return piece == null ? null : piece.getOrderItemId();
     }
 
     private Double scaleToTwoDecimal(Double value) {
@@ -362,6 +431,14 @@ public class DeliveryPkgController {
             return "未定义路线";
         }
         DeliveryRoute deliveryRoute = deliveryRouteService.findById(deliveryPkg.getRouteId());
+        return buildRouteDesc(deliveryPkg, deliveryRoute);
+    }
+
+    private String buildRouteDesc(DeliveryPkg deliveryPkg, DeliveryRoute deliveryRoute) {
+        if (deliveryPkg == null || StringUtils.isBlank(deliveryPkg.getRouteId())
+                || StringUtils.isBlank(deliveryPkg.getRouteNodeId())) {
+            return "未定义路线";
+        }
         if (deliveryRoute == null) {
             return "未定义路线";
         }

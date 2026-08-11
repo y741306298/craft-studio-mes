@@ -14,6 +14,8 @@ import org.springframework.stereotype.Repository;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +28,17 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     @Override
     public Class<ProductionPiecePo> poClass() {
         return ProductionPiecePo.class;
+    }
+
+    @Override
+    public List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds) {
+        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Query query = new SoftDeleteQuery(new Criteria().orOperator(
+                Criteria.where("productionPieceId").in(productionPieceIds),
+                Criteria.where("_id").in(productionPieceIds)));
+        return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
     }
     
     @Override

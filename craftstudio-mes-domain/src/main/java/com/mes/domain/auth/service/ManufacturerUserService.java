@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Collection;
 
 @Service
 public class ManufacturerUserService {
@@ -51,6 +52,13 @@ public class ManufacturerUserService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "分页参数或manufacturerMetaId不正确");
         }
         return manufacturerUserRepository.listByManufacturerMetaId(manufacturerMetaId, phone, current, size);
+    }
+
+    public List<ManufacturerUser> listByManufacturerMetaIds(Collection<String> manufacturerMetaIds) {
+        if (manufacturerMetaIds == null || manufacturerMetaIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return manufacturerUserRepository.listByManufacturerMetaIds(manufacturerMetaIds);
     }
 
     public long totalByManufacturerMetaId(String manufacturerMetaId, String phone) {

@@ -25,11 +25,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class DeliveryRouteService {
@@ -395,6 +398,13 @@ public class DeliveryRouteService {
         DeliveryRoute route = deliveryRouteRepository.findById(id);
         fillRouteNodes(route);
         return route;
+    }
+
+    public Map<String, DeliveryRoute> findByIds(java.util.Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return deliveryRouteRepository.findByIds(ids);
     }
 
     /**
@@ -917,8 +927,14 @@ public class DeliveryRouteService {
         if (routes == null || routes.isEmpty()) {
             return;
         }
+        Map<String, List<DeliveryRouteNode>> nodesByRouteId = deliveryRouteNodeRepository.listByRouteIds(
+                        routes.stream().filter(Objects::nonNull).map(DeliveryRoute::getId)
+                                .filter(StringUtils::isNotBlank).distinct().toList())
+                .stream().collect(Collectors.groupingBy(DeliveryRouteNode::getRouteId));
         for (DeliveryRoute route : routes) {
-            fillRouteNodes(route);
+            if (route != null && StringUtils.isNotBlank(route.getId())) {
+                route.setDeliveryRouteNodes(nodesByRouteId.getOrDefault(route.getId(), Collections.emptyList()));
+            }
         }
     }
 
