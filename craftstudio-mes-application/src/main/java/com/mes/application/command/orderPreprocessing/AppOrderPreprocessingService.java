@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 订单预处理应用服务。
@@ -82,6 +83,7 @@ import java.util.Objects;
  */
 @Service
 public class AppOrderPreprocessingService {
+    private static final Set<String> MARKLESS_SPLICE_NODE_NAMES = Set.of("写真拼接", "无痕拼接", "板材拼接");
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
     /** 抠图算法返回的尺寸单位为毫米；宽度小于 2cm 的结果视为噪点。 */
@@ -501,8 +503,10 @@ public class AppOrderPreprocessingService {
             }
         }
 
-        // 无拼接/异形切割路线：按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
-        applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
+        // 写真/无痕/板材拼接不生成任何 mark；其他路线按工艺执行打扣与留白。
+        if (!isMarklessSpliceFlow(procedureFlow)) {
+            applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
+        }
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);
@@ -951,10 +955,15 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 拼接 callback 路线：先按算法回写的负数 blood 语义置换出血/被出血边并写入拼接 mark，
-                        // 再按"画内打扣"工艺决定打扣与留白外扩的先后顺序。
-                        applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece, rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
-                        applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
+                        // 写真/无痕/板材拼接只保留算法返回的拼接结果，不生成或写入任何 mark。
+                        if (isMarklessSpliceFlow(newProcedureFlow)) {
+                            piece.setMarks(null);
+                        } else {
+                            // 其他拼接路线先写入拼接 mark，再按工艺执行打扣与留白。
+                            applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece,
+                                    rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
+                            applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
+                        }
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
@@ -1091,6 +1100,9 @@ public class AppOrderPreprocessingService {
      * @param skipBloodEdges 是否根据出血边跳过留白外扩
      */
     public void applyBuckleAndLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
+        if (isMarklessSpliceFlow(procedureFlow)) {
+            return;
+        }
         if (hasNodeWithName(procedureFlow, "画内打扣")) {
             applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
             applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
@@ -1107,11 +1119,20 @@ public class AppOrderPreprocessingService {
      * 因此可在落库前直接把出血边黑白条、被出血边 group 文本与条纹写入 mask SVG。</p>
      */
     public void applySpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
-        if (superWidthSpliceProcessService == null || orderItem == null || procedureFlow == null || piece == null
+        if (isMarklessSpliceFlow(procedureFlow) || superWidthSpliceProcessService == null
+                || orderItem == null || procedureFlow == null || piece == null
                 || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
             return;
         }
         superWidthSpliceProcessService.process(orderItem, procedureFlow, piece, firstSeqBlood);
+    }
+
+    static boolean isMarklessSpliceFlow(ProcedureFlow procedureFlow) {
+        return procedureFlow != null && procedureFlow.getNodes() != null
+                && procedureFlow.getNodes().stream()
+                .filter(Objects::nonNull)
+                .map(ProcedureFlowNode::getNodeName)
+                .anyMatch(MARKLESS_SPLICE_NODE_NAMES::contains);
     }
 
     /**
