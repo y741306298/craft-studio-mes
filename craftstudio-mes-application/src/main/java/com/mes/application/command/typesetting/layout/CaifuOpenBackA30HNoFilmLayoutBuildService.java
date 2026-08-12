@@ -134,14 +134,14 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                     expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
             if (isBlood) {
-                // 下方还有一条与顶部等高的标签带；镜像时必须把它计入版面总高度，
-                // 保证右下角标记距版面下边的距离与右上角标记距版面上边一致。
-                double mirroredLineY = expandedHeight + contentOffsetY - lineY - lineHeight;
-                if (mirroredLineY >= 0 && Math.abs(mirroredLineY - lineY) > 0.0001) {
+                // 右下角标记固定距当前 cell 底边 8 mm，不能使用整张版面的底边，
+                // 否则多个出血 cell 的下方标记都会错误地堆叠到版面底部。
+                double bottomLineY = calculateBottomLineY(band.centerY, band.height, lineHeight);
+                if (bottomLineY >= 0 && Math.abs(bottomLineY - lineY) > 0.0001) {
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                 }
             }
         }
@@ -164,6 +164,10 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    static double calculateBottomLineY(double cellTopY, double cellHeight, double lineHeight) {
+        return cellTopY + cellHeight - ELEMENT_D_OFFSET_Y_MM - lineHeight;
     }
 
     private List<MarkerBand> extractMarkerBands(FormeBuildContext context) {
