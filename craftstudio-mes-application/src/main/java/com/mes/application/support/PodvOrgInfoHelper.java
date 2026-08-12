@@ -7,7 +7,7 @@ import io.micrometer.common.util.StringUtils;
 public final class PodvOrgInfoHelper {
 
     private static final String PODV_PLATFORM_CODE = "podv";
-    private static final String PODV_ORG_NAME = "pod1688";
+    private static final String PODV_ORG_NAME = "华物POD供应链";
 
     private PodvOrgInfoHelper() {
     }
