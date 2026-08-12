@@ -776,6 +776,14 @@ public class AppOrderPreprocessingService {
         return orderInfo != null && OrderStatus.RETURNED.equals(orderInfo.getStatus());
     }
 
+    private boolean isCallbackStillActive(String orderItemId, String callbackPreprocessRequestId) {
+        OrderItem latestOrderItem = orderItemService.findByOrderItemId(orderItemId);
+        return latestOrderItem != null
+                && !isReturnedOrderItem(latestOrderItem)
+                && !isReturnedOrder(latestOrderItem.getOrderId())
+                && isCurrentPreprocessCallback(latestOrderItem, callbackPreprocessRequestId);
+    }
+
     private record CallbackIdentity(String orderItemId, String preprocessRequestId) {
     }
 
@@ -979,12 +987,20 @@ public class AppOrderPreprocessingService {
                             }
                             piece.setMirrorConfigs(List.of(mirrorConfig));
                         }
-                        OrderItem latestOrderItem = orderItemService.findByOrderItemId(orderItemId);
-                        if (isReturnedOrderItem(latestOrderItem) || isReturnedOrder(latestOrderItem == null ? null : latestOrderItem.getOrderId())) {
-                            log.warn("订单项处理期间已退单，停止生成生产零件: orderItemId={}", orderItemId);
+                        if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
+                            log.warn("订单项处理期间回调已失效，停止生成生产零件: orderItemId={}, preprocessRequestId={}",
+                                    orderItemId, callbackIdentity.preprocessRequestId());
                             return;
                         }
                         productionPieceService.addProductionPiece(piece);
+                        // 上面的校验与写入不是一个原子操作。写入后再次校验，并清理竞争窗口内
+                        // cancelOrder/transferOrder 已经判定为失效的回调所创建的零件。
+                        if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
+                            productionPieceService.deleteProductionPiece(piece.getId());
+                            log.warn("删除失效回调竞争生成的生产零件: orderItemId={}, productionPieceId={}, preprocessRequestId={}",
+                                    orderItemId, piece.getProductionPieceId(), callbackIdentity.preprocessRequestId());
+                            return;
+                        }
                         indexProductionPieceImage(piece);
                         resultPieces.add(piece);
                     }
