@@ -910,6 +910,13 @@ public class AppOrderService {
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
         domainOrderInfoService.addOrder(targetOrderInfo);
 
+        // 先让本次转单涉及的旧预处理回调失效，再修改/删除源订单项。否则部分转单时，
+        // addOrderWithItems 发出的回调仍会命中保留下来的源订单项并重新生成零件。
+        for (OrderItem sourceOrderItem : orderItemById.values()) {
+            sourceOrderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+            domainOrderItemService.updateOrderItem(sourceOrderItem);
+        }
+
         List<OrderTransferRecord> transferRecords = new ArrayList<>();
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
