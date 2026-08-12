@@ -7,14 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class CaifuOpenBackA30HNoFilmLayoutBuildServiceTest {
 
     @Test
-    void shouldPlaceBottomBloodMarksEightMillimetersAboveContentBottom() {
-        double expandedHeight = 503D;
+    void shouldPlaceBottomBloodMarksEightMillimetersAboveCurrentCellBottom() {
+        double cellTopY = 120D;
+        double cellHeight = 300D;
         double lineHeight = 5D;
 
         double bottomLineY = CaifuOpenBackA30HNoFilmLayoutBuildService
-                .calculateBottomLineY(expandedHeight, lineHeight);
+                .calculateBottomLineY(cellTopY, cellHeight, lineHeight);
 
-        assertEquals(490D, bottomLineY);
-        assertEquals(8D, expandedHeight - bottomLineY - lineHeight);
+        assertEquals(407D, bottomLineY);
+        assertEquals(8D, cellTopY + cellHeight - bottomLineY - lineHeight);
     }
 }
