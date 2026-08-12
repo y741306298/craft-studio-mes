@@ -134,14 +134,14 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
                     expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
             if (isBlood) {
-                // 下方还有一条与顶部等高的标签带；镜像时必须把它计入版面总高度，
-                // 保证右下角标记距版面下边的距离与右上角标记距版面上边一致。
-                double mirroredLineY = expandedHeight + contentOffsetY - lineY - lineHeight;
-                if (mirroredLineY >= 0 && Math.abs(mirroredLineY - lineY) > 0.0001) {
+                // 右下角标记固定距内容区底边 8 mm，不能按上方标记的位置做镜像，
+                // 否则它会随零件所在的任意高度上下浮动。
+                double bottomLineY = calculateBottomLineY(expandedHeight, lineHeight);
+                if (bottomLineY >= 0 && Math.abs(bottomLineY - lineY) > 0.0001) {
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), mirroredLineY + contentOffsetY));
+                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                 }
             }
         }
@@ -164,6 +164,10 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    static double calculateBottomLineY(double expandedHeight, double lineHeight) {
+        return expandedHeight - ELEMENT_D_OFFSET_Y_MM - lineHeight;
     }
 
     private List<MarkerBand> extractMarkerBands(FormeBuildContext context) {
