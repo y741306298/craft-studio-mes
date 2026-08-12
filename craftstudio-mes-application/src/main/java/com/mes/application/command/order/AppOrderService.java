@@ -28,6 +28,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
+import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
@@ -620,6 +621,7 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
+        saveOrderDailyStatistics(orderInfo, orderItemsResult);
         preOrderLabelTaskService.createFromOrderInfo(orderInfo);
         // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
         List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
@@ -646,7 +648,6 @@ public class AppOrderService {
         for (OrderAddRequest request : requests) {
             orderInfos.add(addOrderWithItems(request));
         }
-        saveOrderDailyStatistics(requests);
         return orderInfos;
     }
 
@@ -664,45 +665,63 @@ public class AppOrderService {
         return orderDailyStatisticsService.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerId, startDate, endDate);
     }
 
-    private void saveOrderDailyStatistics(List<OrderAddRequest> requests) {
-        String manufacturerMetaId = resolveManufacturerMetaId(requests);
+    private void saveOrderDailyStatistics(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        String manufacturerMetaId = resolveManufacturerMetaId(orderInfo, orderItems);
         if (StringUtils.isBlank(manufacturerMetaId)) {
-            log.warn("addOrdersWithItems 跳过订单统计，manufacturerMetaId 为空");
+            log.warn("addOrderWithItems 跳过订单统计，manufacturerMetaId 为空");
             return;
         }
-        BigDecimal totalArea = BigDecimal.ZERO;
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        for (OrderAddRequest request : requests) {
-            OrderInfo orderInfo = request.toOrderInfo();
-            if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
-                totalAmount = totalAmount.add(orderInfo.getPrice().getPaymentPrice());
-            }
-            List<OrderItem> orderItems = request.toOrderItems();
-            for (OrderItem orderItem : orderItems) {
-                totalArea = totalArea.add(calculateOrderItemArea(orderItem));
-            }
+        BigDecimal totalArea = orderItems.stream()
+                .map(this::calculateOrderItemArea)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = orderInfo.getPrice() == null || orderInfo.getPrice().getPaymentPrice() == null
+                ? BigDecimal.ZERO : orderInfo.getPrice().getPaymentPrice();
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, totalArea, totalAmount);
+    }
+
+    private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
+                                          long orderCount, BigDecimal area, BigDecimal amount) {
+        incrementOrderDimension(manufacturerMetaId, manufacturerMetaId, OrderStatisticsType.ENTERPRISE,
+                orderCount, area, amount);
+
+        String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
+                : orderItems.stream().map(OrderItem::getRouteId).filter(StringUtils::isNotBlank).findFirst().orElse(null);
+        if (StringUtils.isNotBlank(routeId)) {
+            incrementOrderDimension(manufacturerMetaId, routeId, OrderStatisticsType.ROUTE,
+                    orderCount, area, amount);
         }
+
+        String materialId = orderItems.stream()
+                .map(OrderItem::getMaterial)
+                .filter(Objects::nonNull)
+                .map(material -> material.getMaterialId())
+                .filter(StringUtils::isNotBlank)
+                .findFirst()
+                .orElse(null);
+        if (StringUtils.isNotBlank(materialId)) {
+            incrementOrderDimension(manufacturerMetaId, materialId, OrderStatisticsType.MATERIAL,
+                    orderCount, area, amount);
+        }
+    }
+
+    private void incrementOrderDimension(String manufacturerMetaId, String indexId, OrderStatisticsType type,
+                                         long orderCount, BigDecimal area, BigDecimal amount) {
         orderDailyStatisticsService.increment(
                 manufacturerMetaId,
                 LocalDate.now(BEIJING_ZONE),
-                requests.size(),
-                scaleStatisticsDecimal(totalArea),
-                scaleStatisticsDecimal(totalAmount));
+                indexId,
+                type,
+                orderCount,
+                scaleStatisticsDecimal(area),
+                scaleStatisticsDecimal(amount));
     }
 
-    private String resolveManufacturerMetaId(List<OrderAddRequest> requests) {
-        for (OrderAddRequest request : requests) {
-            OrderInfo orderInfo = request.toOrderInfo();
-            if (StringUtils.isNotBlank(orderInfo.getManufacturerId())) {
-                return orderInfo.getManufacturerId();
-            }
-            for (OrderItem orderItem : request.toOrderItems()) {
-                if (StringUtils.isNotBlank(orderItem.getManufacturerId())) {
-                    return orderItem.getManufacturerId();
-                }
-            }
+    private String resolveManufacturerMetaId(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        if (StringUtils.isNotBlank(orderInfo.getManufacturerId())) {
+            return orderInfo.getManufacturerId();
         }
-        return null;
+        return orderItems.stream().map(OrderItem::getManufacturerId)
+                .filter(StringUtils::isNotBlank).findFirst().orElse(null);
     }
 
     private BigDecimal calculateOrderItemArea(OrderItem orderItem) {
@@ -935,8 +954,12 @@ public class AppOrderService {
             ));
         }
         orderTransferRecordService.batchAdd(transferRecords);
-        adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), transferredAmount.negate());
-        adjustOrderDailyStatisticsAmount(targetManufacturerMetaId, transferredAmount);
+        List<OrderItem> transferredItems = request.getOrderItemDtos().stream()
+                .map(dto -> orderItemById.get(dto.getOrderItemId())).toList();
+        adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), sourceOrderInfo,
+                transferredItems, transferredAmount.negate());
+        adjustOrderDailyStatisticsAmount(targetManufacturerMetaId, targetOrderInfo,
+                transferredItems, transferredAmount);
 
         return ApiResponse.success("success");
     }
@@ -1073,7 +1096,7 @@ public class AppOrderService {
                         .filter(StringUtils::isNotBlank)
                         .findFirst()
                         .orElse(null);
-        adjustOrderDailyStatisticsAmount(manufacturerMetaId,
+        adjustOrderDailyStatisticsAmount(manufacturerMetaId, orderInfo, orderItems,
                 cancelledAmount == null ? BigDecimal.ZERO : cancelledAmount.negate());
 
         return ApiResponse.success("success");
@@ -1092,16 +1115,13 @@ public class AppOrderService {
                 .divide(BigDecimal.valueOf(sourceQuantity), 8, RoundingMode.HALF_UP);
     }
 
-    private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, BigDecimal amount) {
+    private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, OrderInfo orderInfo,
+                                                  List<OrderItem> orderItems, BigDecimal amount) {
         if (StringUtils.isBlank(manufacturerMetaId) || amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
             return;
         }
-        orderDailyStatisticsService.increment(
-                manufacturerMetaId,
-                LocalDate.now(BEIJING_ZONE),
-                0,
-                BigDecimal.ZERO,
-                scaleStatisticsDecimal(amount));
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems,
+                0, BigDecimal.ZERO, amount);
     }
 
 
