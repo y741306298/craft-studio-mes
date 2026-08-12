@@ -148,6 +148,7 @@ public class AppTypesettingService {
     );
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
+    private static final int DEFAULT_CONTAINER_HEIGHT_INSET_COVER_BOARD_PARTS_MM = 40;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_STANDARD_MM = 28;
     private static final TypesettingLayoutSpecVO DEFAULT_DEVELOPED_SIZE_LAYOUT_SPEC =
             new TypesettingLayoutSpecVO("1200*50000", 1200, 50000);
@@ -2074,7 +2075,7 @@ public class AppTypesettingService {
     }
 
     /**
-     * 在提交算法前扣减 containers.width。
+     * 在提交算法前扣减 container 规格尺寸。
      * <p>兼容仅传前端 cell 的老调用；toLayout 主流程会在按 sourceId 补全 DB 零件/印版后，
      * 调用 {@link #applyToLayoutContainerWidthInset(LayoutConfirmRequest, List, List)}，避免前端未传
      * procedureFlow/materialConfig 时误走默认扣减。</p>
@@ -2087,12 +2088,17 @@ public class AppTypesettingService {
         if (shouldSkipToLayoutContainerWidthInset(layoutMode)) {
             return;
         }
-        applyContainerWidthInset(request, resolveContainerWidthInset(request.getTypesettingCells(), layoutMode));
+        boolean coverBoardProductionPieceOnlyLayout = isCoverBoardProductionPieceOnlyLayout(request.getTypesettingCells());
+        applyContainerSizeInset(
+                request,
+                resolveContainerWidthInset(request.getTypesettingCells(), layoutMode),
+                coverBoardProductionPieceOnlyLayout ? DEFAULT_CONTAINER_HEIGHT_INSET_COVER_BOARD_PARTS_MM : 0
+        );
     }
 
     /**
-     * 在提交算法前，基于已从 DB 补全的零件/印版数据扣减 containers.width。
-     * <p>全部实际来源为零件且存在“覆板”工艺时固定扣减 16mm；其他场景优先按实际来源的
+     * 在提交算法前，基于已从 DB 补全的零件/印版数据扣减 container 规格尺寸。
+     * <p>全部实际来源为零件且存在“覆板”工艺时固定扣减宽度 16mm、高度 40mm；其他场景优先按实际来源的
      * materialId + layoutMode 查询 width 内缩配置，未配置时默认扣减 28mm。</p>
      */
     public void applyToLayoutContainerWidthInset(LayoutConfirmRequest request,
@@ -2105,7 +2111,12 @@ public class AppTypesettingService {
         if (shouldSkipToLayoutContainerWidthInset(layoutMode)) {
             return;
         }
-        applyContainerWidthInset(request, resolveContainerWidthInset(productionPieces, typesettingInfos, layoutMode));
+        boolean coverBoardProductionPieceOnlyLayout = isCoverBoardProductionPieceOnlyLayout(productionPieces, typesettingInfos);
+        applyContainerSizeInset(
+                request,
+                resolveContainerWidthInset(productionPieces, typesettingInfos, layoutMode),
+                coverBoardProductionPieceOnlyLayout ? DEFAULT_CONTAINER_HEIGHT_INSET_COVER_BOARD_PARTS_MM : 0
+        );
     }
 
     private boolean shouldSkipToLayoutContainerWidthInset(TypesettingLayoutMode layoutMode) {
@@ -2115,7 +2126,7 @@ public class AppTypesettingService {
                 || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A30_SMALL_GRAPH == layoutMode;
     }
 
-    private void applyContainerWidthInset(LayoutConfirmRequest request, Integer widthInset) {
+    private void applyContainerSizeInset(LayoutConfirmRequest request, Integer widthInset, Integer heightInset) {
         if (request == null) {
             return;
         }
@@ -2133,7 +2144,17 @@ public class AppTypesettingService {
             if (adjustedWidth <= 0) {
                 throw new IllegalArgumentException("containers.width 扣减内缩值后必须大于0");
             }
+            Integer adjustedHeight = null;
+            if (heightInset != null && heightInset > 0 && container.getHeight() != null) {
+                adjustedHeight = container.getHeight() - heightInset;
+                if (adjustedHeight <= 0) {
+                    throw new IllegalArgumentException("containers.height 扣减内缩值后必须大于0");
+                }
+            }
             container.setWidth(adjustedWidth);
+            if (adjustedHeight != null) {
+                container.setHeight(adjustedHeight);
+            }
         }
     }
 
