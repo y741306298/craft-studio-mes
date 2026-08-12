@@ -1,6 +1,7 @@
 package com.mes.domain.order.orderStatistics.service;
 
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
+import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 import com.mes.domain.order.orderStatistics.repository.OrderDailyStatisticsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,12 +16,16 @@ public class OrderDailyStatisticsService {
 
     public OrderDailyStatistics increment(String manufacturerMetaId,
                                           LocalDate statisticsDate,
+                                          String indexId,
+                                          OrderStatisticsType type,
                                           long orderCount,
                                           BigDecimal area,
                                           BigDecimal amount) {
         return repository.increment(
                 manufacturerMetaId,
                 statisticsDate,
+                indexId,
+                type,
                 orderCount,
                 area == null ? BigDecimal.ZERO : area,
                 amount == null ? BigDecimal.ZERO : amount
@@ -28,12 +33,23 @@ public class OrderDailyStatisticsService {
     }
 
     public OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate) {
-        return repository.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
+        return find(manufacturerMetaId, statisticsDate, manufacturerMetaId, OrderStatisticsType.ENTERPRISE);
+    }
+
+    public OrderDailyStatistics find(String manufacturerMetaId, LocalDate statisticsDate,
+                                     String indexId, OrderStatisticsType type) {
+        return repository.find(manufacturerMetaId, statisticsDate, indexId, type);
     }
 
     public OrderDailyStatistics sumByManufacturerMetaIdAndStatisticsDateBetween(String manufacturerMetaId,
                                                                                 LocalDate startDate,
                                                                                 LocalDate endDate) {
-        return repository.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerMetaId, startDate, endDate);
+        return sum(manufacturerMetaId, startDate, endDate,
+                manufacturerMetaId, OrderStatisticsType.ENTERPRISE);
+    }
+
+    public OrderDailyStatistics sum(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                    String indexId, OrderStatisticsType type) {
+        return repository.sum(manufacturerMetaId, startDate, endDate, indexId, type);
     }
 }

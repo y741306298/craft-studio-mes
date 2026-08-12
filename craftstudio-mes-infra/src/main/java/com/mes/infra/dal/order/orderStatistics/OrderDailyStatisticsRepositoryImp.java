@@ -1,6 +1,7 @@
 package com.mes.infra.dal.order.orderStatistics;
 
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
+import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 import com.mes.domain.order.orderStatistics.repository.OrderDailyStatisticsRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.order.orderStatistics.po.OrderDailyStatisticsPo;
@@ -27,21 +28,23 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
     }
 
     @Override
-    public OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate) {
+    public OrderDailyStatistics find(String manufacturerMetaId, LocalDate statisticsDate,
+                                     String indexId, OrderStatisticsType type) {
         OrderDailyStatisticsPo po = mongoTemplate.findOne(
                 new SoftDeleteQuery(Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
-                        .and("statisticsDate").is(statisticsDate)),
+                        .and("statisticsDate").is(statisticsDate)
+                        .and("indexId").is(indexId).and("type").is(type)),
                 poClass()
         );
         return po == null ? null : po.toDO();
     }
 
     @Override
-    public OrderDailyStatistics sumByManufacturerMetaIdAndStatisticsDateBetween(String manufacturerMetaId,
-                                                                                LocalDate startDate,
-                                                                                LocalDate endDate) {
+    public OrderDailyStatistics sum(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                    String indexId, OrderStatisticsType type) {
         Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
                 .and("statisticsDate").gte(startDate).lte(endDate)
+                .and("indexId").is(indexId).and("type").is(type)
                 .and("deleteAt").is(null);
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
@@ -62,6 +65,8 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
         OrderDailyStatistics statistics = po.toDO();
         statistics.setManufacturerMetaId(manufacturerMetaId);
         statistics.setStatisticsDate(startDate);
+        statistics.setIndexId(indexId);
+        statistics.setType(type);
         statistics.setTotalArea(scaleStatisticsDecimal(statistics.getTotalArea()));
         statistics.setTotalAmount(scaleStatisticsDecimal(statistics.getTotalAmount()));
         return statistics;
@@ -74,15 +79,20 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
     @Override
     public OrderDailyStatistics increment(String manufacturerMetaId,
                                           LocalDate statisticsDate,
+                                          String indexId,
+                                          OrderStatisticsType type,
                                           long orderCount,
                                           BigDecimal area,
                                           BigDecimal amount) {
         Date now = new Date();
         Query query = new SoftDeleteQuery(Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
-                .and("statisticsDate").is(statisticsDate));
+                .and("statisticsDate").is(statisticsDate)
+                .and("indexId").is(indexId).and("type").is(type));
         Update update = new Update()
                 .setOnInsert("manufacturerMetaId", manufacturerMetaId)
                 .setOnInsert("statisticsDate", statisticsDate)
+                .setOnInsert("indexId", indexId)
+                .setOnInsert("type", type)
                 .setOnInsert("createTime", now)
                 .set("updateTime", now)
                 .inc("totalOrderCount", orderCount)
