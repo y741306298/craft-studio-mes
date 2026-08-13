@@ -9,6 +9,8 @@ import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsMaterialVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsDimensionVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
@@ -21,10 +23,13 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
@@ -97,6 +102,9 @@ public class AppOrderService {
 
     @Autowired
     private OrderDailyStatisticsService orderDailyStatisticsService;
+
+    @Autowired
+    private DeliveryRouteRepository deliveryRouteRepository;
 
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -282,88 +290,60 @@ public class AppOrderService {
                                                      String materialType,
                                                      String orgName,
                                                      PagedQuery pagedQuery) {
-        if (pagedQuery == null) {
-            throw new IllegalArgumentException("分页参数不能为空");
+        if (pagedQuery == null || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
+            throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
         }
-        if (pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
-            throw new IllegalArgumentException("每页大小必须在 1-100 之间");
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerId", manufacturerId);
+        if (StringUtils.isNotBlank(orderId)) filters.put("orderId_like", orderId.trim());
+        if (status != null) filters.put("status", status.getCode());
+        if (startTime != null) filters.put("createTime_gte", startTime);
+        if (endTime != null) filters.put("createTime_lte", endTime);
+        if (StringUtils.isNotBlank(routeId)) filters.put("routeId", routeId);
+        if (StringUtils.isNotBlank(materialId)) filters.put("material.materialId", materialId);
+        if (StringUtils.isNotBlank(materialName)) filters.put("material.materialSnapshot.name_like", materialName);
+        if (StringUtils.isNotBlank(materialType)) filters.put("material.materialType", materialType);
+        if (StringUtils.isNotBlank(orgName)) filters.put("orgInfo.name", orgName);
+
+        List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
+                (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
+        long total = domainOrderItemService.filterTotal(filters);
+        List<OrderStatisticsItemVO> pageItems = orderItems.stream()
+                .map(item -> new OrderStatisticsItemVO(item.getOrderId(),
+                        item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice(),
+                        item.getCreateTime()))
+                .toList();
+
+        OrderDailyStatistics totals = findPersistedStatisticsTotals(
+                manufacturerId, startTime, endTime, routeId, materialId, orgName);
+        return new OrderStatisticsListVO(pageItems, total,
+                totals == null ? 0L : totals.getTotalOrderCount(),
+                totals == null ? BigDecimal.ZERO : totals.getTotalArea(),
+                totals == null ? BigDecimal.ZERO : totals.getTotalAmount(),
+                List.of(), buildOrderStatisticsStatusList(), List.of());
+    }
+
+    private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerId, Date startTime, Date endTime,
+                                                                String routeId, String materialId, String orgName) {
+        if (StringUtils.isBlank(manufacturerId) || startTime == null || endTime == null) return null;
+        String indexId;
+        OrderStatisticsType type;
+        if (StringUtils.isNotBlank(materialId)) {
+            indexId = materialId;
+            type = OrderStatisticsType.MATERIAL;
+        } else if (StringUtils.isNotBlank(routeId)) {
+            indexId = routeId;
+            type = OrderStatisticsType.ROUTE;
+        } else if (StringUtils.isNotBlank(orgName)) {
+            indexId = orgName;
+            type = OrderStatisticsType.ENTERPRISE;
+        } else {
+            indexId = null;
+            type = OrderStatisticsType.ENTERPRISE;
         }
-
-        List<OrderInfo> orders = findStatisticOrders(orderId, status, startTime, endTime, routeId);
-        LinkedHashMap<String, OrderStatisticsMaterialVO> materialMap = new LinkedHashMap<>();
-        Set<String> orgNames = new LinkedHashSet<>();
-        LinkedHashMap<String, OrderStatisticsItemVO> orderMap = new LinkedHashMap<>();
-        BigDecimal totalArea = BigDecimal.ZERO;
-        BigDecimal totalAmount = BigDecimal.ZERO;
-
-        for (OrderInfo order : orders) {
-            if (order == null || StringUtils.isBlank(order.getOrderId())) {
-                continue;
-            }
-            if (StringUtils.isNotBlank(manufacturerId) && !manufacturerId.equals(order.getManufacturerId())) {
-                continue;
-            }
-            if (order.getOrgInfo() != null && StringUtils.isNotBlank(order.getOrgInfo().getName())) {
-                orgNames.add(order.getOrgInfo().getName());
-            }
-            if (StringUtils.isNotBlank(orgName)
-                    && (order.getOrgInfo() == null
-                    || StringUtils.isBlank(order.getOrgInfo().getName())
-                    || !order.getOrgInfo().getName().contains(orgName.trim()))) {
-                continue;
-            }
-            List<OrderItem> orderItems = findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, null);
-            for (OrderItem item : orderItems) {
-                if (item == null) {
-                    continue;
-                }
-                collectMaterial(materialMap, item.getMaterial());
-            }
-
-            List<OrderItem> matchedItems = StringUtils.isBlank(materialId)
-                    ? orderItems
-                    : findAllOrderItemsByOrder(order.getOrderId(), manufacturerId, materialId);
-            boolean matchedOrder = false;
-            for (OrderItem item : matchedItems) {
-                if (item == null) {
-                    continue;
-                }
-                matchedOrder = true;
-                totalArea = totalArea.add(calculateOrderItemArea(item));
-            }
-            if (!matchedOrder) {
-                continue;
-            }
-            BigDecimal paymentPrice = BigDecimal.ZERO;
-            if (order.getPrice() != null && order.getPrice().getPaymentPrice() != null) {
-                paymentPrice = order.getPrice().getPaymentPrice();
-            }
-            BigDecimal scaledPaymentPrice = scaleStatisticsDecimal(paymentPrice);
-            totalAmount = totalAmount.add(scaledPaymentPrice);
-            orderMap.put(order.getOrderId(), new OrderStatisticsItemVO(
-                    order.getOrderId(),
-                    scaledPaymentPrice,
-                    order.getCreateTime()));
-        }
-
-        List<OrderStatisticsItemVO> allOrders = new ArrayList<>(orderMap.values());
-        allOrders.sort(Comparator.comparing(OrderStatisticsItemVO::getCreateTime,
-                Comparator.nullsLast(Comparator.reverseOrder())));
-
-        long total = allOrders.size();
-        int fromIndex = (int) Math.min(Math.max((pagedQuery.getCurrent() - 1) * pagedQuery.getSize(), 0), total);
-        int toIndex = (int) Math.min(fromIndex + pagedQuery.getSize(), total);
-        List<OrderStatisticsItemVO> pageItems = allOrders.subList(fromIndex, toIndex);
-
-        return new OrderStatisticsListVO(
-                pageItems,
-                total,
-                total,
-                scaleStatisticsDecimal(totalArea),
-                scaleStatisticsDecimal(totalAmount),
-                new ArrayList<>(materialMap.values()),
-                buildOrderStatisticsStatusList(),
-                new ArrayList<>(orgNames));
+        return orderDailyStatisticsService.sum(manufacturerId,
+                startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
+                endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(), indexId, type);
     }
 
     private List<OrderStatisticsStatusVO> buildOrderStatisticsStatusList() {
@@ -665,6 +645,32 @@ public class AppOrderService {
         return orderDailyStatisticsService.sumByManufacturerMetaIdAndStatisticsDateBetween(manufacturerId, startDate, endDate);
     }
 
+    public OrderStatisticsFiltersVO findOrderStatisticsFilters(String manufacturerId,
+                                                                LocalDate startDate,
+                                                                LocalDate endDate) {
+        if (StringUtils.isBlank(manufacturerId) || startDate == null || endDate == null) {
+            throw new IllegalArgumentException("工厂和统计日期不能为空");
+        }
+        Map<OrderStatisticsType, LinkedHashMap<String, String>> dimensions = new HashMap<>();
+        for (OrderDailyStatistics statistics : orderDailyStatisticsService.list(manufacturerId, startDate, endDate)) {
+            if (statistics.getType() == null || StringUtils.isBlank(statistics.getIndexId())) {
+                continue;
+            }
+            dimensions.computeIfAbsent(statistics.getType(), ignored -> new LinkedHashMap<>())
+                    .putIfAbsent(statistics.getIndexId(), statistics.getIndexName());
+        }
+        return new OrderStatisticsFiltersVO(
+                toDimensionVOs(dimensions.get(OrderStatisticsType.ENTERPRISE)),
+                toDimensionVOs(dimensions.get(OrderStatisticsType.MATERIAL)),
+                toDimensionVOs(dimensions.get(OrderStatisticsType.ROUTE)));
+    }
+
+    private List<OrderStatisticsDimensionVO> toDimensionVOs(Map<String, String> values) {
+        if (values == null) return List.of();
+        return values.entrySet().stream()
+                .map(entry -> new OrderStatisticsDimensionVO(entry.getKey(), entry.getValue())).toList();
+    }
+
     private void saveOrderDailyStatistics(OrderInfo orderInfo, List<OrderItem> orderItems) {
         String manufacturerMetaId = resolveManufacturerMetaId(orderInfo, orderItems);
         if (StringUtils.isBlank(manufacturerMetaId)) {
@@ -674,42 +680,56 @@ public class AppOrderService {
         BigDecimal totalArea = orderItems.stream()
                 .map(this::calculateOrderItemArea)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAmount = orderInfo.getPrice() == null || orderInfo.getPrice().getPaymentPrice() == null
-                ? BigDecimal.ZERO : orderInfo.getPrice().getPaymentPrice();
+        BigDecimal totalAmount = calculateStatisticsAmount(orderInfo);
         incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, totalArea, totalAmount);
     }
 
     private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
                                           long orderCount, BigDecimal area, BigDecimal amount) {
-        incrementOrderDimension(manufacturerMetaId, manufacturerMetaId, OrderStatisticsType.ENTERPRISE,
-                orderCount, area, amount);
-
-        String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
-                : orderItems.stream().map(OrderItem::getRouteId).filter(StringUtils::isNotBlank).findFirst().orElse(null);
-        if (StringUtils.isNotBlank(routeId)) {
-            incrementOrderDimension(manufacturerMetaId, routeId, OrderStatisticsType.ROUTE,
-                    orderCount, area, amount);
-        }
-
-        String materialId = orderItems.stream()
-                .map(OrderItem::getMaterial)
+        Set<String> enterpriseNames = orderItems.stream()
+                .map(OrderItem::getOrgInfo)
                 .filter(Objects::nonNull)
-                .map(material -> material.getMaterialId())
+                .map(orgInfo -> orgInfo.getName())
                 .filter(StringUtils::isNotBlank)
-                .findFirst()
-                .orElse(null);
-        if (StringUtils.isNotBlank(materialId)) {
-            incrementOrderDimension(manufacturerMetaId, materialId, OrderStatisticsType.MATERIAL,
-                    orderCount, area, amount);
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (enterpriseNames.isEmpty() && orderInfo.getOrgInfo() != null
+                && StringUtils.isNotBlank(orderInfo.getOrgInfo().getName())) {
+            enterpriseNames.add(orderInfo.getOrgInfo().getName());
         }
+        enterpriseNames.forEach(enterpriseName -> incrementOrderDimension(manufacturerMetaId, enterpriseName, enterpriseName,
+                OrderStatisticsType.ENTERPRISE, orderCount, area, amount));
+
+        orderItems.stream()
+                .map(OrderItem::getRouteId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .forEach(routeId -> incrementOrderDimension(manufacturerMetaId, routeId, resolveRouteName(routeId),
+                        OrderStatisticsType.ROUTE, orderCount, area, amount));
+
+        LinkedHashMap<String, String> materials = new LinkedHashMap<>();
+        orderItems.stream().map(OrderItem::getMaterial).filter(Objects::nonNull).forEach(material -> {
+            if (StringUtils.isNotBlank(material.getMaterialId())) {
+                Object snapshotName = invokeGetter(invokeGetter(material, "getMaterialSnapshot"), "getName");
+                materials.putIfAbsent(material.getMaterialId(), snapshotName == null ? null : snapshotName.toString());
+            }
+        });
+        materials.forEach((materialId, materialName) -> incrementOrderDimension(manufacturerMetaId, materialId,
+                materialName, OrderStatisticsType.MATERIAL, orderCount, area, amount));
     }
 
-    private void incrementOrderDimension(String manufacturerMetaId, String indexId, OrderStatisticsType type,
+    private String resolveRouteName(String routeId) {
+        DeliveryRoute route = deliveryRouteRepository.findByRouteId(routeId);
+        return route == null ? null : route.getRouteName();
+    }
+
+    private void incrementOrderDimension(String manufacturerMetaId, String indexId, String indexName,
+                                         OrderStatisticsType type,
                                          long orderCount, BigDecimal area, BigDecimal amount) {
         orderDailyStatisticsService.increment(
                 manufacturerMetaId,
                 LocalDate.now(BEIJING_ZONE),
                 indexId,
+                indexName,
                 type,
                 orderCount,
                 scaleStatisticsDecimal(area),
@@ -904,7 +924,8 @@ public class AppOrderService {
 
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
-            transferredAmount = transferredAmount.add(calculateTransferredAmount(orderItem, itemDto.getQuantity()));
+            transferredAmount = transferredAmount.add(calculateTransferredAmount(
+                    sourceOrderInfo, orderItem, itemDto.getQuantity()));
         }
 
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
@@ -1093,9 +1114,7 @@ public class AppOrderService {
             }
         }
 
-        BigDecimal cancelledAmount = orderInfo.getPrice() == null
-                ? BigDecimal.ZERO
-                : orderInfo.getPrice().getPaymentPrice();
+        BigDecimal cancelledAmount = calculateStatisticsAmount(orderInfo);
         String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
                 ? orderInfo.getManufacturerId()
                 : orderItems.stream()
@@ -1109,17 +1128,42 @@ public class AppOrderService {
         return ApiResponse.success("success");
     }
 
-    private BigDecimal calculateTransferredAmount(OrderItem orderItem, int transferQuantity) {
-        if (orderItem.getPrice() == null || orderItem.getPrice().getActualPrice() == null) {
-            return BigDecimal.ZERO;
-        }
+    private BigDecimal calculateTransferredAmount(OrderInfo orderInfo, OrderItem orderItem, int transferQuantity) {
         int sourceQuantity = safeQuantity(orderItem.getQuantity());
         if (sourceQuantity <= 0) {
             return BigDecimal.ZERO;
         }
-        return orderItem.getPrice().getActualPrice()
+        return calculateStatisticsAmount(orderInfo)
                 .multiply(BigDecimal.valueOf(transferQuantity))
                 .divide(BigDecimal.valueOf(sourceQuantity), 8, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Uses the floor-price snapshot only when the manifest is non-empty and every
+     * item contains a floor price. An incomplete manifest must never result in a
+     * partially calculated amount, so it falls back to the captured payment price.
+     */
+    BigDecimal calculateStatisticsAmount(OrderInfo orderInfo) {
+        if (orderInfo == null) {
+            return BigDecimal.ZERO;
+        }
+        ManufacturerInfo manufacturerInfo = orderInfo.getManufacturerInfo();
+        if (manufacturerInfo != null && manufacturerInfo.getFloorPriceEffectManifest() != null) {
+            List<ManufacturerInfo.FloorPriceEffectItem> items =
+                    manufacturerInfo.getFloorPriceEffectManifest().getFloorPriceEffectItems();
+            if (items != null && !items.isEmpty() && items.stream().allMatch(
+                    item -> item != null && item.getFloorPrice() != null)) {
+                return items.stream()
+                        .map(ManufacturerInfo.FloorPriceEffectItem::getFloorPrice)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            }
+        }
+        if (manufacturerInfo != null && manufacturerInfo.getPrice() != null
+                && manufacturerInfo.getPrice().getPaymentPrice() != null) {
+            return manufacturerInfo.getPrice().getPaymentPrice();
+        }
+        return orderInfo.getPrice() == null || orderInfo.getPrice().getPaymentPrice() == null
+                ? BigDecimal.ZERO : orderInfo.getPrice().getPaymentPrice();
     }
 
     private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, OrderInfo orderInfo,
