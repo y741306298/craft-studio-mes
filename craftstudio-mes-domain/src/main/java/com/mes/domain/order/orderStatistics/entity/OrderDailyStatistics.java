@@ -13,6 +13,7 @@ public class OrderDailyStatistics extends BaseEntity {
     private String manufacturerMetaId;
     private LocalDate statisticsDate;
     private String indexId;
+    private String indexName;
     private OrderStatisticsType type;
     private Long totalOrderCount;
     private BigDecimal totalArea;

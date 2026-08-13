@@ -59,6 +59,7 @@ public class OrderAddRequest {
         orderInfo.setChannel(channel);
         orderInfo.setLogisticsCarrierInfo(logisticsCarrierInfo);
         if (manufacturerInfo != null) {
+            orderInfo.setManufacturerInfo(manufacturerInfo.toManufacturerInfo());
             orderInfo.setManufacturerId(manufacturerInfo.getId());
             orderInfo.setManufacturerName(manufacturerInfo.getName());
         }
@@ -100,5 +101,4 @@ public class OrderAddRequest {
     }
 
 }
-
 

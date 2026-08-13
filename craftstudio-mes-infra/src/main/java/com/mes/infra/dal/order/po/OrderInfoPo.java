@@ -4,6 +4,7 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
 import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
@@ -33,6 +34,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
     private String paymentState;
     private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
+    private ManufacturerInfo manufacturerInfo;
     private String manufacturerId;
     private String manufacturerName;
     private String kuaidiNum;
@@ -59,6 +61,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         orderInfo.setPaymentState(this.paymentState);
         orderInfo.setChannel(this.channel);
         orderInfo.setLogisticsCarrierInfo(this.logisticsCarrierInfo);
+        orderInfo.setManufacturerInfo(this.manufacturerInfo);
         orderInfo.setManufacturerId(this.manufacturerId);
         orderInfo.setManufacturerName(this.manufacturerName);
         orderInfo.setKuaidiNum(this.kuaidiNum);
@@ -86,6 +89,7 @@ public class OrderInfoPo extends BasePO<OrderInfo> {
         this.paymentState = _do.getPaymentState();
         this.channel = _do.getChannel();
         this.logisticsCarrierInfo = _do.getLogisticsCarrierInfo();
+        this.manufacturerInfo = _do.getManufacturerInfo();
         this.manufacturerId = _do.getManufacturerId();
         this.manufacturerName = _do.getManufacturerName();
         this.kuaidiNum = _do.getKuaidiNum();

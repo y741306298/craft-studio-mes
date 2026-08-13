@@ -6,6 +6,7 @@ import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 public interface OrderDailyStatisticsRepository extends BaseRepository<OrderDailyStatistics> {
     OrderDailyStatistics find(String manufacturerMetaId, LocalDate statisticsDate,
@@ -17,8 +18,11 @@ public interface OrderDailyStatisticsRepository extends BaseRepository<OrderDail
     OrderDailyStatistics increment(String manufacturerMetaId,
                                    LocalDate statisticsDate,
                                    String indexId,
+                                   String indexName,
                                    OrderStatisticsType type,
                                    long orderCount,
                                    BigDecimal area,
                                    BigDecimal amount);
+
+    List<OrderDailyStatistics> list(String manufacturerMetaId, LocalDate startDate, LocalDate endDate);
 }

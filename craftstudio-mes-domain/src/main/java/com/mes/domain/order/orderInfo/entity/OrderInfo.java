@@ -6,6 +6,7 @@ import com.mes.domain.delivery.deliveryNet.enums.DeliveryWayNUM;
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
 import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.OrderCustomer;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
@@ -36,6 +37,8 @@ public class OrderInfo extends BaseEntity {
     private String paymentState;
     private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
+    private ManufacturerInfo manufacturerInfo;
+    /** @deprecated use {@link #manufacturerInfo}; retained for existing queries. */
     private String manufacturerId;
     private String manufacturerName;
 

@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.Date;
+import java.util.List;
 
 @Repository
 public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDailyStatistics, OrderDailyStatisticsPo>
@@ -44,8 +45,11 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
                                     String indexId, OrderStatisticsType type) {
         Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
                 .and("statisticsDate").gte(startDate).lte(endDate)
-                .and("indexId").is(indexId).and("type").is(type)
+                .and("type").is(type)
                 .and("deleteAt").is(null);
+        if (indexId != null) {
+            criteria.and("indexId").is(indexId);
+        }
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
                 Aggregation.group()
@@ -80,6 +84,7 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
     public OrderDailyStatistics increment(String manufacturerMetaId,
                                           LocalDate statisticsDate,
                                           String indexId,
+                                          String indexName,
                                           OrderStatisticsType type,
                                           long orderCount,
                                           BigDecimal area,
@@ -92,6 +97,7 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
                 .setOnInsert("manufacturerMetaId", manufacturerMetaId)
                 .setOnInsert("statisticsDate", statisticsDate)
                 .setOnInsert("indexId", indexId)
+                .set("indexName", indexName)
                 .setOnInsert("type", type)
                 .setOnInsert("createTime", now)
                 .set("updateTime", now)
@@ -105,5 +111,14 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
                 poClass()
         );
         return po == null ? null : po.toDO();
+    }
+
+    @Override
+    public List<OrderDailyStatistics> list(String manufacturerMetaId, LocalDate startDate, LocalDate endDate) {
+        Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("statisticsDate").gte(startDate).lte(endDate)
+                .and("deleteAt").is(null);
+        return mongoTemplate.find(new Query(criteria), poClass()).stream()
+                .map(OrderDailyStatisticsPo::toDO).toList();
     }
 }
