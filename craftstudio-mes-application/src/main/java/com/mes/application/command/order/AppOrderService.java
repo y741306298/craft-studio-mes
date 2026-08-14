@@ -55,17 +55,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -324,7 +314,7 @@ public class AppOrderService {
     }
 
     private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerId, Date startTime, Date endTime,
-                                                                String routeId, String materialId, String orgName) {
+                                                               String routeId, String materialId, String orgName) {
         if (StringUtils.isBlank(manufacturerId) || startTime == null || endTime == null) return null;
         String indexId;
         OrderStatisticsType type;
