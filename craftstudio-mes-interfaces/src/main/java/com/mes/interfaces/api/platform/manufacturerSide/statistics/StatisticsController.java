@@ -1,9 +1,12 @@
 package com.mes.interfaces.api.platform.manufacturerSide.statistics;
 
 import com.mes.application.command.order.AppOrderService;
-import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
+import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
+import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
+import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -34,7 +37,7 @@ public class StatisticsController {
      * <p>返回订单维度的基础信息，并按查询到的订单项实时汇总总订单数、总面积和总金额。</p>
      */
     @PostMapping("/order/list")
-    public PagedApiResponse<OrderStatisticsItemVO> listOrderStatistics(
+    public PagedApiResponse<OrderItemVO> listOrderStatistics(
             @Valid @RequestBody OrderStatisticsListRequest request) {
         OrderStatisticsListVO result = appOrderService.findOrderStatistics(
                 request.getManufacturerId(),
@@ -50,7 +53,7 @@ public class StatisticsController {
                 request.toPagedQuery());
 
         PagedQuery query = request.toPagedQuery();
-        PagedApiResponse<OrderStatisticsItemVO> response = PagedApiResponse.success(
+        PagedApiResponse<OrderItemVO> response = PagedApiResponse.success(
                 result.getItems(),
                 query.getCurrent(),
                 query.getSize(),
@@ -62,6 +65,27 @@ public class StatisticsController {
         response.getData().setStatusList(result.getStatusList());
         response.getData().setOrgNameList(result.getOrgNameList());
         return response;
+    }
+
+    /** Returns the distinct enterprise, material and route dimensions recorded in the period. */
+    @PostMapping("/order/filters")
+    public ApiResponse<OrderStatisticsFiltersVO> listOrderStatisticsFilters(
+            @Valid @RequestBody OrderStatisticsFiltersRequest request) {
+        LocalDate startDate = parseLocalDate(request.getCreateDateStart(), "开始日期");
+        LocalDate endDate = parseLocalDate(request.getCreateDateEnd(), "结束日期");
+        return ApiResponse.success(appOrderService.findOrderStatisticsFilters(
+                request.getManufacturerId(), startDate, endDate));
+    }
+
+    private LocalDate parseLocalDate(String date, String fieldName) {
+        if (date == null || date.trim().isEmpty()) {
+            throw new IllegalArgumentException(fieldName + "不能为空");
+        }
+        try {
+            return LocalDate.parse(date);
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException(fieldName + "格式错误，应为 yyyy-MM-dd");
+        }
     }
 
     private OrderStatus resolveStatus(String status) {

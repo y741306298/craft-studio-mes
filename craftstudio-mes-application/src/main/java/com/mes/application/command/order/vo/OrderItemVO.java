@@ -21,4 +21,10 @@ public class OrderItemVO extends OrderItem {
      */
     private BigDecimal paymentPrice;
 
+    /** 按底价清单/支付价回退规则计算的实际统计金额。 */
+    private BigDecimal orderItemPrice;
+
+    /** 订单项 routeId 对应的配送路线名称。 */
+    private String routeName;
+
 }

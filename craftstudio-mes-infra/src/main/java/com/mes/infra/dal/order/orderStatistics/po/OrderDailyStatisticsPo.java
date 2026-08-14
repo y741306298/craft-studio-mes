@@ -19,6 +19,7 @@ public class OrderDailyStatisticsPo extends BasePO<OrderDailyStatistics> {
     private String manufacturerMetaId;
     private LocalDate statisticsDate;
     private String indexId;
+    private String indexName;
     private OrderStatisticsType type;
     private Long totalOrderCount;
     private BigDecimal totalArea;
@@ -31,6 +32,7 @@ public class OrderDailyStatisticsPo extends BasePO<OrderDailyStatistics> {
         statistics.setManufacturerMetaId(manufacturerMetaId);
         statistics.setStatisticsDate(statisticsDate);
         statistics.setIndexId(indexId);
+        statistics.setIndexName(indexName);
         statistics.setType(type);
         statistics.setTotalOrderCount(totalOrderCount);
         statistics.setTotalArea(totalArea);
@@ -43,6 +45,7 @@ public class OrderDailyStatisticsPo extends BasePO<OrderDailyStatistics> {
         this.manufacturerMetaId = statistics.getManufacturerMetaId();
         this.statisticsDate = statistics.getStatisticsDate();
         this.indexId = statistics.getIndexId();
+        this.indexName = statistics.getIndexName();
         this.type = statistics.getType();
         this.totalOrderCount = statistics.getTotalOrderCount();
         this.totalArea = statistics.getTotalArea();

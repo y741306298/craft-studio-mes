@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.stream.Collectors;
 
 @Repository
@@ -83,5 +84,14 @@ public class DeliveryRouteRepositoryImp extends BaseRepositoryImp<DeliveryRoute,
         Query query = new Query(criteria);
         DeliveryRoutePo po = mongoTemplate.findOne(query, poClass());
         return po != null ? po.toDO() : null;
+    }
+
+    @Override
+    public List<DeliveryRoute> findByRouteIds(Collection<String> routeIds) {
+        if (routeIds == null || routeIds.isEmpty()) {
+            return List.of();
+        }
+        Query query = new Query(Criteria.where("routeId").in(routeIds).and("deleteAt").is(null));
+        return mongoTemplate.find(query, poClass()).stream().map(DeliveryRoutePo::toDO).toList();
     }
 }

@@ -1,5 +1,6 @@
 package com.mes.application.command.statistics.vo;
 
+import com.mes.application.command.order.vo.OrderItemVO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -11,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderStatisticsListVO {
-    private List<OrderStatisticsItemVO> items;
+    private List<OrderItemVO> items;
     private long total;
     private Long totalOrderCount;
     private BigDecimal totalArea;
