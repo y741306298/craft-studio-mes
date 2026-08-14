@@ -51,6 +51,9 @@ class AppOrderServiceStatisticsRouteTest {
 
         assertEquals(List.of("城区路线", "城区路线"), result.getItems().stream()
                 .map(item -> item.getRouteName()).toList());
+        assertEquals("ORDER_ITEM_ORDER_1", result.getItems().getFirst().getOrderItemId());
+        assertEquals("ROUTE_1", result.getItems().getFirst().getRouteId());
+        assertEquals(1, result.getItems().getFirst().getQuantity());
         verify(routeRepository).findByRouteIds(org.mockito.ArgumentMatchers.argThat(
                 (Collection<String> ids) -> ids.size() == 1 && ids.contains("ROUTE_1")));
         verify(routeRepository, never()).findByRouteId(any());
@@ -58,8 +61,10 @@ class AppOrderServiceStatisticsRouteTest {
 
     private OrderItem orderItem(String orderId, String routeId) {
         OrderItem item = new OrderItem();
+        item.setOrderItemId("ORDER_ITEM_" + orderId);
         item.setOrderId(orderId);
         item.setRouteId(routeId);
+        item.setQuantity(1);
         return item;
     }
 }

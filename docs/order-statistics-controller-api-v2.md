@@ -153,12 +153,36 @@ Content-Type: application/json
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `data.items` | array | 当前页匹配的订单项投影结果；同一订单有多个匹配订单项时，`orderId` 可能重复 |
+| `data.items` | array | 当前页匹配的完整订单项；包含 `OrderItem` 的全部基础字段及统计接口扩展字段，同一订单有多个匹配订单项时，`orderId` 可能重复 |
+| `data.items[].id` | string/null | 订单项数据库 ID |
+| `data.items[].orderItemId` | string/null | 订单项业务 ID |
 | `data.items[].orderId` | string | 订单号 |
+| `data.items[].manufacturerId` | string/null | 订单项所属工厂 ID |
+| `data.items[].mtoProduct` | object/null | 定制产品规格 |
+| `data.items[].logisticsCarrierInfo` | object/null | 物流承运信息 |
+| `data.items[].material` | object/null | 材料配置 |
+| `data.items[].procedureFlow` | object/null | 工艺流程 |
+| `data.items[].quantity` | integer/null | 数量 |
+| `data.items[].status` | string/null | 订单项状态 |
+| `data.items[].isUrgent` | boolean/null | 是否加急 |
+| `data.items[].processingFlow` | string/null | 当前处理流程 |
+| `data.items[].productionImgFile` | object/null | 生产图文件 |
+| `data.items[].maskImgFile` | object/null | 蒙版图文件 |
+| `data.items[].failureReason` | string/null | 失败原因 |
+| `data.items[].preprocessRequestId` | string/null | 当前预处理请求 ID |
+| `data.items[].kuaidiWay` | string/null | 快递方式 |
+| `data.items[].kuaidiNum` | string/null | 快递单号 |
+| `data.items[].channel` | object/null | 订单渠道信息 |
+| `data.items[].routeId` | string/null | 配送路线 ID |
 | `data.items[].routeName` | string/null | 当前订单项 `routeId` 对应的路线名称；服务端按当前页路线 ID 批量查询，路线不存在或已删除时为空 |
+| `data.items[].routeNodeId` | string/null | 配送路线节点 ID |
+| `data.items[].productionPieces` | array/null | 生产件集合 |
+| `data.items[].price` | object/null | 订单项价格信息 |
+| `data.items[].orgInfo` | object/null | 下单企业信息 |
 | `data.items[].paymentPrice` | number/null | 当前订单项的 `price.actualPrice`；字段名为兼容既有响应而保留 |
 | `data.items[].orderItemPrice` | number | 该订单项所属订单实际参与日统计的价格：优先使用完整底价清单之和，否则使用快照支付价 |
 | `data.items[].createTime` | string/null | 订单项创建时间 |
+| `data.items[].updateTime` | string/null | 订单项更新时间 |
 | `data.current` | integer | 当前页 |
 | `data.size` | integer | 每页数量 |
 | `data.total` | integer | 符合明细条件的订单项总数 |
@@ -180,11 +204,19 @@ Content-Type: application/json
   "data": {
     "items": [
       {
+        "id": "68a000000000000000000001",
+        "orderItemId": "OI_2070082974454358018_1",
         "orderId": "2070082974454358018",
+        "manufacturerId": "69f956c00ff1ad90a9611464",
+        "quantity": 1,
+        "status": "PENDING",
+        "isUrgent": false,
+        "routeId": "ROUTE_001",
         "routeName": "常德城区路线",
         "paymentPrice": 1.08,
         "orderItemPrice": 1.00,
-        "createTime": "2026-06-25T09:53:36.000+00:00"
+        "createTime": "2026-06-25 17:53:36",
+        "updateTime": "2026-06-25 17:53:36"
       }
     ],
     "current": 1,
