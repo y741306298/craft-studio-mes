@@ -308,9 +308,16 @@ public class AppOrderService {
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
         long total = domainOrderItemService.filterTotal(filters);
+        Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
+                        .map(OrderItem::getOrderId)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .stream()
+                .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
         List<OrderStatisticsItemVO> pageItems = orderItems.stream()
                 .map(item -> new OrderStatisticsItemVO(item.getOrderId(),
                         item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice(),
+                        calculateStatisticsAmount(orderInfoByOrderId.get(item.getOrderId())),
                         item.getCreateTime()))
                 .toList();
 

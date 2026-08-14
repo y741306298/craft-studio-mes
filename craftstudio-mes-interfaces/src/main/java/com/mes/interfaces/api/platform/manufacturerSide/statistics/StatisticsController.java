@@ -6,6 +6,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
+import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
@@ -69,7 +70,7 @@ public class StatisticsController {
     /** Returns the distinct enterprise, material and route dimensions recorded in the period. */
     @PostMapping("/order/filters")
     public ApiResponse<OrderStatisticsFiltersVO> listOrderStatisticsFilters(
-            @Valid @RequestBody OrderStatisticsListRequest request) {
+            @Valid @RequestBody OrderStatisticsFiltersRequest request) {
         LocalDate startDate = parseLocalDate(request.getCreateDateStart(), "开始日期");
         LocalDate endDate = parseLocalDate(request.getCreateDateEnd(), "结束日期");
         return ApiResponse.success(appOrderService.findOrderStatisticsFilters(

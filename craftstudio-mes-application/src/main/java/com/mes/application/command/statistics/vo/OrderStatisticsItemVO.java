@@ -13,5 +13,7 @@ import java.util.Date;
 public class OrderStatisticsItemVO {
     private String orderId;
     private BigDecimal paymentPrice;
+    /** The snapshot amount that actually participates in daily statistics. */
+    private BigDecimal orderItemPrice;
     private Date createTime;
 }
