@@ -131,8 +131,8 @@ Content-Type: application/json
 | `orderId` | string | 否 | 订单号模糊匹配 |
 | `status` | string | 否 | 订单状态码或 `OrderStatus` 枚举名 |
 | `routeId` | string | 否 | 精确匹配订单项 `routeId`，并选择路线统计维度 |
-| `createDateStart` | string | 汇总时是 | 开始日期；明细从北京时间当天 `00:00:00` 开始 |
-| `createDateEnd` | string | 汇总时是 | 结束日期；明细截至北京时间当天 `23:59:59` |
+| `createDateStart` | string | 汇总时是 | 开始日期；明细从北京时间当天 `00:00:00.000` 开始 |
+| `createDateEnd` | string | 汇总时是 | 结束日期；当前实现的明细上界为北京时间当天 `23:59:59.000`（含），该秒内毫秒部分大于 `000` 的记录不会命中，见 4.8 |
 | `materialId` | string | 否 | 精确匹配 `material.materialId`，并选择材料统计维度 |
 | `materialName` | string | 否 | 模糊匹配 `material.materialSnapshot.name`；仅作用于明细分页 |
 | `materialType` | string | 否 | 精确匹配 `material.materialType`；仅作用于明细分页 |
@@ -153,11 +153,36 @@ Content-Type: application/json
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `data.items` | array | 当前页匹配的订单项投影结果；同一订单有多个匹配订单项时，`orderId` 可能重复 |
+| `data.items` | array | 当前页匹配的完整订单项；包含 `OrderItem` 的全部基础字段及统计接口扩展字段，同一订单有多个匹配订单项时，`orderId` 可能重复 |
+| `data.items[].id` | string/null | 订单项数据库 ID |
+| `data.items[].orderItemId` | string/null | 订单项业务 ID |
 | `data.items[].orderId` | string | 订单号 |
+| `data.items[].manufacturerId` | string/null | 订单项所属工厂 ID |
+| `data.items[].mtoProduct` | object/null | 定制产品规格 |
+| `data.items[].logisticsCarrierInfo` | object/null | 物流承运信息 |
+| `data.items[].material` | object/null | 材料配置 |
+| `data.items[].procedureFlow` | object/null | 工艺流程 |
+| `data.items[].quantity` | integer/null | 数量 |
+| `data.items[].status` | string/null | 订单项状态 |
+| `data.items[].isUrgent` | boolean/null | 是否加急 |
+| `data.items[].processingFlow` | string/null | 当前处理流程 |
+| `data.items[].productionImgFile` | object/null | 生产图文件 |
+| `data.items[].maskImgFile` | object/null | 蒙版图文件 |
+| `data.items[].failureReason` | string/null | 失败原因 |
+| `data.items[].preprocessRequestId` | string/null | 当前预处理请求 ID |
+| `data.items[].kuaidiWay` | string/null | 快递方式 |
+| `data.items[].kuaidiNum` | string/null | 快递单号 |
+| `data.items[].channel` | object/null | 订单渠道信息 |
+| `data.items[].routeId` | string/null | 配送路线 ID |
+| `data.items[].routeName` | string/null | 当前订单项 `routeId` 对应的路线名称；服务端按当前页路线 ID 批量查询，路线不存在或已删除时为空 |
+| `data.items[].routeNodeId` | string/null | 配送路线节点 ID |
+| `data.items[].productionPieces` | array/null | 生产件集合 |
+| `data.items[].price` | object/null | 订单项价格信息 |
+| `data.items[].orgInfo` | object/null | 下单企业信息 |
 | `data.items[].paymentPrice` | number/null | 当前订单项的 `price.actualPrice`；字段名为兼容既有响应而保留 |
 | `data.items[].orderItemPrice` | number | 该订单项所属订单实际参与日统计的价格：优先使用完整底价清单之和，否则使用快照支付价 |
 | `data.items[].createTime` | string/null | 订单项创建时间 |
+| `data.items[].updateTime` | string/null | 订单项更新时间 |
 | `data.current` | integer | 当前页 |
 | `data.size` | integer | 每页数量 |
 | `data.total` | integer | 符合明细条件的订单项总数 |
@@ -179,10 +204,19 @@ Content-Type: application/json
   "data": {
     "items": [
       {
+        "id": "68a000000000000000000001",
+        "orderItemId": "OI_2070082974454358018_1",
         "orderId": "2070082974454358018",
+        "manufacturerId": "69f956c00ff1ad90a9611464",
+        "quantity": 1,
+        "status": "PENDING",
+        "isUrgent": false,
+        "routeId": "ROUTE_001",
+        "routeName": "常德城区路线",
         "paymentPrice": 1.08,
         "orderItemPrice": 1.00,
-        "createTime": "2026-06-25T09:53:36.000+00:00"
+        "createTime": "2026-06-25 17:53:36",
+        "updateTime": "2026-06-25 17:53:36"
       }
     ],
     "current": 1,
@@ -218,9 +252,16 @@ Content-Type: application/json
 | `current <= 0` | 请求校验失败 |
 | `size <= 0` 或 `size > 100` | 请求校验失败，分页大小必须在 `1-100` 之间 |
 | 日期不是 `yyyy-MM-dd` | 返回日期格式参数错误 |
-| `/order/filters` 缺少开始或结束日期 | 返回“开始日期不能为空”或“结束日期不能为空” |
-| `/order/filters` 缺少 `manufacturerId` | 返回“工厂和统计日期不能为空” |
+| `/order/filters` 缺少 `manufacturerId`、开始日期或结束日期中的任一字段 | 请求 DTO 校验失败，返回“工厂、开始日期和结束日期不能为空” |
 | `status` 无法解析为订单状态 | 返回状态参数错误 |
+
+### 4.8 当前实现需要注意的口径差异
+
+- `items/total` 的日期条件作用于订单项 `createTime`；`totalOrderCount/totalArea/totalAmount` 的日期条件作用于 `orderDailyStatistics.statisticsDate`。日统计写入时使用北京时间的处理当日，而不是订单项 `createTime`，因此补录、延迟处理等场景下两组数据可能不一致。
+- `orderId`、`status`、`materialName` 和 `materialType` 只过滤明细，不过滤日统计汇总。`materialId`、`routeId`、`orgName` 会过滤明细并按 4.3 的优先级选择一个汇总维度。
+- 当前结束日期被转换为当天 `23:59:59.000` 并使用“包含上界”查询；创建时间处于 `23:59:59.001` 至 `23:59:59.999` 的订单项会被遗漏。这是当前代码行为，不应理解为完整覆盖结束日期当天。
+- `paymentPrice` 在订单项 `price` 对象不存在时由服务端返回 `0`；只有 `price` 存在但 `actualPrice` 为空时才返回 `null`。
+- 未选择维度时，汇总全部 `ENTERPRISE` 统计记录。如果一张订单被写入多个不同的企业维度，该订单及其面积、金额会在无维度汇总中重复累计。
 
 ## 5. 推荐调用流程
 

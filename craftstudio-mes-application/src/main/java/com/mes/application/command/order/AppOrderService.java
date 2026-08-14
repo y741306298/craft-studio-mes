@@ -304,11 +304,17 @@ public class AppOrderService {
                         .collect(Collectors.toCollection(LinkedHashSet::new)))
                 .stream()
                 .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
+        Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
+                        .map(OrderItem::getRouteId)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .stream()
+                .filter(route -> StringUtils.isNotBlank(route.getRouteId()) && route.getRouteName() != null)
+                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
+                        (first, ignored) -> first));
         List<OrderStatisticsItemVO> pageItems = orderItems.stream()
-                .map(item -> new OrderStatisticsItemVO(item.getOrderId(),
-                        item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice(),
-                        calculateStatisticsAmount(orderInfoByOrderId.get(item.getOrderId())),
-                        item.getCreateTime()))
+                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId()),
+                        orderInfoByOrderId.get(item.getOrderId())))
                 .toList();
 
         OrderDailyStatistics totals = findPersistedStatisticsTotals(
@@ -318,6 +324,15 @@ public class AppOrderService {
                 totals == null ? BigDecimal.ZERO : totals.getTotalArea(),
                 totals == null ? BigDecimal.ZERO : totals.getTotalAmount(),
                 List.of(), buildOrderStatisticsStatusList(), List.of());
+    }
+
+    private OrderStatisticsItemVO toOrderStatisticsItemVO(OrderItem item, String routeName, OrderInfo orderInfo) {
+        OrderStatisticsItemVO result = new OrderStatisticsItemVO();
+        BeanUtils.copyProperties(item, result);
+        result.setRouteName(routeName);
+        result.setPaymentPrice(item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice());
+        result.setOrderItemPrice(calculateStatisticsAmount(orderInfo));
+        return result;
     }
 
     private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerId, Date startTime, Date endTime,
