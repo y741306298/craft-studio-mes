@@ -12,6 +12,7 @@ import java.util.Date;
 @AllArgsConstructor
 public class OrderStatisticsItemVO {
     private String orderId;
+    private String routeName;
     private BigDecimal paymentPrice;
     /** The snapshot amount that actually participates in daily statistics. */
     private BigDecimal orderItemPrice;
