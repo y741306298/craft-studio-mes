@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.statistics;
 
 import com.mes.application.command.order.AppOrderService;
+import com.mes.application.command.order.AppOrderStatisticsQueryService;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
@@ -31,6 +32,9 @@ public class StatisticsController {
     @Autowired
     private AppOrderService appOrderService;
 
+    @Autowired
+    private AppOrderStatisticsQueryService orderStatisticsQueryService;
+
     /**
      * 分页查询订单统计列表。
      *
@@ -39,7 +43,7 @@ public class StatisticsController {
     @PostMapping("/order/list")
     public PagedApiResponse<OrderItemVO> listOrderStatistics(
             @Valid @RequestBody OrderStatisticsListRequest request) {
-        OrderStatisticsListVO result = appOrderService.findOrderStatistics(
+        OrderStatisticsListVO result = orderStatisticsQueryService.find(
                 request.getManufacturerId(),
                 request.getOrderId(),
                 resolveStatus(request.getStatus()),

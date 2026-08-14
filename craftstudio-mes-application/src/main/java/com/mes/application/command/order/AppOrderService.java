@@ -5,6 +5,7 @@ import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
+import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsMaterialVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
@@ -307,16 +308,10 @@ public class AppOrderService {
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
         long total = domainOrderItemService.filterTotal(filters);
-        Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
-                        .map(OrderItem::getOrderId)
-                        .filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .stream()
-                .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
-        Map<String, String> routeNameByRouteId = findRouteNames(orderItems);
-        List<OrderItemVO> pageItems = orderItems.stream()
-                .map(item -> toOrderItemVO(item, orderInfoByOrderId.get(item.getOrderId()),
-                        routeNameByRouteId.get(item.getRouteId()), true))
+        List<OrderStatisticsItemVO> pageItems = orderItems.stream()
+                .map(item -> new OrderStatisticsItemVO(item.getOrderId(),
+                        item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice(),
+                        item.getCreateTime()))
                 .toList();
 
         OrderDailyStatistics totals = findPersistedStatisticsTotals(
@@ -455,43 +450,25 @@ public class AppOrderService {
                         .filter(Objects::nonNull).map(OrderItem::getOrderId)
                         .filter(StringUtils::isNotBlank).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
-        Map<String, String> routeNameByRouteId = findRouteNames(orderItems);
         for (OrderItem item : orderItems) {
             if (item == null) {
                 continue;
             }
             String oid = item.getOrderId();
             OrderInfo orderInfo = ordersById.get(oid);
-            result.add(toOrderItemVO(item, orderInfo, routeNameByRouteId.get(item.getRouteId()), false));
-        }
-        return result;
-    }
-
-    private Map<String, String> findRouteNames(List<OrderItem> orderItems) {
-        Set<String> routeIds = orderItems.stream().filter(Objects::nonNull)
-                .map(OrderItem::getRouteId).filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        return deliveryRouteRepository.findByRouteIds(routeIds).stream()
-                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
-                        (first, ignored) -> first));
-    }
-
-    private OrderItemVO toOrderItemVO(OrderItem item, OrderInfo orderInfo, String routeName,
-                                      boolean includeStatisticsPrice) {
-        OrderItemVO result = new OrderItemVO();
-        BeanUtils.copyProperties(item, result);
-        result.setRouteName(routeName);
-        if (orderInfo == null) {
-            if (includeStatisticsPrice) result.setOrderItemPrice(BigDecimal.ZERO);
-            return result;
-        }
-        result.setCustomer(orderInfo.getCustomer());
-        result.setRemark(orderInfo.getRemark());
-        result.setOrgInfo(orderInfo.getOrgInfo());
-        BigDecimal paymentPrice = orderInfo.getPrice() == null ? null : orderInfo.getPrice().getPaymentPrice();
-        result.setPaymentPrice(scaleStatisticsDecimal(paymentPrice));
-        if (includeStatisticsPrice) {
-            result.setOrderItemPrice(scaleStatisticsDecimal(calculateStatisticsAmount(orderInfo)));
+            OrderItemVO orderWithItemsVO = new OrderItemVO();
+            BeanUtils.copyProperties(item, orderWithItemsVO);
+            if (orderInfo != null) {
+                orderWithItemsVO.setCustomer(orderInfo.getCustomer());
+                orderWithItemsVO.setRemark(orderInfo.getRemark());
+                orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
+                if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
+                    orderWithItemsVO.setPaymentPrice(scaleStatisticsDecimal(orderInfo.getPrice().getPaymentPrice()));
+                } else {
+                    orderWithItemsVO.setPaymentPrice(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                }
+            }
+            result.add(orderWithItemsVO);
         }
         return result;
     }
