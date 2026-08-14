@@ -3,6 +3,7 @@ package com.mes.domain.delivery.deliveryRoute.repository;
 import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface DeliveryRouteRepository extends BaseRepository<DeliveryRoute> {
@@ -21,4 +22,9 @@ public interface DeliveryRouteRepository extends BaseRepository<DeliveryRoute> {
      * 根据路线ID查询配送路线
      */
     DeliveryRoute findByRouteId(String routeId);
+
+    /**
+     * 批量根据路线 ID 查询配送路线。
+     */
+    List<DeliveryRoute> findByRouteIds(Collection<String> routeIds);
 }

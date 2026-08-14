@@ -304,8 +304,17 @@ public class AppOrderService {
                         .collect(Collectors.toCollection(LinkedHashSet::new)))
                 .stream()
                 .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
+        Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
+                        .map(OrderItem::getRouteId)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .stream()
+                .filter(route -> StringUtils.isNotBlank(route.getRouteId()) && route.getRouteName() != null)
+                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
+                        (first, ignored) -> first));
         List<OrderStatisticsItemVO> pageItems = orderItems.stream()
                 .map(item -> new OrderStatisticsItemVO(item.getOrderId(),
+                        routeNameByRouteId.get(item.getRouteId()),
                         item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice(),
                         calculateStatisticsAmount(orderInfoByOrderId.get(item.getOrderId())),
                         item.getCreateTime()))
