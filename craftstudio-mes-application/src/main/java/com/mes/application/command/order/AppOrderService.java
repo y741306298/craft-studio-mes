@@ -833,6 +833,33 @@ public class AppOrderService {
         return reprocessOrderItem(orderItemId, null);
     }
 
+    /**
+     * 重新处理订单下所有待处理或处理失败的订单项。
+     *
+     * @param orderId 订单 ID
+     * @return 被删除的生产工件数量
+     */
+    public long reprocessPendingOrFailedOrderItems(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        List<OrderItem> orderItems = findAllOrderItemsByOrderId(orderId.trim()).stream()
+                .filter(orderItem -> orderItem.getStatus() == OrderStatus.PENDING
+                        || orderItem.getStatus() == OrderStatus.FAILED)
+                .toList();
+
+        long deletedCount = 0;
+        for (OrderItem orderItem : orderItems) {
+            // 生成新的请求 ID，确保重新处理前发出的异步回调不会覆盖本次处理结果。
+            orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+            domainOrderItemService.updateOrderItem(orderItem);
+            deletedCount += productionPieceService.deleteProductionPiecesByOrderItemId(orderItem.getOrderItemId());
+        }
+        orderPreprocessTaskQueue.submit(orderItems);
+        return deletedCount;
+    }
+
     private OrderItem resolveOrderItem(String orderItemId) {
         OrderItem orderItem = domainOrderItemService.findByOrderItemId(orderItemId);
         if (orderItem == null) {

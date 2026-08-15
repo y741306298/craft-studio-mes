@@ -226,6 +226,18 @@ public class OrderController {
         return ApiResponse.success("重新处理任务已提交，已删除生产工件数量：" + deletedCount);
     }
 
+    /**
+     * 重新处理指定订单下所有状态为待处理或处理失败的订单项。
+     *
+     * @param orderId 订单 ID
+     * @return 操作结果
+     */
+    @PostMapping("/item/reprocess-pending-or-failed")
+    public ApiResponse<String> reprocessPendingOrFailedOrderItems(@RequestParam String orderId) {
+        long deletedCount = appOrderService.reprocessPendingOrFailedOrderItems(orderId);
+        return ApiResponse.success("重新处理任务已提交，已删除生产工件数量：" + deletedCount);
+    }
+
 
     /**
      * 订单转单
