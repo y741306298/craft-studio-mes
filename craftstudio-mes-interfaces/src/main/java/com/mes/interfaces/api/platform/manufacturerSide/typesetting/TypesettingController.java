@@ -283,6 +283,22 @@ public class TypesettingController {
     }
 
     /**
+     * 完全释放排版：递归删除当前排版及其引用的所有子印版，并将叶子零件的待打印、打印中数量全部退回待排版。
+     */
+    @PostMapping("/completeReleaseLayout")
+    public ApiResponse<ReleaseLayoutResult> completeReleaseLayout(@Valid @RequestBody ReleaseLayoutRequest request) {
+        if (request.getIdList() == null || request.getIdList().isEmpty()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "排版 ID 列表不能为空");
+        }
+
+        ReleaseLayoutResult result = appTypesettingService.completeReleaseLayout(request.getIdList());
+        if (result != null && !result.isSuccess()) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, result.getMessage());
+        }
+        return ApiResponse.success(result);
+    }
+
+    /**
      * 生成二维码（Base64）
      */
     @PostMapping("/generateQrCode")
