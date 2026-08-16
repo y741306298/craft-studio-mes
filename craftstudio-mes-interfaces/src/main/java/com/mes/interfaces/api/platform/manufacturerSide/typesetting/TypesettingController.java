@@ -348,9 +348,9 @@ public class TypesettingController {
      */
     @PostMapping("/callback/generate_grid_nested_files")
     public ApiResponse<String> handleGenerateGridNestedFilesCallback(@RequestBody NestingResponse response) {
-        logger.info("========== handleGenerateNestedFilesCallback 入参开始 ==========");
+        logger.info("========== handleGenerateGridNestedFilesCallback 入参开始 ==========");
         logger.info("response: " + JsonLogUtil.toJSONString(response));
-        logger.info("========== handleGenerateNestedFilesCallback 入参结束 ==========");
+        logger.info("========== handleGenerateGridNestedFilesCallback 入参结束 ==========");
         appTypesettingService.handleNestingCallback(response);
         return ApiResponse.success("回调处理成功");
     }

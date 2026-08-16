@@ -3838,7 +3838,6 @@ public class AppTypesettingService {
      * 完全释放排版。与普通释放不同，本操作会沿印版 cell 递归到叶子零件，删除整棵印版树，
      * 并把每个叶子零件当前位于“待打印”或“打印中”节点的全部数量退回“待排版”。
      */
-    @Transactional
     public ReleaseLayoutResult completeReleaseLayout(List<String> typesettingIds) {
         if (typesettingIds == null || typesettingIds.isEmpty()) {
             throw new RuntimeException("排版ID列表不能为空");
