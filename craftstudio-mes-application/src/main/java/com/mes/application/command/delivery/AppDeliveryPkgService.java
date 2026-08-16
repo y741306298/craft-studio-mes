@@ -612,6 +612,12 @@ public class AppDeliveryPkgService {
 
         // 6. 获取快递单号并更新零件数量
         if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
+            Map<String, ProductionPiece> persistedPieces = productionPieceService.findByProductionPieceIds(
+                            productionPieces.stream().filter(Objects::nonNull).map(ProductionPiece::getId)
+                                    .filter(StringUtils::isNotBlank).collect(Collectors.toList()))
+                    .stream().collect(Collectors.toMap(ProductionPiece::getId, piece -> piece,
+                            (left, right) -> left));
+            List<ProductionPiece> changedPieces = new ArrayList<>();
             for (ProductionPiece requestPiece : productionPieces) {
                 Integer packageQuantity = requestPiece == null ? null : requestPiece.getQuantity();
                 if (requestPiece == null || StringUtils.isBlank(requestPiece.getId())
@@ -621,7 +627,7 @@ public class AppDeliveryPkgService {
 
                 // addPkg 传入的 productionPiece 只携带打包数量等临时字段，不能直接 save，
                 // 否则会用不完整对象覆盖 MongoDB 原记录。这里重新读取完整生产件后再更新。
-                ProductionPiece productionPiece = productionPieceService.findById(requestPiece.getId());
+                ProductionPiece productionPiece = persistedPieces.get(requestPiece.getId());
                 if (productionPiece == null || productionPiece.getProcedureFlow() == null
                         || productionPiece.getProcedureFlow().getNodes() == null) {
                     continue;
@@ -664,9 +670,10 @@ public class AppDeliveryPkgService {
                     }
                     pkgInfos.add(deliveryPkgInfo);
                     productionPiece.setDeliveryPkgInfos(pkgInfos);
-                    productionPieceService.updateProductionPiece(productionPiece);
+                    changedPieces.add(productionPiece);
                 }
             }
+            productionPieceService.batchUpdatePackagingState(changedPieces);
         }
 
         return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
@@ -1088,6 +1095,7 @@ public class AppDeliveryPkgService {
             return;
         }
         java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
+        List<ProductionPiece> changedPieces = new ArrayList<>();
         if (productionPieces == null) {
             productionPieces = new ArrayList<>();
         }
@@ -1153,7 +1161,9 @@ public class AppDeliveryPkgService {
             deliveryPkgInfo.setQuantity(alreadyPacked + quantity);
             productionPiece.setDeliveryPkgInfos(pkgInfos);
             updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
+            changedPieces.add(productionPiece);
         }
+        productionPieceService.batchUpdatePackagingState(changedPieces);
         refreshPackagingCompletionStatus(touchedOrderItemIds);
     }
 
@@ -1169,7 +1179,6 @@ public class AppDeliveryPkgService {
         if (pieceFullyPacked && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
-        productionPieceService.updateProductionPiece(piece);
     }
 
     /** Request-scoped quantity lookup backed by Redis instead of retaining another in-memory copy. */
@@ -1199,6 +1208,7 @@ public class AppDeliveryPkgService {
         if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
             return;
         }
+        List<ProductionPiece> changedPieces = new ArrayList<>();
         for (String orderItemId : touchedOrderItemIds) {
             if (StringUtils.isBlank(orderItemId)) {
                 continue;
@@ -1236,7 +1246,7 @@ public class AppDeliveryPkgService {
                     changed = true;
                 }
                 if (changed) {
-                    productionPieceService.updateProductionPiece(piece);
+                    changedPieces.add(piece);
                 }
             }
 
@@ -1261,6 +1271,7 @@ public class AppDeliveryPkgService {
                 }
             }
         }
+        productionPieceService.batchUpdatePackagingState(changedPieces);
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece) {

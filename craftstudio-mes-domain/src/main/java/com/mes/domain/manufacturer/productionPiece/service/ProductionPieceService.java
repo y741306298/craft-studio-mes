@@ -412,6 +412,26 @@ public class ProductionPieceService {
     }
 
     /**
+     * Batch-persist packaging state for already-loaded production pieces.
+     *
+     * <p>The add-package flow only changes fields on complete entities loaded from MongoDB,
+     * so it must not re-read order metadata once per piece before writing. The repository
+     * uses one unordered MongoDB bulk operation for the whole request.</p>
+     */
+    public void batchUpdatePackagingState(List<ProductionPiece> productionPieces) {
+        if (productionPieces == null || productionPieces.isEmpty()) {
+            return;
+        }
+        List<ProductionPiece> validPieces = productionPieces.stream()
+                .filter(Objects::nonNull)
+                .filter(piece -> StringUtils.isNotBlank(piece.getId()))
+                .toList();
+        if (!validPieces.isEmpty()) {
+            productionPieceRepository.batchUpdate(validPieces);
+        }
+    }
+
+    /**
      * 删除生产工件
      */
     public void deleteProductionPiece(String id) {
