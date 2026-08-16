@@ -463,6 +463,14 @@ public class ProductionPieceService {
         return productionPieceRepository.findByProductionPieceIds(productionPieceIds);
     }
 
+    /** Persist already-hydrated pieces with one MongoDB bulk operation. */
+    public void batchUpdateProductionPieces(List<ProductionPiece> productionPieces) {
+        if (productionPieces == null || productionPieces.isEmpty()) {
+            return;
+        }
+        productionPieceRepository.batchUpdate(productionPieces);
+    }
+
     /**
      * 根据 productionPieceId 更新生产工件
      *
