@@ -40,6 +40,15 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
                 Criteria.where("_id").in(productionPieceIds)));
         return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
     }
+
+    @Override
+    public List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
+        return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
+    }
     
     @Override
     public void updateByProductionPieceId(ProductionPiece productionPiece) {
