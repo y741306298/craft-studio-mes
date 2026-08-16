@@ -120,7 +120,7 @@ public class OrderItemService {
      * @return 订单项列表
      */
     public java.util.List<OrderItem> filterAllUrgentFirst(Map<String, Object> filters) {
-        return orderItemRepository.filterListUrgentFirst(1, Integer.MAX_VALUE, filters);
+        return orderItemRepository.filterAllUrgentFirst(filters);
     }
 
     /**
