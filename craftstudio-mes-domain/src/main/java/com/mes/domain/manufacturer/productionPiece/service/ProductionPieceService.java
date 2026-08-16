@@ -483,6 +483,13 @@ public class ProductionPieceService {
         return productionPieceRepository.findByProductionPieceIds(productionPieceIds);
     }
 
+    public List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return productionPieceRepository.findByOrderItemIds(orderItemIds);
+    }
+
     /**
      * 根据 productionPieceId 更新生产工件
      *

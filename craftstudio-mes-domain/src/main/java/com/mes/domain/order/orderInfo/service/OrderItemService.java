@@ -172,6 +172,19 @@ public class OrderItemService {
         orderItemRepository.update(orderItem);
     }
 
+    public void batchUpdateOrderItems(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return;
+        }
+        List<OrderItem> validItems = orderItems.stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(item -> StringUtils.isNotBlank(item.getId()))
+                .toList();
+        if (!validItems.isEmpty()) {
+            orderItemRepository.batchUpdate(validItems);
+        }
+    }
+
     /**
      * 删除订单项
      * @param id 订单项 ID

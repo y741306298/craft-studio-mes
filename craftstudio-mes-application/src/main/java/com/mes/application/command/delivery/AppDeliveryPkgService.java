@@ -1208,29 +1208,30 @@ public class AppDeliveryPkgService {
         if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
             return;
         }
-        List<ProductionPiece> changedPieces = new ArrayList<>();
-        for (String orderItemId : touchedOrderItemIds) {
-            if (StringUtils.isBlank(orderItemId)) {
-                continue;
-            }
-            List<ProductionPiece> orderItemPieces = new ArrayList<>();
-            int current = 1;
-            while (true) {
-                List<ProductionPiece> page = productionPieceService.findProductionPiecesByOrderItemId(orderItemId, current, 100);
-                if (page == null || page.isEmpty()) {
-                    break;
-                }
-                orderItemPieces.addAll(page);
-                if (page.size() < 100) {
-                    break;
-                }
-                current++;
-            }
+        List<String> validOrderItemIds = touchedOrderItemIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        if (validOrderItemIds.isEmpty()) {
+            return;
+        }
 
-            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+        Map<String, List<ProductionPiece>> piecesByOrderItemId = productionPieceService
+                .findByOrderItemIds(validOrderItemIds).stream()
+                .filter(piece -> StringUtils.isNotBlank(piece.getOrderItemId()))
+                .collect(Collectors.groupingBy(ProductionPiece::getOrderItemId));
+        Map<String, OrderItem> orderItemsById = orderItemService.findByOrderItemIds(validOrderItemIds).stream()
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
+
+        List<ProductionPiece> changedPieces = new ArrayList<>();
+        List<OrderItem> changedOrderItems = new ArrayList<>();
+        for (String orderItemId : validOrderItemIds) {
+            List<ProductionPiece> orderItemPieces = piecesByOrderItemId.getOrDefault(orderItemId,
+                    Collections.emptyList());
+            OrderItem orderItem = orderItemsById.get(orderItemId);
             Integer requiredPackedQuantity = getOrderItemQuantity(orderItem);
-            boolean allPacked = requiredPackedQuantity != null && !orderItemPieces.isEmpty() && orderItemPieces.stream()
-                    .allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
+            boolean allPacked = requiredPackedQuantity != null && !orderItemPieces.isEmpty()
+                    && orderItemPieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
             if (!allPacked) {
                 continue;
             }
@@ -1250,12 +1251,6 @@ public class AppDeliveryPkgService {
                 }
             }
 
-            boolean allPiecesCompleted = !orderItemPieces.isEmpty() && orderItemPieces.stream()
-                    .allMatch(piece -> TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus()));
-            if (!allPiecesCompleted) {
-                continue;
-            }
-
             if (orderItem != null) {
                 boolean changed = false;
                 if (orderItem.getStatus() != OrderStatus.PACKAGED) {
@@ -1267,11 +1262,12 @@ public class AppDeliveryPkgService {
                     changed = true;
                 }
                 if (changed) {
-                    orderItemService.updateOrderItem(orderItem);
+                    changedOrderItems.add(orderItem);
                 }
             }
         }
         productionPieceService.batchUpdatePackagingState(changedPieces);
+        orderItemService.batchUpdateOrderItems(changedOrderItems);
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece) {

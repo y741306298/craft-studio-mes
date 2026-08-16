@@ -10,6 +10,8 @@ import java.util.List;
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
 
     List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds);
+
+    List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds);
     
     /**
      * 根据 productionPieceId 更新生产工件
