@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -40,13 +41,16 @@ class AppOrderServiceStatisticsRouteTest {
         DeliveryRoute route = new DeliveryRoute();
         route.setRouteId("ROUTE_1");
         route.setRouteName("城区路线");
-        when(orderItemService.filterListUrgentFirst(1, 20, java.util.Map.of("manufacturerId", "M_1")))
+        java.util.Map<String, Object> statisticsFilters = java.util.Map.of(
+                "manufacturerId", "M_1",
+                "status_in", List.of("IN_PRODUCTION", "PACKAGED"));
+        when(orderItemService.filterListUrgentFirst(1, 20, statisticsFilters))
                 .thenReturn(List.of(first, second));
-        when(orderItemService.filterTotal(any())).thenReturn(2L);
+        when(orderItemService.filterTotal(statisticsFilters)).thenReturn(2L);
         when(orderInfoService.findByOrderIds(any())).thenReturn(List.of());
         when(routeRepository.findByRouteIds(any())).thenReturn(List.of(route));
 
-        OrderStatisticsListVO result = service.findOrderStatistics("M_1", null, null, null, null,
+        OrderStatisticsListVO result = service.findOrderStatistics("M_1", null, null, null,
                 null, null, null, null, null, new PagedQuery(1, 20));
 
         assertEquals(List.of("城区路线", "城区路线"), result.getItems().stream()
@@ -54,9 +58,39 @@ class AppOrderServiceStatisticsRouteTest {
         assertEquals("ORDER_ITEM_ORDER_1", result.getItems().getFirst().getOrderItemId());
         assertEquals("ROUTE_1", result.getItems().getFirst().getRouteId());
         assertEquals(1, result.getItems().getFirst().getQuantity());
+        verify(orderItemService).filterTotal(statisticsFilters);
         verify(routeRepository).findByRouteIds(org.mockito.ArgumentMatchers.argThat(
                 (Collection<String> ids) -> ids.size() == 1 && ids.contains("ROUTE_1")));
         verify(routeRepository, never()).findByRouteId(any());
+    }
+
+    @Test
+    void fullStatisticsQueryUsesUnpagedOrderItemLookup() {
+        OrderItemService orderItemService = mock(OrderItemService.class);
+        OrderInfoService orderInfoService = mock(OrderInfoService.class);
+        DeliveryRouteRepository routeRepository = mock(DeliveryRouteRepository.class);
+        OrderDailyStatisticsService statisticsService = mock(OrderDailyStatisticsService.class);
+        AppOrderService service = new AppOrderService();
+        ReflectionTestUtils.setField(service, "domainOrderItemService", orderItemService);
+        ReflectionTestUtils.setField(service, "domainOrderInfoService", orderInfoService);
+        ReflectionTestUtils.setField(service, "deliveryRouteRepository", routeRepository);
+        ReflectionTestUtils.setField(service, "orderDailyStatisticsService", statisticsService);
+
+        java.util.Map<String, Object> statisticsFilters = java.util.Map.of(
+                "manufacturerId", "M_1",
+                "status_in", List.of("IN_PRODUCTION", "PACKAGED"));
+        when(orderItemService.filterAllUrgentFirst(statisticsFilters))
+                .thenReturn(List.of(orderItem("ORDER_1", null), orderItem("ORDER_2", null)));
+        when(orderInfoService.findByOrderIds(any())).thenReturn(List.of());
+        when(routeRepository.findByRouteIds(any())).thenReturn(List.of());
+
+        OrderStatisticsListVO result = service.findAllOrderStatistics("M_1", null, null, null,
+                null, null, null, null, null);
+
+        assertEquals(2, result.getItems().size());
+        assertEquals(2, result.getTotal());
+        verify(orderItemService).filterAllUrgentFirst(statisticsFilters);
+        verify(orderItemService, never()).filterListUrgentFirst(anyInt(), anyInt(), any());
     }
 
     private OrderItem orderItem(String orderId, String routeId) {

@@ -129,7 +129,6 @@ Content-Type: application/json
 | `size` | integer | 是 | 每页数量，范围 `1-100` |
 | `manufacturerId` | string | 汇总时是 | 工厂标识；匹配订单项 `manufacturerId`，并用于查询日统计 |
 | `orderId` | string | 否 | 订单号模糊匹配 |
-| `status` | string | 否 | 订单状态码或 `OrderStatus` 枚举名 |
 | `routeId` | string | 否 | 精确匹配订单项 `routeId`，并选择路线统计维度 |
 | `createDateStart` | string | 汇总时是 | 开始日期；明细从北京时间当天 `00:00:00.000` 开始 |
 | `createDateEnd` | string | 汇总时是 | 结束日期；当前实现的明细上界为北京时间当天 `23:59:59.000`（含），该秒内毫秒部分大于 `000` 的记录不会命中，见 4.8 |
@@ -209,7 +208,7 @@ Content-Type: application/json
         "orderId": "2070082974454358018",
         "manufacturerId": "69f956c00ff1ad90a9611464",
         "quantity": 1,
-        "status": "PENDING",
+        "status": "IN_PRODUCTION",
         "isUrgent": false,
         "routeId": "ROUTE_001",
         "routeName": "常德城区路线",
@@ -253,12 +252,11 @@ Content-Type: application/json
 | `size <= 0` 或 `size > 100` | 请求校验失败，分页大小必须在 `1-100` 之间 |
 | 日期不是 `yyyy-MM-dd` | 返回日期格式参数错误 |
 | `/order/filters` 缺少 `manufacturerId`、开始日期或结束日期中的任一字段 | 请求 DTO 校验失败，返回“工厂、开始日期和结束日期不能为空” |
-| `status` 无法解析为订单状态 | 返回状态参数错误 |
 
 ### 4.8 当前实现需要注意的口径差异
 
 - `items/total` 的日期条件作用于订单项 `createTime`；`totalOrderCount/totalArea/totalAmount` 的日期条件作用于 `orderDailyStatistics.statisticsDate`。日统计写入时使用北京时间的处理当日，而不是订单项 `createTime`，因此补录、延迟处理等场景下两组数据可能不一致。
-- `orderId`、`status`、`materialName` 和 `materialType` 只过滤明细，不过滤日统计汇总。`materialId`、`routeId`、`orgName` 会过滤明细并按 4.3 的优先级选择一个汇总维度。
+- 两个统计查询的订单项明细固定只包含 `IN_PRODUCTION`（生产中）和 `PACKAGED`（已打包），不再使用请求中的 `status` 过滤。`orderId`、`materialName` 和 `materialType` 只过滤明细，不过滤日统计汇总。`materialId`、`routeId`、`orgName` 会过滤明细并按 4.3 的优先级选择一个汇总维度。
 - 当前结束日期被转换为当天 `23:59:59.000` 并使用“包含上界”查询；创建时间处于 `23:59:59.001` 至 `23:59:59.999` 的订单项会被遗漏。这是当前代码行为，不应理解为完整覆盖结束日期当天。
 - `paymentPrice` 在订单项 `price` 对象不存在时由服务端返回 `0`；只有 `price` 存在但 `actualPrice` 为空时才返回 `null`。
 - 未选择维度时，汇总全部 `ENTERPRISE` 统计记录。如果一张订单被写入多个不同的企业维度，该订单及其面积、金额会在无维度汇总中重复累计。
@@ -269,3 +267,61 @@ Content-Type: application/json
 2. 用户选择一个统计维度后调用 `/order/list`。
 3. 使用 `/order/list` 的 `items/total` 展示分页明细。
 4. 使用同一响应的 `totalOrderCount/totalArea/totalAmount` 展示日统计聚合值。
+
+## 6. 全量查询订单统计
+
+该接口与 `/order/list` 使用完全相同的明细筛选、排序、路线名称补充和日统计汇总口径，区别仅在于订单项会一次性全量查询，不应用分页。
+
+### 6.1 请求
+
+```http
+POST /api/manufacturerSide/statistics/order/listAll
+Content-Type: application/json
+```
+
+```json
+{
+  "manufacturerId": "69f956c00ff1ad90a9611464",
+  "createDateStart": "2026-06-01",
+  "createDateEnd": "2026-06-30",
+  "materialId": "6a06ae72722cf613cc8b409f"
+}
+```
+
+### 6.2 请求字段
+
+请求字段与 4.2 的 `/order/list` 一致，但不接收、也不需要 `current`、`size` 和 `status`。支持 `manufacturerId`、`orderId`、`routeId`、`createDateStart`、`createDateEnd`、`materialId`、`materialName`、`materialType` 和 `orgName`；订单项固定只查询“生产中”和“已打包”状态。
+
+### 6.3 响应
+
+响应的 `data.items`、`data.total`、`data.totalOrderCount`、`data.totalArea`、`data.totalAmount`、`data.materialList`、`data.statusList` 和 `data.orgNameList` 含义与 4.4 一致。其中：
+
+- `data.items` 包含符合条件的全部订单项，仍按“加急优先、更新时间倒序”排列。
+- `data.total` 等于本次返回的订单项总数。
+- 响应不包含分页接口的 `data.current` 和 `data.size` 字段。
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "orderItemId": "OI_2070082974454358018_1",
+        "orderId": "2070082974454358018",
+        "manufacturerId": "69f956c00ff1ad90a9611464",
+        "routeId": "ROUTE_001",
+        "routeName": "常德城区路线"
+      }
+    ],
+    "total": 1,
+    "totalOrderCount": 1,
+    "totalArea": 0.54,
+    "totalAmount": 1.00,
+    "materialList": [],
+    "statusList": [],
+    "orgNameList": []
+  },
+  "timestamp": 1786629600000
+}
+```

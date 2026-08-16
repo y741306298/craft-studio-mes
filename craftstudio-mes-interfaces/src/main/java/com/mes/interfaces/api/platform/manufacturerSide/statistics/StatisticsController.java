@@ -6,9 +6,9 @@ import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
+import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
-import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +42,6 @@ public class StatisticsController {
         OrderStatisticsListVO result = appOrderService.findOrderStatistics(
                 request.getManufacturerId(),
                 request.getOrderId(),
-                resolveStatus(request.getStatus()),
                 parseStartDate(request.getCreateDateStart()),
                 parseEndDate(request.getCreateDateEnd()),
                 request.getRouteId(),
@@ -67,6 +66,22 @@ public class StatisticsController {
         return response;
     }
 
+    /** 全量查询订单统计列表，筛选及汇总口径与分页接口一致。 */
+    @PostMapping("/order/listAll")
+    public ApiResponse<OrderStatisticsListVO> listAllOrderStatistics(
+            @Valid @RequestBody OrderStatisticsAllRequest request) {
+        return ApiResponse.success(appOrderService.findAllOrderStatistics(
+                request.getManufacturerId(),
+                request.getOrderId(),
+                parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd()),
+                request.getRouteId(),
+                request.getMaterialId(),
+                request.getMaterialName(),
+                request.getMaterialType(),
+                request.getOrgName()));
+    }
+
     /** Returns the distinct enterprise, material and route dimensions recorded in the period. */
     @PostMapping("/order/filters")
     public ApiResponse<OrderStatisticsFiltersVO> listOrderStatisticsFilters(
@@ -86,17 +101,6 @@ public class StatisticsController {
         } catch (java.time.format.DateTimeParseException e) {
             throw new IllegalArgumentException(fieldName + "格式错误，应为 yyyy-MM-dd");
         }
-    }
-
-    private OrderStatus resolveStatus(String status) {
-        if (status == null || status.trim().isEmpty()) {
-            return null;
-        }
-        OrderStatus resolvedStatus = OrderStatus.getByCode(status.trim());
-        if (resolvedStatus != null) {
-            return resolvedStatus;
-        }
-        return OrderStatus.valueOf(status.trim());
     }
 
     private Date parseStartDate(String date) {

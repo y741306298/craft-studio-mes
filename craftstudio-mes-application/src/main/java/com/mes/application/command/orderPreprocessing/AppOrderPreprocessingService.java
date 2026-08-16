@@ -179,7 +179,7 @@ public class AppOrderPreprocessingService {
             return;
         }
         log.info("订单预处理开始: itemCount={}", orderItems.size());
-        List<ProductionPiece> resultPieces = new ArrayList<>();
+        int generatedPieceCount = 0;
         List<String> failedOrderItems = new ArrayList<>();
 
         // 2. 遍历每个订单项进行处理
@@ -191,7 +191,7 @@ public class AppOrderPreprocessingService {
                 // 处理成功，将订单项状态改为生产中
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 if (pieces != null) {
-                    resultPieces.addAll(pieces);
+                    generatedPieceCount += pieces.size();
                     //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
                     for (ProductionPiece resultPiece : pieces) {
                         movePretreatmentToPendingTypesetting(resultPiece.getProductionPieceId());
@@ -212,7 +212,7 @@ public class AppOrderPreprocessingService {
         if (!failedOrderItems.isEmpty()) {
             log.error("订单预处理存在失败项: {}", String.join("; ", failedOrderItems));
         }
-        log.info("订单预处理结束: itemCount={}, generatedPieceCount={}, failedCount={}", orderItems.size(), resultPieces.size(), failedOrderItems.size());
+        log.info("订单预处理结束: itemCount={}, generatedPieceCount={}, failedCount={}", orderItems.size(), generatedPieceCount, failedOrderItems.size());
     }
 
     /**
@@ -654,18 +654,14 @@ public class AppOrderPreprocessingService {
      * 更新订单项状态为生产中
      */
     private void updateOrderItemStatusToInProduction(String orderItemId) {
-        try {
-            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
-            if (orderItem != null) {
-                if (isReturnedOrderItem(orderItem) || isReturnedOrder(orderItem.getOrderId())) {
-                    System.out.println("订单项已退单，跳过更新生产中状态，订单项ID：" + orderItemId);
-                    return;
-                }
-                orderItem.setStatus(OrderStatus.IN_PRODUCTION);
-                orderItemService.updateOrderItem(orderItem);
+        OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+        if (orderItem != null) {
+            if (isReturnedOrderItem(orderItem) || isReturnedOrder(orderItem.getOrderId())) {
+                log.info("订单项已退单，跳过更新生产中状态: orderItemId={}", orderItemId);
+                return;
             }
-        } catch (Exception e) {
-            System.err.println("更新订单项状态失败：" + orderItemId + ", 错误：" + e.getMessage());
+            orderItem.setStatus(OrderStatus.IN_PRODUCTION);
+            orderItemService.updateOrderItem(orderItem);
         }
     }
 

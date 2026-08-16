@@ -175,6 +175,14 @@ public class OrderInfoService {
         orderInfoRepository.update(orderInfo);
     }
 
+    public boolean tryAcquireTransferLock(String orderInfoId, String lockToken, Date expiredBefore) {
+        return orderInfoRepository.tryAcquireTransferLock(orderInfoId, lockToken, expiredBefore);
+    }
+
+    public void releaseTransferLock(String orderInfoId, String lockToken) {
+        orderInfoRepository.releaseTransferLock(orderInfoId, lockToken);
+    }
+
     /**
      * 删除订单
      * @param id 订单 ID

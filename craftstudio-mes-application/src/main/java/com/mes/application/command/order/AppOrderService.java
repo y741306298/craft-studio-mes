@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 public class AppOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderService.class);
+    private static final long TRANSFER_LOCK_EXPIRATION_MS = 24 * 60 * 60 * 1000L;
 
     @Autowired
     private OrderInfoService domainOrderInfoService;
@@ -271,7 +272,6 @@ public class AppOrderService {
 
     public OrderStatisticsListVO findOrderStatistics(String manufacturerId,
                                                      String orderId,
-                                                     OrderStatus status,
                                                      java.util.Date startTime,
                                                      java.util.Date endTime,
                                                      String routeId,
@@ -283,17 +283,8 @@ public class AppOrderService {
         if (pagedQuery == null || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
             throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
         }
-        Map<String, Object> filters = new HashMap<>();
-        filters.put("manufacturerId", manufacturerId);
-        if (StringUtils.isNotBlank(orderId)) filters.put("orderId_like", orderId.trim());
-        if (status != null) filters.put("status", status.getCode());
-        if (startTime != null) filters.put("createTime_gte", startTime);
-        if (endTime != null) filters.put("createTime_lte", endTime);
-        if (StringUtils.isNotBlank(routeId)) filters.put("routeId", routeId);
-        if (StringUtils.isNotBlank(materialId)) filters.put("material.materialId", materialId);
-        if (StringUtils.isNotBlank(materialName)) filters.put("material.materialSnapshot.name_like", materialName);
-        if (StringUtils.isNotBlank(materialType)) filters.put("material.materialType", materialType);
-        if (StringUtils.isNotBlank(orgName)) filters.put("orgInfo.name", orgName);
+        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
+                endTime, routeId, materialId, materialName, materialType, orgName);
 
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
@@ -324,6 +315,64 @@ public class AppOrderService {
                 totals == null ? BigDecimal.ZERO : totals.getTotalArea(),
                 totals == null ? BigDecimal.ZERO : totals.getTotalAmount(),
                 List.of(), buildOrderStatisticsStatusList(), List.of());
+    }
+
+    public OrderStatisticsListVO findAllOrderStatistics(String manufacturerId,
+                                                        String orderId,
+                                                        Date startTime,
+                                                        Date endTime,
+                                                        String routeId,
+                                                        String materialId,
+                                                        String materialName,
+                                                        String materialType,
+                                                        String orgName) {
+        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
+                endTime, routeId, materialId, materialName, materialType, orgName);
+        List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters);
+        Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
+                        .map(OrderItem::getOrderId).filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .stream().collect(Collectors.toMap(OrderInfo::getOrderId, order -> order,
+                        (first, ignored) -> first));
+        Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
+                        .map(OrderItem::getRouteId).filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toCollection(LinkedHashSet::new)))
+                .stream()
+                .filter(route -> StringUtils.isNotBlank(route.getRouteId()) && route.getRouteName() != null)
+                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
+                        (first, ignored) -> first));
+        List<OrderStatisticsItemVO> items = orderItems.stream()
+                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId()),
+                        orderInfoByOrderId.get(item.getOrderId())))
+                .toList();
+
+        OrderDailyStatistics totals = findPersistedStatisticsTotals(
+                manufacturerId, startTime, endTime, routeId, materialId, orgName);
+        return new OrderStatisticsListVO(items, items.size(),
+                totals == null ? 0L : totals.getTotalOrderCount(),
+                totals == null ? BigDecimal.ZERO : totals.getTotalArea(),
+                totals == null ? BigDecimal.ZERO : totals.getTotalAmount(),
+                List.of(), buildOrderStatisticsStatusList(), List.of());
+    }
+
+    private Map<String, Object> buildOrderStatisticsFilters(String manufacturerId, String orderId,
+                                                            Date startTime, Date endTime,
+                                                            String routeId, String materialId, String materialName,
+                                                            String materialType, String orgName) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerId", manufacturerId);
+        if (StringUtils.isNotBlank(orderId)) filters.put("orderId_like", orderId.trim());
+        filters.put("status_in", List.of(
+                OrderStatus.IN_PRODUCTION.getCode(),
+                OrderStatus.PACKAGED.getCode()));
+        if (startTime != null) filters.put("createTime_gte", startTime);
+        if (endTime != null) filters.put("createTime_lte", endTime);
+        if (StringUtils.isNotBlank(routeId)) filters.put("routeId", routeId);
+        if (StringUtils.isNotBlank(materialId)) filters.put("material.materialId", materialId);
+        if (StringUtils.isNotBlank(materialName)) filters.put("material.materialSnapshot.name_like", materialName);
+        if (StringUtils.isNotBlank(materialType)) filters.put("material.materialType", materialType);
+        if (StringUtils.isNotBlank(orgName)) filters.put("orgInfo.name", orgName);
+        return filters;
     }
 
     private OrderStatisticsItemVO toOrderStatisticsItemVO(OrderItem item, String routeName, OrderInfo orderInfo) {
@@ -898,6 +947,27 @@ public class AppOrderService {
      * request.targetId 使用目标工厂 manufacturerUser.account，再由账号关联 manufacturerMetaId。
      */
     public ApiResponse<String> transferOrder(OrderTransferRequest request) {
+        if (request == null || StringUtils.isBlank(request.getOrderId())) {
+            return doTransferOrder(request, null);
+        }
+        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        if (sourceOrderInfo == null) {
+            return doTransferOrder(request, null);
+        }
+
+        String transferLockToken = IdGenerator.generateId("OTL");
+        Date expiredBefore = new Date(System.currentTimeMillis() - TRANSFER_LOCK_EXPIRATION_MS);
+        if (!domainOrderInfoService.tryAcquireTransferLock(sourceOrderInfo.getId(), transferLockToken, expiredBefore)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "订单正在转单处理中，请勿重复转单");
+        }
+        try {
+            return doTransferOrder(request, sourceOrderInfo);
+        } finally {
+            domainOrderInfoService.releaseTransferLock(sourceOrderInfo.getId(), transferLockToken);
+        }
+    }
+
+    private ApiResponse<String> doTransferOrder(OrderTransferRequest request, OrderInfo lockedSourceOrderInfo) {
         if (request == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单参数不能为空");
         }
@@ -924,7 +994,9 @@ public class AppOrderService {
         }
         String targetManufacturerMetaId = targetManufacturerMeta.getManufacturerMetaId();
 
-        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        OrderInfo sourceOrderInfo = lockedSourceOrderInfo != null
+                ? lockedSourceOrderInfo
+                : domainOrderInfoService.findByOrderId(request.getOrderId());
         if (sourceOrderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + request.getOrderId());
         }
@@ -978,6 +1050,7 @@ public class AppOrderService {
         }
 
         List<OrderTransferRecord> transferRecords = new ArrayList<>();
+        List<OrderItem> targetItemsToPreprocess = new ArrayList<>();
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
             Integer transferQuantity = itemDto.getQuantity();
@@ -986,7 +1059,9 @@ public class AppOrderService {
             OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
             domainOrderItemService.addOrderItem(targetOrderItem);
 
-            for (ProductionPiece sourceProductionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
+            List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
+                    sourceOrderItem.getOrderItemId(), new ArrayList<>());
+            for (ProductionPiece sourceProductionPiece : sourceProductionPieces) {
                 ProductionPiece targetProductionPiece = copyProductionPieceForTransfer(
                         sourceProductionPiece,
                         newOrderItemId,
@@ -994,6 +1069,11 @@ public class AppOrderService {
                         transferQuantity
                 );
                 productionPieceService.addProductionPiece(targetProductionPiece);
+            }
+            // A source item can be transferred while its asynchronous preprocessing is still pending.
+            // In that case there are no pieces to copy and the new item needs its own preprocessing task.
+            if (sourceProductionPieces.isEmpty()) {
+                targetItemsToPreprocess.add(targetOrderItem);
             }
 
             int remainQuantity = safeQuantity(sourceOrderItem.getQuantity()) - transferQuantity;
@@ -1021,6 +1101,7 @@ public class AppOrderService {
             ));
         }
         orderTransferRecordService.batchAdd(transferRecords);
+        orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
         List<OrderItem> transferredItems = request.getOrderItemDtos().stream()
                 .map(dto -> orderItemById.get(dto.getOrderItemId())).toList();
         adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), sourceOrderInfo,
