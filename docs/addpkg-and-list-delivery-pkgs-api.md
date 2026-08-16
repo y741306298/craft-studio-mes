@@ -35,6 +35,8 @@
 | `pieces[].productionPieceId` | string | 是 | 生产零件业务 ID；订单、物流、预览图等数据由服务端批量查询。 |
 | `pieces[].quantity` | integer | 是 | 本次打包数量，必须大于 `0`，且不能超过该零件当前“待打包”数量。 |
 
+> 兼容说明：升级期间仍接受旧结构中的 `pieces[].piece.productionPieceId`，但新调用方应使用上表中的扁平结构。
+
 ### 1.3 请求示例
 
 ```json
