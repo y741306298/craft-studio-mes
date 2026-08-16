@@ -60,7 +60,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -73,18 +72,12 @@ import java.util.Optional;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
-import java.util.AbstractMap;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class AppDeliveryPkgService {
 
     private static final int SCOPED_FULL_LIST_SIZE = 999;
-    private static final String ADD_PKG_WORKSPACE_PREFIX = "delivery:add-pkg:";
-    private static final long ADD_PKG_WORKSPACE_TTL_MINUTES = 30;
 
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
@@ -96,9 +89,6 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private WorldRepository worldRepository;
-
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
 
     private final static String DELIVERYKEY = "lCnjtXBY2496";
     private final static String DELIVERYCUSTOMER = "DAAB0437EF6D9C03B8B4FC96C165FFB1";
@@ -612,12 +602,6 @@ public class AppDeliveryPkgService {
 
         // 6. 获取快递单号并更新零件数量
         if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
-            Map<String, ProductionPiece> persistedPieces = productionPieceService.findByProductionPieceIds(
-                            productionPieces.stream().filter(Objects::nonNull).map(ProductionPiece::getId)
-                                    .filter(StringUtils::isNotBlank).collect(Collectors.toList()))
-                    .stream().collect(Collectors.toMap(ProductionPiece::getId, piece -> piece,
-                            (left, right) -> left));
-            List<ProductionPiece> changedPieces = new ArrayList<>();
             for (ProductionPiece requestPiece : productionPieces) {
                 Integer packageQuantity = requestPiece == null ? null : requestPiece.getQuantity();
                 if (requestPiece == null || StringUtils.isBlank(requestPiece.getId())
@@ -627,7 +611,7 @@ public class AppDeliveryPkgService {
 
                 // addPkg 传入的 productionPiece 只携带打包数量等临时字段，不能直接 save，
                 // 否则会用不完整对象覆盖 MongoDB 原记录。这里重新读取完整生产件后再更新。
-                ProductionPiece productionPiece = persistedPieces.get(requestPiece.getId());
+                ProductionPiece productionPiece = productionPieceService.findById(requestPiece.getId());
                 if (productionPiece == null || productionPiece.getProcedureFlow() == null
                         || productionPiece.getProcedureFlow().getNodes() == null) {
                     continue;
@@ -670,10 +654,9 @@ public class AppDeliveryPkgService {
                     }
                     pkgInfos.add(deliveryPkgInfo);
                     productionPiece.setDeliveryPkgInfos(pkgInfos);
-                    changedPieces.add(productionPiece);
+                    productionPieceService.updateProductionPiece(productionPiece);
                 }
             }
-            productionPieceService.batchUpdatePackagingState(changedPieces);
         }
 
         return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
@@ -683,56 +666,20 @@ public class AppDeliveryPkgService {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
-        List<String> requestedPieceIds = request.getPieces().stream().map(item -> {
-            if (item == null || StringUtils.isBlank(item.getProductionPieceId())
-                    || item.getQuantity() == null || item.getQuantity() <= 0) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
-                        "零件编号与打包数量必须填写且数量大于0");
-            }
-            return item.getProductionPieceId();
-        }).distinct().collect(Collectors.toList());
-        if (requestedPieceIds.size() != request.getPieces().size()) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产零件不能重复提交");
-        }
-
-        Map<String, ProductionPiece> piecesByBusinessId = productionPieceService
-                .findByProductionPieceIds(requestedPieceIds).stream()
-                .collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece, (left, right) -> left));
-        LinkedHashSet<String> orderItemIds = piecesByBusinessId.values().stream()
-                .map(ProductionPiece::getOrderItemId).filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<String, OrderItem> orderItemsById = orderItemService.findByOrderItemIds(orderItemIds).stream()
-                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
-
         String orderId = null;
         String carrierId = null;
         String carrierName = null;
         String presetType = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
         Map<String, Integer> packageQuantityMap = new HashMap<>();
-        List<String> requestedPieceIds = request.getPieces().stream()
-                .filter(Objects::nonNull)
-                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
-                .filter(Objects::nonNull)
-                .map(DeliveryPkgPieceVO::getProductionPieceId)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .collect(Collectors.toList());
-        Map<String, ProductionPiece> persistedPieces = productionPieceService
-                .findByProductionPieceIds(requestedPieceIds).stream()
-                .collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece,
-                        (left, right) -> left));
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
-            ProductionPiece sourcePiece = piecesByBusinessId.get(item.getProductionPieceId());
-            OrderItem orderItem = sourcePiece == null ? null : orderItemsById.get(sourcePiece.getOrderItemId());
-            if (sourcePiece == null || orderItem == null || StringUtils.isBlank(orderItem.getOrderId())
-                    || orderItem.getLogisticsCarrierInfo() == null) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效或物流信息不完整的生产零件");
+            if (item == null || item.getPiece() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件与打包数量必须填写且数量大于0");
             }
-            DeliveryPkgPieceVO pieceVO = DeliveryPkgPieceVO.fromProductionPiece(sourcePiece);
-            pieceVO.setOrderId(orderItem.getOrderId());
-            pieceVO.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
-            item.setPiece(pieceVO);
+            DeliveryPkgPieceVO pieceVO = item.getPiece();
+            if (StringUtils.isBlank(pieceVO.getProductionPieceId()) || pieceVO.getLogisticsCarrierInfo() == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件信息不完整");
+            }
 
             if (StringUtils.isBlank(orderId)) {
                 orderId = pieceVO.getOrderId();
@@ -745,7 +692,7 @@ public class AppDeliveryPkgService {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单且同一物流方式一起打包");
             }
 
-            ProductionPiece sourcePiece = persistedPieces.get(pieceVO.getProductionPieceId());
+            ProductionPiece sourcePiece = productionPieceService.findByProductionPieceId(pieceVO.getProductionPieceId());
             if (sourcePiece == null) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
             }
@@ -755,17 +702,12 @@ public class AppDeliveryPkgService {
                         "零件[" + pieceVO.getProductionPieceId() + "]打包数量超过待打包数量");
             }
             selectedPieces.add(sourcePiece);
-            redisTemplate.opsForHash().put(workspaceKey, sourcePiece.getId(), item.getQuantity().toString());
+            packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
-        redisTemplate.expire(workspaceKey, ADD_PKG_WORKSPACE_TTL_MINUTES, TimeUnit.MINUTES);
-        Map<String, Integer> packageQuantityMap = new RedisQuantityMap(redisTemplate, workspaceKey);
 
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
-        if (orderInfo != null) {
-            request.getPieces().forEach(item -> item.getPiece().setOrderCustomer(orderInfo.getCustomer()));
-        }
         fillMissingRouteFromOrder(request, orderInfo);
         if (orderInfo != null && orderInfo.getChannel() != null
                 && orderInfo.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
@@ -887,26 +829,12 @@ public class AppDeliveryPkgService {
         String carrierName = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
         Map<String, Integer> packageQuantityMap = new HashMap<>();
-        Map<String, ProductionPiece> persistedPieces = productionPieceService.findByProductionPieceIds(
-                        request.getPieces().stream().filter(Objects::nonNull)
-                                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
-                                .filter(Objects::nonNull).map(DeliveryPkgPieceVO::getProductionPieceId)
-                                .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList()))
-                .stream().collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece,
-                        (left, right) -> left));
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
-            if (item == null || StringUtils.isBlank(item.getProductionPieceId())) {
+            if (item == null || item.getPiece() == null
+                    || StringUtils.isBlank(item.getPiece().getProductionPieceId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件信息不完整");
             }
-            ProductionPiece sourcePiece = piecesByBusinessId.get(item.getProductionPieceId());
-            OrderItem orderItem = sourcePiece == null ? null : orderItemsById.get(sourcePiece.getOrderItemId());
-            if (sourcePiece == null || orderItem == null) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
-            }
-            DeliveryPkgPieceVO pieceVO = DeliveryPkgPieceVO.fromProductionPiece(sourcePiece);
-            pieceVO.setOrderId(orderItem.getOrderId());
-            pieceVO.setLogisticsCarrierInfo(orderItem.getLogisticsCarrierInfo());
-            item.setPiece(pieceVO);
+            DeliveryPkgPieceVO pieceVO = item.getPiece();
             if (StringUtils.isBlank(orderId)) {
                 orderId = pieceVO.getOrderId();
                 if (pieceVO.getLogisticsCarrierInfo() != null) {
@@ -917,7 +845,7 @@ public class AppDeliveryPkgService {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单的零件一起注销");
             }
 
-            ProductionPiece sourcePiece = persistedPieces.get(pieceVO.getProductionPieceId());
+            ProductionPiece sourcePiece = productionPieceService.findByProductionPieceId(pieceVO.getProductionPieceId());
             if (sourcePiece == null) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
             }
@@ -935,9 +863,6 @@ public class AppDeliveryPkgService {
             carrierId = request.getCarrierId();
         }
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
-        if (orderInfo != null) {
-            request.getPieces().forEach(item -> item.getPiece().setOrderCustomer(orderInfo.getCustomer()));
-        }
         fillMissingRouteFromOrder(request, orderInfo);
         DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName,
                 "CUSTOM", null);
@@ -1131,12 +1056,6 @@ public class AppDeliveryPkgService {
             return;
         }
         java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
-        List<ProductionPiece> changedPieces = new ArrayList<>();
-        Map<String, Integer> requiredQuantityByOrderItemId = orderItemService.findByOrderItemIds(
-                        productionPieces.stream().filter(Objects::nonNull).map(ProductionPiece::getOrderItemId)
-                                .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList()))
-                .stream().collect(Collectors.toMap(OrderItem::getOrderItemId,
-                        item -> getOrderItemQuantity(item, 0), (left, right) -> left));
         if (productionPieces == null) {
             productionPieces = new ArrayList<>();
         }
@@ -1201,29 +1120,24 @@ public class AppDeliveryPkgService {
             int alreadyPacked = deliveryPkgInfo.getQuantity() == null ? 0 : deliveryPkgInfo.getQuantity();
             deliveryPkgInfo.setQuantity(alreadyPacked + quantity);
             productionPiece.setDeliveryPkgInfos(pkgInfos);
-            updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds,
-                    requiredQuantityByOrderItemId.get(productionPiece.getOrderItemId()));
-            changedPieces.add(productionPiece);
+            updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
         }
-        productionPieceService.batchUpdatePackagingState(changedPieces);
         refreshPackagingCompletionStatus(touchedOrderItemIds);
     }
 
-    private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece,
-            java.util.Set<String> touchedOrderItemIds, Integer requiredPackedQuantity) {
+    private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece, java.util.Set<String> touchedOrderItemIds) {
         if (piece == null) {
             return;
         }
         if (touchedOrderItemIds != null && StringUtils.isNotBlank(piece.getOrderItemId())) {
             touchedOrderItemIds.add(piece.getOrderItemId());
         }
-        boolean pieceFullyPacked = isPieceFullyPacked(piece,
-                requiredPackedQuantity == null || requiredPackedQuantity <= 0
-                        ? piece.getQuantity() : requiredPackedQuantity);
+        boolean pieceFullyPacked = isPieceFullyPacked(piece);
         boolean flag = !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus());
         if (pieceFullyPacked && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
+        productionPieceService.updateProductionPiece(piece);
     }
 
 
@@ -1257,7 +1171,6 @@ public class AppDeliveryPkgService {
                 continue;
             }
 
-            List<ProductionPiece> changedPieces = new ArrayList<>();
             for (ProductionPiece piece : orderItemPieces) {
                 boolean changed = false;
                 if (!TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
@@ -1269,10 +1182,9 @@ public class AppDeliveryPkgService {
                     changed = true;
                 }
                 if (changed) {
-                    changedPieces.add(piece);
+                    productionPieceService.updateProductionPiece(piece);
                 }
             }
-            productionPieceService.batchUpdatePackagingState(changedPieces);
 
             boolean allPiecesCompleted = !orderItemPieces.isEmpty() && orderItemPieces.stream()
                     .allMatch(piece -> TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus()));

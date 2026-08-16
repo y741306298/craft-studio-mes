@@ -1,6 +1,5 @@
 package com.mes.application.dto.req.delivery;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import lombok.Data;
 
@@ -21,20 +20,7 @@ public class DeliveryPkgAddRequest {
 
     @Data
     public static class DeliveryPkgPieceItem {
-        private String productionPieceId;
-        /**
-         * Legacy request compatibility. New clients should send productionPieceId
-         * directly; old clients may still send piece.productionPieceId.
-         */
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
         private DeliveryPkgPieceVO piece;
         private Integer quantity;
-
-        public String getProductionPieceId() {
-            if (productionPieceId != null && !productionPieceId.isBlank()) {
-                return productionPieceId;
-            }
-            return piece == null ? null : piece.getProductionPieceId();
-        }
     }
 }

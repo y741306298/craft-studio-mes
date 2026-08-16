@@ -10,9 +10,6 @@ import java.util.List;
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
 
     List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds);
-
-    /** Batch-persist only fields changed by packaging, without replacing whole documents. */
-    void batchUpdatePackagingState(Collection<ProductionPiece> productionPieces);
     
     /**
      * 根据 productionPieceId 更新生产工件

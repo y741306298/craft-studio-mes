@@ -10,7 +10,6 @@ import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.stereotype.Repository;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,33 +39,6 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
                 Criteria.where("productionPieceId").in(productionPieceIds),
                 Criteria.where("_id").in(productionPieceIds)));
         return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
-    }
-
-    @Override
-    public void batchUpdatePackagingState(Collection<ProductionPiece> productionPieces) {
-        if (productionPieces == null || productionPieces.isEmpty()) {
-            return;
-        }
-        BulkOperations operations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, poClass());
-        Date now = new Date();
-        boolean hasUpdates = false;
-        for (ProductionPiece piece : productionPieces) {
-            if (piece == null || piece.getId() == null) {
-                continue;
-            }
-            Query query = new SoftDeleteQuery(Criteria.where("_id").is(piece.getId()));
-            Update update = new Update()
-                    .set("procedureFlow", piece.getProcedureFlow())
-                    .set("deliveryPkgInfos", piece.getDeliveryPkgInfos())
-                    .set("status", piece.getStatus())
-                    .set("isUrgent", piece.getIsUrgent())
-                    .set("updateTime", now);
-            operations.updateOne(query, update);
-            hasUpdates = true;
-        }
-        if (hasUpdates) {
-            operations.execute();
-        }
     }
     
     @Override
