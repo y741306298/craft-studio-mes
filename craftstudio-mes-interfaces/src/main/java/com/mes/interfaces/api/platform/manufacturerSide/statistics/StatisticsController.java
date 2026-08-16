@@ -6,6 +6,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
+import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.domain.order.enums.OrderStatus;
@@ -65,6 +66,23 @@ public class StatisticsController {
         response.getData().setStatusList(result.getStatusList());
         response.getData().setOrgNameList(result.getOrgNameList());
         return response;
+    }
+
+    /** 全量查询订单统计列表，筛选及汇总口径与分页接口一致。 */
+    @PostMapping("/order/listAll")
+    public ApiResponse<OrderStatisticsListVO> listAllOrderStatistics(
+            @Valid @RequestBody OrderStatisticsAllRequest request) {
+        return ApiResponse.success(appOrderService.findAllOrderStatistics(
+                request.getManufacturerId(),
+                request.getOrderId(),
+                resolveStatus(request.getStatus()),
+                parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd()),
+                request.getRouteId(),
+                request.getMaterialId(),
+                request.getMaterialName(),
+                request.getMaterialType(),
+                request.getOrgName()));
     }
 
     /** Returns the distinct enterprise, material and route dimensions recorded in the period. */

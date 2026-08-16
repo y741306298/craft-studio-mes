@@ -4,6 +4,7 @@ import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.order.po.OrderItemPo;
+import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -48,5 +49,15 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
                         Sort.Order.desc("updateTime")
                 )
         );
+    }
+
+    @Override
+    public List<OrderItem> filterAllUrgentFirst(Map<String, Object> filters) {
+        Query query = new SoftDeleteQuery(buildFilterCriteria(filters)).with(
+                Sort.by(
+                        Sort.Order.desc("isUrgent"),
+                        Sort.Order.desc("updateTime")
+                ));
+        return mongoTemplate.find(query, poClass()).stream().map(OrderItemPo::toDO).toList();
     }
 }
