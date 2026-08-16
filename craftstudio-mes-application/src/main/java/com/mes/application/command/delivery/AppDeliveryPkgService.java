@@ -56,12 +56,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -72,12 +74,17 @@ import java.util.Optional;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class AppDeliveryPkgService {
 
     private static final int SCOPED_FULL_LIST_SIZE = 999;
+    private static final String ADD_PKG_WORKSPACE_PREFIX = "delivery:add-pkg:";
+    private static final long ADD_PKG_WORKSPACE_TTL_MINUTES = 30;
 
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
@@ -89,6 +96,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private WorldRepository worldRepository;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     private final static String DELIVERYKEY = "lCnjtXBY2496";
     private final static String DELIVERYCUSTOMER = "DAAB0437EF6D9C03B8B4FC96C165FFB1";
@@ -666,12 +676,33 @@ public class AppDeliveryPkgService {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
+        String workspaceKey = ADD_PKG_WORKSPACE_PREFIX + UUID.randomUUID();
+        try {
+            return addPkg(request, workspaceKey);
+        } finally {
+            redisTemplate.delete(workspaceKey);
+        }
+    }
+
+    private DeliveryPkg addPkg(DeliveryPkgAddRequest request, String workspaceKey) {
+        List<String> requestedPieceIds = request.getPieces().stream()
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
+                .filter(Objects::nonNull)
+                .map(DeliveryPkgPieceVO::getProductionPieceId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, ProductionPiece> persistedPieces = productionPieceService
+                .findByProductionPieceIds(requestedPieceIds).stream()
+                .collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece,
+                        (left, right) -> left));
         String orderId = null;
         String carrierId = null;
         String carrierName = null;
         String presetType = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
-        Map<String, Integer> packageQuantityMap = new HashMap<>();
+        Map<String, Integer> packageQuantityMap = new RedisQuantityMap(redisTemplate, workspaceKey);
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
             if (item == null || item.getPiece() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件与打包数量必须填写且数量大于0");
@@ -692,7 +723,7 @@ public class AppDeliveryPkgService {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "仅支持同一订单且同一物流方式一起打包");
             }
 
-            ProductionPiece sourcePiece = productionPieceService.findByProductionPieceId(pieceVO.getProductionPieceId());
+            ProductionPiece sourcePiece = persistedPieces.get(pieceVO.getProductionPieceId());
             if (sourcePiece == null) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
             }
@@ -702,8 +733,9 @@ public class AppDeliveryPkgService {
                         "零件[" + pieceVO.getProductionPieceId() + "]打包数量超过待打包数量");
             }
             selectedPieces.add(sourcePiece);
-            packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
+            redisTemplate.opsForHash().put(workspaceKey, sourcePiece.getId(), item.getQuantity().toString());
         }
+        redisTemplate.expire(workspaceKey, ADD_PKG_WORKSPACE_TTL_MINUTES, TimeUnit.MINUTES);
 
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
@@ -1138,6 +1170,28 @@ public class AppDeliveryPkgService {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
         }
         productionPieceService.updateProductionPiece(piece);
+    }
+
+    /** Request-scoped quantity lookup backed by Redis instead of retaining another in-memory copy. */
+    private static final class RedisQuantityMap extends AbstractMap<String, Integer> {
+        private final RedisTemplate<String, Object> redisTemplate;
+        private final String key;
+
+        private RedisQuantityMap(RedisTemplate<String, Object> redisTemplate, String key) {
+            this.redisTemplate = redisTemplate;
+            this.key = key;
+        }
+
+        @Override
+        public Integer get(Object field) {
+            Object value = redisTemplate.opsForHash().get(key, field);
+            return value == null ? null : Integer.valueOf(value.toString());
+        }
+
+        @Override
+        public Set<Entry<String, Integer>> entrySet() {
+            throw new UnsupportedOperationException("Redis quantity workspace does not support iteration");
+        }
     }
 
 
