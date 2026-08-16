@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 public class AppOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderService.class);
+    private static final long TRANSFER_LOCK_EXPIRATION_MS = 24 * 60 * 60 * 1000L;
 
     @Autowired
     private OrderInfoService domainOrderInfoService;
@@ -898,6 +899,27 @@ public class AppOrderService {
      * request.targetId 使用目标工厂 manufacturerUser.account，再由账号关联 manufacturerMetaId。
      */
     public ApiResponse<String> transferOrder(OrderTransferRequest request) {
+        if (request == null || StringUtils.isBlank(request.getOrderId())) {
+            return doTransferOrder(request, null);
+        }
+        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        if (sourceOrderInfo == null) {
+            return doTransferOrder(request, null);
+        }
+
+        String transferLockToken = IdGenerator.generateId("OTL");
+        Date expiredBefore = new Date(System.currentTimeMillis() - TRANSFER_LOCK_EXPIRATION_MS);
+        if (!domainOrderInfoService.tryAcquireTransferLock(sourceOrderInfo.getId(), transferLockToken, expiredBefore)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "订单正在转单处理中，请勿重复转单");
+        }
+        try {
+            return doTransferOrder(request, sourceOrderInfo);
+        } finally {
+            domainOrderInfoService.releaseTransferLock(sourceOrderInfo.getId(), transferLockToken);
+        }
+    }
+
+    private ApiResponse<String> doTransferOrder(OrderTransferRequest request, OrderInfo lockedSourceOrderInfo) {
         if (request == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单参数不能为空");
         }
@@ -924,7 +946,9 @@ public class AppOrderService {
         }
         String targetManufacturerMetaId = targetManufacturerMeta.getManufacturerMetaId();
 
-        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        OrderInfo sourceOrderInfo = lockedSourceOrderInfo != null
+                ? lockedSourceOrderInfo
+                : domainOrderInfoService.findByOrderId(request.getOrderId());
         if (sourceOrderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + request.getOrderId());
         }
@@ -978,6 +1002,7 @@ public class AppOrderService {
         }
 
         List<OrderTransferRecord> transferRecords = new ArrayList<>();
+        List<OrderItem> targetItemsToPreprocess = new ArrayList<>();
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
             Integer transferQuantity = itemDto.getQuantity();
@@ -986,7 +1011,9 @@ public class AppOrderService {
             OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
             domainOrderItemService.addOrderItem(targetOrderItem);
 
-            for (ProductionPiece sourceProductionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
+            List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
+                    sourceOrderItem.getOrderItemId(), new ArrayList<>());
+            for (ProductionPiece sourceProductionPiece : sourceProductionPieces) {
                 ProductionPiece targetProductionPiece = copyProductionPieceForTransfer(
                         sourceProductionPiece,
                         newOrderItemId,
@@ -994,6 +1021,11 @@ public class AppOrderService {
                         transferQuantity
                 );
                 productionPieceService.addProductionPiece(targetProductionPiece);
+            }
+            // A source item can be transferred while its asynchronous preprocessing is still pending.
+            // In that case there are no pieces to copy and the new item needs its own preprocessing task.
+            if (sourceProductionPieces.isEmpty()) {
+                targetItemsToPreprocess.add(targetOrderItem);
             }
 
             int remainQuantity = safeQuantity(sourceOrderItem.getQuantity()) - transferQuantity;
@@ -1021,6 +1053,7 @@ public class AppOrderService {
             ));
         }
         orderTransferRecordService.batchAdd(transferRecords);
+        orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
         List<OrderItem> transferredItems = request.getOrderItemDtos().stream()
                 .map(dto -> orderItemById.get(dto.getOrderItemId())).toList();
         adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), sourceOrderInfo,

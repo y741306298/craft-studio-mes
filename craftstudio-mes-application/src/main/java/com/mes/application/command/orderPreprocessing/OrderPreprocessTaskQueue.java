@@ -1,15 +1,25 @@
 package com.mes.application.command.orderPreprocessing;
 
+import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-
+import com.mes.domain.order.orderInfo.service.OrderItemService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -30,7 +40,11 @@ public class OrderPreprocessTaskQueue {
     private static final Logger log = LoggerFactory.getLogger(OrderPreprocessTaskQueue.class);
 
     private final AppOrderPreprocessingService appOrderPreprocessingService;
+
+    @Autowired
+    private OrderItemService orderItemService;
     private BlockingQueue<OrderPreprocessTask> queue;
+    private final Set<String> queuedOrderItemIds = ConcurrentHashMap.newKeySet();
     private final ExecutorService workerExecutor;
 
     @Value("${order.preprocess.queue.capacity:1000}")
@@ -41,6 +55,12 @@ public class OrderPreprocessTaskQueue {
 
     @Value("${order.preprocess.queue.retry-backoff-ms:1000}")
     private long retryBackoffMs;
+
+    @Value("${order.preprocess.queue.batch-size:100}")
+    private int batchSize;
+
+    @Value("${order.preprocess.queue.pending-recovery-age-ms:1800000}")
+    private long pendingRecoveryAgeMs;
 
     public OrderPreprocessTaskQueue(AppOrderPreprocessingService appOrderPreprocessingService) {
         this.appOrderPreprocessingService = appOrderPreprocessingService;
@@ -66,13 +86,48 @@ public class OrderPreprocessTaskQueue {
         if (queue == null) {
             throw new IllegalStateException("订单预处理任务队列尚未初始化");
         }
-        try {
-            queue.put(new OrderPreprocessTask(orderItems, 0));
-            log.info("订单预处理任务已入队: itemCount={}, queueSize={}", orderItems.size(), queue.size());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("订单预处理任务入队被中断", e);
+        List<OrderItem> newOrderItems = orderItems.stream()
+                .filter(item -> item != null && item.getOrderItemId() != null)
+                .filter(item -> queuedOrderItemIds.add(item.getOrderItemId()))
+                .toList();
+        int effectiveBatchSize = Math.max(1, batchSize);
+        for (int fromIndex = 0; fromIndex < newOrderItems.size(); fromIndex += effectiveBatchSize) {
+            int toIndex = Math.min(fromIndex + effectiveBatchSize, newOrderItems.size());
+            // Copy the view so that a caller changing its list cannot corrupt a queued task.
+            List<OrderItem> batch = new ArrayList<>(newOrderItems.subList(fromIndex, toIndex));
+            try {
+                queue.put(new OrderPreprocessTask(batch, 0));
+                log.info("订单预处理任务已入队: batchItemCount={}, totalItemCount={}, queueSize={}",
+                        batch.size(), newOrderItems.size(), queue.size());
+            } catch (InterruptedException e) {
+                newOrderItems.subList(fromIndex, newOrderItems.size())
+                        .forEach(item -> queuedOrderItemIds.remove(item.getOrderItemId()));
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("订单预处理任务入队被中断", e);
+            }
         }
+    }
+
+    /**
+     * The local queue is deliberately lightweight and is lost on a process restart. Pending order
+     * items are the durable source of truth, so periodically put stale ones back into the queue.
+     * Always query page one: processing changes the status and therefore shrinks this result set;
+     * incrementing the page would skip records.
+     */
+    @Scheduled(fixedDelayString = "${order.preprocess.queue.pending-recovery-interval-ms:60000}")
+    public void recoverStalePendingItems() {
+        if (queue == null) {
+            return;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("status", OrderStatus.PENDING.getCode());
+        filters.put("updateTime_lte", new Date(System.currentTimeMillis() - Math.max(0, pendingRecoveryAgeMs)));
+        List<OrderItem> pendingItems = orderItemService.filterList(1, Math.min(100, Math.max(1, batchSize)), filters);
+        if (pendingItems == null || pendingItems.isEmpty()) {
+            return;
+        }
+        log.warn("发现长时间待处理订单项，重新提交预处理: itemCount={}", pendingItems.size());
+        submit(pendingItems);
     }
 
     private void consumeLoop() {
@@ -83,7 +138,9 @@ public class OrderPreprocessTaskQueue {
                     continue;
                 }
                 log.info("订单预处理任务开始消费: itemCount={}, retry={}, queueSize={}", task.getOrderItems().size(), task.getRetryCount(), queue.size());
-                handleTask(task);
+                if (handleTask(task)) {
+                    task.getOrderItems().forEach(item -> queuedOrderItemIds.remove(item.getOrderItemId()));
+                }
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
             } catch (Exception ex) {
@@ -92,12 +149,13 @@ public class OrderPreprocessTaskQueue {
         }
     }
 
-    private void handleTask(OrderPreprocessTask task) {
+    private boolean handleTask(OrderPreprocessTask task) {
         try {
             List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(task.getOrderItems());
             log.info("订单预处理任务灰度图转换完成: originalItemCount={}, readyItemCount={}", task.getOrderItems().size(), readyOrderItems == null ? 0 : readyOrderItems.size());
             appOrderPreprocessingService.preprocessOrder(readyOrderItems);
             log.info("订单预处理任务处理完成: itemCount={}", readyOrderItems == null ? 0 : readyOrderItems.size());
+            return true;
         } catch (Exception ex) {
             int nextRetry = task.getRetryCount() + 1;
             if (nextRetry <= maxRetry) {
@@ -106,12 +164,13 @@ public class OrderPreprocessTaskQueue {
                     queue.put(new OrderPreprocessTask(task.getOrderItems(), nextRetry));
                 } catch (InterruptedException interruptedException) {
                     Thread.currentThread().interrupt();
-                    return;
+                    return true;
                 }
                 log.warn("订单预处理任务失败，已重试入队: retry={}, itemCount={}, err={}", nextRetry, task.getOrderItems().size(), ex.getMessage(), ex);
-                return;
+                return false;
             }
             log.error("订单预处理任务失败且超过最大重试次数，task dropped: itemCount={}", task.getOrderItems().size(), ex);
+            return true;
         }
     }
 
