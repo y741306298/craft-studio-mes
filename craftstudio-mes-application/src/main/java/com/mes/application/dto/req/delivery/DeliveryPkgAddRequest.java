@@ -1,5 +1,6 @@
 package com.mes.application.dto.req.delivery;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import lombok.Data;
 
@@ -20,6 +21,9 @@ public class DeliveryPkgAddRequest {
 
     @Data
     public static class DeliveryPkgPieceItem {
+        private String productionPieceId;
+        /** Resolved server-side; never accepted from or returned to the client. */
+        @JsonIgnore
         private DeliveryPkgPieceVO piece;
         private Integer quantity;
     }

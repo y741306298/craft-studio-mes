@@ -25,22 +25,14 @@
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `manufacturerMetaId` | string | 是 | 工厂标识；用于查询快递 100 Token 或 WDT 配置，并保存到包裹。 |
-| `carrierId` | string | 否 | 请求对象中存在该字段，但当前实际承运商信息以 `pieces[].piece.logisticsCarrierInfo` 为准。 |
+| `carrierId` | string | 否 | 请求对象中保留该字段；实际物流信息由服务端根据生产零件所属订单明细查询。 |
 | `deliveryManId` | string | 条件必填 | 发货人 ID。普通非聚单平台订单缺少该字段时降级为 `CUSTOM` 打包。 |
 | `deliverySiidId` | string | 条件必填 | 电子面单账号/打印配置 ID。普通非聚单平台订单缺少该字段时降级为 `CUSTOM` 打包。 |
 | `siid` | string | 否 | 快递 100 云打印设备编码，保存为包裹默认重打设备。 |
 | `routeId` | string | 否 | 配送路线 ID；未传时优先继承订单上的 `routeId`。 |
 | `routeNodeId` | string | 否 | 配送路线节点 ID；未传时优先继承订单上的 `routeNodeId`。 |
 | `pieces` | array | 是 | 本次打包的零件集合，不能为空。 |
-| `pieces[].piece` | object | 是 | 零件数据，通常直接使用待打包列表返回的零件对象。 |
-| `pieces[].piece.productionPieceId` | string | 是 | 生产零件业务 ID。 |
-| `pieces[].piece.orderId` | string | 是 | 订单 ID；同一次打包中的所有零件必须属于同一订单。 |
-| `pieces[].piece.orderItemId` | string | 否 | 订单明细 ID，会保存到包裹明细。 |
-| `pieces[].piece.previewUrl` | string | 否 | 预览图地址，会保存到包裹明细。 |
-| `pieces[].piece.logisticsCarrierInfo` | object | 是 | 零件的物流信息。 |
-| `pieces[].piece.logisticsCarrierInfo.carrierId` | string | 是 | 实际使用并保存的承运商 ID。 |
-| `pieces[].piece.logisticsCarrierInfo.carrierName` | string | 否 | 实际使用并保存的承运商名称。 |
-| `pieces[].piece.logisticsCarrierInfo.presetType` | string | 是 | 物流预设类型，例如 `CUSTOM` 或 WDT 配置对应的类型；同一次打包必须一致。 |
+| `pieces[].productionPieceId` | string | 是 | 生产零件业务 ID；订单、物流、预览图等数据由服务端批量查询。 |
 | `pieces[].quantity` | integer | 是 | 本次打包数量，必须大于 `0`，且不能超过该零件当前“待打包”数量。 |
 
 ### 1.3 请求示例
@@ -56,17 +48,7 @@
   "routeNodeId": "ROUTE_NODE_001",
   "pieces": [
     {
-      "piece": {
-        "productionPieceId": "PP_1001",
-        "orderItemId": "OI_2001",
-        "orderId": "ORD_3001",
-        "previewUrl": "https://oss.example.com/previews/PP_1001.png",
-        "logisticsCarrierInfo": {
-          "carrierId": "SF",
-          "carrierName": "顺丰",
-          "presetType": "SF_WDT"
-        }
-      },
+      "productionPieceId": "PP_1001",
       "quantity": 2
     }
   ]
@@ -78,8 +60,8 @@
 接口创建包裹前会执行以下校验：
 
 1. `pieces` 不能为空。
-2. 每一项必须同时包含 `piece` 和大于 `0` 的 `quantity`。
-3. `productionPieceId` 和 `logisticsCarrierInfo` 不能为空。
+2. 每一项必须同时包含 `productionPieceId` 和大于 `0` 的 `quantity`，且零件编号不能重复。
+3. 服务端批量查询到的生产零件、订单明细和物流信息必须完整。
 4. 同一请求中的零件必须具有相同的 `orderId`、`carrierId` 和 `presetType`。
 5. 每个 `productionPieceId` 必须能查询到有效生产零件。
 6. `quantity` 不能超过对应零件当前“待打包”节点的数量。
