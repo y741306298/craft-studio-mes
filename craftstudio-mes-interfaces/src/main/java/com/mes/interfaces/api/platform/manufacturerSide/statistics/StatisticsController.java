@@ -9,7 +9,6 @@ import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
-import com.mes.domain.order.enums.OrderStatus;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +42,6 @@ public class StatisticsController {
         OrderStatisticsListVO result = appOrderService.findOrderStatistics(
                 request.getManufacturerId(),
                 request.getOrderId(),
-                resolveStatus(request.getStatus()),
                 parseStartDate(request.getCreateDateStart()),
                 parseEndDate(request.getCreateDateEnd()),
                 request.getRouteId(),
@@ -75,7 +73,6 @@ public class StatisticsController {
         return ApiResponse.success(appOrderService.findAllOrderStatistics(
                 request.getManufacturerId(),
                 request.getOrderId(),
-                resolveStatus(request.getStatus()),
                 parseStartDate(request.getCreateDateStart()),
                 parseEndDate(request.getCreateDateEnd()),
                 request.getRouteId(),
@@ -104,17 +101,6 @@ public class StatisticsController {
         } catch (java.time.format.DateTimeParseException e) {
             throw new IllegalArgumentException(fieldName + "格式错误，应为 yyyy-MM-dd");
         }
-    }
-
-    private OrderStatus resolveStatus(String status) {
-        if (status == null || status.trim().isEmpty()) {
-            return null;
-        }
-        OrderStatus resolvedStatus = OrderStatus.getByCode(status.trim());
-        if (resolvedStatus != null) {
-            return resolvedStatus;
-        }
-        return OrderStatus.valueOf(status.trim());
     }
 
     private Date parseStartDate(String date) {

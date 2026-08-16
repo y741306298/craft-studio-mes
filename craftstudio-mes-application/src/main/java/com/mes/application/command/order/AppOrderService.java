@@ -272,7 +272,6 @@ public class AppOrderService {
 
     public OrderStatisticsListVO findOrderStatistics(String manufacturerId,
                                                      String orderId,
-                                                     OrderStatus status,
                                                      java.util.Date startTime,
                                                      java.util.Date endTime,
                                                      String routeId,
@@ -284,7 +283,7 @@ public class AppOrderService {
         if (pagedQuery == null || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
             throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
         }
-        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, status, startTime,
+        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
                 endTime, routeId, materialId, materialName, materialType, orgName);
 
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
@@ -320,7 +319,6 @@ public class AppOrderService {
 
     public OrderStatisticsListVO findAllOrderStatistics(String manufacturerId,
                                                         String orderId,
-                                                        OrderStatus status,
                                                         Date startTime,
                                                         Date endTime,
                                                         String routeId,
@@ -328,7 +326,7 @@ public class AppOrderService {
                                                         String materialName,
                                                         String materialType,
                                                         String orgName) {
-        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, status, startTime,
+        Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
                 endTime, routeId, materialId, materialName, materialType, orgName);
         List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters);
         Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
@@ -358,13 +356,15 @@ public class AppOrderService {
     }
 
     private Map<String, Object> buildOrderStatisticsFilters(String manufacturerId, String orderId,
-                                                            OrderStatus status, Date startTime, Date endTime,
+                                                            Date startTime, Date endTime,
                                                             String routeId, String materialId, String materialName,
                                                             String materialType, String orgName) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerId", manufacturerId);
         if (StringUtils.isNotBlank(orderId)) filters.put("orderId_like", orderId.trim());
-        if (status != null) filters.put("status", status.getCode());
+        filters.put("status_in", List.of(
+                OrderStatus.IN_PRODUCTION.getCode(),
+                OrderStatus.PACKAGED.getCode()));
         if (startTime != null) filters.put("createTime_gte", startTime);
         if (endTime != null) filters.put("createTime_lte", endTime);
         if (StringUtils.isNotBlank(routeId)) filters.put("routeId", routeId);

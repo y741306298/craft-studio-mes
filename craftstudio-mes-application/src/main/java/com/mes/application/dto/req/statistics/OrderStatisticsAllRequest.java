@@ -10,7 +10,6 @@ import lombok.EqualsAndHashCode;
 public class OrderStatisticsAllRequest extends ApiRequest {
     private String manufacturerId;
     private String orderId;
-    private String status;
     private String routeId;
     private String createDateStart;
     private String createDateEnd;
