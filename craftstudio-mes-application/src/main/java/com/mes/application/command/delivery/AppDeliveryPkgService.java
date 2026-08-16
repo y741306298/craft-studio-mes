@@ -772,7 +772,8 @@ public class AppDeliveryPkgService {
                 if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
                     String reprintSiid = resolveKuaidi100SiidForAddPkg(request, deliveryToken);
                     if (StringUtils.isBlank(reprintSiid)) {
-                        throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100云打印设备不能为空");
+                        return fallbackToCustomPkg(request, orderInfo, orderId, carrierId, carrierName,
+                                selectedPieces, packageQuantityMap, "快递100云打印设备为空");
                     }
                     if (preOrderRecord.getConsumeStatus() != PreOrderLabelConsumeStatus.CONSUMED) {
                         DeliveryRecord claimed = deliveryRecordRepository.claimForPrinting(preOrderRecord.getId(),
@@ -785,14 +786,17 @@ public class AppDeliveryPkgService {
                             reprintResponse = reprintKuaidi100Label(claimed.getTaskId(), reprintSiid);
                         } catch (RuntimeException ex) {
                             claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
+                            claimed.setErrorMsg(ex.getMessage());
                             deliveryRecordRepository.update(claimed);
-                            throw ex;
+                            return fallbackToCustomPkg(request, orderInfo, orderId, carrierId, carrierName,
+                                    selectedPieces, packageQuantityMap, "快递100预下单面单复打异常", ex);
                         }
                         if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
                             claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
                             claimed.setErrorMsg(reprintResponse == null ? "快递100预下单面单复打失败" : reprintResponse.getMessage());
                             deliveryRecordRepository.update(claimed);
-                            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, claimed.getErrorMsg());
+                            return fallbackToCustomPkg(request, orderInfo, orderId, carrierId, carrierName,
+                                    selectedPieces, packageQuantityMap, claimed.getErrorMsg());
                         }
                         claimed.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
                         claimed.setPackedAt(new Date());
@@ -836,8 +840,14 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
         toPkgRequest.setRemark(buildDeliveryPkgRemarks(orderId, actualPresetType, null, request.getPieces(), null));
-        // 调用配送系统打包，打印面单；失败时 toPkg 会先保存失败记录再抛异常，且不会创建包裹或更新零件
-        DeliveryPkgPrintResult printResult = this.executePkg(toPkgRequest);
+        // 快递100不可用时仍需完成现场打包：降级为本地自定义面单并生成包裹。
+        DeliveryPkgPrintResult printResult;
+        try {
+            printResult = this.executePkg(toPkgRequest);
+        } catch (RuntimeException ex) {
+            return fallbackToCustomPkg(request, orderInfo, orderId, carrierId, carrierName,
+                    selectedPieces, packageQuantityMap, "快递100电子面单下单失败", ex);
+        }
         String taskId = printResult == null ? null : printResult.getTaskId();
         String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
         DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, kuaidiNum);
@@ -850,6 +860,35 @@ public class AppDeliveryPkgService {
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
+        return deliveryPkg;
+    }
+
+    private DeliveryPkg fallbackToCustomPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                             String orderId, String carrierId, String carrierName,
+                                             List<ProductionPiece> selectedPieces,
+                                             Map<String, Integer> packageQuantityMap, String reason) {
+        return fallbackToCustomPkg(request, orderInfo, orderId, carrierId, carrierName,
+                selectedPieces, packageQuantityMap, reason, null);
+    }
+
+    private DeliveryPkg fallbackToCustomPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                             String orderId, String carrierId, String carrierName,
+                                             List<ProductionPiece> selectedPieces,
+                                             Map<String, Integer> packageQuantityMap, String reason,
+                                             RuntimeException cause) {
+        if (cause == null) {
+            log.warn("{}，降级为自定义面单，orderId={}", reason, orderId);
+        } else {
+            log.warn("{}，降级为自定义面单，orderId={}", reason, orderId, cause);
+        }
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName,
+                "CUSTOM", null);
+        transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName,
+                request.getRouteId(), request.getRouteNodeId(), null);
+        if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
+            orderInfo.setKuaidiNum(null);
+            orderInfoService.updateOrder(orderInfo);
+        }
         return deliveryPkg;
     }
 
