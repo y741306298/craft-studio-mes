@@ -269,3 +269,61 @@ Content-Type: application/json
 2. 用户选择一个统计维度后调用 `/order/list`。
 3. 使用 `/order/list` 的 `items/total` 展示分页明细。
 4. 使用同一响应的 `totalOrderCount/totalArea/totalAmount` 展示日统计聚合值。
+
+## 6. 全量查询订单统计
+
+该接口与 `/order/list` 使用完全相同的明细筛选、排序、路线名称补充和日统计汇总口径，区别仅在于订单项会一次性全量查询，不应用分页。
+
+### 6.1 请求
+
+```http
+POST /api/manufacturerSide/statistics/order/listAll
+Content-Type: application/json
+```
+
+```json
+{
+  "manufacturerId": "69f956c00ff1ad90a9611464",
+  "createDateStart": "2026-06-01",
+  "createDateEnd": "2026-06-30",
+  "materialId": "6a06ae72722cf613cc8b409f"
+}
+```
+
+### 6.2 请求字段
+
+请求字段与 4.2 的 `/order/list` 一致，但不接收、也不需要 `current` 和 `size`。支持 `manufacturerId`、`orderId`、`status`、`routeId`、`createDateStart`、`createDateEnd`、`materialId`、`materialName`、`materialType` 和 `orgName`。
+
+### 6.3 响应
+
+响应的 `data.items`、`data.total`、`data.totalOrderCount`、`data.totalArea`、`data.totalAmount`、`data.materialList`、`data.statusList` 和 `data.orgNameList` 含义与 4.4 一致。其中：
+
+- `data.items` 包含符合条件的全部订单项，仍按“加急优先、更新时间倒序”排列。
+- `data.total` 等于本次返回的订单项总数。
+- 响应不包含分页接口的 `data.current` 和 `data.size` 字段。
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "orderItemId": "OI_2070082974454358018_1",
+        "orderId": "2070082974454358018",
+        "manufacturerId": "69f956c00ff1ad90a9611464",
+        "routeId": "ROUTE_001",
+        "routeName": "常德城区路线"
+      }
+    ],
+    "total": 1,
+    "totalOrderCount": 1,
+    "totalArea": 0.54,
+    "totalAmount": 1.00,
+    "materialList": [],
+    "statusList": [],
+    "orgNameList": []
+  },
+  "timestamp": 1786629600000
+}
+```

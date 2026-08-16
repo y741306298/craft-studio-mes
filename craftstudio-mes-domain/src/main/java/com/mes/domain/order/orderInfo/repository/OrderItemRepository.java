@@ -20,4 +20,7 @@ public interface OrderItemRepository extends BaseRepository<OrderItem> {
      * @return 订单项列表
      */
     List<OrderItem> filterListUrgentFirst(long current, int size, Map<String, Object> filters);
+
+    /** 根据条件全量查询订单项，不应用分页限制，并优先返回加急订单项。 */
+    List<OrderItem> filterAllUrgentFirst(Map<String, Object> filters);
 }
