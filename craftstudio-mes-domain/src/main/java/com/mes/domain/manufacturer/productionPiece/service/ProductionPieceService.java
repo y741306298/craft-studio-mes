@@ -463,6 +463,13 @@ public class ProductionPieceService {
         return productionPieceRepository.findByProductionPieceIds(productionPieceIds);
     }
 
+    public void batchUpdatePackagingState(Collection<ProductionPiece> productionPieces) {
+        if (productionPieces == null || productionPieces.isEmpty()) {
+            return;
+        }
+        productionPieceRepository.batchUpdatePackagingState(productionPieces);
+    }
+
     /**
      * 根据 productionPieceId 更新生产工件
      *
