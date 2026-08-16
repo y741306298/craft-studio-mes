@@ -86,8 +86,8 @@ public class AppOrderPreprocessingService {
     private static final Set<String> MARKLESS_SPLICE_NODE_NAMES = Set.of("写真拼接", "无痕拼接", "板材拼接");
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
-    /** 抠图算法返回的尺寸单位为毫米；宽度小于 2cm 的结果视为噪点。 */
-    static final double MIN_ALGORITHM_PIECE_WIDTH_MM = 20D;
+    /** 抠图算法返回的尺寸单位为毫米；任一边小于 2cm 的结果视为噪点。 */
+    static final double MIN_ALGORITHM_PIECE_SIZE_MM = 20D;
 
     @Autowired
     private OrderItemService orderItemService;
@@ -919,9 +919,9 @@ public class AppOrderPreprocessingService {
                         Double pieceHeight = svgSize[1] != null
                                 ? svgSize[1]
                                 : toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
-                        if (shouldIgnoreAlgorithmPiece(pieceWidth)) {
-                            log.info("忽略宽度过小的抠图算法结果: orderItemId={}, group={}, seq={}, widthMm={}, minWidthMm={}",
-                                    orderItemId, rawGroup, seq, pieceWidth, MIN_ALGORITHM_PIECE_WIDTH_MM);
+                        if (shouldIgnoreAlgorithmPiece(pieceWidth, pieceHeight)) {
+                            log.info("忽略尺寸过小的抠图算法结果: orderItemId={}, group={}, seq={}, widthMm={}, heightMm={}, minSizeMm={}",
+                                    orderItemId, rawGroup, seq, pieceWidth, pieceHeight, MIN_ALGORITHM_PIECE_SIZE_MM);
                             continue;
                         }
                         ProductionPiece piece = procedureService.createProductionPiece(
@@ -1034,8 +1034,9 @@ public class AppOrderPreprocessingService {
         }
     }
 
-    static boolean shouldIgnoreAlgorithmPiece(Double widthMm) {
-        return widthMm != null && widthMm < MIN_ALGORITHM_PIECE_WIDTH_MM;
+    static boolean shouldIgnoreAlgorithmPiece(Double widthMm, Double heightMm) {
+        return (widthMm != null && widthMm < MIN_ALGORITHM_PIECE_SIZE_MM)
+                || (heightMm != null && heightMm < MIN_ALGORITHM_PIECE_SIZE_MM);
     }
 
 
