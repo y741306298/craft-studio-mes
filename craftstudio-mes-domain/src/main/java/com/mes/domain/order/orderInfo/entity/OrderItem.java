@@ -25,11 +25,6 @@ public class OrderItem extends BaseEntity {
     private String orderItemId;
     private String orderId;
     private String manufacturerId;
-    /**
-     * The manufacturer snapshot supplied with the order. Keeping the snapshot on
-     * each item makes the item self-contained when it is processed independently.
-     */
-    private ManufacturerInfo manufacturerInfo;
     /** Complete order-item payload received by the add-order API. */
     private Map<String, Object> sourceInput;
     private MTOProductSpecDTO mtoProduct;

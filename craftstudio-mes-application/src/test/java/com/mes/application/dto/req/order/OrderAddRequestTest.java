@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class OrderAddRequestTest {
 
@@ -62,12 +61,6 @@ class OrderAddRequestTest {
         assertEquals(2, items.size());
         for (OrderItem item : items) {
             assertEquals("manufacturer-id", item.getManufacturerId());
-            assertNotNull(item.getManufacturerInfo());
-            assertEquals("manufacturer-id", item.getManufacturerInfo().getId());
-            assertEquals("修水禾物工厂", item.getManufacturerInfo().getName());
-            assertEquals(new BigDecimal("13"), item.getManufacturerInfo().getPrice().getPaymentPrice());
-            assertEquals(effectItem,
-                    item.getManufacturerInfo().getFloorPriceEffectManifest().getFloorPriceEffectItems().getFirst());
         }
         assertEquals(rawFirstItem, items.get(0).getSourceInput());
         assertEquals(rawSecondItem, items.get(1).getSourceInput());

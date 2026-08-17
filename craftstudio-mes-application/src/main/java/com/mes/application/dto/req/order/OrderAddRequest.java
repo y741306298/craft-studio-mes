@@ -93,12 +93,6 @@ public class OrderAddRequest {
                 specifyRmfInfo.setRmfName(manufacturerInfo.getName());
             }
             orderItem.setManufacturerId(specifyRmfInfo == null ? null : specifyRmfInfo.getRmfId());
-            // manufacturerInfo contains snapshot data (including prices and the floor-price
-            // manifest), so persist it on every item instead of retaining only its id.
-            ManufacturerInfo manufacturerSnapshot = manufacturerInfo == null
-                    ? null
-                    : manufacturerInfo.toManufacturerInfo();
-            orderItem.setManufacturerInfo(manufacturerSnapshot);
             if (orderItemSourceInputs != null && itemIndex < orderItemSourceInputs.size()) {
                 orderItem.setSourceInput(orderItemSourceInputs.get(itemIndex));
             }

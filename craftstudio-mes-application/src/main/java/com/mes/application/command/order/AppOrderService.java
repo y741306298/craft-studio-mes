@@ -367,7 +367,6 @@ public class AppOrderService {
         BeanUtils.copyProperties(item, result);
         result.setRouteName(routeName);
         result.setPaymentPrice(item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice());
-        result.setOrderItemPrice(calculateStatisticsAmount(item));
         return result;
     }
 
@@ -725,17 +724,15 @@ public class AppOrderService {
             log.warn("addOrderWithItems 跳过订单统计，manufacturerMetaId 为空");
             return;
         }
-        BigDecimal totalArea = orderItems.stream()
-                .map(this::calculateOrderItemArea)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAmount = orderItems.stream()
-                .map(this::calculateStatisticsAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, totalArea, totalAmount);
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, BigDecimal.ONE);
     }
 
     private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
-                                          long orderCount, BigDecimal area, BigDecimal amount) {
+                                          long orderCount, BigDecimal multiplier) {
+        OrderStatisticsAmounts amounts = calculateStatisticsAmounts(orderInfo, orderItems);
+        BigDecimal totalArea = orderItems.stream().map(this::calculateOrderItemArea)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).multiply(multiplier);
+        BigDecimal totalAmount = amounts.totalAmount().multiply(multiplier);
         Set<String> enterpriseNames = orderItems.stream()
                 .map(OrderItem::getOrgInfo)
                 .filter(Objects::nonNull)
@@ -747,14 +744,14 @@ public class AppOrderService {
             enterpriseNames.add(orderInfo.getOrgInfo().getName());
         }
         enterpriseNames.forEach(enterpriseName -> incrementOrderDimension(manufacturerMetaId, enterpriseName, enterpriseName,
-                OrderStatisticsType.ENTERPRISE, orderCount, area, amount));
+                OrderStatisticsType.ENTERPRISE, orderCount, totalArea, totalAmount));
 
         orderItems.stream()
                 .map(OrderItem::getRouteId)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new))
                 .forEach(routeId -> incrementOrderDimension(manufacturerMetaId, routeId, resolveRouteName(routeId),
-                        OrderStatisticsType.ROUTE, orderCount, area, amount));
+                        OrderStatisticsType.ROUTE, orderCount, totalArea, totalAmount));
 
         LinkedHashMap<String, String> materials = new LinkedHashMap<>();
         orderItems.stream().map(OrderItem::getMaterial).filter(Objects::nonNull).forEach(material -> {
@@ -763,8 +760,11 @@ public class AppOrderService {
                 materials.putIfAbsent(material.getMaterialId(), snapshotName == null ? null : snapshotName.toString());
             }
         });
+        amounts.amountByMaterialId().keySet().forEach(materialId -> materials.putIfAbsent(materialId, null));
         materials.forEach((materialId, materialName) -> incrementOrderDimension(manufacturerMetaId, materialId,
-                materialName, OrderStatisticsType.MATERIAL, orderCount, area, amount));
+                materialName, OrderStatisticsType.MATERIAL, orderCount,
+                amounts.areaByMaterialId().getOrDefault(materialId, BigDecimal.ZERO).multiply(multiplier),
+                amounts.amountByMaterialId().getOrDefault(materialId, BigDecimal.ZERO).multiply(multiplier)));
     }
 
     private String resolveRouteName(String routeId) {
@@ -992,7 +992,8 @@ public class AppOrderService {
 
         Map<String, OrderItem> orderItemById = new HashMap<>();
         Map<String, List<ProductionPiece>> productionPiecesByOrderItemId = new HashMap<>();
-        BigDecimal transferredAmount = BigDecimal.ZERO;
+        List<OrderItem> sourceItemsBeforeTransfer = domainOrderItemService.findByOrderId(
+                request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             if (itemDto == null || StringUtils.isBlank(itemDto.getOrderItemId())) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
@@ -1024,8 +1025,6 @@ public class AppOrderService {
 
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
-            transferredAmount = transferredAmount.add(calculateTransferredAmount(
-                    orderItem, itemDto.getQuantity()));
         }
 
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
@@ -1040,6 +1039,7 @@ public class AppOrderService {
 
         List<OrderTransferRecord> transferRecords = new ArrayList<>();
         List<OrderItem> targetItemsToPreprocess = new ArrayList<>();
+        List<OrderItem> transferredItems = new ArrayList<>();
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
             Integer transferQuantity = itemDto.getQuantity();
@@ -1047,6 +1047,7 @@ public class AppOrderService {
 
             OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
             domainOrderItemService.addOrderItem(targetOrderItem);
+            transferredItems.add(targetOrderItem);
 
             List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
                     sourceOrderItem.getOrderItemId(), new ArrayList<>());
@@ -1091,12 +1092,14 @@ public class AppOrderService {
         }
         orderTransferRecordService.batchAdd(transferRecords);
         orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
-        List<OrderItem> transferredItems = request.getOrderItemDtos().stream()
-                .map(dto -> orderItemById.get(dto.getOrderItemId())).toList();
-        adjustOrderDailyStatisticsAmount(request.getManufacturerMetaId(), sourceOrderInfo,
-                transferredItems, transferredAmount.negate());
-        adjustOrderDailyStatisticsAmount(targetManufacturerMetaId, targetOrderInfo,
-                transferredItems, transferredAmount);
+        List<OrderItem> sourceItemsAfterTransfer = domainOrderItemService.findByOrderId(
+                request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
+        adjustOrderDailyStatistics(request.getManufacturerMetaId(), sourceOrderInfo,
+                sourceItemsBeforeTransfer, -1, BigDecimal.valueOf(-1));
+        adjustOrderDailyStatistics(request.getManufacturerMetaId(), sourceOrderInfo,
+                sourceItemsAfterTransfer, 1, BigDecimal.ONE);
+        adjustOrderDailyStatistics(targetManufacturerMetaId, targetOrderInfo,
+                transferredItems, 1, BigDecimal.ONE);
 
         return ApiResponse.success("success");
     }
@@ -1223,9 +1226,6 @@ public class AppOrderService {
             }
         }
 
-        BigDecimal cancelledAmount = orderItems.stream()
-                .map(this::calculateStatisticsAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
         String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
                 ? orderInfo.getManufacturerId()
                 : orderItems.stream()
@@ -1233,57 +1233,74 @@ public class AppOrderService {
                         .filter(StringUtils::isNotBlank)
                         .findFirst()
                         .orElse(null);
-        adjustOrderDailyStatisticsAmount(manufacturerMetaId, orderInfo, orderItems,
-                cancelledAmount == null ? BigDecimal.ZERO : cancelledAmount.negate());
+        adjustOrderDailyStatistics(manufacturerMetaId, orderInfo, orderItems, -1, BigDecimal.valueOf(-1));
 
         return ApiResponse.success("success");
     }
 
-    private BigDecimal calculateTransferredAmount(OrderItem orderItem, int transferQuantity) {
-        int sourceQuantity = safeQuantity(orderItem.getQuantity());
-        if (sourceQuantity <= 0) {
-            return BigDecimal.ZERO;
-        }
-        return calculateStatisticsAmount(orderItem)
-                .multiply(BigDecimal.valueOf(transferQuantity))
-                .divide(BigDecimal.valueOf(sourceQuantity), 8, RoundingMode.HALF_UP);
+    BigDecimal calculateStatisticsAmount(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        return calculateStatisticsAmounts(orderInfo, orderItems).totalAmount();
     }
 
-    /**
-     * Calculates one order item's statistics amount from its own manufacturer
-     * snapshot. An incomplete floor-price manifest falls back to the item's captured
-     * manufacturer payment price, then to the item's actual price.
-     */
-    BigDecimal calculateStatisticsAmount(OrderItem orderItem) {
-        if (orderItem == null) {
-            return BigDecimal.ZERO;
-        }
-        ManufacturerInfo manufacturerInfo = orderItem.getManufacturerInfo();
-        if (manufacturerInfo != null && manufacturerInfo.getFloorPriceEffectManifest() != null) {
-            List<ManufacturerInfo.FloorPriceEffectItem> items =
-                    manufacturerInfo.getFloorPriceEffectManifest().getFloorPriceEffectItems();
-            if (items != null && !items.isEmpty() && items.stream().allMatch(
-                    item -> item != null && item.getFloorPrice() != null)) {
-                return items.stream()
-                        .map(ManufacturerInfo.FloorPriceEffectItem::getFloorPrice)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private OrderStatisticsAmounts calculateStatisticsAmounts(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>(resolveFloorPrices(orderInfo));
+        LinkedHashMap<String, BigDecimal> areaByMaterialId = new LinkedHashMap<>();
+        BigDecimal amountWithoutMaterial = BigDecimal.ZERO;
+        for (OrderItem orderItem : orderItems == null ? List.<OrderItem>of() : orderItems) {
+            String materialId = resolveMaterialId(orderItem);
+            if (StringUtils.isBlank(materialId)) {
+                amountWithoutMaterial = amountWithoutMaterial.add(resolveActualPrice(orderItem));
+                continue;
+            }
+            areaByMaterialId.merge(materialId, calculateOrderItemArea(orderItem), BigDecimal::add);
+            if (!amountByMaterialId.containsKey(materialId)) {
+                amountByMaterialId.merge(materialId, resolveActualPrice(orderItem), BigDecimal::add);
             }
         }
-        if (manufacturerInfo != null && manufacturerInfo.getPrice() != null
-                && manufacturerInfo.getPrice().getPaymentPrice() != null) {
-            return manufacturerInfo.getPrice().getPaymentPrice();
+        BigDecimal totalAmount = amountByMaterialId.values().stream()
+                .reduce(amountWithoutMaterial, BigDecimal::add);
+        return new OrderStatisticsAmounts(totalAmount, amountByMaterialId, areaByMaterialId);
+    }
+
+    private Map<String, BigDecimal> resolveFloorPrices(OrderInfo orderInfo) {
+        LinkedHashMap<String, BigDecimal> floorPrices = new LinkedHashMap<>();
+        ManufacturerInfo manufacturerInfo = orderInfo == null ? null : orderInfo.getManufacturerInfo();
+        ManufacturerInfo.FloorPriceEffectManifest manifest = manufacturerInfo == null
+                ? null : manufacturerInfo.getFloorPriceEffectManifest();
+        List<ManufacturerInfo.FloorPriceEffectItem> floorPriceItems = manifest == null
+                ? null : manifest.getFloorPriceEffectItems();
+        if (floorPriceItems != null) {
+            floorPriceItems.stream()
+                    .filter(Objects::nonNull)
+                    .filter(item -> "MATERIAL".equalsIgnoreCase(item.getRefType()))
+                    .filter(item -> StringUtils.isNotBlank(item.getRefId()) && item.getFloorPrice() != null)
+                    .forEach(item -> floorPrices.putIfAbsent(item.getRefId(), item.getFloorPrice()));
         }
-        return orderItem.getPrice() == null || orderItem.getPrice().getActualPrice() == null
+        return floorPrices;
+    }
+
+    private String resolveMaterialId(OrderItem orderItem) {
+        return orderItem == null || orderItem.getMaterial() == null
+                ? null : orderItem.getMaterial().getMaterialId();
+    }
+
+    private BigDecimal resolveActualPrice(OrderItem orderItem) {
+        return orderItem == null || orderItem.getPrice() == null || orderItem.getPrice().getActualPrice() == null
                 ? BigDecimal.ZERO : orderItem.getPrice().getActualPrice();
     }
 
-    private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, OrderInfo orderInfo,
-                                                  List<OrderItem> orderItems, BigDecimal amount) {
-        if (StringUtils.isBlank(manufacturerMetaId) || amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+    private void adjustOrderDailyStatistics(String manufacturerMetaId, OrderInfo orderInfo,
+                                            List<OrderItem> orderItems, long orderCount,
+                                            BigDecimal multiplier) {
+        if (StringUtils.isBlank(manufacturerMetaId) || orderItems == null || orderItems.isEmpty()) {
             return;
         }
-        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems,
-                0, BigDecimal.ZERO, amount);
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, orderCount, multiplier);
+    }
+
+    private record OrderStatisticsAmounts(BigDecimal totalAmount,
+                                          Map<String, BigDecimal> amountByMaterialId,
+                                          Map<String, BigDecimal> areaByMaterialId) {
     }
 
 
