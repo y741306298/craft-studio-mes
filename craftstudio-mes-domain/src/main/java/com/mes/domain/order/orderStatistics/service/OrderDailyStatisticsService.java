@@ -40,7 +40,7 @@ public class OrderDailyStatisticsService {
     }
 
     public OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate) {
-        return find(manufacturerMetaId, statisticsDate, manufacturerMetaId, OrderStatisticsType.ENTERPRISE);
+        return sum(manufacturerMetaId, statisticsDate, statisticsDate, null, OrderStatisticsType.ENTERPRISE);
     }
 
     /**
@@ -60,11 +60,13 @@ public class OrderDailyStatisticsService {
                                                                                 LocalDate startDate,
                                                                                 LocalDate endDate) {
         return sum(manufacturerMetaId, startDate, endDate,
-                manufacturerMetaId, OrderStatisticsType.ENTERPRISE);
+                null, OrderStatisticsType.ENTERPRISE);
     }
 
     public OrderDailyStatistics sum(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
                                     String indexId, OrderStatisticsType type) {
+        // manufacturerMetaId is always applied by the repository; indexId is an optional
+        // dimension filter within that manufacturer.
         return repository.sum(manufacturerMetaId, startDate, endDate, indexId, type);
     }
 }

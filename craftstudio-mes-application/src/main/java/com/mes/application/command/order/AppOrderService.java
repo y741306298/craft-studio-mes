@@ -370,9 +370,9 @@ public class AppOrderService {
         return result;
     }
 
-    private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerId, Date startTime, Date endTime,
+    private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerMetaId, Date startTime, Date endTime,
                                                                String routeId, String materialId, String orgName) {
-        if (StringUtils.isBlank(manufacturerId) || startTime == null || endTime == null) return null;
+        if (StringUtils.isBlank(manufacturerMetaId) || startTime == null || endTime == null) return null;
         String indexId;
         OrderStatisticsType type;
         if (StringUtils.isNotBlank(materialId)) {
@@ -385,12 +385,12 @@ public class AppOrderService {
             indexId = orgName;
             type = OrderStatisticsType.ENTERPRISE;
         } else {
-            // Use the factory's enterprise record as the canonical unfiltered total.
-            // Summing material records would count multi-material orders more than once.
-            indexId = manufacturerId;
+            // manufacturerMetaId remains the required manufacturer condition. A null indexId
+            // only means summing every enterprise index belonging to that manufacturer.
+            indexId = null;
             type = OrderStatisticsType.ENTERPRISE;
         }
-        return orderDailyStatisticsService.sum(manufacturerId,
+        return orderDailyStatisticsService.sum(manufacturerMetaId,
                 startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
                 endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(), indexId, type);
     }
