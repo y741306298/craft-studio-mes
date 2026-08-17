@@ -385,8 +385,10 @@ public class AppOrderService {
             indexId = orgName;
             type = OrderStatisticsType.ENTERPRISE;
         } else {
+            // Unfiltered totals use one complete dimension only. Material is the canonical
+            // dimension here, so enterprise/route records are not added to the same totals.
             indexId = null;
-            type = OrderStatisticsType.ENTERPRISE;
+            type = OrderStatisticsType.MATERIAL;
         }
         return orderDailyStatisticsService.sum(manufacturerId,
                 startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
