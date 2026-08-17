@@ -3,6 +3,7 @@ package com.mes.application.dto.resp.order;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 
@@ -14,6 +15,8 @@ public class OrderItemResponse {
     private String id;
     private String orderItemId;
     private String orderId;
+    private String manufacturerId;
+    private ManufacturerInfo manufacturerInfo;
     private ProcedureFlow procedureFlow;
     private MaterialConfig material;
     private String procedureFlowId;
@@ -31,6 +34,8 @@ public class OrderItemResponse {
         response.setId(orderItem.getId());
         response.setOrderItemId(orderItem.getOrderItemId());
         response.setOrderId(orderItem.getOrderId());
+        response.setManufacturerId(orderItem.getManufacturerId());
+        response.setManufacturerInfo(orderItem.getManufacturerInfo());
         response.setProcedureFlow(orderItem.getProcedureFlow());
         response.setMaterial(orderItem.getMaterial());
         response.setQuantity(orderItem.getQuantity());
