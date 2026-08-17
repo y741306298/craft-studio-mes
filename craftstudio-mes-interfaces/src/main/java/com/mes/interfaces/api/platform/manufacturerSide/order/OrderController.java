@@ -41,6 +41,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -200,9 +201,10 @@ public class OrderController {
 
         if (JSON.isValidArray(requestBody)) {
             JSONArray rawRequests = JSON.parseArray(requestBody);
-            List<OrderAddRequest> requests = rawRequests.stream()
-                    .map(rawRequest -> toOrderAddRequest((JSONObject) rawRequest))
-                    .collect(Collectors.toList());
+            List<OrderAddRequest> requests = new ArrayList<>(rawRequests.size());
+            for (Object rawRequest : rawRequests) {
+                requests.add(toOrderAddRequest(asJsonObject(rawRequest)));
+            }
             List<OrderAddResponse> responses = appOrderService.addOrdersWithItems(requests).stream()
                     .map(OrderAddResponse::from)
                     .collect(Collectors.toList());
@@ -219,11 +221,20 @@ public class OrderController {
         request.setSourceInput(sourceInput);
         JSONArray rawItems = sourceInput.getJSONArray("orderItems");
         if (rawItems != null) {
-            request.setOrderItemSourceInputs(rawItems.stream()
-                    .map(rawItem -> (Map<String, Object>) (JSONObject) rawItem)
-                    .collect(Collectors.toList()));
+            List<Map<String, Object>> itemSourceInputs = new ArrayList<>(rawItems.size());
+            for (Object rawItem : rawItems) {
+                itemSourceInputs.add(asJsonObject(rawItem));
+            }
+            request.setOrderItemSourceInputs(itemSourceInputs);
         }
         return request;
+    }
+
+    private JSONObject asJsonObject(Object value) {
+        if (value instanceof JSONObject jsonObject) {
+            return jsonObject;
+        }
+        return JSON.parseObject(JSON.toJSONString(value));
     }
 
 
