@@ -682,7 +682,9 @@ public class AppOrderService {
         if (StringUtils.isBlank(manufacturerMetaId) || statisticsDate == null) {
             return null;
         }
-        return orderDailyStatisticsService.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
+        return orderDailyStatisticsService.sumMaterialsByManufacturerMetaIdAndStatisticsDate(
+                manufacturerMetaId,
+                statisticsDate);
     }
 
     public OrderDailyStatistics sumOrderDailyStatistics(String manufacturerId, LocalDate startDate, LocalDate endDate) {
