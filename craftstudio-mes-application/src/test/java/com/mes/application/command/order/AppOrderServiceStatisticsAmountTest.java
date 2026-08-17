@@ -1,7 +1,8 @@
 package com.mes.application.command.order;
 
-import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
+import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
 import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import org.junit.jupiter.api.Test;
 
@@ -15,47 +16,47 @@ class AppOrderServiceStatisticsAmountTest {
     private final AppOrderService service = new AppOrderService();
 
     @Test
-    void sumsFloorPricesWhenManifestIsComplete() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item("0.12")));
+    void sumsFloorPricesFromOrderItemWhenManifestIsComplete() {
+        OrderItem orderItem = itemWithManufacturerPrice("13");
+        orderItem.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item("0.12")));
 
-        assertEquals(new BigDecimal("1.12"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("1.12"), calculateStatisticsAmount(orderItem));
     }
 
     @Test
-    void usesManufacturerPaymentPriceWhenManifestIsEmpty() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest());
+    void usesOrderItemManufacturerPaymentPriceWhenManifestIsEmpty() {
+        OrderItem orderItem = itemWithManufacturerPrice("13");
+        orderItem.getManufacturerInfo().setFloorPriceEffectManifest(manifest());
 
-        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderItem));
     }
 
     @Test
-    void usesManufacturerPaymentPriceWhenAnyFloorPriceIsMissing() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item(null)));
+    void usesOrderItemManufacturerPaymentPriceWhenAnyFloorPriceIsMissing() {
+        OrderItem orderItem = itemWithManufacturerPrice("13");
+        orderItem.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item(null)));
 
-        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderItem));
     }
 
     @Test
-    void usesOrderPaymentPriceForOrdersWithoutManufacturerPricingSnapshot() {
-        OrderInfo orderInfo = new OrderInfo();
-        OrderPriceInfo price = new OrderPriceInfo();
-        price.setPaymentPrice(new BigDecimal("9.08"));
-        orderInfo.setPrice(price);
+    void usesOrderItemActualPriceWithoutManufacturerPricingSnapshot() {
+        OrderItem orderItem = new OrderItem();
+        OrderItemPriceInfo price = new OrderItemPriceInfo();
+        price.setActualPrice(new BigDecimal("1.08"));
+        orderItem.setPrice(price);
 
-        assertEquals(new BigDecimal("9.08"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("1.08"), calculateStatisticsAmount(orderItem));
     }
 
-    private OrderInfo orderWithManufacturerPrice(String paymentPrice) {
+    private OrderItem itemWithManufacturerPrice(String paymentPrice) {
         OrderPriceInfo price = new OrderPriceInfo();
         price.setPaymentPrice(new BigDecimal(paymentPrice));
         ManufacturerInfo manufacturerInfo = new ManufacturerInfo();
         manufacturerInfo.setPrice(price);
-        OrderInfo orderInfo = new OrderInfo();
-        orderInfo.setManufacturerInfo(manufacturerInfo);
-        return orderInfo;
+        OrderItem orderItem = new OrderItem();
+        orderItem.setManufacturerInfo(manufacturerInfo);
+        return orderItem;
     }
 
     private ManufacturerInfo.FloorPriceEffectManifest manifest(ManufacturerInfo.FloorPriceEffectItem... items) {
@@ -70,7 +71,7 @@ class AppOrderServiceStatisticsAmountTest {
         return item;
     }
 
-    private BigDecimal calculateStatisticsAmount(OrderInfo orderInfo) {
-        return service.calculateStatisticsAmount(orderInfo);
+    private BigDecimal calculateStatisticsAmount(OrderItem orderItem) {
+        return service.calculateStatisticsAmount(orderItem);
     }
 }

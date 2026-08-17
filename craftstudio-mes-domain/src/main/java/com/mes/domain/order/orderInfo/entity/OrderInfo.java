@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -38,6 +39,8 @@ public class OrderInfo extends BaseEntity {
     private OrderChannelInfo channel;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private ManufacturerInfo manufacturerInfo;
+    /** Complete payload received by the add-order API, retained without field loss. */
+    private Map<String, Object> sourceInput;
     /** @deprecated use {@link #manufacturerInfo}; retained for existing queries. */
     private String manufacturerId;
     private String manufacturerName;
