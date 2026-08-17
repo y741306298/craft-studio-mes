@@ -289,12 +289,6 @@ public class AppOrderService {
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
         long total = domainOrderItemService.filterTotal(filters);
-        Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
-                        .map(OrderItem::getOrderId)
-                        .filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .stream()
-                .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
         Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
                         .map(OrderItem::getRouteId)
                         .filter(StringUtils::isNotBlank)
@@ -304,8 +298,7 @@ public class AppOrderService {
                 .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
                         (first, ignored) -> first));
         List<OrderStatisticsItemVO> pageItems = orderItems.stream()
-                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId()),
-                        orderInfoByOrderId.get(item.getOrderId())))
+                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId())))
                 .toList();
 
         OrderDailyStatistics totals = findPersistedStatisticsTotals(
@@ -329,11 +322,6 @@ public class AppOrderService {
         Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
                 endTime, routeId, materialId, materialName, materialType, orgName);
         List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters);
-        Map<String, OrderInfo> orderInfoByOrderId = domainOrderInfoService.findByOrderIds(orderItems.stream()
-                        .map(OrderItem::getOrderId).filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .stream().collect(Collectors.toMap(OrderInfo::getOrderId, order -> order,
-                        (first, ignored) -> first));
         Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
                         .map(OrderItem::getRouteId).filter(StringUtils::isNotBlank)
                         .collect(Collectors.toCollection(LinkedHashSet::new)))
@@ -342,8 +330,7 @@ public class AppOrderService {
                 .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
                         (first, ignored) -> first));
         List<OrderStatisticsItemVO> items = orderItems.stream()
-                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId()),
-                        orderInfoByOrderId.get(item.getOrderId())))
+                .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId())))
                 .toList();
 
         OrderDailyStatistics totals = findPersistedStatisticsTotals(
@@ -375,12 +362,12 @@ public class AppOrderService {
         return filters;
     }
 
-    private OrderStatisticsItemVO toOrderStatisticsItemVO(OrderItem item, String routeName, OrderInfo orderInfo) {
+    private OrderStatisticsItemVO toOrderStatisticsItemVO(OrderItem item, String routeName) {
         OrderStatisticsItemVO result = new OrderStatisticsItemVO();
         BeanUtils.copyProperties(item, result);
         result.setRouteName(routeName);
         result.setPaymentPrice(item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice());
-        result.setOrderItemPrice(calculateStatisticsAmount(orderInfo));
+        result.setOrderItemPrice(calculateStatisticsAmount(item));
         return result;
     }
 
@@ -741,7 +728,9 @@ public class AppOrderService {
         BigDecimal totalArea = orderItems.stream()
                 .map(this::calculateOrderItemArea)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalAmount = calculateStatisticsAmount(orderInfo);
+        BigDecimal totalAmount = orderItems.stream()
+                .map(this::calculateStatisticsAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, totalArea, totalAmount);
     }
 
@@ -1036,7 +1025,7 @@ public class AppOrderService {
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
             transferredAmount = transferredAmount.add(calculateTransferredAmount(
-                    sourceOrderInfo, orderItem, itemDto.getQuantity()));
+                    orderItem, itemDto.getQuantity()));
         }
 
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
@@ -1234,7 +1223,9 @@ public class AppOrderService {
             }
         }
 
-        BigDecimal cancelledAmount = calculateStatisticsAmount(orderInfo);
+        BigDecimal cancelledAmount = orderItems.stream()
+                .map(this::calculateStatisticsAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
                 ? orderInfo.getManufacturerId()
                 : orderItems.stream()
@@ -1248,26 +1239,26 @@ public class AppOrderService {
         return ApiResponse.success("success");
     }
 
-    private BigDecimal calculateTransferredAmount(OrderInfo orderInfo, OrderItem orderItem, int transferQuantity) {
+    private BigDecimal calculateTransferredAmount(OrderItem orderItem, int transferQuantity) {
         int sourceQuantity = safeQuantity(orderItem.getQuantity());
         if (sourceQuantity <= 0) {
             return BigDecimal.ZERO;
         }
-        return calculateStatisticsAmount(orderInfo)
+        return calculateStatisticsAmount(orderItem)
                 .multiply(BigDecimal.valueOf(transferQuantity))
                 .divide(BigDecimal.valueOf(sourceQuantity), 8, RoundingMode.HALF_UP);
     }
 
     /**
-     * Uses the floor-price snapshot only when the manifest is non-empty and every
-     * item contains a floor price. An incomplete manifest must never result in a
-     * partially calculated amount, so it falls back to the captured payment price.
+     * Calculates one order item's statistics amount from its own manufacturer
+     * snapshot. An incomplete floor-price manifest falls back to the item's captured
+     * manufacturer payment price, then to the item's actual price.
      */
-    BigDecimal calculateStatisticsAmount(OrderInfo orderInfo) {
-        if (orderInfo == null) {
+    BigDecimal calculateStatisticsAmount(OrderItem orderItem) {
+        if (orderItem == null) {
             return BigDecimal.ZERO;
         }
-        ManufacturerInfo manufacturerInfo = orderInfo.getManufacturerInfo();
+        ManufacturerInfo manufacturerInfo = orderItem.getManufacturerInfo();
         if (manufacturerInfo != null && manufacturerInfo.getFloorPriceEffectManifest() != null) {
             List<ManufacturerInfo.FloorPriceEffectItem> items =
                     manufacturerInfo.getFloorPriceEffectManifest().getFloorPriceEffectItems();
@@ -1282,8 +1273,8 @@ public class AppOrderService {
                 && manufacturerInfo.getPrice().getPaymentPrice() != null) {
             return manufacturerInfo.getPrice().getPaymentPrice();
         }
-        return orderInfo.getPrice() == null || orderInfo.getPrice().getPaymentPrice() == null
-                ? BigDecimal.ZERO : orderInfo.getPrice().getPaymentPrice();
+        return orderItem.getPrice() == null || orderItem.getPrice().getActualPrice() == null
+                ? BigDecimal.ZERO : orderItem.getPrice().getActualPrice();
     }
 
     private void adjustOrderDailyStatisticsAmount(String manufacturerMetaId, OrderInfo orderInfo,
