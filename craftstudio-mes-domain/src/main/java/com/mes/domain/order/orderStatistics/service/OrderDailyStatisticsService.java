@@ -43,6 +43,14 @@ public class OrderDailyStatisticsService {
         return find(manufacturerMetaId, statisticsDate, manufacturerMetaId, OrderStatisticsType.ENTERPRISE);
     }
 
+    /**
+     * 汇总工厂指定日期下的全部材料维度统计。
+     */
+    public OrderDailyStatistics sumMaterialsByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId,
+                                                                                   LocalDate statisticsDate) {
+        return sum(manufacturerMetaId, statisticsDate, statisticsDate, null, OrderStatisticsType.MATERIAL);
+    }
+
     public OrderDailyStatistics find(String manufacturerMetaId, LocalDate statisticsDate,
                                      String indexId, OrderStatisticsType type) {
         return repository.find(manufacturerMetaId, statisticsDate, indexId, type);

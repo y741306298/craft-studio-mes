@@ -509,6 +509,7 @@ public class AppOrderService {
                 orderWithItemsVO.setCustomer(orderInfo.getCustomer());
                 orderWithItemsVO.setRemark(orderInfo.getRemark());
                 orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
+                orderWithItemsVO.setManufacturerInfo(orderInfo.getManufacturerInfo());
                 if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
                     orderWithItemsVO.setPaymentPrice(scaleStatisticsDecimal(orderInfo.getPrice().getPaymentPrice()));
                 } else {
@@ -682,7 +683,9 @@ public class AppOrderService {
         if (StringUtils.isBlank(manufacturerMetaId) || statisticsDate == null) {
             return null;
         }
-        return orderDailyStatisticsService.findByManufacturerMetaIdAndStatisticsDate(manufacturerMetaId, statisticsDate);
+        return orderDailyStatisticsService.sumMaterialsByManufacturerMetaIdAndStatisticsDate(
+                manufacturerMetaId,
+                statisticsDate);
     }
 
     public OrderDailyStatistics sumOrderDailyStatistics(String manufacturerId, LocalDate startDate, LocalDate endDate) {
