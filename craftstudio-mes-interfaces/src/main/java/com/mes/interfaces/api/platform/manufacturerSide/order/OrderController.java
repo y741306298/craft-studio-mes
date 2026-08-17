@@ -2,6 +2,8 @@ package com.mes.interfaces.api.platform.manufacturerSide.order;
 
 import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
@@ -40,6 +42,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.logging.Logger;
 
@@ -196,16 +199,31 @@ public class OrderController {
         logger.info("========== addOrderWithItems 入参结束 ==========");
 
         if (JSON.isValidArray(requestBody)) {
-            List<OrderAddRequest> requests = JSON.parseArray(requestBody, OrderAddRequest.class);
+            JSONArray rawRequests = JSON.parseArray(requestBody);
+            List<OrderAddRequest> requests = rawRequests.stream()
+                    .map(rawRequest -> toOrderAddRequest((JSONObject) rawRequest))
+                    .collect(Collectors.toList());
             List<OrderAddResponse> responses = appOrderService.addOrdersWithItems(requests).stream()
                     .map(OrderAddResponse::from)
                     .collect(Collectors.toList());
             return ApiResponse.success(responses);
         } else {
-            OrderAddRequest request = JSON.parseObject(requestBody, OrderAddRequest.class);
+            OrderAddRequest request = toOrderAddRequest(JSON.parseObject(requestBody));
             OrderAddResponse response = OrderAddResponse.from(appOrderService.addOrderWithItems(request));
             return ApiResponse.success(response);
         }
+    }
+
+    private OrderAddRequest toOrderAddRequest(JSONObject sourceInput) {
+        OrderAddRequest request = sourceInput.toJavaObject(OrderAddRequest.class);
+        request.setSourceInput(sourceInput);
+        JSONArray rawItems = sourceInput.getJSONArray("orderItems");
+        if (rawItems != null) {
+            request.setOrderItemSourceInputs(rawItems.stream()
+                    .map(rawItem -> (Map<String, Object>) (JSONObject) rawItem)
+                    .collect(Collectors.toList()));
+        }
+        return request;
     }
 
 
