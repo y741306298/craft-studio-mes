@@ -385,10 +385,10 @@ public class AppOrderService {
             indexId = orgName;
             type = OrderStatisticsType.ENTERPRISE;
         } else {
-            // Unfiltered totals use one complete dimension only. Material is the canonical
-            // dimension here, so enterprise/route records are not added to the same totals.
+            // Enterprise records are keyed by the ordering enterprise (for example, orgName),
+            // not by manufacturerId. Sum every enterprise record for the manufacturer.
             indexId = null;
-            type = OrderStatisticsType.MATERIAL;
+            type = OrderStatisticsType.ENTERPRISE;
         }
         return orderDailyStatisticsService.sum(manufacturerId,
                 startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
@@ -685,7 +685,7 @@ public class AppOrderService {
         if (StringUtils.isBlank(manufacturerMetaId) || statisticsDate == null) {
             return null;
         }
-        return orderDailyStatisticsService.sumMaterialsByManufacturerMetaIdAndStatisticsDate(
+        return orderDailyStatisticsService.findByManufacturerMetaIdAndStatisticsDate(
                 manufacturerMetaId,
                 statisticsDate);
     }
