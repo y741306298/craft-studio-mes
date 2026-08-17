@@ -1,8 +1,10 @@
 package com.mes.application.command.order;
 
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
-import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
+import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -15,62 +17,67 @@ class AppOrderServiceStatisticsAmountTest {
     private final AppOrderService service = new AppOrderService();
 
     @Test
-    void sumsFloorPricesWhenManifestIsComplete() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item("0.12")));
+    void countsOneOrderLevelFloorPriceForItemsOfTheSameMaterial() {
+        OrderInfo order = orderWithFloorPrices(floor("MATERIAL_A", "8"));
+        OrderItem first = orderItem("MATERIAL_A", "5");
+        OrderItem second = orderItem("MATERIAL_A", "6");
 
-        assertEquals(new BigDecimal("1.12"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("8"), service.calculateStatisticsAmount(order, List.of(first, second)));
     }
 
     @Test
-    void usesManufacturerPaymentPriceWhenManifestIsEmpty() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest());
+    void countsDifferentFloorPriceMaterialReferencesOnceAndAddsUnmatchedItems() {
+        OrderInfo order = orderWithFloorPrices(floor("MATERIAL_A", "8"), floor("MATERIAL_B", "3"));
+        List<OrderItem> items = List.of(
+                orderItem("MATERIAL_A", "5"),
+                orderItem("MATERIAL_A", "6"),
+                orderItem("MATERIAL_C", "2.50"));
 
-        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("13.50"), service.calculateStatisticsAmount(order, items));
     }
 
     @Test
-    void usesManufacturerPaymentPriceWhenAnyFloorPriceIsMissing() {
-        OrderInfo orderInfo = orderWithManufacturerPrice("13");
-        orderInfo.getManufacturerInfo().setFloorPriceEffectManifest(manifest(item("1"), item(null)));
+    void usesActualPriceWhenItemMaterialHasNoFloorPrice() {
+        OrderInfo order = orderWithFloorPrices(floor("MATERIAL_A", "8"));
+        OrderItem item = orderItem("MATERIAL_B", "5.55");
 
-        assertEquals(new BigDecimal("13"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("5.55"), service.calculateStatisticsAmount(order, List.of(item)));
     }
 
     @Test
-    void usesOrderPaymentPriceForOrdersWithoutManufacturerPricingSnapshot() {
-        OrderInfo orderInfo = new OrderInfo();
-        OrderPriceInfo price = new OrderPriceInfo();
-        price.setPaymentPrice(new BigDecimal("9.08"));
-        orderInfo.setPrice(price);
+    void ignoresFloorEntryWithoutPriceForItemCalculation() {
+        OrderInfo order = orderWithFloorPrices(floor("MATERIAL_A", null));
+        OrderItem item = orderItem("MATERIAL_A", "5.55");
 
-        assertEquals(new BigDecimal("9.08"), calculateStatisticsAmount(orderInfo));
+        assertEquals(new BigDecimal("5.55"), service.calculateStatisticsAmount(order, List.of(item)));
     }
 
-    private OrderInfo orderWithManufacturerPrice(String paymentPrice) {
-        OrderPriceInfo price = new OrderPriceInfo();
-        price.setPaymentPrice(new BigDecimal(paymentPrice));
-        ManufacturerInfo manufacturerInfo = new ManufacturerInfo();
-        manufacturerInfo.setPrice(price);
-        OrderInfo orderInfo = new OrderInfo();
-        orderInfo.setManufacturerInfo(manufacturerInfo);
-        return orderInfo;
-    }
-
-    private ManufacturerInfo.FloorPriceEffectManifest manifest(ManufacturerInfo.FloorPriceEffectItem... items) {
+    private OrderInfo orderWithFloorPrices(ManufacturerInfo.FloorPriceEffectItem... items) {
         ManufacturerInfo.FloorPriceEffectManifest manifest = new ManufacturerInfo.FloorPriceEffectManifest();
         manifest.setFloorPriceEffectItems(List.of(items));
-        return manifest;
+        ManufacturerInfo manufacturerInfo = new ManufacturerInfo();
+        manufacturerInfo.setFloorPriceEffectManifest(manifest);
+        OrderInfo order = new OrderInfo();
+        order.setManufacturerInfo(manufacturerInfo);
+        return order;
     }
 
-    private ManufacturerInfo.FloorPriceEffectItem item(String floorPrice) {
+    private ManufacturerInfo.FloorPriceEffectItem floor(String materialId, String price) {
         ManufacturerInfo.FloorPriceEffectItem item = new ManufacturerInfo.FloorPriceEffectItem();
-        item.setFloorPrice(floorPrice == null ? null : new BigDecimal(floorPrice));
+        item.setRefId(materialId);
+        item.setRefType("MATERIAL");
+        item.setFloorPrice(price == null ? null : new BigDecimal(price));
         return item;
     }
 
-    private BigDecimal calculateStatisticsAmount(OrderInfo orderInfo) {
-        return service.calculateStatisticsAmount(orderInfo);
+    private OrderItem orderItem(String materialId, String actualPrice) {
+        MaterialConfig material = new MaterialConfig();
+        material.setMaterialId(materialId);
+        OrderItemPriceInfo price = new OrderItemPriceInfo();
+        price.setActualPrice(new BigDecimal(actualPrice));
+        OrderItem item = new OrderItem();
+        item.setMaterial(material);
+        item.setPrice(price);
+        return item;
     }
 }

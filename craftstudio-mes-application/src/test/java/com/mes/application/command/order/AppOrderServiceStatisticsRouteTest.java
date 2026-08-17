@@ -47,7 +47,6 @@ class AppOrderServiceStatisticsRouteTest {
         when(orderItemService.filterListUrgentFirst(1, 20, statisticsFilters))
                 .thenReturn(List.of(first, second));
         when(orderItemService.filterTotal(statisticsFilters)).thenReturn(2L);
-        when(orderInfoService.findByOrderIds(any())).thenReturn(List.of());
         when(routeRepository.findByRouteIds(any())).thenReturn(List.of(route));
 
         OrderStatisticsListVO result = service.findOrderStatistics("M_1", null, null, null,
@@ -62,6 +61,7 @@ class AppOrderServiceStatisticsRouteTest {
         verify(routeRepository).findByRouteIds(org.mockito.ArgumentMatchers.argThat(
                 (Collection<String> ids) -> ids.size() == 1 && ids.contains("ROUTE_1")));
         verify(routeRepository, never()).findByRouteId(any());
+        verify(orderInfoService, never()).findByOrderIds(any());
     }
 
     @Test
@@ -81,7 +81,6 @@ class AppOrderServiceStatisticsRouteTest {
                 "status_in", List.of("IN_PRODUCTION", "PACKAGED"));
         when(orderItemService.filterAllUrgentFirst(statisticsFilters))
                 .thenReturn(List.of(orderItem("ORDER_1", null), orderItem("ORDER_2", null)));
-        when(orderInfoService.findByOrderIds(any())).thenReturn(List.of());
         when(routeRepository.findByRouteIds(any())).thenReturn(List.of());
 
         OrderStatisticsListVO result = service.findAllOrderStatistics("M_1", null, null, null,
@@ -91,6 +90,7 @@ class AppOrderServiceStatisticsRouteTest {
         assertEquals(2, result.getTotal());
         verify(orderItemService).filterAllUrgentFirst(statisticsFilters);
         verify(orderItemService, never()).filterListUrgentFirst(anyInt(), anyInt(), any());
+        verify(orderInfoService, never()).findByOrderIds(any());
     }
 
     private OrderItem orderItem(String orderId, String routeId) {

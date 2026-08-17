@@ -15,6 +15,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -23,6 +24,8 @@ public class OrderItem extends BaseEntity {
     private String orderItemId;
     private String orderId;
     private String manufacturerId;
+    /** Complete order-item payload received by the add-order API. */
+    private Map<String, Object> sourceInput;
     private MTOProductSpecDTO mtoProduct;
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private MaterialConfig material;

@@ -14,6 +14,7 @@ public class OrderItemResponse {
     private String id;
     private String orderItemId;
     private String orderId;
+    private String manufacturerId;
     private ProcedureFlow procedureFlow;
     private MaterialConfig material;
     private String procedureFlowId;
@@ -31,6 +32,7 @@ public class OrderItemResponse {
         response.setId(orderItem.getId());
         response.setOrderItemId(orderItem.getOrderItemId());
         response.setOrderId(orderItem.getOrderId());
+        response.setManufacturerId(orderItem.getManufacturerId());
         response.setProcedureFlow(orderItem.getProcedureFlow());
         response.setMaterial(orderItem.getMaterial());
         response.setQuantity(orderItem.getQuantity());

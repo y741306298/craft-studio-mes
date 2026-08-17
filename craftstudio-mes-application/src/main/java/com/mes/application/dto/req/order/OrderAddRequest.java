@@ -14,6 +14,7 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 订单新增请求 DTO
@@ -38,6 +39,9 @@ public class OrderAddRequest {
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private ManufacturerInfoRequest manufacturerInfo;
     private OrderPriceInfo price;
+    /** Raw request snapshot populated by the API adapter to preserve every input field. */
+    private Map<String, Object> sourceInput;
+    private List<Map<String, Object>> orderItemSourceInputs;
 
 
     public OrderInfo toOrderInfo() {
@@ -58,6 +62,7 @@ public class OrderAddRequest {
         orderInfo.setPaymentState(paymentState);
         orderInfo.setChannel(channel);
         orderInfo.setLogisticsCarrierInfo(logisticsCarrierInfo);
+        orderInfo.setSourceInput(sourceInput);
         if (manufacturerInfo != null) {
             orderInfo.setManufacturerInfo(manufacturerInfo.toManufacturerInfo());
             orderInfo.setManufacturerId(manufacturerInfo.getId());
@@ -70,7 +75,8 @@ public class OrderAddRequest {
 
     public List<OrderItem> toOrderItems() {
         List<OrderItem> orderItems = new ArrayList<OrderItem>();
-        for (OrderItemRequest orderItemRequest : this.orderItems) {
+        for (int itemIndex = 0; itemIndex < this.orderItems.size(); itemIndex++) {
+            OrderItemRequest orderItemRequest = this.orderItems.get(itemIndex);
             OrderItem orderItem = new OrderItem();
             orderItem.setId(orderItemRequest.getKey());
             orderItem.setCreateTime(orderItemRequest.getCreateTime());
@@ -86,6 +92,9 @@ public class OrderAddRequest {
                 specifyRmfInfo.setRmfName(manufacturerInfo.getName());
             }
             orderItem.setManufacturerId(specifyRmfInfo == null ? null : specifyRmfInfo.getRmfId());
+            if (orderItemSourceInputs != null && itemIndex < orderItemSourceInputs.size()) {
+                orderItem.setSourceInput(orderItemSourceInputs.get(itemIndex));
+            }
             orderItem.setQuantity(orderItemRequest.getCount());
             orderItem.setStatus(OrderStatus.PENDING);
             orderItem.setIsUrgent(false);
@@ -101,4 +110,3 @@ public class OrderAddRequest {
     }
 
 }
-
