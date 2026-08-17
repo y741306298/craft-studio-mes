@@ -385,8 +385,10 @@ public class AppOrderService {
             indexId = orgName;
             type = OrderStatisticsType.ENTERPRISE;
         } else {
+            // Unfiltered totals use one complete dimension only. Material is the canonical
+            // dimension here, so enterprise/route records are not added to the same totals.
             indexId = null;
-            type = OrderStatisticsType.ENTERPRISE;
+            type = OrderStatisticsType.MATERIAL;
         }
         return orderDailyStatisticsService.sum(manufacturerId,
                 startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
@@ -701,13 +703,23 @@ public class AppOrderService {
         if (StringUtils.isBlank(manufacturerId) || startDate == null || endDate == null) {
             throw new IllegalArgumentException("工厂和统计日期不能为空");
         }
-        Map<OrderStatisticsType, LinkedHashMap<String, String>> dimensions = new HashMap<>();
+        Map<OrderStatisticsType, LinkedHashMap<String, OrderStatisticsDimensionSummary>> dimensions = new HashMap<>();
         for (OrderDailyStatistics statistics : orderDailyStatisticsService.list(manufacturerId, startDate, endDate)) {
             if (statistics.getType() == null || StringUtils.isBlank(statistics.getIndexId())) {
                 continue;
             }
             dimensions.computeIfAbsent(statistics.getType(), ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(statistics.getIndexId(), statistics.getIndexName());
+                    .compute(statistics.getIndexId(), (ignored, summary) -> {
+                        if (summary == null) {
+                            summary = new OrderStatisticsDimensionSummary(statistics.getIndexName());
+                        } else if (StringUtils.isBlank(summary.indexName)
+                                && StringUtils.isNotBlank(statistics.getIndexName())) {
+                            summary.indexName = statistics.getIndexName();
+                        }
+                        summary.totalOrderCount += statistics.getTotalOrderCount() == null
+                                ? 0L : statistics.getTotalOrderCount();
+                        return summary;
+                    });
         }
         return new OrderStatisticsFiltersVO(
                 toDimensionVOs(dimensions.get(OrderStatisticsType.ENTERPRISE)),
@@ -715,10 +727,20 @@ public class AppOrderService {
                 toDimensionVOs(dimensions.get(OrderStatisticsType.ROUTE)));
     }
 
-    private List<OrderStatisticsDimensionVO> toDimensionVOs(Map<String, String> values) {
+    private List<OrderStatisticsDimensionVO> toDimensionVOs(Map<String, OrderStatisticsDimensionSummary> values) {
         if (values == null) return List.of();
         return values.entrySet().stream()
-                .map(entry -> new OrderStatisticsDimensionVO(entry.getKey(), entry.getValue())).toList();
+                .filter(entry -> entry.getValue().totalOrderCount > 0)
+                .map(entry -> new OrderStatisticsDimensionVO(entry.getKey(), entry.getValue().indexName)).toList();
+    }
+
+    private static final class OrderStatisticsDimensionSummary {
+        private String indexName;
+        private long totalOrderCount;
+
+        private OrderStatisticsDimensionSummary(String indexName) {
+            this.indexName = indexName;
+        }
     }
 
     private void saveOrderDailyStatistics(OrderInfo orderInfo, List<OrderItem> orderItems) {
@@ -1246,7 +1268,8 @@ public class AppOrderService {
     }
 
     private OrderStatisticsAmounts calculateStatisticsAmounts(OrderInfo orderInfo, List<OrderItem> orderItems) {
-        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>(resolveFloorPrices(orderInfo));
+        Map<String, BigDecimal> floorPriceByMaterialId = resolveFloorPrices(orderInfo);
+        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>();
         LinkedHashMap<String, BigDecimal> areaByMaterialId = new LinkedHashMap<>();
         BigDecimal amountWithoutMaterial = BigDecimal.ZERO;
         for (OrderItem orderItem : orderItems == null ? List.<OrderItem>of() : orderItems) {
@@ -1256,7 +1279,12 @@ public class AppOrderService {
                 continue;
             }
             areaByMaterialId.merge(materialId, calculateOrderItemArea(orderItem), BigDecimal::add);
-            if (!amountByMaterialId.containsKey(materialId)) {
+            BigDecimal floorPrice = floorPriceByMaterialId.get(materialId);
+            if (floorPrice != null) {
+                // A material floor price applies once to all matching items in this adjustment.
+                amountByMaterialId.putIfAbsent(materialId, floorPrice);
+            } else {
+                // Without a floor price, every item's captured actual price participates in the adjustment.
                 amountByMaterialId.merge(materialId, resolveActualPrice(orderItem), BigDecimal::add);
             }
         }
