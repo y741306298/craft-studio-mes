@@ -15,6 +15,9 @@ public interface OrderDailyStatisticsRepository extends BaseRepository<OrderDail
     OrderDailyStatistics sum(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
                              String indexId, OrderStatisticsType type);
 
+    OrderDailyStatistics sumByIndexName(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                        String indexName, OrderStatisticsType type);
+
     OrderDailyStatistics increment(String manufacturerMetaId,
                                    LocalDate statisticsDate,
                                    String indexId,

@@ -50,6 +50,22 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
         if (indexId != null) {
             criteria.and("indexId").is(indexId);
         }
+        return aggregateSum(manufacturerMetaId, startDate, indexId, type, criteria);
+    }
+
+    @Override
+    public OrderDailyStatistics sumByIndexName(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                               String indexName, OrderStatisticsType type) {
+        Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("statisticsDate").gte(startDate).lte(endDate)
+                .and("indexName").is(indexName)
+                .and("type").is(type)
+                .and("deleteAt").is(null);
+        return aggregateSum(manufacturerMetaId, startDate, null, type, criteria);
+    }
+
+    private OrderDailyStatistics aggregateSum(String manufacturerMetaId, LocalDate startDate, String indexId,
+                                               OrderStatisticsType type, Criteria criteria) {
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
                 Aggregation.group()
