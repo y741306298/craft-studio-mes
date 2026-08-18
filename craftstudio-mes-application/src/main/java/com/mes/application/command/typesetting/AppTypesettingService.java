@@ -3031,9 +3031,11 @@ public class AppTypesettingService {
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             return;
         }
-        for (TypesettingInfo typesettingInfo : typesettingInfos) {
-            markTypesettingFailed(typesettingInfo, reason);
-        }
+        typesettingInfos.stream().filter(Objects::nonNull).forEach(typesettingInfo -> {
+            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
+            typesettingInfo.setRemark(StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
+        });
+        domainTypesettingService.batchUpdateTypesettings(typesettingInfos);
     }
 
     private String resolveExceptionMessage(Exception e) {
@@ -3203,13 +3205,15 @@ public class AppTypesettingService {
         if (productionPieceUsage == null || productionPieceUsage.isEmpty() || plateUseCount <= 0) {
             return;
         }
+        Map<String, ProductionPiece> piecesById = productionPieceService.findByIds(productionPieceUsage.keySet());
+        List<ProductionPiece> changedPieces = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : productionPieceUsage.entrySet()) {
             String productionPieceRecordId = entry.getKey();
             int requiredQuantity = entry.getValue() * plateUseCount;
             if (requiredQuantity <= 0) {
                 continue;
             }
-            ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
+            ProductionPiece piece = piecesById.get(productionPieceRecordId);
             if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                 continue;
             }
@@ -3240,8 +3244,9 @@ public class AppTypesettingService {
             int printingQuantity = printingNode.getPieceQuantity() == null ? 0 : printingNode.getPieceQuantity();
             printingNode.setPieceQuantity(printingQuantity + requiredQuantity);
             printingNode.setNodeStatus(NodeStatus.PENDING);
-            productionPieceService.updateProductionPiece(piece);
+            changedPieces.add(piece);
         }
+        productionPieceService.batchUpdateProductionPieces(changedPieces);
     }
 
     private Map<String, String> collectTypesettingMarks(TypesettingInfo rootTypesettingInfo) {
@@ -4168,9 +4173,10 @@ public class AppTypesettingService {
                 // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
                 int total = results.size();
                 List<List<TypesettingSourceCell>> usedCellsByResult = new ArrayList<>(total);
+                LayoutConfirmRequest cachedRequest = getCachedLayoutConfirmRequest(typesettingId);
                 boolean taskHaveBlood = false;
                 for (NestingResponse.Result callbackResult : results) {
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
                     usedCellsByResult.add(usedCells);
                     if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells))) {
                         taskHaveBlood = true;
@@ -4612,11 +4618,24 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(typesettingId) || StringUtils.isBlank(nestedSvgUrl)) {
             return Collections.emptyList();
         }
+        return extractUsedSourceCells(getCachedLayoutConfirmRequest(typesettingId), nestedSvgUrl);
+    }
+
+    private LayoutConfirmRequest getCachedLayoutConfirmRequest(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
         Object requestObj = redisTemplate.opsForValue().get(typesettingId);
         if (!(requestObj instanceof String)) {
+            return null;
+        }
+        return JSON.parseObject((String) requestObj, LayoutConfirmRequest.class);
+    }
+
+    private List<TypesettingSourceCell> extractUsedSourceCells(LayoutConfirmRequest request, String nestedSvgUrl) {
+        if (StringUtils.isBlank(nestedSvgUrl)) {
             return Collections.emptyList();
         }
-        LayoutConfirmRequest request = JSON.parseObject((String) requestObj, LayoutConfirmRequest.class);
         if (request == null || request.getTypesettingCells() == null || request.getTypesettingCells().isEmpty()) {
             return Collections.emptyList();
         }

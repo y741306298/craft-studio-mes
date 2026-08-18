@@ -499,4 +499,29 @@ public class TypesettingService {
         }
         return typesettingRepository.findById(id);
     }
+
+    /** Loads callback-related records with one repository query instead of one query per cell. */
+    public Map<String, TypesettingInfo> findByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return typesettingRepository.findByIds(ids.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new)));
+    }
+
+    /** Persists callback state changes with one MongoDB bulk operation. */
+    public void batchUpdateTypesettings(Collection<TypesettingInfo> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        List<TypesettingInfo> validItems = items.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> StringUtils.isNotBlank(item.getId()))
+                .peek(TypesettingInfo::applyLayoutModeConfig)
+                .collect(Collectors.toList());
+        if (!validItems.isEmpty()) {
+            typesettingRepository.batchUpdate(validItems);
+        }
+    }
 }

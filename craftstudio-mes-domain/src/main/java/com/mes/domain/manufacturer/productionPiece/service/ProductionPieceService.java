@@ -455,6 +455,27 @@ public class ProductionPieceService {
         return productionPieceRepository.findById(id);
     }
 
+    public Map<String, ProductionPiece> findByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        return productionPieceRepository.findByIds(ids);
+    }
+
+    /** Batch-persist quantity transfers performed by a typesetting callback. */
+    public void batchUpdateProductionPieces(Collection<ProductionPiece> pieces) {
+        if (pieces == null || pieces.isEmpty()) {
+            return;
+        }
+        List<ProductionPiece> validPieces = pieces.stream()
+                .filter(Objects::nonNull)
+                .filter(piece -> StringUtils.isNotBlank(piece.getId()))
+                .collect(Collectors.toList());
+        if (!validPieces.isEmpty()) {
+            productionPieceRepository.batchUpdate(validPieces);
+        }
+    }
+
     /**
      * 根据 productionPieceId 获取生产工件
      *
