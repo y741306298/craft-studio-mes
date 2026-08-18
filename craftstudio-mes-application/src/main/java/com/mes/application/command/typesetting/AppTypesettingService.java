@@ -1232,6 +1232,7 @@ public class AppTypesettingService {
                 dbPiece.setQuantity(quantity);
                 cell.setQuantity(quantity);
                 cell.setIsRedo(dbPiece.getIsRedo());
+                cell.setHaveBlood(isBloodPieceByCoordinates(dbPiece));
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
@@ -1242,6 +1243,7 @@ public class AppTypesettingService {
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
                 }
+                cell.setHaveBlood(dbTypesettingInfo.getHaveBlood());
                 typesettingInfos.add(dbTypesettingInfo);
             }
         }
@@ -4181,7 +4183,7 @@ public class AppTypesettingService {
                 for (NestingResponse.Result callbackResult : results) {
                     List<TypesettingSourceCell> usedCells = extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
                     usedCellsByResult.add(usedCells);
-                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells))) {
+                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells, cachedRequest))) {
                         taskHaveBlood = true;
                     }
                 }
@@ -4283,11 +4285,52 @@ public class AppTypesettingService {
         return newElement;
     }
 
-    private Boolean resolveCallbackResultHaveBlood(NestingResponse.Result callbackResult, List<TypesettingSourceCell> usedCells) {
+    private Boolean resolveCallbackResultHaveBlood(NestingResponse.Result callbackResult,
+                                                    List<TypesettingSourceCell> usedCells,
+                                                    LayoutConfirmRequest cachedRequest) {
         if (callbackResult != null && callbackResult.getHaveBlood() != null) {
             return callbackResult.getHaveBlood();
         }
+        Boolean cachedHaveBlood = resolveCachedHaveBlood(usedCells, cachedRequest);
+        if (cachedHaveBlood != null) {
+            return cachedHaveBlood;
+        }
         return hasBloodInTypesettingCells(usedCells, new HashSet<>());
+    }
+
+    /**
+     * Reads the source blood snapshot persisted by toLayout. Returning null is intentional:
+     * callbacks for cache entries created before this field existed must retain the database fallback.
+     */
+    private Boolean resolveCachedHaveBlood(List<TypesettingSourceCell> usedCells, LayoutConfirmRequest cachedRequest) {
+        if (usedCells == null || usedCells.isEmpty() || cachedRequest == null
+                || CollectionUtils.isEmpty(cachedRequest.getTypesettingCells())) {
+            return null;
+        }
+        Map<String, Boolean> bloodBySource = new HashMap<>();
+        for (TypesettingProductionPieceVO cachedCell : cachedRequest.getTypesettingCells()) {
+            if (cachedCell == null || StringUtils.isBlank(cachedCell.getSourceType())
+                    || StringUtils.isBlank(cachedCell.getSourceId()) || cachedCell.getHaveBlood() == null) {
+                continue;
+            }
+            bloodBySource.put(cachedCell.getSourceType() + ":" + cachedCell.getSourceId(), cachedCell.getHaveBlood());
+        }
+        boolean matchedSource = false;
+        for (TypesettingSourceCell usedCell : usedCells) {
+            if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType())
+                    || StringUtils.isBlank(usedCell.getSourceId())) {
+                continue;
+            }
+            String sourceKey = usedCell.getSourceType() + ":" + usedCell.getSourceId();
+            if (!bloodBySource.containsKey(sourceKey)) {
+                return null;
+            }
+            matchedSource = true;
+            if (Boolean.TRUE.equals(bloodBySource.get(sourceKey))) {
+                return true;
+            }
+        }
+        return matchedSource ? false : null;
     }
 
     private boolean hasBloodInTypesettingCells(List<TypesettingSourceCell> usedCells, Set<String> visitedTypesettingIds) {
