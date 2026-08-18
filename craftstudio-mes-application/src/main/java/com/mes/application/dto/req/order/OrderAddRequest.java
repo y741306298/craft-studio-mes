@@ -105,6 +105,7 @@ public class OrderAddRequest {
             orderItem.setLogisticsCarrierInfo(itemLogisticsCarrierInfo);
             orderItem.setKuaidiWay(itemLogisticsCarrierInfo == null ? null : itemLogisticsCarrierInfo.getCarrierId());
             orderItem.setPrice(orderItemRequest.getPrice());
+            orderItem.setManufacturerPrice(orderItemRequest.getManufacturerPrice());
             orderItems.add(orderItem);
         }
         return orderItems;

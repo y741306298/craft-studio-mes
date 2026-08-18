@@ -49,6 +49,7 @@ public class OrderItem extends BaseEntity {
     private String routeNodeId;
     private List<ProductionPiece> productionPieces;
     private OrderItemPriceInfo price;
+    private OrderItemPriceInfo manufacturerPrice;
     private OrgInfo orgInfo;
 
 }

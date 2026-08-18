@@ -21,6 +21,7 @@ public class OrderItemRequest {
     private LogisticsCarrierInfo logisticsCarrierInfo;
     private SpecifyRmfInfo specifyRmfInfo;
     private OrderItemPriceInfo price;
+    private OrderItemPriceInfo manufacturerPrice;
 
 
     @Data
