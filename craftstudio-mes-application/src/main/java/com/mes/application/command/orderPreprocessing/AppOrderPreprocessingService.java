@@ -56,6 +56,8 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -65,11 +67,14 @@ import java.util.regex.Pattern;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 订单预处理应用服务。
@@ -84,6 +89,10 @@ import java.util.Set;
 @Service
 public class AppOrderPreprocessingService {
     private static final Set<String> MARKLESS_SPLICE_NODE_NAMES = Set.of("写真拼接", "无痕拼接", "板材拼接");
+    private static final String MASK_CALLBACK_LOCK_PREFIX = "orderPreprocessing:maskCallback:lock:";
+    private static final String MASK_CALLBACK_COMPLETED_PREFIX = "orderPreprocessing:maskCallback:completed:";
+    private static final long MASK_CALLBACK_LOCK_EXPIRE_MINUTES = 30;
+    private static final long MASK_CALLBACK_COMPLETED_EXPIRE_DAYS = 30;
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
     /** 抠图算法返回的尺寸单位为毫米；任一边小于 2cm 的结果视为噪点。 */
@@ -124,6 +133,9 @@ public class AppOrderPreprocessingService {
 
     @Autowired
     private OrderInfoService orderInfoService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     /**
      * 留白工艺处理服务。
@@ -792,6 +804,41 @@ public class AppOrderPreprocessingService {
      * <p>方式使用备注：该方法仅用于算法服务异步回调，不建议在业务代码中主动构造回调数据调用。</p>
      */
     public void handleGenerateMaskFilesCallback(ImageMaskResponse response, String callbackId) {
+        if (response == null) {
+            throw new RuntimeException("回调响应不能为空");
+        }
+        CallbackIdentity callbackIdentity = parseCallbackIdentity(response, callbackId);
+        if (StringUtils.isBlank(callbackIdentity.orderItemId())) {
+            throw new RuntimeException("订单项ID不能为空");
+        }
+
+        String callbackKey = buildMaskCallbackKey(callbackIdentity);
+        String lockKey = MASK_CALLBACK_LOCK_PREFIX + callbackKey;
+        String completedKey = MASK_CALLBACK_COMPLETED_PREFIX + callbackKey;
+        String lockToken = UUID.randomUUID().toString();
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                lockKey, lockToken, MASK_CALLBACK_LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+        if (!Boolean.TRUE.equals(acquired)) {
+            log.info("忽略正在处理的重复图像蒙版回调: orderItemId={}, preprocessRequestId={}",
+                    callbackIdentity.orderItemId(), callbackIdentity.preprocessRequestId());
+            return;
+        }
+
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(completedKey))) {
+                log.info("忽略已处理的重复图像蒙版回调: orderItemId={}, preprocessRequestId={}",
+                        callbackIdentity.orderItemId(), callbackIdentity.preprocessRequestId());
+                return;
+            }
+            doHandleGenerateMaskFilesCallback(response, callbackId);
+            redisTemplate.opsForValue().set(
+                    completedKey, "1", MASK_CALLBACK_COMPLETED_EXPIRE_DAYS, TimeUnit.DAYS);
+        } finally {
+            releaseMaskCallbackLock(lockKey, lockToken);
+        }
+    }
+
+    private void doHandleGenerateMaskFilesCallback(ImageMaskResponse response, String callbackId) {
         String orderItemId = callbackId;
         try {
             // 1. 验证回调响应
@@ -1031,6 +1078,27 @@ public class AppOrderPreprocessingService {
             }
             System.err.println("处理图像蒙版回调异常，订单项ID：" + orderItemId + "，错误：" + e.getMessage());
             throw e;
+        }
+    }
+
+    private String buildMaskCallbackKey(CallbackIdentity callbackIdentity) {
+        String requestId = StringUtils.isBlank(callbackIdentity.preprocessRequestId())
+                ? "legacy"
+                : callbackIdentity.preprocessRequestId();
+        return callbackIdentity.orderItemId() + ":" + requestId;
+    }
+
+    private void releaseMaskCallbackLock(String lockKey, String lockToken) {
+        DefaultRedisScript<Long> releaseScript = new DefaultRedisScript<>();
+        releaseScript.setResultType(Long.class);
+        releaseScript.setScriptText(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                        + "return redis.call('del', KEYS[1]) "
+                        + "else return 0 end");
+        try {
+            redisTemplate.execute(releaseScript, Collections.singletonList(lockKey), lockToken);
+        } catch (Exception ex) {
+            log.warn("释放图像蒙版回调锁失败: lockKey={}", lockKey, ex);
         }
     }
 
