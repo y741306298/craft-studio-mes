@@ -2943,6 +2943,10 @@ public class AppTypesettingService {
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("印版生成回调对应的排版记录不存在：" + recordId);
         }
+        if (isFormeCallbackAlreadyHandled(typesettingInfo, response)) {
+            log.info("忽略重复的印版生成回调，recordId={}, status={}", recordId, typesettingInfo.getStatus());
+            return;
+        }
         try {
             if (!"success".equalsIgnoreCase(response.getStatus())) {
                 markTypesettingFailed(typesettingInfo,
@@ -3011,6 +3015,21 @@ public class AppTypesettingService {
             throw new IllegalStateException("处理印版生成回调异常：" + resolveExceptionMessage(e), e);
         }
 
+    }
+
+    private boolean isFormeCallbackAlreadyHandled(TypesettingInfo typesettingInfo, FormeGenerationResponse response) {
+        if (typesettingInfo == null || response == null) {
+            return false;
+        }
+        boolean success = "success".equalsIgnoreCase(response.getStatus());
+        if (!success) {
+            return TypesettingStatus.FAILED.getCode().equals(typesettingInfo.getStatus());
+        }
+        if (StringUtils.isNotBlank(typesettingInfo.getRemark())) {
+            return false;
+        }
+        return TypesettingStatus.PENDING.getCode().equals(typesettingInfo.getStatus())
+                || TypesettingStatus.PRINTING.getCode().equals(typesettingInfo.getStatus());
     }
 
     private String buildTypesettingInfoLogSummary(TypesettingInfo typesettingInfo) {
@@ -4163,9 +4182,25 @@ public class AppTypesettingService {
         }
 
         String typesettingId = response.getId();
+        List<String> callbackLockKeys = Collections.singletonList(
+                TYPESETTING_OPERATION_LOCK_PREFIX + "nestingCallback:" + typesettingId);
+        String callbackLockToken = acquireOperationLocks(callbackLockKeys, "排版算法回调正在处理中，请稍后重试");
+        try {
+            doHandleNestingCallback(response, typesettingId);
+        } finally {
+            releaseOperationLocks(callbackLockKeys, callbackLockToken);
+        }
+    }
+
+    private void doHandleNestingCallback(NestingResponse response, String typesettingId) {
         List<TypesettingInfo> typesettingInfos = waitForTypesettingRecords(typesettingId);
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             throw new RuntimeException("排版信息不存在：" + typesettingId);
+        }
+        if (isNestingCallbackAlreadyHandled(typesettingInfos)) {
+            log.info("忽略重复的排版算法回调，typesettingId={}, statuses={}", typesettingId,
+                    typesettingInfos.stream().filter(Objects::nonNull).map(TypesettingInfo::getStatus).distinct().toList());
+            return;
         }
 
         TypesettingInfo baseTypesettingInfo = typesettingInfos.get(0);
@@ -4243,6 +4278,12 @@ public class AppTypesettingService {
             markTypesettingsFailed(typesettingInfos, failureReason);
             throw new RuntimeException(failureReason, e);
         }
+    }
+
+    private boolean isNestingCallbackAlreadyHandled(Collection<TypesettingInfo> typesettingInfos) {
+        return typesettingInfos != null && !typesettingInfos.isEmpty()
+                && typesettingInfos.stream().filter(Objects::nonNull)
+                .noneMatch(info -> TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus()));
     }
 
     /**
