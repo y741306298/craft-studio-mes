@@ -1232,6 +1232,7 @@ public class AppTypesettingService {
                 dbPiece.setQuantity(quantity);
                 cell.setQuantity(quantity);
                 cell.setIsRedo(dbPiece.getIsRedo());
+                cell.setHaveBlood(isBloodPieceByCoordinates(dbPiece));
                 productionPieces.add(dbPiece);
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
                 TypesettingInfo typesettingInfo = cell.toTypesettingInfo();
@@ -1242,6 +1243,7 @@ public class AppTypesettingService {
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
                 }
+                cell.setHaveBlood(dbTypesettingInfo.getHaveBlood());
                 typesettingInfos.add(dbTypesettingInfo);
             }
         }
@@ -2926,9 +2928,24 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(recordId)) {
             throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
+        List<String> callbackLockKeys = Collections.singletonList(
+                TYPESETTING_OPERATION_LOCK_PREFIX + "formeCallback:" + recordId);
+        String callbackLockToken = acquireOperationLocks(callbackLockKeys, "印版生成回调正在处理中，请稍后重试");
+        try {
+            doHandleGenerateFormeCallback(response, recordId);
+        } finally {
+            releaseOperationLocks(callbackLockKeys, callbackLockToken);
+        }
+    }
+
+    private void doHandleGenerateFormeCallback(FormeGenerationResponse response, String recordId) {
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(recordId);
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("印版生成回调对应的排版记录不存在：" + recordId);
+        }
+        if (isFormeCallbackAlreadyHandled(typesettingInfo, response)) {
+            log.info("忽略重复的印版生成回调，recordId={}, status={}", recordId, typesettingInfo.getStatus());
+            return;
         }
         try {
             if (!"success".equalsIgnoreCase(response.getStatus())) {
@@ -3000,6 +3017,21 @@ public class AppTypesettingService {
 
     }
 
+    private boolean isFormeCallbackAlreadyHandled(TypesettingInfo typesettingInfo, FormeGenerationResponse response) {
+        if (typesettingInfo == null || response == null) {
+            return false;
+        }
+        boolean success = "success".equalsIgnoreCase(response.getStatus());
+        if (!success) {
+            return TypesettingStatus.FAILED.getCode().equals(typesettingInfo.getStatus());
+        }
+        if (StringUtils.isNotBlank(typesettingInfo.getRemark())) {
+            return false;
+        }
+        return TypesettingStatus.PENDING.getCode().equals(typesettingInfo.getStatus())
+                || TypesettingStatus.PRINTING.getCode().equals(typesettingInfo.getStatus());
+    }
+
     private String buildTypesettingInfoLogSummary(TypesettingInfo typesettingInfo) {
         if (typesettingInfo == null) {
             return "null";
@@ -3031,9 +3063,7 @@ public class AppTypesettingService {
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             return;
         }
-        for (TypesettingInfo typesettingInfo : typesettingInfos) {
-            markTypesettingFailed(typesettingInfo, reason);
-        }
+        domainTypesettingService.batchUpdateCallbackFailure(typesettingInfos, reason);
     }
 
     private String resolveExceptionMessage(Exception e) {
@@ -3203,13 +3233,15 @@ public class AppTypesettingService {
         if (productionPieceUsage == null || productionPieceUsage.isEmpty() || plateUseCount <= 0) {
             return;
         }
+        Map<String, ProductionPiece> piecesById = productionPieceService.findByIds(productionPieceUsage.keySet());
+        Map<String, Integer> requiredQuantities = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : productionPieceUsage.entrySet()) {
             String productionPieceRecordId = entry.getKey();
             int requiredQuantity = entry.getValue() * plateUseCount;
             if (requiredQuantity <= 0) {
                 continue;
             }
-            ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
+            ProductionPiece piece = piecesById.get(productionPieceRecordId);
             if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                 continue;
             }
@@ -3233,14 +3265,11 @@ public class AppTypesettingService {
                 throw new RuntimeException("零件 " + productionPieceRecordId + " 的“排版中”数量不足，需求="
                         + requiredQuantity + "，当前=" + typesettingQuantity);
             }
-            typesettingNode.setPieceQuantity(typesettingQuantity - requiredQuantity);
-            if (typesettingNode.getPieceQuantity() <= 0) {
-                typesettingNode.setNodeStatus(NodeStatus.COMPLETED);
-            }
-            int printingQuantity = printingNode.getPieceQuantity() == null ? 0 : printingNode.getPieceQuantity();
-            printingNode.setPieceQuantity(printingQuantity + requiredQuantity);
-            printingNode.setNodeStatus(NodeStatus.PENDING);
-            productionPieceService.updateProductionPiece(piece);
+            requiredQuantities.put(productionPieceRecordId, requiredQuantity);
+        }
+        long transferred = productionPieceService.transferTypesettingQuantitiesToPrinting(requiredQuantities);
+        if (transferred != requiredQuantities.size()) {
+            throw new RuntimeException("生产工件数量并发变更，期望转移=" + requiredQuantities.size() + "，实际转移=" + transferred);
         }
     }
 
@@ -4153,9 +4182,25 @@ public class AppTypesettingService {
         }
 
         String typesettingId = response.getId();
+        List<String> callbackLockKeys = Collections.singletonList(
+                TYPESETTING_OPERATION_LOCK_PREFIX + "nestingCallback:" + typesettingId);
+        String callbackLockToken = acquireOperationLocks(callbackLockKeys, "排版算法回调正在处理中，请稍后重试");
+        try {
+            doHandleNestingCallback(response, typesettingId);
+        } finally {
+            releaseOperationLocks(callbackLockKeys, callbackLockToken);
+        }
+    }
+
+    private void doHandleNestingCallback(NestingResponse response, String typesettingId) {
         List<TypesettingInfo> typesettingInfos = waitForTypesettingRecords(typesettingId);
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             throw new RuntimeException("排版信息不存在：" + typesettingId);
+        }
+        if (isNestingCallbackAlreadyHandled(typesettingInfos)) {
+            log.info("忽略重复的排版算法回调，typesettingId={}, statuses={}", typesettingId,
+                    typesettingInfos.stream().filter(Objects::nonNull).map(TypesettingInfo::getStatus).distinct().toList());
+            return;
         }
 
         TypesettingInfo baseTypesettingInfo = typesettingInfos.get(0);
@@ -4168,11 +4213,12 @@ public class AppTypesettingService {
                 // 将第一条结果落在原记录上，后续结果新增记录，使用同一个 typesettingId
                 int total = results.size();
                 List<List<TypesettingSourceCell>> usedCellsByResult = new ArrayList<>(total);
+                LayoutConfirmRequest cachedRequest = getCachedLayoutConfirmRequest(typesettingId);
                 boolean taskHaveBlood = false;
                 for (NestingResponse.Result callbackResult : results) {
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(typesettingId, callbackResult.getNestedSvg());
+                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
                     usedCellsByResult.add(usedCells);
-                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells))) {
+                    if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells, cachedRequest))) {
                         taskHaveBlood = true;
                     }
                 }
@@ -4234,6 +4280,12 @@ public class AppTypesettingService {
         }
     }
 
+    private boolean isNestingCallbackAlreadyHandled(Collection<TypesettingInfo> typesettingInfos) {
+        return typesettingInfos != null && !typesettingInfos.isEmpty()
+                && typesettingInfos.stream().filter(Objects::nonNull)
+                .noneMatch(info -> TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus()));
+    }
+
     /**
      * 算法服务可能在 toLayout 完成初始排版记录落库前就发起回调。
      * 在这个很短的并发窗口内立即判定记录不存在，会丢失本次成功回调，
@@ -4274,11 +4326,52 @@ public class AppTypesettingService {
         return newElement;
     }
 
-    private Boolean resolveCallbackResultHaveBlood(NestingResponse.Result callbackResult, List<TypesettingSourceCell> usedCells) {
+    private Boolean resolveCallbackResultHaveBlood(NestingResponse.Result callbackResult,
+                                                    List<TypesettingSourceCell> usedCells,
+                                                    LayoutConfirmRequest cachedRequest) {
         if (callbackResult != null && callbackResult.getHaveBlood() != null) {
             return callbackResult.getHaveBlood();
         }
+        Boolean cachedHaveBlood = resolveCachedHaveBlood(usedCells, cachedRequest);
+        if (cachedHaveBlood != null) {
+            return cachedHaveBlood;
+        }
         return hasBloodInTypesettingCells(usedCells, new HashSet<>());
+    }
+
+    /**
+     * Reads the source blood snapshot persisted by toLayout. Returning null is intentional:
+     * callbacks for cache entries created before this field existed must retain the database fallback.
+     */
+    private Boolean resolveCachedHaveBlood(List<TypesettingSourceCell> usedCells, LayoutConfirmRequest cachedRequest) {
+        if (usedCells == null || usedCells.isEmpty() || cachedRequest == null
+                || CollectionUtils.isEmpty(cachedRequest.getTypesettingCells())) {
+            return null;
+        }
+        Map<String, Boolean> bloodBySource = new HashMap<>();
+        for (TypesettingProductionPieceVO cachedCell : cachedRequest.getTypesettingCells()) {
+            if (cachedCell == null || StringUtils.isBlank(cachedCell.getSourceType())
+                    || StringUtils.isBlank(cachedCell.getSourceId()) || cachedCell.getHaveBlood() == null) {
+                continue;
+            }
+            bloodBySource.put(cachedCell.getSourceType() + ":" + cachedCell.getSourceId(), cachedCell.getHaveBlood());
+        }
+        boolean matchedSource = false;
+        for (TypesettingSourceCell usedCell : usedCells) {
+            if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType())
+                    || StringUtils.isBlank(usedCell.getSourceId())) {
+                continue;
+            }
+            String sourceKey = usedCell.getSourceType() + ":" + usedCell.getSourceId();
+            if (!bloodBySource.containsKey(sourceKey)) {
+                return null;
+            }
+            matchedSource = true;
+            if (Boolean.TRUE.equals(bloodBySource.get(sourceKey))) {
+                return true;
+            }
+        }
+        return matchedSource ? false : null;
     }
 
     private boolean hasBloodInTypesettingCells(List<TypesettingSourceCell> usedCells, Set<String> visitedTypesettingIds) {
@@ -4612,11 +4705,24 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(typesettingId) || StringUtils.isBlank(nestedSvgUrl)) {
             return Collections.emptyList();
         }
+        return extractUsedSourceCells(getCachedLayoutConfirmRequest(typesettingId), nestedSvgUrl);
+    }
+
+    private LayoutConfirmRequest getCachedLayoutConfirmRequest(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
         Object requestObj = redisTemplate.opsForValue().get(typesettingId);
         if (!(requestObj instanceof String)) {
+            return null;
+        }
+        return JSON.parseObject((String) requestObj, LayoutConfirmRequest.class);
+    }
+
+    private List<TypesettingSourceCell> extractUsedSourceCells(LayoutConfirmRequest request, String nestedSvgUrl) {
+        if (StringUtils.isBlank(nestedSvgUrl)) {
             return Collections.emptyList();
         }
-        LayoutConfirmRequest request = JSON.parseObject((String) requestObj, LayoutConfirmRequest.class);
         if (request == null || request.getTypesettingCells() == null || request.getTypesettingCells().isEmpty()) {
             return Collections.emptyList();
         }

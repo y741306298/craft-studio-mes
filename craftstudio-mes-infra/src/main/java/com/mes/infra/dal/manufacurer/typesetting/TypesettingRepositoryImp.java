@@ -8,10 +8,43 @@ import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
 
 @Repository
 public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo, TypesettingPo> implements TypesettingRepository {
+
+    @Override
+    public void batchUpdateCallbackFailure(Collection<String> ids, String status, String remark) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        List<Object> mongoIds = new ArrayList<>(ids.size() * 2);
+        for (String id : ids) {
+            if (StringUtils.isBlank(id)) {
+                continue;
+            }
+            mongoIds.add(id);
+            if (ObjectId.isValid(id)) {
+                mongoIds.add(new ObjectId(id));
+            }
+        }
+        if (mongoIds.isEmpty()) {
+            return;
+        }
+        Query query = new SoftDeleteQuery(Criteria.where("_id").in(mongoIds));
+        Update update = new Update()
+                .set("status", status)
+                .set("remark", remark)
+                .set("updateTime", new Date());
+        mongoTemplate.updateMulti(query, update, poClass());
+    }
 
     @Override
     public Class<TypesettingPo> poClass() {
