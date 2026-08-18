@@ -41,6 +41,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String routeId;
     private String routeNodeId;
     private OrderItemPriceInfo price;
+    private OrderItemPriceInfo manufacturerPrice;
     private OrgInfo orgInfo;
 
     @Override
@@ -73,6 +74,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setRouteId(this.routeId);
         orderItem.setRouteNodeId(this.routeNodeId);
         orderItem.setPrice(this.price);
+        orderItem.setManufacturerPrice(this.manufacturerPrice);
         orderItem.setOrgInfo(this.orgInfo);
 
         return orderItem;
@@ -101,6 +103,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.routeId = _do.getRouteId();
         this.routeNodeId = _do.getRouteNodeId();
         this.price = _do.getPrice();
+        this.manufacturerPrice = _do.getManufacturerPrice();
         this.orgInfo = _do.getOrgInfo();
         return this;
     }
