@@ -109,6 +109,12 @@ public class TypesettingProductionPieceVO {
     private Boolean isRedo;
 
     /**
+     * 来源是否包含血位。toLayout 将该快照写入 Redis，供异步回调直接使用；
+     * null 表示旧缓存没有该字段，回调需要回退到数据库查询。
+     */
+    private Boolean haveBlood;
+
+    /**
      * 排版轮廓 SVG（排版来源）
      */
     private String maskSvg;
@@ -208,6 +214,7 @@ public class TypesettingProductionPieceVO {
         vo.setPreviewUrl(info.getElement().getFormeSvg());
         vo.setStatus(info.getStatus());
         vo.setIsUrgent(info.getIsUrgent());
+        vo.setHaveBlood(info.getHaveBlood());
         vo.setRemark(info.getRemark());
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());

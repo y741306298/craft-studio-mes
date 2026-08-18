@@ -95,6 +95,7 @@ public abstract class BaseRepositoryImp<DO extends BaseEntity, PO extends BasePO
                 poClass()
         );
         for (DO item : items) {
+            item.setUpdateTime(currentBeijingTime());
             Query query = Query.query(Criteria.where("_id").is(item.getId()));
             bulkOps.replaceOne(
                 query, BasePO.fromDO(item, poClass()), FindAndReplaceOptions.options().upsert()
