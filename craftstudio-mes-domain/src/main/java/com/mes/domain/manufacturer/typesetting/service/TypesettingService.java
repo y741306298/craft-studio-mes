@@ -500,28 +500,19 @@ public class TypesettingService {
         return typesettingRepository.findById(id);
     }
 
-    /** Loads callback-related records with one repository query instead of one query per cell. */
-    public Map<String, TypesettingInfo> findByIds(Collection<String> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return typesettingRepository.findByIds(ids.stream()
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new)));
-    }
-
-    /** Persists callback state changes with one MongoDB bulk operation. */
-    public void batchUpdateTypesettings(Collection<TypesettingInfo> items) {
+    /** Updates only callback failure fields, preserving marks and concurrent document changes. */
+    public void batchUpdateCallbackFailure(Collection<TypesettingInfo> items, String reason) {
         if (items == null || items.isEmpty()) {
             return;
         }
-        List<TypesettingInfo> validItems = items.stream()
+        Set<String> ids = items.stream()
                 .filter(Objects::nonNull)
                 .filter(item -> StringUtils.isNotBlank(item.getId()))
-                .peek(TypesettingInfo::applyLayoutModeConfig)
-                .collect(Collectors.toList());
-        if (!validItems.isEmpty()) {
-            typesettingRepository.batchUpdate(validItems);
+                .map(TypesettingInfo::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!ids.isEmpty()) {
+            typesettingRepository.batchUpdateCallbackFailure(ids, TypesettingStatus.FAILED.getCode(),
+                    StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
         }
     }
 }

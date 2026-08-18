@@ -462,18 +462,11 @@ public class ProductionPieceService {
         return productionPieceRepository.findByIds(ids);
     }
 
-    /** Batch-persist quantity transfers performed by a typesetting callback. */
-    public void batchUpdateProductionPieces(Collection<ProductionPiece> pieces) {
-        if (pieces == null || pieces.isEmpty()) {
-            return;
+    public long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities) {
+        if (requiredQuantities == null || requiredQuantities.isEmpty()) {
+            return 0;
         }
-        List<ProductionPiece> validPieces = pieces.stream()
-                .filter(Objects::nonNull)
-                .filter(piece -> StringUtils.isNotBlank(piece.getId()))
-                .collect(Collectors.toList());
-        if (!validPieces.isEmpty()) {
-            productionPieceRepository.batchUpdate(validPieces);
-        }
+        return productionPieceRepository.transferTypesettingQuantitiesToPrinting(requiredQuantities);
     }
 
     /**

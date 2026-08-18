@@ -10,6 +10,7 @@ import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.stereotype.Repository;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,12 +19,64 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
 @Repository
 @Slf4j
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
+
+    @Override
+    public long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities) {
+        if (requiredQuantities == null || requiredQuantities.isEmpty()) {
+            return 0;
+        }
+        BulkOperations bulk = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, poClass());
+        int operationCount = 0;
+        Date updateTime = new Date();
+        for (Map.Entry<String, Integer> entry : requiredQuantities.entrySet()) {
+            String id = entry.getKey();
+            Integer required = entry.getValue();
+            if (id == null || id.isBlank() || required == null || required <= 0) {
+                continue;
+            }
+            Query exhaustingQuery = quantityTransferQuery(id, required, true);
+            Update exhaustingUpdate = quantityTransferUpdate(required, updateTime)
+                    .set("procedureFlow.nodes.$[typesettingNode].nodeStatus",
+                            com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus.COMPLETED);
+            bulk.updateOne(exhaustingQuery, exhaustingUpdate);
+            bulk.updateOne(quantityTransferQuery(id, required, false), quantityTransferUpdate(required, updateTime));
+            operationCount++;
+        }
+        if (operationCount == 0) {
+            return 0;
+        }
+        return bulk.execute().getMatchedCount();
+    }
+
+    private Query quantityTransferQuery(String id, int required, boolean exhausting) {
+        Criteria quantity = Criteria.where("nodeName").is("排版中").and("pieceQuantity");
+        if (exhausting) {
+            quantity.is(required);
+        } else {
+            quantity.gt(required);
+        }
+        return new SoftDeleteQuery(Criteria.where("_id").is(id).andOperator(
+                Criteria.where("procedureFlow.nodes").elemMatch(quantity),
+                Criteria.where("procedureFlow.nodes").elemMatch(Criteria.where("nodeName").is("打印中"))));
+    }
+
+    private Update quantityTransferUpdate(int required, Date updateTime) {
+        return new Update()
+                .inc("procedureFlow.nodes.$[typesettingNode].pieceQuantity", -required)
+                .inc("procedureFlow.nodes.$[printingNode].pieceQuantity", required)
+                .set("procedureFlow.nodes.$[printingNode].nodeStatus",
+                        com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus.PENDING)
+                .set("updateTime", updateTime)
+                .filterArray(Criteria.where("typesettingNode.nodeName").is("排版中"))
+                .filterArray(Criteria.where("printingNode.nodeName").is("打印中"));
+    }
 
     @Override
     public Class<ProductionPiecePo> poClass() {

@@ -2926,6 +2926,17 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(recordId)) {
             throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
+        List<String> callbackLockKeys = Collections.singletonList(
+                TYPESETTING_OPERATION_LOCK_PREFIX + "formeCallback:" + recordId);
+        String callbackLockToken = acquireOperationLocks(callbackLockKeys, "印版生成回调正在处理中，请稍后重试");
+        try {
+            doHandleGenerateFormeCallback(response, recordId);
+        } finally {
+            releaseOperationLocks(callbackLockKeys, callbackLockToken);
+        }
+    }
+
+    private void doHandleGenerateFormeCallback(FormeGenerationResponse response, String recordId) {
         TypesettingInfo typesettingInfo = domainTypesettingService.findById(recordId);
         if (typesettingInfo == null) {
             throw new IllegalArgumentException("印版生成回调对应的排版记录不存在：" + recordId);
@@ -3031,11 +3042,7 @@ public class AppTypesettingService {
         if (typesettingInfos == null || typesettingInfos.isEmpty()) {
             return;
         }
-        typesettingInfos.stream().filter(Objects::nonNull).forEach(typesettingInfo -> {
-            typesettingInfo.setStatus(TypesettingStatus.FAILED.getCode());
-            typesettingInfo.setRemark(StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
-        });
-        domainTypesettingService.batchUpdateTypesettings(typesettingInfos);
+        domainTypesettingService.batchUpdateCallbackFailure(typesettingInfos, reason);
     }
 
     private String resolveExceptionMessage(Exception e) {
@@ -3206,7 +3213,7 @@ public class AppTypesettingService {
             return;
         }
         Map<String, ProductionPiece> piecesById = productionPieceService.findByIds(productionPieceUsage.keySet());
-        List<ProductionPiece> changedPieces = new ArrayList<>();
+        Map<String, Integer> requiredQuantities = new LinkedHashMap<>();
         for (Map.Entry<String, Integer> entry : productionPieceUsage.entrySet()) {
             String productionPieceRecordId = entry.getKey();
             int requiredQuantity = entry.getValue() * plateUseCount;
@@ -3237,16 +3244,12 @@ public class AppTypesettingService {
                 throw new RuntimeException("零件 " + productionPieceRecordId + " 的“排版中”数量不足，需求="
                         + requiredQuantity + "，当前=" + typesettingQuantity);
             }
-            typesettingNode.setPieceQuantity(typesettingQuantity - requiredQuantity);
-            if (typesettingNode.getPieceQuantity() <= 0) {
-                typesettingNode.setNodeStatus(NodeStatus.COMPLETED);
-            }
-            int printingQuantity = printingNode.getPieceQuantity() == null ? 0 : printingNode.getPieceQuantity();
-            printingNode.setPieceQuantity(printingQuantity + requiredQuantity);
-            printingNode.setNodeStatus(NodeStatus.PENDING);
-            changedPieces.add(piece);
+            requiredQuantities.put(productionPieceRecordId, requiredQuantity);
         }
-        productionPieceService.batchUpdateProductionPieces(changedPieces);
+        long transferred = productionPieceService.transferTypesettingQuantitiesToPrinting(requiredQuantities);
+        if (transferred != requiredQuantities.size()) {
+            throw new RuntimeException("生产工件数量并发变更，期望转移=" + requiredQuantities.size() + "，实际转移=" + transferred);
+        }
     }
 
     private Map<String, String> collectTypesettingMarks(TypesettingInfo rootTypesettingInfo) {
