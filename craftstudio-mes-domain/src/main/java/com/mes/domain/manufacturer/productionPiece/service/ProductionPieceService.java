@@ -455,6 +455,20 @@ public class ProductionPieceService {
         return productionPieceRepository.findById(id);
     }
 
+    public Map<String, ProductionPiece> findByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        return productionPieceRepository.findByIds(ids);
+    }
+
+    public long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities) {
+        if (requiredQuantities == null || requiredQuantities.isEmpty()) {
+            return 0;
+        }
+        return productionPieceRepository.transferTypesettingQuantitiesToPrinting(requiredQuantities);
+    }
+
     /**
      * 根据 productionPieceId 获取生产工件
      *

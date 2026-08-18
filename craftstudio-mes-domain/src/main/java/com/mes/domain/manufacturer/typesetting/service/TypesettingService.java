@@ -499,4 +499,20 @@ public class TypesettingService {
         }
         return typesettingRepository.findById(id);
     }
+
+    /** Updates only callback failure fields, preserving marks and concurrent document changes. */
+    public void batchUpdateCallbackFailure(Collection<TypesettingInfo> items, String reason) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        Set<String> ids = items.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> StringUtils.isNotBlank(item.getId()))
+                .map(TypesettingInfo::getId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!ids.isEmpty()) {
+            typesettingRepository.batchUpdateCallbackFailure(ids, TypesettingStatus.FAILED.getCode(),
+                    StringUtils.isNotBlank(reason) ? reason : "印版处理失败");
+        }
+    }
 }

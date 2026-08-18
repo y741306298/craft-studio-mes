@@ -6,12 +6,16 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public interface ProductionPieceRepository extends BaseRepository<ProductionPiece> {
 
     List<ProductionPiece> findByProductionPieceIds(Collection<String> productionPieceIds);
 
     List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds);
+
+    /** Atomically transfers quantities between procedure nodes using conditional MongoDB updates. */
+    long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities);
     
     /**
      * 根据 productionPieceId 更新生产工件
