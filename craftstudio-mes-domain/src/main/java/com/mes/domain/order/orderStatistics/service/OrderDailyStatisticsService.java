@@ -69,4 +69,9 @@ public class OrderDailyStatisticsService {
         // dimension filter within that manufacturer.
         return repository.sum(manufacturerMetaId, startDate, endDate, indexId, type);
     }
+
+    public OrderDailyStatistics sumByIndexName(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                               String indexName, OrderStatisticsType type) {
+        return repository.sumByIndexName(manufacturerMetaId, startDate, endDate, indexName, type);
+    }
 }

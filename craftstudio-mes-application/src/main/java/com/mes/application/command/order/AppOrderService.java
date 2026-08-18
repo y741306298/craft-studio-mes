@@ -390,8 +390,10 @@ public class AppOrderService {
             indexId = routeId;
             type = OrderStatisticsType.ROUTE;
         } else if (StringUtils.isNotBlank(orgName)) {
-            indexId = orgName;
-            type = OrderStatisticsType.ENTERPRISE;
+            return orderDailyStatisticsService.sumByIndexName(manufacturerMetaId,
+                    startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
+                    endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate(),
+                    orgName, OrderStatisticsType.ENTERPRISE);
         } else {
             // manufacturerMetaId remains the required manufacturer condition. A null indexId
             // only means summing every enterprise index belonging to that manufacturer.
