@@ -778,13 +778,12 @@ public class AppOrderService {
                                           long orderCount, BigDecimal multiplier, OrderStatisticsAmounts amounts) {
         BigDecimal totalArea = orderItems.stream().map(this::calculateOrderItemArea)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).multiply(multiplier);
-        BigDecimal orderPaymentAmount = orderInfo.getPrice() == null || orderInfo.getPrice().getPaymentPrice() == null
-                ? BigDecimal.ZERO : orderInfo.getPrice().getPaymentPrice().multiply(multiplier);
+        BigDecimal manufacturerActualAmount = resolveManufacturerActualPrice(orderInfo).multiply(multiplier);
         String enterpriseName = orderInfo.getOrgInfo() == null ? null : orderInfo.getOrgInfo().getName();
         String enterpriseId = orderInfo.getOrgId() == null ? enterpriseName : orderInfo.getOrgId().toString();
         if (StringUtils.isNotBlank(enterpriseId)) {
             incrementOrderDimension(manufacturerMetaId, enterpriseId, enterpriseName,
-                    OrderStatisticsType.ENTERPRISE, orderCount, totalArea, orderPaymentAmount);
+                    OrderStatisticsType.ENTERPRISE, orderCount, totalArea, manufacturerActualAmount);
         }
 
         String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
@@ -792,7 +791,7 @@ public class AppOrderService {
         incrementOrderDimension(manufacturerMetaId,
                 StringUtils.isBlank(routeId) ? NO_ROUTE_ID : routeId,
                 StringUtils.isBlank(routeId) ? NO_ROUTE_NAME : resolveRouteName(routeId),
-                OrderStatisticsType.ROUTE, orderCount, totalArea, orderPaymentAmount);
+                OrderStatisticsType.ROUTE, orderCount, totalArea, manufacturerActualAmount);
 
         LinkedHashMap<String, String> materials = new LinkedHashMap<>();
         orderItems.stream().map(OrderItem::getMaterial).filter(Objects::nonNull).forEach(material -> {
@@ -1378,6 +1377,16 @@ public class AppOrderService {
         return orderItem == null || orderItem.getManufacturerPrice() == null
                 || orderItem.getManufacturerPrice().getActualPrice() == null
                 ? BigDecimal.ZERO : orderItem.getManufacturerPrice().getActualPrice();
+    }
+
+    BigDecimal resolveManufacturerActualPrice(OrderInfo orderInfo) {
+        ManufacturerInfo manufacturerInfo = orderInfo == null ? null : orderInfo.getManufacturerInfo();
+        if (manufacturerInfo != null && manufacturerInfo.getPrice() != null
+                && manufacturerInfo.getPrice().getActualPrice() != null) {
+            return manufacturerInfo.getPrice().getActualPrice();
+        }
+        return orderInfo == null || orderInfo.getPrice() == null || orderInfo.getPrice().getActualPrice() == null
+                ? BigDecimal.ZERO : orderInfo.getPrice().getActualPrice();
     }
 
     private void adjustOrderDailyStatistics(String manufacturerMetaId, OrderInfo orderInfo,
