@@ -194,6 +194,7 @@ public class AppOrderPreprocessingService {
         log.info("订单预处理开始: itemCount={}", orderItems.size());
         int generatedPieceCount = 0;
         List<String> failedOrderItems = new ArrayList<>();
+        List<String> failedOrderItemIds = new ArrayList<>();
 
         // 2. 遍历每个订单项进行处理
         for (OrderItem orderItem : orderItems) {
@@ -210,9 +211,11 @@ public class AppOrderPreprocessingService {
                 }
                 log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
-                // 单个订单项处理失败时，标记该订单项为失败状态，并最终抛出异常让接口返回非 200
+                // 失败状态由队列在重试耗尽后统一写入，避免短暂故障被过早标记为永久失败。
                 String orderItemId = orderItem == null ? null : orderItem.getOrderItemId();
-                orderItemService.markAsFailed(orderItemId, e.getMessage());
+                if (orderItemId != null) {
+                    failedOrderItemIds.add(orderItemId);
+                }
                 String err = "订单项=" + orderItemId + ", 错误=" + e.getMessage();
                 failedOrderItems.add(err);
                 log.error("处理订单项失败: {}", err, e);
@@ -221,6 +224,7 @@ public class AppOrderPreprocessingService {
 
         if (!failedOrderItems.isEmpty()) {
             log.error("订单预处理存在失败项: {}", String.join("; ", failedOrderItems));
+            throw new OrderPreprocessBatchException(failedOrderItemIds, failedOrderItems);
         }
         log.info("订单预处理结束: itemCount={}, generatedPieceCount={}, failedCount={}", orderItems.size(), generatedPieceCount, failedOrderItems.size());
     }
