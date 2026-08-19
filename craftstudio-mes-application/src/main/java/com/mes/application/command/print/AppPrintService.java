@@ -8,6 +8,7 @@ import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg
 import com.mes.domain.manufacturer.manufacturerMeta.service.ManufacturerDeviceCfgService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityTransfer;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
@@ -197,6 +198,7 @@ public class AppPrintService {
             Map<String, Integer> pieceQuantityMap = new LinkedHashMap<>();
             accumulateProductionPieceQuantities(
                     dbInfo.getTypesettingCells(), reportQuantity, pieceQuantityMap, new HashSet<>(), false);
+            List<PieceQuantityTransfer> transfers = new ArrayList<>();
             for (Map.Entry<String, Integer> entry : pieceQuantityMap.entrySet()) {
                 String productionPieceId = entry.getKey();
                 Integer transferQuantity = entry.getValue();
@@ -204,25 +206,11 @@ public class AppPrintService {
                     continue;
                 }
 
-                ProductionPiece piece = productionPieceService.findById(productionPieceId);
-                if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
-                    continue;
-                }
-
-                String printingNodeId = findNodeIdByName(piece.getProcedureFlow().getNodes(), "打印中");
-                String pendingPackingNodeId = findNodeIdByName(piece.getProcedureFlow().getNodes(), "待打包");
-                if (StringUtils.isBlank(printingNodeId) || StringUtils.isBlank(pendingPackingNodeId)) {
-                    continue;
-                }
-
-                productionPieceService.transferPieceQuantityBetweenNodes(
-                        piece.getId(),
-                        printingNodeId,
-                        pendingPackingNodeId,
-                        transferQuantity
-                );
-                transferCount++;
+                transfers.add(new PieceQuantityTransfer(productionPieceId,
+                        "NODE_PRINTING_IN_PROGRESS", "NODE_PENDING_PACKING", transferQuantity));
             }
+            productionPieceService.transferPieceQuantitiesBetweenNodes(transfers);
+            transferCount = transfers.size();
         }
 
         return new PrintReportResult(canComplete, transferCount);
@@ -272,18 +260,12 @@ public class AppPrintService {
             typesettingService.deleteTypesetting(info.getId());
         }
 
-        for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
-            ProductionPiece piece = productionPieceService.findById(entry.getKey());
-            if (piece == null || StringUtils.isBlank(piece.getId())) {
-                continue;
-            }
-            productionPieceService.transferPieceQuantityBetweenNodes(
-                    piece.getId(),
-                    "NODE_PRINTING",
-                    "NODE_TYPESETTING",
-                    entry.getValue()
-            );
-        }
+        List<PieceQuantityTransfer> transfers = productionPieceRollbackQuantity.entrySet().stream()
+                .filter(entry -> StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_PRINTING_IN_PROGRESS",
+                        "NODE_TYPESETTING", entry.getValue()))
+                .toList();
+        productionPieceService.transferPieceQuantitiesBetweenNodes(transfers);
     }
 
     public void redo(TypesettingInfo request) {

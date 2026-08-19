@@ -2,9 +2,13 @@ package com.mes.domain.manufacturer.productionPiece.service;
 
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityDeficitRecord;
+import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityTransfer;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
+import com.mes.domain.manufacturer.productionPiece.repository.PieceQuantityDeficitRecordRepository;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -29,6 +33,9 @@ public class ProductionPieceService {
 
     @Autowired
     private ProductionPieceRepository productionPieceRepository;
+
+    @Autowired
+    private PieceQuantityDeficitRecordRepository pieceQuantityDeficitRecordRepository;
 
     @Autowired
     private OrderItemService orderItemService;
@@ -874,63 +881,83 @@ public class ProductionPieceService {
      * @param quantity 划转数量
      */
     public void transferPieceQuantityBetweenNodes(String productionPieceId, String fromNodeId, String toNodeId, Integer quantity) {
-        if (StringUtils.isBlank(productionPieceId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件 ID 不能为空");
-        }
-        if (StringUtils.isBlank(fromNodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点 ID 不能为空");
-        }
-        if (StringUtils.isBlank(toNodeId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "目标节点 ID 不能为空");
-        }
-        if (quantity == null || quantity <= 0) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "划转数量必须大于 0");
-        }
+        transferPieceQuantitiesBetweenNodes(List.of(
+                new PieceQuantityTransfer(productionPieceId, fromNodeId, toNodeId, quantity)));
+    }
 
-        // 查询生产工件
-        ProductionPiece piece = findById(productionPieceId);
-        if (piece == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件不存在：" + productionPieceId);
+    /**
+     * 批量划转节点数量。目标节点始终增加请求数量；源节点最多扣到 0，差额批量记录。
+     */
+    public void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers) {
+        if (transfers == null || transfers.isEmpty()) {
+            return;
         }
-
-        // 获取工艺路线和节点列表
-        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该生产工件没有工艺路线或节点信息");
-        }
-
-        List<ProcedureFlowNode> nodes = piece.getProcedureFlow().getNodes();
-
-        // 查找源节点和目标节点
-        ProcedureFlowNode fromNode = null;
-        ProcedureFlowNode toNode = null;
-
-        for (ProcedureFlowNode node : nodes) {
-            if (fromNodeId.equals(node.getNodeId())) {
-                fromNode = node;
-            }
-            if (toNodeId.equals(node.getNodeId())) {
-                toNode = node;
+        for (PieceQuantityTransfer transfer : transfers) {
+            if (transfer == null || StringUtils.isBlank(transfer.getProductionPieceId())
+                    || StringUtils.isBlank(transfer.getFromNodeId()) || StringUtils.isBlank(transfer.getToNodeId())
+                    || transfer.getQuantity() == null || transfer.getQuantity() <= 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "节点划转参数不完整或数量小于等于 0");
             }
         }
 
-        if (fromNode == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点不存在：" + fromNodeId);
-        }
-        if (toNode == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "目标节点不存在：" + toNodeId);
-        }
-
-        // 检查源节点数量是否足够
-        if (fromNode.getPieceQuantity() == null || fromNode.getPieceQuantity() < quantity) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源节点数量不足，当前数量：" +
-                (fromNode.getPieceQuantity() != null ? fromNode.getPieceQuantity() : 0));
+        Collection<String> identifiers = transfers.stream().map(PieceQuantityTransfer::getProductionPieceId).distinct().toList();
+        List<ProductionPiece> pieces = findByProductionPieceIds(identifiers);
+        Map<String, ProductionPiece> piecesByIdentifier = new HashMap<>();
+        for (ProductionPiece piece : pieces) {
+            piecesByIdentifier.put(piece.getId(), piece);
+            piecesByIdentifier.put(piece.getProductionPieceId(), piece);
         }
 
-        // 执行数量划转
-        fromNode.setPieceQuantity(fromNode.getPieceQuantity() - quantity);
-        toNode.setPieceQuantity((toNode.getPieceQuantity() != null ? toNode.getPieceQuantity() : 0) + quantity);
-
-        // 更新生产工件的工艺路线信息
-        updateProductionPiece(piece);
+        List<PieceQuantityDeficitRecord> deficits = new java.util.ArrayList<>();
+        for (PieceQuantityTransfer transfer : transfers) {
+            ProductionPiece piece = piecesByIdentifier.get(transfer.getProductionPieceId());
+            if (piece == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "生产工件不存在：" + transfer.getProductionPieceId());
+            }
+            if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该生产工件没有工艺路线或节点信息");
+            }
+            ProcedureFlowNode fromNode = piece.getProcedureFlow().getNodes().stream()
+                    .filter(node -> node != null && transfer.getFromNodeId().equals(node.getNodeId())).findFirst()
+                    .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                            "源节点不存在：" + transfer.getFromNodeId()));
+            ProcedureFlowNode toNode = piece.getProcedureFlow().getNodes().stream()
+                    .filter(node -> node != null && transfer.getToNodeId().equals(node.getNodeId())).findFirst()
+                    .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                            "目标节点不存在：" + transfer.getToNodeId()));
+            int sourceQuantity = Math.max(fromNode.getPieceQuantity() == null ? 0 : fromNode.getPieceQuantity(), 0);
+            int deficitQuantity = 0;
+            if (sourceQuantity < transfer.getQuantity()) {
+                // 数量不足也必须完成目标节点入账：源节点归零，并单独记录尚欠扣的数量。
+                deficitQuantity = transfer.getQuantity() - sourceQuantity;
+                fromNode.setPieceQuantity(0);
+            } else {
+                fromNode.setPieceQuantity(sourceQuantity - transfer.getQuantity());
+            }
+            toNode.setPieceQuantity((toNode.getPieceQuantity() == null ? 0 : toNode.getPieceQuantity())
+                    + transfer.getQuantity());
+            if (fromNode.getPieceQuantity() == 0) {
+                fromNode.setNodeStatus(NodeStatus.COMPLETED);
+            }
+            toNode.setNodeStatus(NodeStatus.PENDING);
+            if (deficitQuantity > 0) {
+                PieceQuantityDeficitRecord deficit = new PieceQuantityDeficitRecord();
+                deficit.setProductionPieceId(piece.getProductionPieceId());
+                deficit.setProductionPieceRecordId(piece.getId());
+                deficit.setFromNodeId(fromNode.getNodeId());
+                deficit.setFromNodeName(fromNode.getNodeName());
+                deficit.setToNodeId(toNode.getNodeId());
+                deficit.setToNodeName(toNode.getNodeName());
+                deficit.setRequestedQuantity(transfer.getQuantity());
+                deficit.setSourceQuantity(sourceQuantity);
+                deficit.setDeficitQuantity(deficitQuantity);
+                deficits.add(deficit);
+            }
+        }
+        productionPieceRepository.batchUpdate(pieces);
+        if (!deficits.isEmpty()) {
+            pieceQuantityDeficitRecordRepository.batchAdd(deficits);
+        }
     }
 }

@@ -54,6 +54,7 @@ import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityTransfer;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingContainerWidthInset;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -1339,21 +1340,15 @@ public class AppTypesettingService {
         result.setMessage("排版开始,耐心请等待");
 
         // 7. 异步排版任务受理后，按本次数量更新零件/模板的剩余数量与工序流转
-        for (ProductionPiece piece : productionPieces) {
-            try {
-                Integer quantity = piece.getQuantity();
-                if (quantity == null || quantity <= 0) {
-                    continue;
-                }
-                productionPieceService.transferPieceQuantityBetweenNodes(
-                        piece.getId(),
-                        "NODE_TYPESETTING",
-                        "NODE_TYPESETTING_IN_PROGRESS",
-                        quantity
-                );
-            } catch (Exception e) {
-                throw new IllegalStateException("更新生产工件 " + piece.getId() + " 节点数量失败：" + e.getMessage(), e);
-            }
+        List<PieceQuantityTransfer> pieceTransfers = productionPieces.stream()
+                .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
+                .map(piece -> new PieceQuantityTransfer(piece.getId(), "NODE_TYPESETTING",
+                        "NODE_TYPESETTING_IN_PROGRESS", piece.getQuantity()))
+                .toList();
+        try {
+            productionPieceService.transferPieceQuantitiesBetweenNodes(pieceTransfers);
+        } catch (Exception e) {
+            throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
         }
         for (TypesettingInfo info : typesettingInfos) {
             Integer quantity = info.getQuantity();
@@ -3828,28 +3823,16 @@ public class AppTypesettingService {
             }
         }
 
-        for (Map.Entry<String, Integer> entry : productionPieceRollbackQuantity.entrySet()) {
-            String productionPieceRecordId = entry.getKey();
-            Integer rollbackQuantity = entry.getValue();
-            if (StringUtils.isBlank(productionPieceRecordId) || rollbackQuantity == null || rollbackQuantity <= 0) {
-                continue;
-            }
-            try {
-                ProductionPiece piece = productionPieceService.findById(productionPieceRecordId);
-                if (piece == null || StringUtils.isBlank(piece.getId())) {
-                    errorMessages.add("生产工件不存在: " + productionPieceRecordId);
-                    continue;
-                }
-                productionPieceService.transferPieceQuantityBetweenNodes(
-                        piece.getId(),
-                        "NODE_TYPESETTING_IN_PROGRESS",
-                        "NODE_TYPESETTING",
-                        rollbackQuantity
-                );
-                releasedPieceIds.add(piece.getId());
-            } catch (Exception e) {
-                errorMessages.add("回退工件失败(" + productionPieceRecordId + "): " + e.getMessage());
-            }
+        List<PieceQuantityTransfer> rollbackTransfers = productionPieceRollbackQuantity.entrySet().stream()
+                .filter(entry -> StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
+                        "NODE_TYPESETTING", entry.getValue()))
+                .toList();
+        try {
+            productionPieceService.transferPieceQuantitiesBetweenNodes(rollbackTransfers);
+            releasedPieceIds.addAll(productionPieceRollbackQuantity.keySet());
+        } catch (Exception e) {
+            errorMessages.add("批量回退工件失败: " + e.getMessage());
         }
 
         ReleaseLayoutResult result = new ReleaseLayoutResult();
@@ -3881,19 +3864,26 @@ public class AppTypesettingService {
         }
 
         List<String> releasedPieceIds = new ArrayList<>();
-        for (String productionPieceId : productionPieceIds) {
-            try {
-                ProductionPiece piece = productionPieceService.findById(productionPieceId);
-                if (piece == null || StringUtils.isBlank(piece.getId())) {
-                    errorMessages.add("生产工件不存在: " + productionPieceId);
-                    continue;
-                }
-                rollbackAllPrintingQuantity(piece, "待打印");
-                rollbackAllPrintingQuantity(piece, "打印中");
-                releasedPieceIds.add(piece.getId());
-            } catch (Exception e) {
-                errorMessages.add("回退工件失败(" + productionPieceId + "): " + e.getMessage());
+        List<ProductionPiece> releasePieces = productionPieceService.findByProductionPieceIds(productionPieceIds);
+        List<PieceQuantityTransfer> completeReleaseTransfers = new ArrayList<>();
+        for (ProductionPiece piece : releasePieces) {
+            if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+                continue;
             }
+            for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+                if (node != null && ("待打印".equals(node.getNodeName()) || "打印中".equals(node.getNodeName()))
+                        && StringUtils.isNotBlank(node.getNodeId()) && node.getPieceQuantity() != null
+                        && node.getPieceQuantity() > 0) {
+                    completeReleaseTransfers.add(new PieceQuantityTransfer(piece.getId(), node.getNodeId(),
+                            "NODE_TYPESETTING", node.getPieceQuantity()));
+                }
+            }
+            releasedPieceIds.add(piece.getId());
+        }
+        try {
+            productionPieceService.transferPieceQuantitiesBetweenNodes(completeReleaseTransfers);
+        } catch (Exception e) {
+            errorMessages.add("批量回退工件失败: " + e.getMessage());
         }
 
         List<String> deletedLayoutIds = new ArrayList<>();
@@ -3956,21 +3946,6 @@ public class AppTypesettingService {
                     visitingIds, errorMessages);
         }
         visitingIds.remove(typesettingId);
-    }
-
-    private void rollbackAllPrintingQuantity(ProductionPiece piece, String nodeName) {
-        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
-            return;
-        }
-        for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
-            if (node == null || !nodeName.equals(node.getNodeName())
-                    || StringUtils.isBlank(node.getNodeId()) || node.getPieceQuantity() == null
-                    || node.getPieceQuantity() <= 0) {
-                continue;
-            }
-            productionPieceService.transferPieceQuantityBetweenNodes(
-                    piece.getId(), node.getNodeId(), "NODE_TYPESETTING", node.getPieceQuantity());
-        }
     }
 
     private TypesettingInfo findReleaseLayoutMirrorPair(TypesettingInfo info) {
