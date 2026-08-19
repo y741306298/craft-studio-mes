@@ -157,20 +157,52 @@ public class OrderPreprocessTaskQueue {
             log.info("订单预处理任务处理完成: itemCount={}", readyOrderItems == null ? 0 : readyOrderItems.size());
             return true;
         } catch (Exception ex) {
+            List<OrderItem> failedOrderItems = failedOrderItems(task, ex);
+            Set<String> failedOrderItemIds = failedOrderItems.stream()
+                    .map(OrderItem::getOrderItemId)
+                    .collect(java.util.stream.Collectors.toSet());
+            task.getOrderItems().stream()
+                    .filter(item -> item != null && !failedOrderItemIds.contains(item.getOrderItemId()))
+                    .forEach(item -> queuedOrderItemIds.remove(item.getOrderItemId()));
             int nextRetry = task.getRetryCount() + 1;
             if (nextRetry <= maxRetry) {
                 sleepQuietly(retryBackoffMs * nextRetry);
                 try {
-                    queue.put(new OrderPreprocessTask(task.getOrderItems(), nextRetry));
+                    queue.put(new OrderPreprocessTask(failedOrderItems, nextRetry));
                 } catch (InterruptedException interruptedException) {
                     Thread.currentThread().interrupt();
                     return true;
                 }
-                log.warn("订单预处理任务失败，已重试入队: retry={}, itemCount={}, err={}", nextRetry, task.getOrderItems().size(), ex.getMessage(), ex);
+                log.warn("订单预处理任务失败，已重试入队: retry={}, itemCount={}, err={}", nextRetry, failedOrderItems.size(), ex.getMessage(), ex);
                 return false;
             }
-            log.error("订单预处理任务失败且超过最大重试次数，task dropped: itemCount={}", task.getOrderItems().size(), ex);
+            markAsPermanentlyFailed(failedOrderItems, ex);
+            log.error("订单预处理任务失败且超过最大重试次数，已标记为永久失败: itemCount={}", failedOrderItems.size(), ex);
             return true;
+        }
+    }
+
+    private List<OrderItem> failedOrderItems(OrderPreprocessTask task, Exception failure) {
+        if (!(failure instanceof OrderPreprocessBatchException batchFailure)) {
+            return task.getOrderItems();
+        }
+        Set<String> failedIds = Set.copyOf(batchFailure.getFailedOrderItemIds());
+        return task.getOrderItems().stream()
+                .filter(item -> item != null && failedIds.contains(item.getOrderItemId()))
+                .toList();
+    }
+
+    private void markAsPermanentlyFailed(List<OrderItem> orderItems, Exception failure) {
+        String reason = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem == null || orderItem.getOrderItemId() == null) {
+                continue;
+            }
+            try {
+                orderItemService.markAsFailed(orderItem.getOrderItemId(), reason);
+            } catch (Exception markException) {
+                log.error("订单预处理任务标记永久失败异常: orderItemId={}", orderItem.getOrderItemId(), markException);
+            }
         }
     }
 
