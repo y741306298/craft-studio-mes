@@ -188,7 +188,18 @@ public class AppPreOrderLabelTaskService {
                 }
                 log.info("旺店通订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
             }
-            LogisticsLabel label = printWdtLabelWithRetry(platform, uniCode, presetType);
+            LogisticsLabel label;
+            try {
+                label = printWdtLabelWithRetry(platform, uniCode, presetType);
+            } catch (Exception printException) {
+                String failureReason = resolveExceptionMessage(printException);
+                String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, failureReason);
+                if (StringUtils.isNotBlank(mqFailureReason)) {
+                    log.error("WDT面单打印重试耗尽后发送失败原因MQ通知失败: orderId={}, reason={}, mqReason={}",
+                            uniCode, failureReason, mqFailureReason);
+                }
+                throw printException;
+            }
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -279,7 +290,8 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 通知聚单平台物流单号。通知失败时返回原因，由任务记录持久化，避免重新下单打印。
+     * 通知聚单平台物流单号；WDT 打印重试耗尽时，同一消息字段承载打印失败原因。
+     * 通知失败时返回原因，由任务记录持久化，避免重新下单打印。
      *
      * @return 通知失败原因；通知成功时返回 {@code null}
      */
