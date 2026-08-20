@@ -44,6 +44,7 @@ public class AppPreOrderLabelTaskService {
     LogisticsOrderProducer producer;
 
     private static final long PRE_ORDER_LABEL_TASK_FIXED_RATE_MS = 10 * 60 * 1000L;
+    private static final int WDT_PRINT_MAX_ATTEMPTS = 3;
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
 
@@ -187,7 +188,7 @@ public class AppPreOrderLabelTaskService {
                 }
                 log.info("旺店通订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
             }
-            LogisticsLabel label = printWdtLabel(platform, uniCode,presetType);
+            LogisticsLabel label = printWdtLabelWithRetry(platform, uniCode, presetType);
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 return null;
             }
@@ -204,6 +205,29 @@ public class AppPreOrderLabelTaskService {
      */
     private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
         return platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
+    }
+
+    /**
+     * WDT 打印失败时最多尝试三次。重试耗尽前异常只在当前调用内处理，不更新预下单任务状态。
+     */
+    LogisticsLabel printWdtLabelWithRetry(GatherPlatform platform, String uniCode, String presetType) throws Exception {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= WDT_PRINT_MAX_ATTEMPTS; attempt++) {
+            try {
+                LogisticsLabel label = printWdtLabel(platform, uniCode, presetType);
+                if (label != null && StringUtils.isNotBlank(label.getLogisticsOrderId())) {
+                    return label;
+                }
+                lastException = new IllegalStateException("WDT打印未返回物流单号");
+            } catch (Exception ex) {
+                lastException = ex;
+            }
+            if (attempt < WDT_PRINT_MAX_ATTEMPTS) {
+                log.warn("WDT面单打印失败，准备重试: orderId={}, attempt={}/{}",
+                        uniCode, attempt, WDT_PRINT_MAX_ATTEMPTS, lastException);
+            }
+        }
+        throw lastException;
     }
 
     /**
