@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -45,6 +47,8 @@ public class AppPreOrderLabelTaskService {
 
     private static final long PRE_ORDER_LABEL_TASK_FIXED_RATE_MS = 10 * 60 * 1000L;
     private static final int WDT_PRINT_MAX_ATTEMPTS = 3;
+    private static final long WDT_PRINT_RETRY_TTL_HOURS = 1L;
+    private static final String WDT_PRINT_RETRY_KEY_PREFIX = "preOrderLabelTask:wdtPrintRetry:";
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
 
@@ -68,6 +72,9 @@ public class AppPreOrderLabelTaskService {
 
     @Autowired
     private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     /**
      * 预下快递单批处理开关，默认关闭，避免未显式配置时执行批处理。
@@ -97,8 +104,9 @@ public class AppPreOrderLabelTaskService {
             return;
         }
         String kuaidiNum = null;
+        OrderInfo orderInfo = null;
         try {
-            OrderInfo orderInfo = orderInfoService.findByOrderId(task.getOrderId());
+            orderInfo = orderInfoService.findByOrderId(task.getOrderId());
             if (orderInfo == null) {
                 markTaskFailed(task, null, "订单不存在");
                 return;
@@ -119,6 +127,9 @@ public class AppPreOrderLabelTaskService {
             AppDeliveryPkgService.DeliveryPkgPrintResult printResult = isGatherPlatform(orderInfo)
                     ? preOrderWdtLabel(orderInfo, orderItems)
                     : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
+            if (isGatherPlatform(orderInfo)) {
+                clearWdtPrintRetryCount(task);
+            }
             kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
             if (StringUtils.isBlank(kuaidiNum)) {
@@ -137,6 +148,10 @@ public class AppPreOrderLabelTaskService {
                 preOrderLabelTaskService.markFailed(task, kuaidiNum, mqFailureReason);
             }
         } catch (Exception ex) {
+            if (containsExceptionType(ex, WdtLabelPrintException.class)) {
+                handleWdtPrintFailure(task, orderInfo, resolveExceptionMessage(ex));
+                return;
+            }
             markTaskFailed(task, kuaidiNum, resolveExceptionMessage(ex));
             log.warn("预下快递单批处理任务处理失败，已标记失败: taskId={}, orderId={}", task.getId(), task.getOrderId(), ex);
         }
@@ -148,6 +163,51 @@ public class AppPreOrderLabelTaskService {
         } catch (Exception markException) {
             log.error("预下快递单批处理任务标记失败状态异常: taskId={}, orderId={}",
                     task.getId(), task.getOrderId(), markException);
+        }
+    }
+
+    /**
+     * 记录本次 WDT 打印失败。失败次数达到三次前保持任务为 PENDING，由十分钟定时批次再次执行；
+     * 第三次失败时发送失败原因 MQ，并将任务更新为失败。
+     */
+    private void handleWdtPrintFailure(PreOrderLabelTask task, OrderInfo orderInfo, String failureReason) {
+        String retryKey = buildWdtPrintRetryKey(task);
+        Long attempt;
+        try {
+            attempt = redisTemplate.opsForValue().increment(retryKey);
+            redisTemplate.expire(retryKey, WDT_PRINT_RETRY_TTL_HOURS, TimeUnit.HOURS);
+        } catch (Exception redisException) {
+            log.error("Redis记录WDT面单打印重试次数失败，任务保持待处理: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId(), redisException);
+            return;
+        }
+
+        long currentAttempt = attempt == null ? 1L : attempt;
+        if (currentAttempt < WDT_PRINT_MAX_ATTEMPTS) {
+            log.warn("WDT面单打印失败，等待下一次定时批次重试: taskId={}, orderId={}, attempt={}/{}, reason={}",
+                    task.getId(), task.getOrderId(), currentAttempt, WDT_PRINT_MAX_ATTEMPTS, failureReason);
+            return;
+        }
+
+        String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, failureReason);
+        if (StringUtils.isNotBlank(mqFailureReason)) {
+            log.error("WDT面单打印三次失败后发送失败原因MQ通知失败: orderId={}, reason={}, mqReason={}",
+                    task.getOrderId(), failureReason, mqFailureReason);
+        }
+        markTaskFailed(task, null, failureReason);
+    }
+
+    private String buildWdtPrintRetryKey(PreOrderLabelTask task) {
+        String taskIdentifier = StringUtils.isNotBlank(task.getId()) ? task.getId() : task.getOrderId();
+        return WDT_PRINT_RETRY_KEY_PREFIX + taskIdentifier;
+    }
+
+    private void clearWdtPrintRetryCount(PreOrderLabelTask task) {
+        try {
+            redisTemplate.delete(buildWdtPrintRetryKey(task));
+        } catch (Exception redisException) {
+            log.warn("清理WDT面单打印重试次数失败: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId(), redisException);
         }
     }
 
@@ -190,18 +250,12 @@ public class AppPreOrderLabelTaskService {
             }
             LogisticsLabel label;
             try {
-                label = printWdtLabelWithRetry(platform, uniCode, presetType);
-            } catch (Exception printException) {
-                String failureReason = resolveExceptionMessage(printException);
-                String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, failureReason);
-                if (StringUtils.isNotBlank(mqFailureReason)) {
-                    log.error("WDT面单打印重试耗尽后发送失败原因MQ通知失败: orderId={}, reason={}, mqReason={}",
-                            uniCode, failureReason, mqFailureReason);
+                label = printWdtLabel(platform, uniCode, presetType);
+                if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                    throw new IllegalStateException("WDT打印未返回物流单号");
                 }
-                throw printException;
-            }
-            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                return null;
+            } catch (Exception printException) {
+                throw new WdtLabelPrintException(printException);
             }
             String remark = buildPreOrderWdtRemark(orderInfo, orderItems);
             saveWdtLabelRecord(config, label, remark, orderInfo);
@@ -216,29 +270,6 @@ public class AppPreOrderLabelTaskService {
      */
     private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
         return platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
-    }
-
-    /**
-     * WDT 打印失败时最多尝试三次。重试耗尽前异常只在当前调用内处理，不更新预下单任务状态。
-     */
-    LogisticsLabel printWdtLabelWithRetry(GatherPlatform platform, String uniCode, String presetType) throws Exception {
-        Exception lastException = null;
-        for (int attempt = 1; attempt <= WDT_PRINT_MAX_ATTEMPTS; attempt++) {
-            try {
-                LogisticsLabel label = printWdtLabel(platform, uniCode, presetType);
-                if (label != null && StringUtils.isNotBlank(label.getLogisticsOrderId())) {
-                    return label;
-                }
-                lastException = new IllegalStateException("WDT打印未返回物流单号");
-            } catch (Exception ex) {
-                lastException = ex;
-            }
-            if (attempt < WDT_PRINT_MAX_ATTEMPTS) {
-                log.warn("WDT面单打印失败，准备重试: orderId={}, attempt={}/{}",
-                        uniCode, attempt, WDT_PRINT_MAX_ATTEMPTS, lastException);
-            }
-        }
-        throw lastException;
     }
 
     /**
@@ -373,6 +404,17 @@ public class AppPreOrderLabelTaskService {
         return false;
     }
 
+    private boolean containsExceptionType(Throwable throwable, Class<? extends Throwable> expectedType) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (expectedType.isInstance(current)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
     private Map<String, Object> buildBaseMessage(String topic, String tag, Object info) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("info", info);
@@ -404,6 +446,12 @@ public class AppPreOrderLabelTaskService {
         for (ProductionPiece productionPiece : productionPieces) {
             productionPiece.setChannel(orderInfo.getChannel() != null ? orderInfo.getChannel() : task.getChannel());
             productionPieceService.updateProductionPiece(productionPiece);
+        }
+    }
+
+    private static class WdtLabelPrintException extends RuntimeException {
+        private WdtLabelPrintException(Throwable cause) {
+            super(cause);
         }
     }
 
