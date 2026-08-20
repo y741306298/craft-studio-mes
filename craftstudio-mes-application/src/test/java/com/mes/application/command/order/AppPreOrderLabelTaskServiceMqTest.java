@@ -25,8 +25,10 @@ class AppPreOrderLabelTaskServiceMqTest {
     private static final String CHANNEL_ORDER_ID = "JY2608200002";
     private static final String LOGISTICS_ORDER_ID = "76969189136656";
 
+    /** 验证旺店通面单记录中的关键参数能够按当前协议拼装为物流 MQ 消息。 */
     @Test
     void shouldSendLogisticsOrderMessageWithRequiredMqParameters() {
+        // Given：隔离真实 RocketMQ，仅捕获生产者收到的消息。
         LogisticsOrderProducer producer = mock(LogisticsOrderProducer.class);
         ObjectProvider<RocketMQTemplate> templateProvider = mock(ObjectProvider.class);
         when(templateProvider.getIfAvailable()).thenReturn(mock(RocketMQTemplate.class));
@@ -34,8 +36,10 @@ class AppPreOrderLabelTaskServiceMqTest {
 
         OrderInfo orderInfo = orderInfoFromWdtLabelRecord();
 
+        // When：使用面单记录中的物流单号触发通知。
         String failureReason = notifyLogisticsOrderInfo(service, orderInfo, LOGISTICS_ORDER_ID);
 
+        // Then：校验 topic、路由 tag 以及下游真正需要的消息体字段。
         assertThat(failureReason).isNull();
         ArgumentCaptor<Message<LogisticsOrderInfo>> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(producer).send(messageCaptor.capture());
@@ -47,6 +51,7 @@ class AppPreOrderLabelTaskServiceMqTest {
         assertThat(payload.getLogisticsOrderId()).isEqualTo(LOGISTICS_ORDER_ID);
     }
 
+    /** 验证缺少 MQ 必要参数时立即返回错误，且不会调用生产者。 */
     @Test
     void shouldRejectMessageWhenRequiredParametersAreMissing() {
         LogisticsOrderProducer producer = mock(LogisticsOrderProducer.class);
