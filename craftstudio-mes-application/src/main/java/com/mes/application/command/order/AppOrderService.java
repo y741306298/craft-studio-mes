@@ -103,6 +103,9 @@ public class AppOrderService {
     @Autowired
     private OrderItemPriceAllocationRepository orderItemPriceAllocationRepository;
 
+    @Autowired
+    private PodvOrgInfoHelper podvOrgInfoHelper;
+
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     private static final String NO_ROUTE_ID = "NO_ROUTE";
     private static final String NO_ROUTE_NAME = "无路线";
@@ -657,7 +660,7 @@ public class AppOrderService {
     public OrderInfo addOrderWithItems(OrderAddRequest request) {
         //订单对象转化
         OrderInfo orderInfo = request.toOrderInfo();
-        orderInfo.setOrgInfo(PodvOrgInfoHelper.normalize(orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
+        orderInfo.setOrgInfo(podvOrgInfoHelper.normalize(orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);

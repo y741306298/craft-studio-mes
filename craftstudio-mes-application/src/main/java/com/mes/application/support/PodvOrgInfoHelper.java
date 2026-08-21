@@ -2,18 +2,24 @@ package com.mes.application.support;
 
 import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import io.micrometer.common.util.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 /** podv 平台下单企业信息转换工具。 */
-public final class PodvOrgInfoHelper {
+@Component
+public class PodvOrgInfoHelper {
 
     private static final String PODV_PLATFORM_CODE = "podv";
     private static final String PODV_ORG_NAME = "华物POD供应链";
+    private final boolean usePodSupplyChainName;
 
-    private PodvOrgInfoHelper() {
+    public PodvOrgInfoHelper(
+            @Value("${mes.podv-org-info.use-pod-supply-chain-name:false}") boolean usePodSupplyChainName) {
+        this.usePodSupplyChainName = usePodSupplyChainName;
     }
 
-    public static OrgInfo normalize(String platformCode, OrgInfo source) {
-        if (!PODV_PLATFORM_CODE.equals(platformCode) || source == null) {
+    public OrgInfo normalize(String platformCode, OrgInfo source) {
+        if (!usePodSupplyChainName || !PODV_PLATFORM_CODE.equals(platformCode) || source == null) {
             return source;
         }
 
