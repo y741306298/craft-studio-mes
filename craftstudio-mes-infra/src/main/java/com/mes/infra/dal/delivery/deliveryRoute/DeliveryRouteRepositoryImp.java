@@ -87,11 +87,15 @@ public class DeliveryRouteRepositoryImp extends BaseRepositoryImp<DeliveryRoute,
     }
 
     @Override
-    public List<DeliveryRoute> findByRouteIds(Collection<String> routeIds) {
+    public List<DeliveryRoute> findByIdsOrRouteIds(Collection<String> routeIds) {
         if (routeIds == null || routeIds.isEmpty()) {
             return List.of();
         }
-        Criteria criteria = Criteria.where("routeId").in(routeIds).and("deleteAt").is(null);
+        Criteria criteria = new Criteria().andOperator(
+                Criteria.where("deleteAt").is(null),
+                new Criteria().orOperator(
+                        Criteria.where("_id").in(routeIds),
+                        Criteria.where("routeId").in(routeIds)));
         return mongoTemplate.find(new Query(criteria), poClass()).stream()
                 .map(DeliveryRoutePo::toDO)
                 .toList();
