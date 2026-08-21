@@ -7,6 +7,7 @@ import com.mes.domain.delivery.deliveryRoute.vo.AddressRecognitionConsignee;
 import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecordRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.order.enums.OrderChannelType;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
@@ -724,6 +725,9 @@ public class OrderInfoService {
     }
 
     private void matchOrCreateAddressRecognitionRecord(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        if (isWdtOrder(orderInfo)) {
+            return;
+        }
         if (orderInfo == null || orderInfo.getCustomer() == null || orderInfo.getCustomer().getAddress() == null) {
             return;
         }
@@ -779,6 +783,12 @@ public class OrderInfoService {
                 }
             }
         }
+    }
+
+    private boolean isWdtOrder(OrderInfo orderInfo) {
+        return orderInfo != null
+                && orderInfo.getChannel() != null
+                && OrderChannelType.GATHER_PLATFORM.equals(orderInfo.getChannel().getType());
     }
 
     private ImageFile getFirstAssetImageFile(MTOProductSpec mtoProductSpec) {
