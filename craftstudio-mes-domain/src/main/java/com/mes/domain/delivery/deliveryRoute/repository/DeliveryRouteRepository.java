@@ -24,7 +24,7 @@ public interface DeliveryRouteRepository extends BaseRepository<DeliveryRoute> {
     DeliveryRoute findByRouteId(String routeId);
 
     /**
-     * 批量根据路线 ID 查询配送路线。
+     * 批量根据 MongoDB 主键或业务路线 ID 查询配送路线。
      */
-    List<DeliveryRoute> findByRouteIds(Collection<String> routeIds);
+    List<DeliveryRoute> findByIdsOrRouteIds(Collection<String> routeIds);
 }

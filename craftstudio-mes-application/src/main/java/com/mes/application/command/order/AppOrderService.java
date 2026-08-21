@@ -300,14 +300,7 @@ public class AppOrderService {
         List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
                 (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
         long total = domainOrderItemService.filterTotal(filters);
-        Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
-                        .map(OrderItem::getRouteId)
-                        .filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .stream()
-                .filter(route -> StringUtils.isNotBlank(route.getRouteId()) && route.getRouteName() != null)
-                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
-                        (first, ignored) -> first));
+        Map<String, String> routeNameByRouteId = findRouteNames(orderItems);
         List<OrderStatisticsItemVO> pageItems = orderItems.stream()
                 .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId())))
                 .toList();
@@ -333,13 +326,7 @@ public class AppOrderService {
         Map<String, Object> filters = buildOrderStatisticsFilters(manufacturerId, orderId, startTime,
                 endTime, routeId, materialId, materialName, materialType, orgName);
         List<OrderItem> orderItems = domainOrderItemService.filterAllUrgentFirst(filters);
-        Map<String, String> routeNameByRouteId = deliveryRouteRepository.findByRouteIds(orderItems.stream()
-                        .map(OrderItem::getRouteId).filter(StringUtils::isNotBlank)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .stream()
-                .filter(route -> StringUtils.isNotBlank(route.getRouteId()) && route.getRouteName() != null)
-                .collect(Collectors.toMap(DeliveryRoute::getRouteId, DeliveryRoute::getRouteName,
-                        (first, ignored) -> first));
+        Map<String, String> routeNameByRouteId = findRouteNames(orderItems);
         List<OrderStatisticsItemVO> items = orderItems.stream()
                 .map(item -> toOrderStatisticsItemVO(item, routeNameByRouteId.get(item.getRouteId())))
                 .toList();
@@ -379,6 +366,25 @@ public class AppOrderService {
         result.setRouteName(routeName);
         result.setPaymentPrice(item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getActualPrice());
         return result;
+    }
+
+    private Map<String, String> findRouteNames(List<OrderItem> orderItems) {
+        Set<String> routeIds = orderItems.stream()
+                .map(OrderItem::getRouteId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, String> routeNames = new HashMap<>();
+        deliveryRouteRepository.findByIdsOrRouteIds(routeIds).stream()
+                .filter(route -> route.getRouteName() != null)
+                .forEach(route -> {
+                    if (StringUtils.isNotBlank(route.getId())) {
+                        routeNames.putIfAbsent(route.getId(), route.getRouteName());
+                    }
+                    if (StringUtils.isNotBlank(route.getRouteId())) {
+                        routeNames.putIfAbsent(route.getRouteId(), route.getRouteName());
+                    }
+                });
+        return routeNames;
     }
 
     private OrderDailyStatistics findPersistedStatisticsTotals(String manufacturerMetaId, Date startTime, Date endTime,

@@ -258,7 +258,7 @@ public class AppDeliveryRouteService {
         DeliveryRoute route = matchResult.getDeliveryRoute();
         DeliveryRouteNode node = matchResult.getDeliveryRouteNode();
         if (route != null) {
-            response.setRouteId(route.getId());
+            response.setRouteId(route.getRouteId());
             response.setRouteName(route.getRouteName());
         }
         if (node != null) {
