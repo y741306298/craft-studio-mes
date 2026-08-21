@@ -138,6 +138,9 @@ public class AppOrderPreprocessingService {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    @Autowired
+    private PodvOrgInfoHelper podvOrgInfoHelper;
+
     /**
      * 留白工艺处理服务。
      *
@@ -986,7 +989,7 @@ public class AppOrderPreprocessingService {
 
                         OrderInfo orderInfo = orderInfoService.findByOrderId(orderItem.getOrderId());
                         if (orderInfo != null) {
-                            piece.setOrgInfo(PodvOrgInfoHelper.normalize(
+                            piece.setOrgInfo(podvOrgInfoHelper.normalize(
                                     orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
                             if (StringUtils.isNotBlank(orderInfo.getRemark())) {
                                 piece.setRemark(orderInfo.getRemark());
