@@ -17,6 +17,7 @@ public class AlgorithmCoreApiCallRecordPo extends BasePO<AlgorithmCoreApiCallRec
     private String requestBody;
     private String callbackCustomValue;
     private String type;
+    private String sourceId;
 
     @Override
     public AlgorithmCoreApiCallRecord toDO() {
@@ -28,6 +29,7 @@ public class AlgorithmCoreApiCallRecordPo extends BasePO<AlgorithmCoreApiCallRec
         record.setRequestBody(this.requestBody);
         record.setCallbackCustomValue(this.callbackCustomValue);
         record.setType(this.type);
+        record.setSourceId(this.sourceId);
         return record;
     }
 
@@ -42,6 +44,7 @@ public class AlgorithmCoreApiCallRecordPo extends BasePO<AlgorithmCoreApiCallRec
         this.requestBody = record.getRequestBody();
         this.callbackCustomValue = record.getCallbackCustomValue();
         this.type = record.getType();
+        this.sourceId = record.getSourceId();
         return this;
     }
 }
