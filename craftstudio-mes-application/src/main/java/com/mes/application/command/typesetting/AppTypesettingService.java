@@ -588,8 +588,9 @@ public class AppTypesettingService {
             layoutSpecs = listLayoutSpecsByMaterialId(materialId, rmfId);
         }
 
-        // 任意一个 cell 包含“双面对裱”或“覆双面”工艺时，都需要限制规格高度并去重。
-        if (hasAnyDoubleSideMountNode(typesettingCells)) {
+        // 首次排版中任意一个 cell 包含“双面对裱”或“覆双面”工艺时，需要限制规格高度并去重；
+        // 二次排版已有印版规格，不再重置高度。
+        if (hasAnyDoubleSideMountNode(typesettingCells) && !hasTypesettingSourceCell(typesettingCells)) {
             return limitLayoutSpecHeightAndDistinct(layoutSpecs, 2400);
         }
         return layoutSpecs;
@@ -672,6 +673,12 @@ public class AppTypesettingService {
     private boolean hasAnyDoubleSideMountNode(List<TypesettingProductionPieceVO> typesettingCells) {
         return typesettingCells.stream()
                 .anyMatch(this::hasDoubleSideMountNode);
+    }
+
+    private boolean hasTypesettingSourceCell(List<TypesettingProductionPieceVO> typesettingCells) {
+        return typesettingCells.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()));
     }
 
     private boolean hasDoubleSideMountNode(TypesettingProductionPieceVO cell) {
