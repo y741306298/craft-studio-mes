@@ -153,7 +153,24 @@ public class AlgorithmCoreApiService {
         Object callbackCustomValue = extractCallbackCustomValue(requestBody);
         record.setCallbackCustomValue(callbackCustomValue == null ? null : JSON.toJSONString(callbackCustomValue));
         record.setType(type);
+        record.setSourceId(resolveSourceId(type, callbackCustomValue));
         algorithmCoreApiCallRecordRepository.add(record);
+    }
+
+    private String resolveSourceId(String type, Object callbackCustomValue) {
+        if (type == null || callbackCustomValue == null) {
+            return null;
+        }
+        JSONObject customValueJson = (JSONObject) JSON.toJSON(callbackCustomValue);
+        return switch (type) {
+            case "generateMaskFilesAsync", "generateMaskFilesSync",
+                 "convertGrayImgToSvgAsync", "convertGrayImgToSvg" -> customValueJson.getString("orderItemId");
+            case "generateNestedFilesAsync", "generateNestedFilesSync",
+                 "generateGridNestedFilesAsync", "generateRectNestedFilesAsync",
+                 "generateVerticalNestedFilesAsync", "generateFormeAsync",
+                 "generateForme" -> customValueJson.getString("id");
+            default -> null;
+        };
     }
 
     private Object extractCallbackCustomValue(Object requestBody) {

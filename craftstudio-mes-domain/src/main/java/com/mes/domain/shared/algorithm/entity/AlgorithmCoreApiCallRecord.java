@@ -14,4 +14,5 @@ public class AlgorithmCoreApiCallRecord extends BaseEntity {
     private String requestBody;
     private String callbackCustomValue;
     private String type;
+    private String sourceId;
 }
