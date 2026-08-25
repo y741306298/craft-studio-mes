@@ -4,4 +4,5 @@ import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.shared.algorithm.entity.AlgorithmCoreApiCallRecord;
 
 public interface AlgorithmCoreApiCallRecordRepository extends BaseRepository<AlgorithmCoreApiCallRecord> {
+    AlgorithmCoreApiCallRecord findLatestByTypeAndSourceId(String type, String sourceId);
 }

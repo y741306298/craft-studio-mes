@@ -16,6 +16,7 @@ import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.domain.shared.algorithm.entity.AlgorithmCoreApiCallRecord;
 import com.mes.domain.shared.algorithm.repository.AlgorithmCoreApiCallRecordRepository;
+import com.mes.domain.shared.algorithm.enums.AlgorithmCoreApiCallType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -162,15 +163,9 @@ public class AlgorithmCoreApiService {
             return null;
         }
         JSONObject customValueJson = (JSONObject) JSON.toJSON(callbackCustomValue);
-        return switch (type) {
-            case "generateMaskFilesAsync", "generateMaskFilesSync",
-                 "convertGrayImgToSvgAsync", "convertGrayImgToSvg" -> customValueJson.getString("orderItemId");
-            case "generateNestedFilesAsync", "generateNestedFilesSync",
-                 "generateGridNestedFilesAsync", "generateRectNestedFilesAsync",
-                 "generateVerticalNestedFilesAsync", "generateFormeAsync",
-                 "generateForme" -> customValueJson.getString("id");
-            default -> null;
-        };
+        return AlgorithmCoreApiCallType.fromValue(type)
+                .map(callType -> customValueJson.getString(callType.getSourceIdField()))
+                .orElse(null);
     }
 
     private Object extractCallbackCustomValue(Object requestBody) {
