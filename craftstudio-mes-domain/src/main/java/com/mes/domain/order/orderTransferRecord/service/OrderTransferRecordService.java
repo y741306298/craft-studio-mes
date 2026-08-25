@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 @Service
 public class OrderTransferRecordService {
@@ -55,6 +56,34 @@ public class OrderTransferRecordService {
 
     public long countTransferOutRecords(String sourceId) {
         return countByManufacturerField("sourceId", sourceId);
+    }
+
+    /** Returns all records matching a source, target and transfer-time range. */
+    public List<OrderTransferRecord> findAllTransferRecords(String sourceId, String targetId,
+                                                             Date startTime, Date endTime) {
+        if (StringUtils.isBlank(sourceId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源工厂 ID 不能为空");
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("sourceId", sourceId);
+        if (StringUtils.isNotBlank(targetId)) filters.put("targetId", targetId);
+        if (startTime != null) filters.put("createTime_gte", startTime);
+        if (endTime != null) filters.put("createTime_lte", endTime);
+        long total = orderTransferRecordRepository.filterTotal(filters);
+        if (total == 0) {
+            return List.of();
+        }
+
+        java.util.ArrayList<OrderTransferRecord> records = new java.util.ArrayList<>();
+        int current = 1;
+        while (records.size() < total) {
+            List<OrderTransferRecord> page = orderTransferRecordRepository.filterList(current++, 100, filters);
+            if (page.isEmpty()) {
+                break;
+            }
+            records.addAll(page);
+        }
+        return records;
     }
 
     private List<OrderTransferRecord> findByManufacturerField(String fieldName, String manufacturerMetaId, int current, int size) {

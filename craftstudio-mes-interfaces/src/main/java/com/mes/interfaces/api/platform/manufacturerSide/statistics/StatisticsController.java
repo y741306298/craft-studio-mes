@@ -1,13 +1,16 @@
 package com.mes.interfaces.api.platform.manufacturerSide.statistics;
 
 import com.mes.application.command.order.AppOrderService;
+import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
+import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
+import com.mes.application.dto.req.statistics.TransferOrderStatisticsRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import jakarta.validation.Valid;
@@ -80,6 +83,19 @@ public class StatisticsController {
                 request.getMaterialName(),
                 request.getMaterialType(),
                 request.getOrgName()));
+    }
+
+    /** 按时间、源工厂和目标工厂查询转单项目及持久化统计。 */
+    @PostMapping("/transfer/list")
+    public PagedApiResponse<OrderItemVO> listTransferOrderStatistics(
+            @Valid @RequestBody TransferOrderStatisticsRequest request) {
+        PagedQuery query = request.toPagedQuery();
+        TransferOrderStatisticsVO result = appOrderService.findTransferOrderStatistics(
+                request.getSourceId(), request.getTargetId(),
+                parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd()), query);
+        return PagedApiResponse.success(result.getItems(), query.getCurrent(), query.getSize(), result.getTotal(),
+                result.getTotalOrderCount(), java.math.BigDecimal.ZERO, result.getTotalAmount());
     }
 
     /** Returns the distinct enterprise, material and route dimensions recorded in the period. */

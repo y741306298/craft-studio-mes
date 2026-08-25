@@ -11,6 +11,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsStatusVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsDimensionVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
+import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
@@ -40,6 +41,8 @@ import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
+import com.mes.domain.order.transferStatistics.entity.TransferDailyStatistics;
+import com.mes.domain.order.transferStatistics.service.TransferDailyStatisticsService;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
@@ -96,6 +99,9 @@ public class AppOrderService {
 
     @Autowired
     private OrderDailyStatisticsService orderDailyStatisticsService;
+
+    @Autowired
+    private TransferDailyStatisticsService transferDailyStatisticsService;
 
     @Autowired
     private DeliveryRouteRepository deliveryRouteRepository;
@@ -1078,7 +1084,7 @@ public class AppOrderService {
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
         }
 
-        OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo);
+        OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo, targetManufacturerMeta);
         domainOrderInfoService.addOrder(targetOrderInfo);
 
         // 先让本次转单涉及的旧预处理回调失效，再修改/删除源订单项。否则部分转单时，
@@ -1138,10 +1144,19 @@ public class AppOrderService {
                     sourceManufacturerMeta,
                     targetManufacturerMeta,
                     sourceOrderItem,
+                    newOrderItemId,
                     transferQuantity
             ));
         }
         orderTransferRecordService.batchAdd(transferRecords);
+        transferDailyStatisticsService.increment(
+                request.getManufacturerMetaId(),
+                targetManufacturerMetaId,
+                targetManufacturerMeta == null ? null : targetManufacturerMeta.getName(),
+                LocalDate.now(BEIJING_ZONE),
+                1L,
+                sourceOrderInfo.getPrice() == null || sourceOrderInfo.getPrice().getPaymentPrice() == null
+                        ? BigDecimal.ZERO : sourceOrderInfo.getPrice().getPaymentPrice());
         orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
         List<OrderItem> sourceItemsAfterTransfer = domainOrderItemService.findByOrderId(
                 request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
@@ -1180,6 +1195,61 @@ public class AppOrderService {
         List<OrderTransferRecord> items = orderTransferRecordService.findTransferOutRecords(manufacturerMetaId, current, size);
         long total = orderTransferRecordService.countTransferOutRecords(manufacturerMetaId);
         return new PagedResult<>(items, total, size, current);
+    }
+
+    /** 按转单时间和工厂流向分页查询目标订单项，并读取对应的持久化统计。 */
+    public TransferOrderStatisticsVO findTransferOrderStatistics(String sourceId,
+                                                                  String targetId,
+                                                                  Date startTime,
+                                                                  Date endTime,
+                                                                  PagedQuery pagedQuery) {
+        if (StringUtils.isBlank(sourceId) || StringUtils.isBlank(targetId)) {
+            throw new IllegalArgumentException("源工厂 ID 和目标工厂 ID 不能为空");
+        }
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("开始日期和结束日期不能为空");
+        }
+        if (startTime.after(endTime)) {
+            throw new IllegalArgumentException("开始日期不能晚于结束日期");
+        }
+        if (pagedQuery == null || pagedQuery.getCurrent() <= 0
+                || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
+            throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
+        }
+        List<OrderTransferRecord> transferRecords = orderTransferRecordService
+                .findAllTransferRecords(sourceId, targetId, startTime, endTime);
+        LinkedHashSet<String> orderIds = transferRecords
+                .stream()
+                .map(OrderTransferRecord::getOrderId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<OrderItemVO> items = List.of();
+        long total = 0;
+        if (!orderIds.isEmpty()) {
+            Map<String, Object> filters = new HashMap<>();
+            LinkedHashSet<String> targetOrderItemIds = transferRecords.stream()
+                    .map(OrderTransferRecord::getTargetOrderItemId)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (targetOrderItemIds.size() == transferRecords.size()) {
+                filters.put("orderItemId_in", targetOrderItemIds);
+            } else {
+                // Historical records did not retain the generated target item ID.
+                filters.put("orderId_in", orderIds);
+            }
+            filters.put("manufacturerId", targetId);
+            List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
+                    (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
+            items = buildOrderItemVOs(orderItems);
+            total = domainOrderItemService.filterTotal(filters);
+        }
+        LocalDate startDate = startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
+        LocalDate endDate = endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
+        TransferDailyStatistics statistics = transferDailyStatisticsService.sum(
+                sourceId, targetId, startDate, endDate);
+        return new TransferOrderStatisticsVO(items, total,
+                statistics == null ? 0L : statistics.getTotalOrderCount(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
     }
 
 
@@ -1440,11 +1510,22 @@ public class AppOrderService {
         return users.get(0);
     }
 
-    private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo) {
+    private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo, ManufacturerMeta targetManufacturerMeta) {
         OrderInfo targetOrderInfo = deepCopy(sourceOrderInfo, OrderInfo.class);
         targetOrderInfo.setId(null);
         targetOrderInfo.setCreateTime(null);
         targetOrderInfo.setUpdateTime(null);
+        if (targetManufacturerMeta != null) {
+            targetOrderInfo.setManufacturerId(targetManufacturerMeta.getManufacturerMetaId());
+            targetOrderInfo.setManufacturerName(targetManufacturerMeta.getName());
+            ManufacturerInfo manufacturerInfo = targetOrderInfo.getManufacturerInfo();
+            if (manufacturerInfo == null) {
+                manufacturerInfo = new ManufacturerInfo();
+                targetOrderInfo.setManufacturerInfo(manufacturerInfo);
+            }
+            manufacturerInfo.setId(targetManufacturerMeta.getManufacturerMetaId());
+            manufacturerInfo.setName(targetManufacturerMeta.getName());
+        }
         return targetOrderInfo;
     }
 
@@ -1484,6 +1565,7 @@ public class AppOrderService {
                                                           ManufacturerMeta sourceManufacturerMeta,
                                                           ManufacturerMeta targetManufacturerMeta,
                                                           OrderItem sourceOrderItem,
+                                                          String targetOrderItemId,
                                                           Integer quantity) {
         OrderTransferRecord record = new OrderTransferRecord();
         record.setOrderId(request.getOrderId());
@@ -1492,6 +1574,7 @@ public class AppOrderService {
         record.setTargetId(targetManufacturerMeta == null ? null : targetManufacturerMeta.getManufacturerMetaId());
         record.setTargetName(targetManufacturerMeta == null ? null : targetManufacturerMeta.getName());
         record.setOrderItemId(sourceOrderItem.getOrderItemId());
+        record.setTargetOrderItemId(targetOrderItemId);
         record.setPreviewUrl(extractPreviewUrl(sourceOrderItem.getProductionImgFile()));
         record.setQuantity(quantity);
         return record;
