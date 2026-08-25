@@ -9,9 +9,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class TransferOrderStatisticsRequest extends PagedApiRequest {
-    @NotBlank(message = "源工厂 ID 不能为空")
     private String sourceId;
-    @NotBlank(message = "目标工厂 ID 不能为空")
     private String targetId;
     @NotBlank(message = "开始日期不能为空")
     private String createDateStart;

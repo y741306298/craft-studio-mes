@@ -61,11 +61,8 @@ public class OrderTransferRecordService {
     /** Returns all records matching a source, target and transfer-time range. */
     public List<OrderTransferRecord> findAllTransferRecords(String sourceId, String targetId,
                                                              Date startTime, Date endTime) {
-        if (StringUtils.isBlank(sourceId)) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "源工厂 ID 不能为空");
-        }
         Map<String, Object> filters = new HashMap<>();
-        filters.put("sourceId", sourceId);
+        if (StringUtils.isNotBlank(sourceId)) filters.put("sourceId", sourceId);
         if (StringUtils.isNotBlank(targetId)) filters.put("targetId", targetId);
         if (startTime != null) filters.put("createTime_gte", startTime);
         if (endTime != null) filters.put("createTime_lte", endTime);

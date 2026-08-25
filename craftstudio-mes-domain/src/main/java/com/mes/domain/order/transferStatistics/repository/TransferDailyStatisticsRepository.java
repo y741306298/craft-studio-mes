@@ -10,5 +10,6 @@ public interface TransferDailyStatisticsRepository extends BaseRepository<Transf
     TransferDailyStatistics increment(String sourceId, String targetId, String targetName,
                                       LocalDate statisticsDate, long orderCount, BigDecimal amount);
 
+    /** Source and target are optional dimensions. */
     TransferDailyStatistics sum(String sourceId, String targetId, LocalDate startDate, LocalDate endDate);
 }

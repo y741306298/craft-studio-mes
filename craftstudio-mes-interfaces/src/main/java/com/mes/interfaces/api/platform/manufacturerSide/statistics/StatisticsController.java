@@ -1,7 +1,7 @@
 package com.mes.interfaces.api.platform.manufacturerSide.statistics;
 
 import com.mes.application.command.order.AppOrderService;
-import com.mes.application.command.order.vo.OrderItemVO;
+import com.mes.application.command.statistics.vo.TransferOrderItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
@@ -87,7 +87,7 @@ public class StatisticsController {
 
     /** 按时间、源工厂和目标工厂查询转单项目及持久化统计。 */
     @PostMapping("/transfer/list")
-    public PagedApiResponse<OrderItemVO> listTransferOrderStatistics(
+    public PagedApiResponse<TransferOrderItemVO> listTransferOrderStatistics(
             @Valid @RequestBody TransferOrderStatisticsRequest request) {
         PagedQuery query = request.toPagedQuery();
         TransferOrderStatisticsVO result = appOrderService.findTransferOrderStatistics(

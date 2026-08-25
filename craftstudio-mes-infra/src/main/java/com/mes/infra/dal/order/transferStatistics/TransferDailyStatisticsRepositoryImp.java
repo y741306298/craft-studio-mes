@@ -51,10 +51,14 @@ public class TransferDailyStatisticsRepositoryImp
     @Override
     public TransferDailyStatistics sum(String sourceId, String targetId,
                                        LocalDate startDate, LocalDate endDate) {
-        Criteria criteria = Criteria.where("sourceId").is(sourceId)
-                .and("targetId").is(targetId)
-                .and("statisticsDate").gte(startDate).lte(endDate)
+        Criteria criteria = Criteria.where("statisticsDate").gte(startDate).lte(endDate)
                 .and("deleteAt").is(null);
+        if (sourceId != null && !sourceId.isBlank()) {
+            criteria.and("sourceId").is(sourceId);
+        }
+        if (targetId != null && !targetId.isBlank()) {
+            criteria.and("targetId").is(targetId);
+        }
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
                 Aggregation.group()

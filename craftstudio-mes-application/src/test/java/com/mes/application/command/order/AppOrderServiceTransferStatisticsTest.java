@@ -29,6 +29,25 @@ import static org.mockito.Mockito.when;
 class AppOrderServiceTransferStatisticsTest {
 
     @Test
+    void shouldSupportTargetOnlyTransferInQuery() {
+        AppOrderService service = new AppOrderService();
+        OrderTransferRecordService recordService = mock(OrderTransferRecordService.class);
+        TransferDailyStatisticsService statisticsService = mock(TransferDailyStatisticsService.class);
+        ReflectionTestUtils.setField(service, "orderTransferRecordService", recordService);
+        ReflectionTestUtils.setField(service, "transferDailyStatisticsService", statisticsService);
+        Date start = date(2026, 8, 1);
+        Date end = date(2026, 8, 31);
+        when(recordService.findAllTransferRecords(null, "T1", start, end)).thenReturn(List.of());
+
+        TransferOrderStatisticsVO result = service.findTransferOrderStatistics(
+                null, "T1", start, end, new PagedQuery(1, 20));
+
+        assertThat(result.getItems()).isEmpty();
+        assertThat(result.getTotalOrderCount()).isZero();
+        verify(statisticsService).sum(null, "T1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+    }
+
+    @Test
     void shouldReturnTransferredItemsAndReadPersistedTotals() {
         AppOrderService service = new AppOrderService();
         OrderTransferRecordService recordService = mock(OrderTransferRecordService.class);
@@ -44,8 +63,12 @@ class AppOrderServiceTransferStatisticsTest {
         Date end = date(2026, 8, 31);
         OrderTransferRecord record = new OrderTransferRecord();
         record.setOrderId("O1");
+        record.setSourceId("S1");
+        record.setSourceName("源工厂");
+        record.setTargetId("T1");
+        record.setTargetName("目标工厂");
         record.setTargetOrderItemId("TI1");
-        when(recordService.findAllTransferRecords("S1", "T1", start, end)).thenReturn(List.of(record));
+        when(recordService.findAllTransferRecords("S1", null, start, end)).thenReturn(List.of(record));
         OrderItem item = new OrderItem();
         item.setOrderId("O1");
         item.setOrderItemId("TI1");
@@ -55,17 +78,20 @@ class AppOrderServiceTransferStatisticsTest {
         TransferDailyStatistics totals = new TransferDailyStatistics();
         totals.setTotalOrderCount(2L);
         totals.setTotalAmount(new BigDecimal("88.50"));
-        when(statisticsService.sum("S1", "T1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
+        when(statisticsService.sum("S1", null, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
                 .thenReturn(totals);
 
         TransferOrderStatisticsVO result = service.findTransferOrderStatistics(
-                "S1", "T1", start, end, new PagedQuery(1, 20));
+                "S1", null, start, end, new PagedQuery(1, 20));
 
         assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getSourceId()).isEqualTo("S1");
+        assertThat(result.getItems().get(0).getTargetId()).isEqualTo("T1");
+        assertThat(result.getItems().get(0).getTargetName()).isEqualTo("目标工厂");
         assertThat(result.getTotal()).isEqualTo(1);
         assertThat(result.getTotalOrderCount()).isEqualTo(2);
         assertThat(result.getTotalAmount()).isEqualByComparingTo("88.50");
-        verify(statisticsService).sum("S1", "T1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+        verify(statisticsService).sum("S1", null, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
     }
 
     private Date date(int year, int month, int day) {
