@@ -13,6 +13,7 @@ import com.mes.application.command.statistics.vo.OrderStatisticsDimensionVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
 import com.mes.application.command.statistics.vo.TransferOrderItemVO;
+import com.mes.application.command.statistics.vo.TransferFactoryVO;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
@@ -1280,6 +1281,46 @@ public class AppOrderService {
         return new TransferOrderStatisticsVO(items, total,
                 statistics == null ? 0L : statistics.getTotalOrderCount(),
                 statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
+    }
+
+    /** 查询指定目标工厂在一段时间内的所有转单来源工厂。 */
+    public List<TransferFactoryVO> findTransferSourceFactories(String targetId, Date startTime, Date endTime) {
+        validateTransferFactoryQuery(targetId, startTime, endTime, "目标工厂不能为空");
+        return distinctTransferFactories(
+                orderTransferRecordService.findAllTransferRecords(null, targetId, startTime, endTime), true);
+    }
+
+    /** 查询指定来源工厂在一段时间内的所有转单目标工厂。 */
+    public List<TransferFactoryVO> findTransferTargetFactories(String sourceId, Date startTime, Date endTime) {
+        validateTransferFactoryQuery(sourceId, startTime, endTime, "来源工厂不能为空");
+        return distinctTransferFactories(
+                orderTransferRecordService.findAllTransferRecords(sourceId, null, startTime, endTime), false);
+    }
+
+    private void validateTransferFactoryQuery(String factoryId, Date startTime, Date endTime, String message) {
+        if (StringUtils.isBlank(factoryId)) {
+            throw new IllegalArgumentException(message);
+        }
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("开始日期和结束日期不能为空");
+        }
+        if (startTime.after(endTime)) {
+            throw new IllegalArgumentException("开始日期不能晚于结束日期");
+        }
+    }
+
+    private List<TransferFactoryVO> distinctTransferFactories(List<OrderTransferRecord> records, boolean source) {
+        Map<String, String> factories = new LinkedHashMap<>();
+        for (OrderTransferRecord record : records) {
+            String id = source ? record.getSourceId() : record.getTargetId();
+            String name = source ? record.getSourceName() : record.getTargetName();
+            if (StringUtils.isNotBlank(id)) {
+                factories.putIfAbsent(id, name);
+            }
+        }
+        return factories.entrySet().stream()
+                .map(entry -> new TransferFactoryVO(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
 
