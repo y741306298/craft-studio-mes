@@ -886,8 +886,8 @@ public class ProductionPieceService {
     }
 
     /**
-     * 批量划转节点数量。目标节点增加后，所有工艺节点数量之和不得超过零件 quantity；
-     * 源节点数量不足但零件总量仍有空间时，允许入账并批量记录差额。
+     * 批量划转节点数量。单个目标节点数量不得超过零件 quantity；
+     * 源节点数量不足时，允许目标节点入账并批量记录差额。
      */
     public void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers) {
         if (transfers == null || transfers.isEmpty()) {
@@ -929,17 +929,11 @@ public class ProductionPieceService {
                             "目标节点不存在：" + transfer.getToNodeId()));
             int sourceQuantity = Math.max(fromNode.getPieceQuantity() == null ? 0 : fromNode.getPieceQuantity(), 0);
             int targetQuantity = Math.max(toNode.getPieceQuantity() == null ? 0 : toNode.getPieceQuantity(), 0);
-            int sourceDeduction = Math.min(sourceQuantity, transfer.getQuantity());
-            int nodeTotalBeforeTransfer = piece.getProcedureFlow().getNodes().stream()
-                    .filter(Objects::nonNull)
-                    .map(ProcedureFlowNode::getPieceQuantity)
-                    .filter(Objects::nonNull)
-                    .mapToInt(quantity -> Math.max(quantity, 0))
-                    .sum();
             int pieceQuantity = piece.getQuantity() == null
-                    ? nodeTotalBeforeTransfer : Math.max(piece.getQuantity(), 0);
-            int availableTargetCapacity = Math.max(pieceQuantity - (nodeTotalBeforeTransfer - sourceDeduction), 0);
+                    ? targetQuantity + transfer.getQuantity() : Math.max(piece.getQuantity(), 0);
+            int availableTargetCapacity = Math.max(pieceQuantity - targetQuantity, 0);
             int targetAddition = Math.min(transfer.getQuantity(), availableTargetCapacity);
+            int sourceDeduction = Math.min(sourceQuantity, targetAddition);
             int deficitQuantity = Math.max(targetAddition - sourceDeduction, 0);
 
             fromNode.setPieceQuantity(sourceQuantity - sourceDeduction);

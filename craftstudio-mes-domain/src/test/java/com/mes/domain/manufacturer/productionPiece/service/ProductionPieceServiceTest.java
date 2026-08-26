@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class ProductionPieceServiceTest {
 
     @Test
-    void transferCapsTargetAdditionAtProductionPieceQuantity() {
+    void transferCapsTargetNodeAtProductionPieceQuantity() {
         ProductionPieceRepository repository = mock(ProductionPieceRepository.class);
         PieceQuantityDeficitRecordRepository deficitRepository = mock(PieceQuantityDeficitRecordRepository.class);
         ProductionPieceService service = new ProductionPieceService();
@@ -28,7 +28,7 @@ class ProductionPieceServiceTest {
         ReflectionTestUtils.setField(service, "pieceQuantityDeficitRecordRepository", deficitRepository);
 
         ProcedureFlowNode source = node("FROM", 1);
-        ProcedureFlowNode target = node("TO", 3);
+        ProcedureFlowNode target = node("TO", 8);
         ProcedureFlowNode other = node("OTHER", 4);
         ProductionPiece piece = piece(10, source, target, other);
         when(repository.findByProductionPieceIds(anyCollection())).thenReturn(List.of(piece));
@@ -37,11 +37,7 @@ class ProductionPieceServiceTest {
                 List.of(new PieceQuantityTransfer("piece-1", "FROM", "TO", 5)));
 
         assertThat(source.getPieceQuantity()).isZero();
-        assertThat(target.getPieceQuantity()).isEqualTo(6);
-        int nodeTotal = piece.getProcedureFlow().getNodes().stream()
-                .mapToInt(ProcedureFlowNode::getPieceQuantity)
-                .sum();
-        assertThat(nodeTotal).isEqualTo(10);
+        assertThat(target.getPieceQuantity()).isEqualTo(10);
         verify(repository).batchUpdate(List.of(piece));
     }
 

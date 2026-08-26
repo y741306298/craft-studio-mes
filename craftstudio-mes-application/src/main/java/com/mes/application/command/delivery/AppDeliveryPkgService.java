@@ -1166,13 +1166,15 @@ public class AppDeliveryPkgService {
             }
 
             Integer pendingQuantity = pendingPackingNode.getPieceQuantity() != null ? pendingPackingNode.getPieceQuantity() : 0;
-            pendingPackingNode.setPieceQuantity(pendingQuantity - quantity);
+            pendingPackingNode.setPieceQuantity(Math.max(pendingQuantity - quantity, 0));
             if (pendingPackingNode.getPieceQuantity() <= 0) {
                 pendingPackingNode.setNodeStatus(NodeStatus.COMPLETED);
             }
 
             Integer packedQuantity = packedNode.getPieceQuantity() != null ? packedNode.getPieceQuantity() : 0;
-            packedNode.setPieceQuantity(packedQuantity + quantity);
+            int pieceQuantity = productionPiece.getQuantity() == null
+                    ? packedQuantity + quantity : Math.max(productionPiece.getQuantity(), 0);
+            packedNode.setPieceQuantity(Math.min(packedQuantity + quantity, pieceQuantity));
             packedNode.setNodeStatus(NodeStatus.ACTIVE);
 
             List<DeliveryPkgInfo> pkgInfos = productionPiece.getDeliveryPkgInfos();
@@ -1217,7 +1219,33 @@ public class AppDeliveryPkgService {
         boolean flag = !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus());
         if (pieceFullyPacked && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
+            consolidateQuantitiesAtPackedNode(piece);
         }
+    }
+
+    /** 完成“已打包”状态转换时，将数量归拢到已打包节点并清零其余工艺节点。 */
+    private void consolidateQuantitiesAtPackedNode(ProductionPiece piece) {
+        if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
+            return;
+        }
+        ProcedureFlowNode packedNode = piece.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(node -> NODE_ID_PACKED.equals(node.getNodeId()) || NODE_NAME_PACKED.equals(node.getNodeName()))
+                .findFirst()
+                .orElse(null);
+        if (packedNode == null) {
+            return;
+        }
+        int packedQuantity = piece.getQuantity() == null
+                ? Math.max(packedNode.getPieceQuantity() == null ? 0 : packedNode.getPieceQuantity(), 0)
+                : Math.max(piece.getQuantity(), 0);
+        for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+            if (node != null && node != packedNode) {
+                node.setPieceQuantity(0);
+            }
+        }
+        packedNode.setPieceQuantity(packedQuantity);
+        packedNode.setNodeStatus(NodeStatus.ACTIVE);
     }
 
     /** Request-scoped quantity lookup backed by Redis instead of retaining another in-memory copy. */
