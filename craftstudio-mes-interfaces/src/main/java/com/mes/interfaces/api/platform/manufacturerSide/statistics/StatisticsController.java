@@ -6,11 +6,14 @@ import com.mes.application.command.statistics.vo.OrderStatisticsItemVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsListVO;
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
+import com.mes.application.command.statistics.vo.TransferFactoryVO;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.req.statistics.TransferOrderStatisticsRequest;
+import com.mes.application.dto.req.statistics.TransferSourceFactoryRequest;
+import com.mes.application.dto.req.statistics.TransferTargetFactoryRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import jakarta.validation.Valid;
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/statistics")
@@ -96,6 +100,24 @@ public class StatisticsController {
                 parseEndDate(request.getCreateDateEnd()), query);
         return PagedApiResponse.success(result.getItems(), query.getCurrent(), query.getSize(), result.getTotal(),
                 result.getTotalOrderCount(), java.math.BigDecimal.ZERO, result.getTotalAmount());
+    }
+
+    /** 查询在指定时间段向目标工厂转单的来源工厂。 */
+    @PostMapping("/transfer/sourceFactories")
+    public ApiResponse<List<TransferFactoryVO>> listTransferSourceFactories(
+            @Valid @RequestBody TransferSourceFactoryRequest request) {
+        return ApiResponse.success(appOrderService.findTransferSourceFactories(
+                request.getTargetId(), parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd())));
+    }
+
+    /** 查询在指定时间段接收来源工厂转单的目标工厂。 */
+    @PostMapping("/transfer/targetFactories")
+    public ApiResponse<List<TransferFactoryVO>> listTransferTargetFactories(
+            @Valid @RequestBody TransferTargetFactoryRequest request) {
+        return ApiResponse.success(appOrderService.findTransferTargetFactories(
+                request.getSourceId(), parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd())));
     }
 
     /** Returns the distinct enterprise, material and route dimensions recorded in the period. */
