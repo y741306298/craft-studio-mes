@@ -47,6 +47,26 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     }
 
     @Override
+    public boolean compareAndSetPrintReport(String id, Integer expectedLeaveQuantity, int leaveQuantity,
+                                            String status, String remark) {
+        List<Object> mongoIds = new ArrayList<>();
+        mongoIds.add(id);
+        if (ObjectId.isValid(id)) {
+            mongoIds.add(new ObjectId(id));
+        }
+        Criteria criteria = Criteria.where("_id").in(mongoIds)
+                .and("leaveQuantity").is(expectedLeaveQuantity);
+        Update update = new Update()
+                .set("leaveQuantity", leaveQuantity)
+                .set("status", status)
+                .set("updateTime", new Date());
+        if (StringUtils.isNotBlank(remark)) {
+            update.set("remark", remark);
+        }
+        return mongoTemplate.updateFirst(new SoftDeleteQuery(criteria), update, poClass()).getModifiedCount() == 1;
+    }
+
+    @Override
     public Class<TypesettingPo> poClass() {
         return TypesettingPo.class;
     }

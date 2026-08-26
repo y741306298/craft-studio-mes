@@ -396,6 +396,15 @@ public class TypesettingService {
     }
 
     /**
+     * 按当前剩余数量原子更新打印报备，避免并发或重试请求重复扣减和划转工件数量。
+     */
+    public boolean compareAndSetPrintReport(String id, Integer expectedLeaveQuantity, int leaveQuantity,
+                                            String status, String remark) {
+        return typesettingRepository.compareAndSetPrintReport(
+                id, expectedLeaveQuantity, leaveQuantity, status, remark);
+    }
+
+    /**
      * 更新排版状态
      * @param id 排版信息 ID
      * @param status 新排版状态

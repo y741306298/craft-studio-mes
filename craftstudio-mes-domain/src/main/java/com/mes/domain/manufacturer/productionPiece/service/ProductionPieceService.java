@@ -886,7 +886,8 @@ public class ProductionPieceService {
     }
 
     /**
-     * 批量划转节点数量。目标节点始终增加请求数量；源节点最多扣到 0，差额批量记录。
+     * 批量划转节点数量。单个目标节点数量不得超过零件 quantity；
+     * 源节点数量不足时，允许目标节点入账并批量记录差额。
      */
     public void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers) {
         if (transfers == null || transfers.isEmpty()) {
@@ -927,16 +928,16 @@ public class ProductionPieceService {
                     .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
                             "目标节点不存在：" + transfer.getToNodeId()));
             int sourceQuantity = Math.max(fromNode.getPieceQuantity() == null ? 0 : fromNode.getPieceQuantity(), 0);
-            int deficitQuantity = 0;
-            if (sourceQuantity < transfer.getQuantity()) {
-                // 数量不足也必须完成目标节点入账：源节点归零，并单独记录尚欠扣的数量。
-                deficitQuantity = transfer.getQuantity() - sourceQuantity;
-                fromNode.setPieceQuantity(0);
-            } else {
-                fromNode.setPieceQuantity(sourceQuantity - transfer.getQuantity());
-            }
-            toNode.setPieceQuantity((toNode.getPieceQuantity() == null ? 0 : toNode.getPieceQuantity())
-                    + transfer.getQuantity());
+            int targetQuantity = Math.max(toNode.getPieceQuantity() == null ? 0 : toNode.getPieceQuantity(), 0);
+            int pieceQuantity = piece.getQuantity() == null
+                    ? targetQuantity + transfer.getQuantity() : Math.max(piece.getQuantity(), 0);
+            int availableTargetCapacity = Math.max(pieceQuantity - targetQuantity, 0);
+            int targetAddition = Math.min(transfer.getQuantity(), availableTargetCapacity);
+            int sourceDeduction = Math.min(sourceQuantity, targetAddition);
+            int deficitQuantity = Math.max(targetAddition - sourceDeduction, 0);
+
+            fromNode.setPieceQuantity(sourceQuantity - sourceDeduction);
+            toNode.setPieceQuantity(targetQuantity + targetAddition);
             if (fromNode.getPieceQuantity() == 0) {
                 fromNode.setNodeStatus(NodeStatus.COMPLETED);
             }

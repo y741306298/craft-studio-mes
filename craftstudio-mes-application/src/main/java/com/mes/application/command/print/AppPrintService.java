@@ -171,33 +171,56 @@ public class AppPrintService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版信息不存在：" + request.getId());
         }
 
-        if (StringUtils.isNotBlank(request.getRemark())) {
-            dbInfo.setRemark(request.getRemark());
-        }
         Integer reportQuantity = request.getQuantity();
-        if (reportQuantity != null) {
-            if (reportQuantity < 0) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "报备数量不能小于0");
+        if (reportQuantity != null && reportQuantity < 0) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "报备数量不能小于0");
+        }
+
+        int effectiveReportQuantity = 0;
+        if (reportQuantity != null && reportQuantity > 0) {
+            // CAS makes claiming the remaining quantity idempotent across retries and concurrent requests.
+            while (true) {
+                Integer expectedLeaveQuantity = dbInfo.getLeaveQuantity();
+                int currentLeaveQuantity = expectedLeaveQuantity == null ? 0 : expectedLeaveQuantity;
+                effectiveReportQuantity = Math.min(reportQuantity, currentLeaveQuantity);
+                if (effectiveReportQuantity == 0) {
+                    break;
+                }
+                int newLeaveQuantity = currentLeaveQuantity - effectiveReportQuantity;
+                String newStatus = newLeaveQuantity == 0
+                        ? TypesettingStatus.COMPLETED.getCode() : dbInfo.getStatus();
+                if (typesettingService.compareAndSetPrintReport(request.getId(), expectedLeaveQuantity,
+                        newLeaveQuantity, newStatus, request.getRemark())) {
+                    dbInfo.setLeaveQuantity(newLeaveQuantity);
+                    dbInfo.setStatus(newStatus);
+                    break;
+                }
+                dbInfo = typesettingService.findById(request.getId());
+                if (dbInfo == null) {
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                            "排版信息不存在：" + request.getId());
+                }
             }
-            Integer currentLeaveQuantity = dbInfo.getLeaveQuantity() == null ? 0 : dbInfo.getLeaveQuantity();
-            dbInfo.setLeaveQuantity(Math.max(currentLeaveQuantity - reportQuantity, 0));
+        } else {
+            if (StringUtils.isNotBlank(request.getRemark())) {
+                dbInfo.setRemark(request.getRemark());
+            }
+            if (dbInfo.getLeaveQuantity() != null && dbInfo.getLeaveQuantity() == 0) {
+                dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
+            }
+            typesettingService.updateTypesetting(dbInfo);
         }
-        if (dbInfo.getLeaveQuantity() != null && dbInfo.getLeaveQuantity() == 0) {
-            dbInfo.setStatus(TypesettingStatus.COMPLETED.getCode());
-        }
-        typesettingService.updateTypesetting(dbInfo);
 
         boolean canComplete = reportQuantity != null
-                && reportQuantity >= 0
                 && (dbInfo.getLeaveQuantity() == null || dbInfo.getLeaveQuantity() <= 0);
 
         int transferCount = 0;
         boolean skipQuantityTransferForMirror = isMirrorTypesettingInfo(dbInfo);
-        if (reportQuantity != null && reportQuantity > 0 && dbInfo.getTypesettingCells() != null
+        if (effectiveReportQuantity > 0 && dbInfo.getTypesettingCells() != null
                 && !skipQuantityTransferForMirror) {
             Map<String, Integer> pieceQuantityMap = new LinkedHashMap<>();
             accumulateProductionPieceQuantities(
-                    dbInfo.getTypesettingCells(), reportQuantity, pieceQuantityMap, new HashSet<>(), false);
+                    dbInfo.getTypesettingCells(), effectiveReportQuantity, pieceQuantityMap, new HashSet<>(), false);
             List<PieceQuantityTransfer> transfers = new ArrayList<>();
             for (Map.Entry<String, Integer> entry : pieceQuantityMap.entrySet()) {
                 String productionPieceId = entry.getKey();

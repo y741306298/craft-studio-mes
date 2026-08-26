@@ -7,4 +7,7 @@ import java.util.Collection;
 
 public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
     void batchUpdateCallbackFailure(Collection<String> ids, String status, String remark);
+
+    boolean compareAndSetPrintReport(String id, Integer expectedLeaveQuantity, int leaveQuantity,
+                                     String status, String remark);
 }
