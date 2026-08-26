@@ -218,14 +218,7 @@ public class DeliveryPkgController {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "pkgId参数不能为空");
         }
         DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId().trim());
-        deliveryPkg.setRouteDesc(buildRouteDesc(deliveryPkg));
-        return ApiResponse.success(buildDeliveryPkgListItemResponse(deliveryPkg));
-    }
-
-
-    private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
-        return buildDeliveryPkgListItemResponse(deliveryPkg, null, null,
-                orderInfoService.findByOrderId(deliveryPkg.getOrderId()));
+        return ApiResponse.success(buildDeliveryPkgListItemResponses(List.of(deliveryPkg)).get(0));
     }
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg,
@@ -255,7 +248,7 @@ public class DeliveryPkgController {
                         ? null : item.getProductionPieceId().get(0);
 
                 if (StringUtils.isNotBlank(pieceId)) {
-                    ProductionPiece productionPiece = piecesById == null ? findProductionPiece(pieceId) : piecesById.get(pieceId);
+                    ProductionPiece productionPiece = piecesById.get(pieceId);
                     if (productionPiece != null) {
                         detail.setMaterialConfig(productionPiece.getMaterialConfig());
                         detail.setProcessingFlow(productionPiece.getProcessingFlow());
@@ -270,7 +263,7 @@ public class DeliveryPkgController {
                 if (StringUtils.isNotBlank(detail.getOrderItemId())) {
                     String orderItemId = detail.getOrderItemId().trim();
                     detail.setOrderItemId(orderItemId);
-                    OrderItem orderItem = orderItemsById == null ? findOrderItem(orderItemId) : orderItemsById.get(orderItemId);
+                    OrderItem orderItem = orderItemsById.get(orderItemId);
                     if (orderItem != null) {
                         detail.setOrderId(orderItem.getOrderId());
                     }
@@ -281,16 +274,6 @@ public class DeliveryPkgController {
         }
         response.setDeliveryPkgItems(details);
         return response;
-    }
-
-    private ProductionPiece findProductionPiece(String pieceId) {
-        ProductionPiece piece = productionPieceService.findByProductionPieceId(pieceId);
-        return piece == null ? productionPieceService.findById(pieceId) : piece;
-    }
-
-    private OrderItem findOrderItem(String orderItemId) {
-        OrderItem item = orderItemService.findByOrderItemId(orderItemId);
-        return item == null ? orderItemService.findById(orderItemId) : item;
     }
 
     private Map<String, ProductionPiece> indexProductionPieces(List<ProductionPiece> pieces) {
