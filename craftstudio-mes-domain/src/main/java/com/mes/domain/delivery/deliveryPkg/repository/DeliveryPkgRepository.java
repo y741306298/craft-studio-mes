@@ -5,6 +5,7 @@ import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 包裹仓储接口
@@ -45,4 +46,9 @@ public interface DeliveryPkgRepository extends BaseRepository<DeliveryPkg> {
      * 查询已发货的包裹
      */
     List<DeliveryPkg> findDelivered();
+
+    /**
+     * 根据条件全量查询包裹，不应用分页限制。
+     */
+    List<DeliveryPkg> findAllByConditions(Map<String, Object> filters);
 }

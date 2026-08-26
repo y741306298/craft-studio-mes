@@ -10,6 +10,7 @@ import com.mes.application.dto.req.delivery.DeliveryPkgActionRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgListRequest;
+import com.mes.application.dto.req.delivery.DeliveryPkgAllListRequest;
 import com.mes.application.dto.req.delivery.ImageSearchRequest;
 import com.mes.application.dto.resp.delivery.DeliveryPkgPiecesResponse;
 import com.mes.application.dto.resp.delivery.DeliveryPkgListItemResponse;
@@ -149,6 +150,34 @@ public class DeliveryPkgController {
                 request.getCurrent(),
                 request.getSize()
         );
+        List<DeliveryPkgListItemResponse> responseItems = buildDeliveryPkgListItemResponses(items);
+        long total = deliveryPkgService.countByConditions(
+                status,
+                request.getManufacturerMetaId(),
+                request.getOrderId(),
+                request.getRecipientName(),
+                request.getRecipientPhone(),
+                request.getKuaidiNum(),
+                request.getCreateTimeStart(),
+                request.getCreateTimeEnd()
+        );
+        return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
+    }
+
+    /**
+     * 根据查询条件返回全部包裹，不应用分页参数。
+     */
+    @PostMapping("/pkgListAll")
+    public ApiResponse<List<DeliveryPkgListItemResponse>> listAllDeliveryPkgs(
+            @Valid @RequestBody DeliveryPkgAllListRequest request) {
+        List<DeliveryPkg> items = deliveryPkgService.queryAllByConditions(
+                parseStatus(request.getStatus()), request.getManufacturerMetaId(), request.getOrderId(),
+                request.getRecipientName(), request.getRecipientPhone(), request.getKuaidiNum(),
+                request.getCreateTimeStart(), request.getCreateTimeEnd());
+        return ApiResponse.success(buildDeliveryPkgListItemResponses(items));
+    }
+
+    private List<DeliveryPkgListItemResponse> buildDeliveryPkgListItemResponses(List<DeliveryPkg> items) {
         Map<String, DeliveryRoute> routesById = deliveryRouteService.findByIds(items.stream()
                 .map(DeliveryPkg::getRouteId).filter(StringUtils::isNotBlank).collect(Collectors.toSet()));
         LinkedHashSet<String> pieceIds = items.stream()
@@ -171,22 +200,16 @@ public class DeliveryPkgController {
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, OrderItem> orderItemsById = indexOrderItems(orderItemService.findByOrderItemIds(orderItemIds));
+        Map<String, OrderInfo> orderInfosById = orderInfoService.findByOrderIds(items.stream()
+                        .map(DeliveryPkg::getOrderId).filter(StringUtils::isNotBlank).collect(Collectors.toSet()))
+                .stream().filter(Objects::nonNull).filter(order -> StringUtils.isNotBlank(order.getOrderId()))
+                .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (first, ignored) -> first));
 
         items.forEach(item -> item.setRouteDesc(buildRouteDesc(item, routesById.get(item.getRouteId()))));
-        List<DeliveryPkgListItemResponse> responseItems = items.stream()
-                .map(item -> buildDeliveryPkgListItemResponse(item, piecesById, orderItemsById))
+        return items.stream()
+                .map(item -> buildDeliveryPkgListItemResponse(item, piecesById, orderItemsById,
+                        orderInfosById.get(item.getOrderId())))
                 .collect(Collectors.toList());
-        long total = deliveryPkgService.countByConditions(
-                status,
-                request.getManufacturerMetaId(),
-                request.getOrderId(),
-                request.getRecipientName(),
-                request.getRecipientPhone(),
-                request.getKuaidiNum(),
-                request.getCreateTimeStart(),
-                request.getCreateTimeEnd()
-        );
-        return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
     }
 
     @PostMapping("/pkgDetail")
@@ -201,11 +224,12 @@ public class DeliveryPkgController {
 
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg) {
-        return buildDeliveryPkgListItemResponse(deliveryPkg, null, null);
+        return buildDeliveryPkgListItemResponse(deliveryPkg, null, null,
+                orderInfoService.findByOrderId(deliveryPkg.getOrderId()));
     }
 
     private DeliveryPkgListItemResponse buildDeliveryPkgListItemResponse(DeliveryPkg deliveryPkg,
-            Map<String, ProductionPiece> piecesById, Map<String, OrderItem> orderItemsById) {
+            Map<String, ProductionPiece> piecesById, Map<String, OrderItem> orderItemsById, OrderInfo orderInfo) {
         DeliveryPkgListItemResponse response = new DeliveryPkgListItemResponse();
         BeanUtils.copyProperties(deliveryPkg, response);
         response.setCarrierId(deliveryPkg.getCarrierId());
@@ -216,6 +240,7 @@ public class DeliveryPkgController {
         logisticsCarrierInfo.setPresetType(deliveryPkg.getPresetType());
         response.setLogisticsCarrierInfo(logisticsCarrierInfo);
         response.setLogisticsCloudPrintData(deliveryPkg.getLogisticsCloudPrintData());
+        response.setOrderInfo(orderInfo);
 
         List<DeliveryPkgListItemResponse.DeliveryPkgItemDetail> details = new ArrayList<>();
         if (deliveryPkg.getDeliveryPkgItems() != null) {

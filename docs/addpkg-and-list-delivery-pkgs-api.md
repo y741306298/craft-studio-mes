@@ -287,8 +287,15 @@
 4. 根据包裹保存的 `carrierId`、`carrierName` 和 `presetType` 组装 `logisticsCarrierInfo`，方便调用方直接复用统一物流信息结构。
 5. 对每条 `deliveryPkgItems` 补充生产零件的材料配置、加工流程、宽高以及订单 ID。
 6. 将持久化在 `DeliveryPkg` 中的 `logisticsCloudPrintData` 原样返回，使列表页也能使用与 `addPkg` 一致的云打印参数。
+7. 批量查询包裹对应的订单，并在每个列表项的 `orderInfo` 中返回订单信息（包括 `orderInfo.orgInfo`）。
 
-### 2.5 返回结构
+### 2.5 全量查询接口
+
+`POST /api/manufacturerSide/deliveryPkg/pkgListAll` 接受与分页接口相同的条件字段（包括
+`createTimeStart`、`createTimeEnd`），但忽略 `current` 和 `size`，通过非分页仓储查询返回全部匹配包裹。
+响应类型为 `ApiResponse<List<DeliveryPkgListItemResponse>>`，列表项的组装规则与 `pkgList` 一致。
+
+### 2.6 返回结构
 
 成功响应的分页信息位于 `data` 内，而不是响应顶层：
 
@@ -310,6 +317,7 @@
 | `deliveryPkgCode` | string | 包裹编码。 |
 | `deliveryPkgStatus` | string | 包裹状态枚举名。 |
 | `orderId` | string | 订单 ID。 |
+| `orderInfo` | object | 对应订单信息，包含组织信息 `orgInfo`。 |
 | `carrierId` | string | 承运商 ID。 |
 | `carrierName` | string | 承运商名称。 |
 | `logisticsCarrierInfo` | object | 统一物流信息，由包裹上的承运商和预设类型组装。 |

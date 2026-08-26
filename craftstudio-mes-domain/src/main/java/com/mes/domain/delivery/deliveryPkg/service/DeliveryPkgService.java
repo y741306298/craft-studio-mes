@@ -227,7 +227,27 @@ public class DeliveryPkgService {
             long current,
             int size) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+        if (filters.isEmpty()) {
+            return deliveryPkgRepository.list(current, size);
+        }
         return deliveryPkgRepository.filterList(current, size, filters);
+    }
+
+    /**
+     * 根据条件全量查询包裹，不通过分页方法截断结果。
+     */
+    public List<DeliveryPkg> queryAllByConditions(
+            DeliveryPkgStatus status,
+            String manufacturerMetaId,
+            String orderId,
+            String recipientName,
+            String recipientPhone,
+            String kuaidiNum,
+            String createTimeStart,
+            String createTimeEnd) {
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName,
+                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+        return deliveryPkgRepository.findAllByConditions(filters);
     }
 
     /**

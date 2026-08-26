@@ -3,6 +3,7 @@ package com.mes.application.dto.resp.delivery;
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -45,6 +46,7 @@ public class DeliveryPkgListItemResponse extends BaseEntity {
     private String remarks;
 
     private String orderId;
+    private OrderInfo orderInfo;
     private String carrierId;
     private String carrierName;
     private LogisticsCarrierInfo logisticsCarrierInfo;
