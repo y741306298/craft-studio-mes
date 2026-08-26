@@ -5,11 +5,14 @@ import com.mes.domain.delivery.deliveryPkg.enums.DeliveryPkgStatus;
 import com.mes.domain.delivery.deliveryPkg.repository.DeliveryPkgRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.delivery.deliveryPkg.po.DeliveryPkgPo;
+import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 包裹仓储实现类
@@ -97,5 +100,13 @@ public class DeliveryPkgRepositoryImp extends BaseRepositoryImp<DeliveryPkg, Del
         Query query = new Query(criteria);
         List<DeliveryPkgPo> pos = mongoTemplate.find(query, poClass());
         return pos.stream().map(DeliveryPkgPo::toDO).toList();
+    }
+
+    @Override
+    public List<DeliveryPkg> findAllByConditions(Map<String, Object> filters) {
+        Query query = filters.isEmpty() ? new SoftDeleteQuery()
+                : new SoftDeleteQuery(buildFilterCriteria(filters));
+        query.with(Sort.by(Sort.Direction.DESC, "updateTime"));
+        return mongoTemplate.find(query, poClass()).stream().map(DeliveryPkgPo::toDO).toList();
     }
 }
