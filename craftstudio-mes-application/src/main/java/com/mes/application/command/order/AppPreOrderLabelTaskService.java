@@ -124,9 +124,16 @@ public class AppPreOrderLabelTaskService {
                 return;
             }
 
-            AppDeliveryPkgService.DeliveryPkgPrintResult printResult = isGatherPlatform(orderInfo)
-                    ? preOrderWdtLabel(orderInfo, orderItems)
-                    : appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
+            AppDeliveryPkgService.DeliveryPkgPrintResult printResult;
+            if (isGatherPlatform(orderInfo)) {
+                printResult = preOrderWdtLabel(orderInfo, orderItems);
+            } else {
+                try {
+                    printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
+                } catch (Exception printException) {
+                    throw new Kuaidi100LabelPrintException(printException);
+                }
+            }
             if (isGatherPlatform(orderInfo)) {
                 clearWdtPrintRetryCount(task);
             }
@@ -138,7 +145,7 @@ public class AppPreOrderLabelTaskService {
                         : "快递100打印未返回快递单号";
                 log.warn("预下快递单批处理任务未生成快递单号，任务已标记失败: taskId={}, orderId={}, reason={}",
                         task.getId(), task.getOrderId(), failureReason);
-                preOrderLabelTaskService.markFailed(task, null, failureReason);
+                completePrintFailure(task, orderInfo, failureReason);
                 return;
             }
             String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, kuaidiNum);
@@ -150,6 +157,10 @@ public class AppPreOrderLabelTaskService {
         } catch (Exception ex) {
             if (containsExceptionType(ex, WdtLabelPrintException.class)) {
                 handleWdtPrintFailure(task, orderInfo, resolveExceptionMessage(ex));
+                return;
+            }
+            if (containsExceptionType(ex, Kuaidi100LabelPrintException.class)) {
+                completePrintFailure(task, orderInfo, resolveExceptionMessage(ex));
                 return;
             }
             markTaskFailed(task, kuaidiNum, resolveExceptionMessage(ex));
@@ -189,9 +200,26 @@ public class AppPreOrderLabelTaskService {
             return;
         }
 
+        completePrintFailure(task, orderInfo, failureReason);
+    }
+
+    /**
+     * 打印最终失败时，将失败原因同时作为订单物流单号通知下游，并保留在失败任务中。
+     */
+    private void completePrintFailure(PreOrderLabelTask task, OrderInfo orderInfo, String failureReason) {
+        if (orderInfo != null) {
+            try {
+                orderInfo.setKuaidiNum(failureReason);
+                orderInfoService.updateOrder(orderInfo);
+            } catch (Exception updateException) {
+                log.error("面单打印失败后更新订单失败原因异常: taskId={}, orderId={}",
+                        task.getId(), task.getOrderId(), updateException);
+            }
+        }
+
         String mqFailureReason = notifyLogisticsOrderInfo(orderInfo, failureReason);
         if (StringUtils.isNotBlank(mqFailureReason)) {
-            log.error("WDT面单打印三次失败后发送失败原因MQ通知失败: orderId={}, reason={}, mqReason={}",
+            log.error("面单打印失败后发送失败原因MQ通知失败: orderId={}, reason={}, mqReason={}",
                     task.getOrderId(), failureReason, mqFailureReason);
         }
         markTaskFailed(task, null, failureReason);
@@ -451,6 +479,12 @@ public class AppPreOrderLabelTaskService {
 
     private static class WdtLabelPrintException extends RuntimeException {
         private WdtLabelPrintException(Throwable cause) {
+            super(cause);
+        }
+    }
+
+    private static class Kuaidi100LabelPrintException extends RuntimeException {
+        private Kuaidi100LabelPrintException(Throwable cause) {
             super(cause);
         }
     }
