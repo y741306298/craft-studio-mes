@@ -52,6 +52,10 @@ public class TypesettingInfo extends BaseEntity {
     private ProcedureFlow procedureFlow;
     private String remark;
     /**
+     * 处理失败原因。
+     */
+    private String failReason;
+    /**
      * 打印设备编号
      */
     private String deviceCode;
