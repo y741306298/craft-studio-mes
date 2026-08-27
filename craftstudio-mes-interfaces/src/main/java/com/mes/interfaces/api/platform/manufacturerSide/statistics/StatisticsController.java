@@ -12,6 +12,7 @@ import com.mes.application.dto.req.statistics.OrderStatisticsListRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.OrderStatisticsFiltersRequest;
 import com.mes.application.dto.req.statistics.TransferOrderStatisticsRequest;
+import com.mes.application.dto.req.statistics.TransferOrderStatisticsAllRequest;
 import com.mes.application.dto.req.statistics.TransferSourceFactoryRequest;
 import com.mes.application.dto.req.statistics.TransferTargetFactoryRequest;
 import com.mes.application.dto.resp.PagedApiResponse;
@@ -100,6 +101,16 @@ public class StatisticsController {
                 parseEndDate(request.getCreateDateEnd()), query);
         return PagedApiResponse.success(result.getItems(), query.getCurrent(), query.getSize(), result.getTotal(),
                 result.getTotalOrderCount(), java.math.BigDecimal.ZERO, result.getTotalAmount());
+    }
+
+    /** 全量查询转单项目及持久化统计，筛选及汇总口径与分页接口一致。 */
+    @PostMapping("/transfer/listAll")
+    public ApiResponse<TransferOrderStatisticsVO> listAllTransferOrderStatistics(
+            @Valid @RequestBody TransferOrderStatisticsAllRequest request) {
+        return ApiResponse.success(appOrderService.findAllTransferOrderStatistics(
+                request.getSourceId(), request.getTargetId(),
+                parseStartDate(request.getCreateDateStart()),
+                parseEndDate(request.getCreateDateEnd())));
     }
 
     /** 查询在指定时间段向目标工厂转单的来源工厂。 */
