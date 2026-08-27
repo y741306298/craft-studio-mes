@@ -208,3 +208,99 @@ statisticsDate between createDateStart and createDateEnd
 - 上线前已经存在的 `orderTransferRecord` 不会自动生成对应的 `transferDailyStatistics`。
 - 因此，查询历史日期时可能可以查到项目明细，但 `totalOrderCount`、`totalAmount` 为 0 或小于历史实际值。
 - 若要求历史统计完整，需要另行执行一次历史统计回填；回填时应按转单事件去重，避免同一订单的多条项目记录被重复计算。
+
+## 5. 全量查询接口
+
+该接口根据与分页接口 `/transfer/list` 相同的转单时间、来源工厂、目标工厂条件查询转单目标订单项目明细，并读取相同口径的持久化转单统计汇总。区别在于本接口不接收 `current`、`size`，不会对明细结果做分页截断，会一次性返回全部匹配项目。
+
+- **URL**：`POST /api/manufacturerSide/statistics/transfer/listAll`
+- **Controller**：`StatisticsController#listAllTransferOrderStatistics`
+- **返回类型**：`ApiResponse<TransferOrderStatisticsVO>`
+- **日期时区**：`Asia/Shanghai`
+
+### 5.1 请求参数
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `sourceId` | string | 否 | 源工厂 `manufacturerMetaId`，对应转单记录 `sourceId` |
+| `targetId` | string | 否 | 目标工厂 `manufacturerMetaId`，对应转单记录 `targetId` |
+| `createDateStart` | string | 是 | 转单开始日期，格式 `yyyy-MM-dd`，按北京时间 `00:00:00` 查询 |
+| `createDateEnd` | string | 是 | 转单结束日期，格式 `yyyy-MM-dd`，按北京时间 `23:59:59` 查询 |
+
+工厂条件组合规则与分页接口一致：
+
+- 同时传 `sourceId`、`targetId`：查询指定的源工厂到目标工厂流向；
+- 只传 `sourceId`：查询该源工厂在日期范围内转向所有目标工厂的转出数据；
+- 只传 `targetId`：查询日期范围内所有源工厂转入该目标工厂的数据；
+- 两者都不传：查询日期范围内全部工厂流向。
+
+请求示例：
+
+```http
+POST /api/manufacturerSide/statistics/transfer/listAll
+Content-Type: application/json
+```
+
+```json
+{
+  "sourceId": "MFR_SOURCE_001",
+  "targetId": "MFR_TARGET_001",
+  "createDateStart": "2026-08-01",
+  "createDateEnd": "2026-08-31"
+}
+```
+
+### 5.2 返回参数
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `code` | integer | 业务状态码，成功为 200 |
+| `message` | string | 响应消息 |
+| `data.items` | array | 全部匹配的 `TransferOrderItemVO` 转单项目明细 |
+| `data.items[].sourceId` | string | 源工厂 ID |
+| `data.items[].sourceName` | string | 源工厂名称快照 |
+| `data.items[].targetId` | string | 目标工厂 ID |
+| `data.items[].targetName` | string | 目标工厂名称快照 |
+| `data.total` | integer | 全部匹配的目标订单项目总数，不是转单订单数 |
+| `data.totalOrderCount` | integer | 日期范围内符合工厂条件的转单次数/订单数 |
+| `data.totalAmount` | number | 日期范围内符合工厂条件的转单订单金额总和，保留两位小数 |
+| `timestamp` | integer | 响应时间戳 |
+
+返回示例：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [
+      {
+        "orderId": "ORD_10001",
+        "orderItemId": "OI_TARGET_10001",
+        "manufacturerId": "MFR_TARGET_001",
+        "sourceId": "MFR_SOURCE_001",
+        "sourceName": "源工厂",
+        "targetId": "MFR_TARGET_001",
+        "targetName": "目标工厂",
+        "quantity": 2,
+        "paymentPrice": 188.50
+      }
+    ],
+    "total": 1,
+    "totalOrderCount": 1,
+    "totalAmount": 188.50
+  },
+  "timestamp": 1788172800000
+}
+```
+
+### 5.3 与分页接口的差异
+
+| 对比项 | `/transfer/list` | `/transfer/listAll` |
+|---|---|---|
+| 是否分页 | 是 | 否 |
+| 是否接收 `current` / `size` | 是 | 否 |
+| 明细返回范围 | 当前页匹配项目 | 全部匹配项目 |
+| 工厂条件口径 | 相同 | 相同 |
+| 汇总统计口径 | 相同，读取 `transferDailyStatistics` | 相同，读取 `transferDailyStatistics` |
+| `total` 含义 | 符合条件的目标订单项目总数 | 全部返回项目数 |

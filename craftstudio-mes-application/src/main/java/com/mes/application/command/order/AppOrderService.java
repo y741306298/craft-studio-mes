@@ -1205,27 +1205,69 @@ public class AppOrderService {
                                                                   Date startTime,
                                                                   Date endTime,
                                                                   PagedQuery pagedQuery) {
+        validateTransferStatisticsQuery(startTime, endTime);
+        if (pagedQuery == null || pagedQuery.getCurrent() <= 0
+                || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
+            throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
+        }
+        return findTransferOrderStatistics(sourceId, targetId, startTime, endTime, pagedQuery, false);
+    }
+
+    /** 按转单时间和工厂流向全量查询目标订单项，并读取对应的持久化统计。 */
+    public TransferOrderStatisticsVO findAllTransferOrderStatistics(String sourceId,
+                                                                     String targetId,
+                                                                     Date startTime,
+                                                                     Date endTime) {
+        validateTransferStatisticsQuery(startTime, endTime);
+        return findTransferOrderStatistics(sourceId, targetId, startTime, endTime, null, true);
+    }
+
+    private TransferOrderStatisticsVO findTransferOrderStatistics(String sourceId,
+                                                                  String targetId,
+                                                                  Date startTime,
+                                                                  Date endTime,
+                                                                  PagedQuery pagedQuery,
+                                                                  boolean all) {
+        List<OrderTransferRecord> transferRecords = orderTransferRecordService
+                .findAllTransferRecords(sourceId, targetId, startTime, endTime);
+        TransferOrderItemsQuery transferItemsQuery = buildTransferOrderItemsQuery(transferRecords, targetId);
+        List<TransferOrderItemVO> items = List.of();
+        long total = 0;
+        if (!transferItemsQuery.orderIds().isEmpty()) {
+            List<OrderItem> orderItems = all
+                    ? domainOrderItemService.filterAllUrgentFirst(transferItemsQuery.filters())
+                    : domainOrderItemService.filterListUrgentFirst(
+                    (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), transferItemsQuery.filters());
+            items = buildTransferOrderItemVOs(orderItems, transferRecords);
+            total = all ? items.size() : domainOrderItemService.filterTotal(transferItemsQuery.filters());
+        }
+        LocalDate startDate = startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
+        LocalDate endDate = endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
+        TransferDailyStatistics statistics = transferDailyStatisticsService.sum(
+                sourceId, targetId, startDate, endDate);
+        return new TransferOrderStatisticsVO(items, total,
+                statistics == null ? 0L : statistics.getTotalOrderCount(),
+                statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
+    }
+
+    private void validateTransferStatisticsQuery(Date startTime, Date endTime) {
         if (startTime == null || endTime == null) {
             throw new IllegalArgumentException("开始日期和结束日期不能为空");
         }
         if (startTime.after(endTime)) {
             throw new IllegalArgumentException("开始日期不能晚于结束日期");
         }
-        if (pagedQuery == null || pagedQuery.getCurrent() <= 0
-                || pagedQuery.getSize() <= 0 || pagedQuery.getSize() > 100) {
-            throw new IllegalArgumentException("分页参数不能为空且每页大小必须在 1-100 之间");
-        }
-        List<OrderTransferRecord> transferRecords = orderTransferRecordService
-                .findAllTransferRecords(sourceId, targetId, startTime, endTime);
+    }
+
+    private TransferOrderItemsQuery buildTransferOrderItemsQuery(List<OrderTransferRecord> transferRecords,
+                                                                 String targetId) {
         LinkedHashSet<String> orderIds = transferRecords
                 .stream()
                 .map(OrderTransferRecord::getOrderId)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        List<TransferOrderItemVO> items = List.of();
-        long total = 0;
+        Map<String, Object> filters = new HashMap<>();
         if (!orderIds.isEmpty()) {
-            Map<String, Object> filters = new HashMap<>();
             LinkedHashSet<String> targetOrderItemIds = transferRecords.stream()
                     .map(OrderTransferRecord::getTargetOrderItemId)
                     .filter(StringUtils::isNotBlank)
@@ -1246,41 +1288,39 @@ public class AppOrderService {
             } else if (!allRecordsHaveTargetItemId && !targetIds.isEmpty()) {
                 filters.put("manufacturerId_in", targetIds);
             }
-            List<OrderItem> orderItems = domainOrderItemService.filterListUrgentFirst(
-                    (int) pagedQuery.getCurrent(), (int) pagedQuery.getSize(), filters);
-            Map<String, OrderTransferRecord> recordByTargetItemId = transferRecords.stream()
-                    .filter(record -> StringUtils.isNotBlank(record.getTargetOrderItemId()))
-                    .collect(Collectors.toMap(OrderTransferRecord::getTargetOrderItemId, record -> record,
-                            (first, ignored) -> first));
-            Map<String, OrderTransferRecord> historicalRecordByOrderAndTarget = transferRecords.stream()
-                    .collect(Collectors.toMap(
-                            record -> record.getOrderId() + "\u0000" + record.getTargetId(),
-                            record -> record, (first, ignored) -> first));
-            items = buildOrderItemVOs(orderItems).stream().map(item -> {
-                OrderTransferRecord record = recordByTargetItemId.get(item.getOrderItemId());
-                if (record == null) {
-                    record = historicalRecordByOrderAndTarget.get(
-                            item.getOrderId() + "\u0000" + item.getManufacturerId());
-                }
-                TransferOrderItemVO transferItem = new TransferOrderItemVO();
-                BeanUtils.copyProperties(item, transferItem);
-                if (record != null) {
-                    transferItem.setSourceId(record.getSourceId());
-                    transferItem.setSourceName(record.getSourceName());
-                    transferItem.setTargetId(record.getTargetId());
-                    transferItem.setTargetName(record.getTargetName());
-                }
-                return transferItem;
-            }).toList();
-            total = domainOrderItemService.filterTotal(filters);
         }
-        LocalDate startDate = startTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
-        LocalDate endDate = endTime.toInstant().atZone(BEIJING_ZONE).toLocalDate();
-        TransferDailyStatistics statistics = transferDailyStatisticsService.sum(
-                sourceId, targetId, startDate, endDate);
-        return new TransferOrderStatisticsVO(items, total,
-                statistics == null ? 0L : statistics.getTotalOrderCount(),
-                statistics == null ? BigDecimal.ZERO : statistics.getTotalAmount());
+        return new TransferOrderItemsQuery(orderIds, filters);
+    }
+
+    private List<TransferOrderItemVO> buildTransferOrderItemVOs(List<OrderItem> orderItems,
+                                                                List<OrderTransferRecord> transferRecords) {
+        Map<String, OrderTransferRecord> recordByTargetItemId = transferRecords.stream()
+                .filter(record -> StringUtils.isNotBlank(record.getTargetOrderItemId()))
+                .collect(Collectors.toMap(OrderTransferRecord::getTargetOrderItemId, record -> record,
+                        (first, ignored) -> first));
+        Map<String, OrderTransferRecord> historicalRecordByOrderAndTarget = transferRecords.stream()
+                .collect(Collectors.toMap(
+                        record -> record.getOrderId() + "\u0000" + record.getTargetId(),
+                        record -> record, (first, ignored) -> first));
+        return buildOrderItemVOs(orderItems).stream().map(item -> {
+            OrderTransferRecord record = recordByTargetItemId.get(item.getOrderItemId());
+            if (record == null) {
+                record = historicalRecordByOrderAndTarget.get(
+                        item.getOrderId() + "\u0000" + item.getManufacturerId());
+            }
+            TransferOrderItemVO transferItem = new TransferOrderItemVO();
+            BeanUtils.copyProperties(item, transferItem);
+            if (record != null) {
+                transferItem.setSourceId(record.getSourceId());
+                transferItem.setSourceName(record.getSourceName());
+                transferItem.setTargetId(record.getTargetId());
+                transferItem.setTargetName(record.getTargetName());
+            }
+            return transferItem;
+        }).toList();
+    }
+
+    private record TransferOrderItemsQuery(LinkedHashSet<String> orderIds, Map<String, Object> filters) {
     }
 
     /** 查询指定目标工厂在一段时间内的所有转单来源工厂。 */

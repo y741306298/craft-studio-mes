@@ -22,7 +22,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -92,6 +94,51 @@ class AppOrderServiceTransferStatisticsTest {
         assertThat(result.getTotalOrderCount()).isEqualTo(2);
         assertThat(result.getTotalAmount()).isEqualByComparingTo("88.50");
         verify(statisticsService).sum("S1", null, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+    }
+
+    @Test
+    void shouldReturnAllTransferredItemsWithoutPagination() {
+        AppOrderService service = new AppOrderService();
+        OrderTransferRecordService recordService = mock(OrderTransferRecordService.class);
+        OrderItemService itemService = mock(OrderItemService.class);
+        OrderInfoService orderInfoService = mock(OrderInfoService.class);
+        TransferDailyStatisticsService statisticsService = mock(TransferDailyStatisticsService.class);
+        ReflectionTestUtils.setField(service, "orderTransferRecordService", recordService);
+        ReflectionTestUtils.setField(service, "domainOrderItemService", itemService);
+        ReflectionTestUtils.setField(service, "domainOrderInfoService", orderInfoService);
+        ReflectionTestUtils.setField(service, "transferDailyStatisticsService", statisticsService);
+
+        Date start = date(2026, 8, 1);
+        Date end = date(2026, 8, 31);
+        OrderTransferRecord record = new OrderTransferRecord();
+        record.setOrderId("O1");
+        record.setSourceId("S1");
+        record.setSourceName("源工厂");
+        record.setTargetId("T1");
+        record.setTargetName("目标工厂");
+        record.setTargetOrderItemId("TI1");
+        when(recordService.findAllTransferRecords("S1", "T1", start, end)).thenReturn(List.of(record));
+        OrderItem item = new OrderItem();
+        item.setOrderId("O1");
+        item.setOrderItemId("TI1");
+        when(itemService.filterAllUrgentFirst(any(Map.class))).thenReturn(List.of(item));
+        when(orderInfoService.findByOrderIds(any())).thenReturn(List.of());
+        TransferDailyStatistics totals = new TransferDailyStatistics();
+        totals.setTotalOrderCount(1L);
+        totals.setTotalAmount(new BigDecimal("188.50"));
+        when(statisticsService.sum("S1", "T1", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)))
+                .thenReturn(totals);
+
+        TransferOrderStatisticsVO result = service.findAllTransferOrderStatistics("S1", "T1", start, end);
+
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getSourceName()).isEqualTo("源工厂");
+        assertThat(result.getItems().get(0).getTargetName()).isEqualTo("目标工厂");
+        assertThat(result.getTotal()).isEqualTo(1);
+        assertThat(result.getTotalOrderCount()).isEqualTo(1);
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("188.50");
+        verify(itemService).filterAllUrgentFirst(any(Map.class));
+        verify(itemService, never()).filterListUrgentFirst(anyInt(), anyInt(), any(Map.class));
     }
 
     private Date date(int year, int month, int day) {
