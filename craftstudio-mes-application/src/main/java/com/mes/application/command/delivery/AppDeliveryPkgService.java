@@ -180,7 +180,7 @@ public class AppDeliveryPkgService {
                 .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
                 .thenComparing(DeliveryPkgPieceVO::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
+                        Comparator.nullsLast(Comparator.naturalOrder())))
                 .collect(Collectors.toList());
         log.info("listPendingPackagingPieces completed: manufacturerId={}, pieces={}, elapsedMs={}",
                 manufacturerMetaId, result.size(), (System.nanoTime() - start) / 1_000_000.0);
