@@ -244,8 +244,8 @@
 | `recipientName` | string | 否 | 收件人姓名查询条件。 |
 | `recipientPhone` | string | 否 | 收件人手机号查询条件。 |
 | `kuaidiNum` | string | 否 | 物流单号；聚单平台包裹中对应 WDT 的 `logisticsOrderId`。 |
-| `createTimeStart` | string | 否 | 创建时间起始值。 |
-| `createTimeEnd` | string | 否 | 创建时间结束值。 |
+| `createDateStart` | string | 否 | 创建日期起始值，格式为 `yyyy-MM-dd`，按北京时间当天开始计算。 |
+| `createDateEnd` | string | 否 | 创建日期结束值，格式为 `yyyy-MM-dd`，按北京时间当天结束计算。 |
 
 #### 状态可选值
 
@@ -270,8 +270,8 @@
   "recipientName": "张三",
   "recipientPhone": "13800000000",
   "kuaidiNum": "WDT_LOGISTICS_10001",
-  "createTimeStart": "2026-07-01T00:00:00Z",
-  "createTimeEnd": "2026-07-31T23:59:59Z",
+  "createDateStart": "2026-07-01",
+  "createDateEnd": "2026-07-31",
   "status": "PENDING_PACKING"
 }
 ```
@@ -289,7 +289,8 @@
 ### 2.5 全量查询接口
 
 `POST /api/manufacturerSide/deliveryPkg/pkgListAll` 接受与分页接口相同的条件字段（包括
-`orgName`），但将创建时间字段命名为 `createDateStart`、`createDateEnd`。该接口忽略 `current` 和 `size`，
+`orgName`），但将创建时间字段命名为 `createDateStart`、`createDateEnd`，日期格式为 `yyyy-MM-dd`。
+查询起止时间分别按北京时间当天的开始和结束计算。该接口忽略 `current` 和 `size`，
 通过非分页仓储查询返回全部匹配包裹。
 响应类型为 `ApiResponse<List<DeliveryPkgListItemResponse>>`，列表项的组装规则与 `pkgList` 一致。
 

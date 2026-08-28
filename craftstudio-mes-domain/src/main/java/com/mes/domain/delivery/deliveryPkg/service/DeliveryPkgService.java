@@ -14,12 +14,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 
 /**
  * 包裹服务类
  */
 @Service
 public class DeliveryPkgService {
+
+    private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
 
     @Autowired
     private DeliveryPkgRepository deliveryPkgRepository;
@@ -223,12 +229,13 @@ public class DeliveryPkgService {
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
-            String createTimeStart,
-            String createTimeEnd,
+            String createDateStart,
+            String createDateEnd,
             long current,
             int size) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
-                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+                recipientPhone, kuaidiNum, toDateInstant(createDateStart, false),
+                toDateInstant(createDateEnd, true));
         if (filters.isEmpty()) {
             return deliveryPkgRepository.list(current, size);
         }
@@ -246,11 +253,27 @@ public class DeliveryPkgService {
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
-            String createTimeStart,
-            String createTimeEnd) {
+            String createDateStart,
+            String createDateEnd) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
-                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+                recipientPhone, kuaidiNum, toDateInstant(createDateStart, false),
+                toDateInstant(createDateEnd, true));
         return deliveryPkgRepository.findAllByConditions(filters);
+    }
+
+    private String toDateInstant(String date, boolean endOfDay) {
+        if (StringUtils.isBlank(date)) {
+            return date;
+        }
+        try {
+            LocalDate localDate = LocalDate.parse(date.trim());
+            return (endOfDay ? localDate.atTime(LocalTime.MAX) : localDate.atStartOfDay())
+                    .atZone(BEIJING_ZONE)
+                    .toInstant()
+                    .toString();
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("日期格式错误，应为 yyyy-MM-dd", e);
+        }
     }
 
     /**
@@ -264,10 +287,11 @@ public class DeliveryPkgService {
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
-            String createTimeStart,
-            String createTimeEnd) {
+            String createDateStart,
+            String createDateEnd) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
-                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+                recipientPhone, kuaidiNum, toDateInstant(createDateStart, false),
+                toDateInstant(createDateEnd, true));
         if (filters.isEmpty()) {
             return deliveryPkgRepository.total();
         }
