@@ -241,13 +241,14 @@ public class DeliveryPkgService {
     public List<DeliveryPkg> queryAllByConditions(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orgName,
             String orderId,
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
             String createTimeStart,
             String createTimeEnd) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, null, orderId, recipientName,
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
                 recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         return deliveryPkgRepository.findAllByConditions(filters);
     }

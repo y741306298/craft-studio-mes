@@ -289,7 +289,8 @@
 ### 2.5 全量查询接口
 
 `POST /api/manufacturerSide/deliveryPkg/pkgListAll` 接受与分页接口相同的条件字段（包括
-`createTimeStart`、`createTimeEnd`），但忽略 `current` 和 `size`，通过非分页仓储查询返回全部匹配包裹。
+`orgName`），但将创建时间字段命名为 `createDateStart`、`createDateEnd`。该接口忽略 `current` 和 `size`，
+通过非分页仓储查询返回全部匹配包裹。
 响应类型为 `ApiResponse<List<DeliveryPkgListItemResponse>>`，列表项的组装规则与 `pkgList` 一致。
 
 ### 2.6 返回结构

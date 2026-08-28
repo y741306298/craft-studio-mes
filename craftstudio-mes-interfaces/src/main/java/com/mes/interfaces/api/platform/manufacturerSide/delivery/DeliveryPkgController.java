@@ -173,9 +173,10 @@ public class DeliveryPkgController {
     public ApiResponse<List<DeliveryPkgListItemResponse>> listAllDeliveryPkgs(
             @Valid @RequestBody DeliveryPkgAllListRequest request) {
         List<DeliveryPkg> items = deliveryPkgService.queryAllByConditions(
-                parseStatus(request.getStatus()), request.getManufacturerMetaId(), request.getOrderId(),
+                parseStatus(request.getStatus()), request.getManufacturerMetaId(), request.getOrgName(),
+                request.getOrderId(),
                 request.getRecipientName(), request.getRecipientPhone(), request.getKuaidiNum(),
-                request.getCreateTimeStart(), request.getCreateTimeEnd());
+                request.getCreateDateStart(), request.getCreateDateEnd());
         return ApiResponse.success(buildDeliveryPkgListItemResponses(items));
     }
 
