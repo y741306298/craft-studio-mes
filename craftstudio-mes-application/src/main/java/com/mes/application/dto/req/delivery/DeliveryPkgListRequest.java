@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 public class DeliveryPkgListRequest extends PagedApiRequest {
 
     private String manufacturerMetaId;
+    private String orgName;
     private String orderId;
     private String recipientName;
     private String recipientPhone;
