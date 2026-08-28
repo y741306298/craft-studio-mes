@@ -8,11 +8,12 @@ import lombok.Data;
 @Data
 public class DeliveryPkgAllListRequest {
     private String manufacturerMetaId;
+    private String orgName;
     private String orderId;
     private String recipientName;
     private String recipientPhone;
     private String kuaidiNum;
-    private String createTimeStart;
-    private String createTimeEnd;
+    private String createDateStart;
+    private String createDateEnd;
     private String status;
 }
