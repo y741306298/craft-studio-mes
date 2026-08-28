@@ -238,6 +238,7 @@
 | `current` | integer | 是 | 页码，从 `1` 开始。 |
 | `size` | integer | 是 | 每页数量，范围为 `1`～`100`。 |
 | `manufacturerMetaId` | string | 否 | 工厂标识，精确匹配。 |
+| `orgName` | string | 否 | 下单企业名称，按 `orgInfo.name` 模糊匹配且不区分大小写。 |
 | `status` | string | 否 | 包裹状态；支持枚举名或中文描述，见状态表。 |
 | `orderId` | string | 否 | 订单 ID，模糊匹配。 |
 | `recipientName` | string | 否 | 收件人姓名查询条件。 |
@@ -264,6 +265,7 @@
   "current": 1,
   "size": 20,
   "manufacturerMetaId": "MFR_10001",
+  "orgName": "示例企业",
   "orderId": "ORD_3001",
   "recipientName": "张三",
   "recipientPhone": "13800000000",

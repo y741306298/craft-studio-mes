@@ -218,6 +218,7 @@ public class DeliveryPkgService {
     public List<DeliveryPkg> queryByConditions(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orgName,
             String orderId,
             String recipientName,
             String recipientPhone,
@@ -226,7 +227,8 @@ public class DeliveryPkgService {
             String createTimeEnd,
             long current,
             int size) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
+                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         if (filters.isEmpty()) {
             return deliveryPkgRepository.list(current, size);
         }
@@ -245,7 +247,7 @@ public class DeliveryPkgService {
             String kuaidiNum,
             String createTimeStart,
             String createTimeEnd) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName,
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, null, orderId, recipientName,
                 recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         return deliveryPkgRepository.findAllByConditions(filters);
     }
@@ -256,13 +258,15 @@ public class DeliveryPkgService {
     public long countByConditions(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orgName,
             String orderId,
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
             String createTimeStart,
             String createTimeEnd) {
-        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orderId, recipientName, recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+        Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
+                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         if (filters.isEmpty()) {
             return deliveryPkgRepository.total();
         }
@@ -272,6 +276,7 @@ public class DeliveryPkgService {
     private Map<String, Object> buildFilters(
             DeliveryPkgStatus status,
             String manufacturerMetaId,
+            String orgName,
             String orderId,
             String recipientName,
             String recipientPhone,
@@ -285,6 +290,9 @@ public class DeliveryPkgService {
         }
         if (StringUtils.isNotBlank(manufacturerMetaId)) {
             filters.put("manufacturerMetaId", manufacturerMetaId);
+        }
+        if (StringUtils.isNotBlank(orgName)) {
+            filters.put("orgInfo.name_like", orgName.trim());
         }
         if (StringUtils.isNotBlank(orderId)) {
             filters.put("orderId_like", orderId.trim());

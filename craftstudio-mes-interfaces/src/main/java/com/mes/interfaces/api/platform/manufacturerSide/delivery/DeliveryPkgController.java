@@ -141,6 +141,7 @@ public class DeliveryPkgController {
         List<DeliveryPkg> items = deliveryPkgService.queryByConditions(
                 status,
                 request.getManufacturerMetaId(),
+                request.getOrgName(),
                 request.getOrderId(),
                 request.getRecipientName(),
                 request.getRecipientPhone(),
@@ -154,6 +155,7 @@ public class DeliveryPkgController {
         long total = deliveryPkgService.countByConditions(
                 status,
                 request.getManufacturerMetaId(),
+                request.getOrgName(),
                 request.getOrderId(),
                 request.getRecipientName(),
                 request.getRecipientPhone(),
