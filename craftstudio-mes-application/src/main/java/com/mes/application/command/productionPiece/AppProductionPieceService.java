@@ -1,6 +1,7 @@
 package com.mes.application.command.productionPiece;
 
 import com.mes.application.dto.req.productionpiece.BatchRedoProductionPieceRequest;
+import com.mes.application.dto.resp.productionpiece.DeleteProductionPieceVectorsResponse;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -9,6 +10,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
+import com.mes.infra.oss.ImageToImageSearchService;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -17,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.BeanUtils;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -27,12 +31,55 @@ import java.util.stream.Collectors;
 @Service
 public class AppProductionPieceService {
 
+    private static final int VECTOR_DELETE_BATCH_SIZE = 100;
+
     @Autowired
     private ProductionPieceService domainProductionPieceService;
+
+    @Autowired
+    private ImageToImageSearchService imageToImageSearchService;
 
     public long normalizeInProgressStatuses(String manufacturerMetaId) {
         return domainProductionPieceService.normalizeInProgressStatuses(
                 manufacturerMetaId, com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.COMPLETED.getCode());
+    }
+
+    public DeleteProductionPieceVectorsResponse deleteVectorsCreatedBefore(LocalDate beforeDate) {
+        if (beforeDate == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "beforeDate 不能为空");
+        }
+
+        Date beforeTime = Date.from(beforeDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        int current = 1;
+        int matchedPieceCount = 0;
+        int deletedVectorCount = 0;
+
+        while (true) {
+            List<ProductionPiece> pieces = domainProductionPieceService.findCreatedBefore(
+                    beforeTime, current, VECTOR_DELETE_BATCH_SIZE);
+            if (pieces == null || pieces.isEmpty()) {
+                break;
+            }
+            matchedPieceCount += pieces.size();
+            List<String> productionPieceIds = pieces.stream()
+                    .map(ProductionPiece::getProductionPieceId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .distinct()
+                    .toList();
+            if (!productionPieceIds.isEmpty()) {
+                if (!imageToImageSearchService.deleteImageVectors(productionPieceIds)) {
+                    throw new IllegalStateException("DashVector 批量删除失败，page=" + current);
+                }
+                deletedVectorCount += productionPieceIds.size();
+            }
+            if (pieces.size() < VECTOR_DELETE_BATCH_SIZE) {
+                break;
+            }
+            current++;
+        }
+
+        return new DeleteProductionPieceVectorsResponse(
+                beforeDate.toString(), matchedPieceCount, deletedVectorCount);
     }
 
     /**
