@@ -146,8 +146,8 @@ public class DeliveryPkgController {
                 request.getRecipientName(),
                 request.getRecipientPhone(),
                 request.getKuaidiNum(),
-                request.getCreateTimeStart(),
-                request.getCreateTimeEnd(),
+                request.getCreateDateStart(),
+                request.getCreateDateEnd(),
                 request.getCurrent(),
                 request.getSize()
         );
@@ -160,8 +160,8 @@ public class DeliveryPkgController {
                 request.getRecipientName(),
                 request.getRecipientPhone(),
                 request.getKuaidiNum(),
-                request.getCreateTimeStart(),
-                request.getCreateTimeEnd()
+                request.getCreateDateStart(),
+                request.getCreateDateEnd()
         );
         return PagedApiResponse.success(responseItems, request.getCurrent(), request.getSize(), total);
     }
