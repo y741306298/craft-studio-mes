@@ -10,14 +10,34 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Date;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 class ProductionPieceServiceTest {
+
+    @Test
+    void findsPiecesStrictlyBeforeCutoff() {
+        ProductionPieceRepository repository = mock(ProductionPieceRepository.class);
+        ProductionPieceService service = new ProductionPieceService();
+        ReflectionTestUtils.setField(service, "productionPieceRepository", repository);
+        Date cutoff = new Date(1_000L);
+        when(repository.filterList(org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.eq(100),
+                org.mockito.ArgumentMatchers.anyMap())).thenReturn(List.of());
+
+        service.findCreatedBefore(cutoff, 2, 100);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> filters = ArgumentCaptor.forClass(Map.class);
+        verify(repository).filterList(org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.eq(100), filters.capture());
+        assertThat(filters.getValue().get("createTime_lte")).isEqualTo(new Date(999L));
+    }
 
     @Test
     void transferCapsTargetNodeAtProductionPieceQuantity() {

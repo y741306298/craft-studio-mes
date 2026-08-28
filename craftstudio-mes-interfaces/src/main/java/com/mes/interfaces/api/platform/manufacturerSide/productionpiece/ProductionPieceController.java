@@ -8,6 +8,7 @@ import com.mes.application.dto.req.productionpiece.NormalizeProductionPieceStatu
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.application.dto.resp.PagedApiResponse;
 import com.mes.application.dto.resp.productionpiece.ProductionPieceResponse;
+import com.mes.application.dto.resp.productionpiece.DeleteProductionPieceVectorsResponse;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import io.micrometer.common.util.StringUtils;
@@ -15,7 +16,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -129,6 +132,15 @@ public class ProductionPieceController {
     public ApiResponse<Long> normalizeInProgressStatuses(
             @Valid @RequestBody NormalizeProductionPieceStatusRequest request) {
         return ApiResponse.success(appProductionPieceService.normalizeInProgressStatuses(request.getManufacturerMetaId()));
+    }
+
+    /**
+     * 删除指定日期零点以前创建的生产工件所对应的 DashVector Doc。
+     */
+    @DeleteMapping("/vectors/before")
+    public ApiResponse<DeleteProductionPieceVectorsResponse> deleteVectorsCreatedBefore(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate beforeDate) {
+        return ApiResponse.success(appProductionPieceService.deleteVectorsCreatedBefore(beforeDate));
     }
 
     @PostMapping("/batchRedo")

@@ -688,20 +688,36 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
      * 删除图片向量
      */
     public boolean deleteImageVector(String docId) {
+        return deleteImageVectors(Collections.singletonList(docId));
+    }
+
+    /**
+     * 按 Doc 主键批量删除图片向量。
+     */
+    @Override
+    public boolean deleteImageVectors(List<String> docIds) {
         try {
             if (collection == null) {
                 System.err.println("DashVector collection not initialized");
                 return false;
             }
 
+            List<String> validDocIds = docIds == null ? Collections.emptyList() : docIds.stream()
+                    .filter(id -> id != null && !id.isBlank())
+                    .distinct()
+                    .toList();
+            if (validDocIds.isEmpty()) {
+                return true;
+            }
+
             DeleteDocRequest request = DeleteDocRequest.builder()
-                    .ids(Collections.singletonList(docId))
+                    .ids(validDocIds)
                     .build();
 
             Response<List<com.aliyun.dashvector.models.DocOpResult>> resp = collection.delete(request);
 
             if (resp.isSuccess()) {
-                System.out.println("Successfully deleted image vector: " + docId);
+                System.out.println("Successfully deleted image vectors, count=" + validDocIds.size());
                 return true;
             } else {
                 System.err.println("Failed to delete image vector: " + resp.getMessage());

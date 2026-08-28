@@ -171,6 +171,16 @@ public class ProductionPieceService {
                 manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime);
     }
 
+    public List<ProductionPiece> findCreatedBefore(Date beforeTime, int current, int size) {
+        if (beforeTime == null) {
+            throw new IllegalArgumentException("截止时间不能为空");
+        }
+        Map<String, Object> filters = new HashMap<>();
+        // 仓储层仅支持包含上界；减一毫秒以保持“某日期以前”的严格语义。
+        filters.put("createTime_lte", new Date(beforeTime.getTime() - 1));
+        return productionPieceRepository.filterList(current, size, filters);
+    }
+
     public long normalizeInProgressStatuses(String manufacturerId, String packedStatus) {
         if (StringUtils.isBlank(manufacturerId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
