@@ -11,12 +11,7 @@ public class PodvOrgInfoHelper {
 
     private static final String PODV_PLATFORM_CODE = "podv";
     private static final String PODV_ORG_NAME = "华物POD供应链";
-    private final boolean usePodSupplyChainName;
-
-    public PodvOrgInfoHelper(
-            @Value("${mes.podv-org-info.use-pod-supply-chain-name:false}") boolean usePodSupplyChainName) {
-        this.usePodSupplyChainName = usePodSupplyChainName;
-    }
+    private static final boolean usePodSupplyChainName = false;
 
     public OrgInfo normalize(String platformCode, OrgInfo source) {
         if (!usePodSupplyChainName || !PODV_PLATFORM_CODE.equals(platformCode) || source == null) {
