@@ -68,6 +68,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -754,7 +755,7 @@ public class AppDeliveryPkgService {
                     carrierId, carrierName, presetType);
         }
 
-        boolean useCustomPackagingFlow = "CUSTOM".equalsIgnoreCase(presetType);
+        boolean useCustomPackagingFlow = isCustomPackagingPresetType(presetType);
 
         DeliveryToken deliveryToken = null;
         if (!useCustomPackagingFlow) {
@@ -773,7 +774,7 @@ public class AppDeliveryPkgService {
             }
         }
 
-        String actualPresetType = useCustomPackagingFlow ? "CUSTOM" : presetType;
+        String actualPresetType = useCustomPackagingFlow ? presetType.toUpperCase(Locale.ROOT) : presetType;
 
         if (!useCustomPackagingFlow) {
             if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
@@ -863,6 +864,10 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    private boolean isCustomPackagingPresetType(String presetType) {
+        return "CUSTOM".equalsIgnoreCase(presetType) || "DOOR_2_DOOR".equalsIgnoreCase(presetType);
     }
 
     /**
