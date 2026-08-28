@@ -1105,7 +1105,7 @@ public class AppOrderService {
             String newOrderItemId = IdGenerator.generateOrderItemId();
 
             OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
-            domainOrderItemService.addOrderItem(targetOrderItem);
+            targetOrderItem = domainOrderItemService.addOrderItem(targetOrderItem);
             transferredItems.add(targetOrderItem);
 
             List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
