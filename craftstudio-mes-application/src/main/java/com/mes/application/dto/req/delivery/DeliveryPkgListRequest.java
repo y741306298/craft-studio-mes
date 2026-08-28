@@ -14,7 +14,7 @@ public class DeliveryPkgListRequest extends PagedApiRequest {
     private String recipientName;
     private String recipientPhone;
     private String kuaidiNum;
-    private String createTimeStart;
-    private String createTimeEnd;
+    private String createDateStart;
+    private String createDateEnd;
     private String status;
 }
