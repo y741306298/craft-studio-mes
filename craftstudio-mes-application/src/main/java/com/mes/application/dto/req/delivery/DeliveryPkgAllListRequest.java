@@ -13,7 +13,7 @@ public class DeliveryPkgAllListRequest {
     private String recipientName;
     private String recipientPhone;
     private String kuaidiNum;
-    private String createDateStart;
-    private String createDateEnd;
+    private String createTimeStart;
+    private String createTimeEnd;
     private String status;
 }
