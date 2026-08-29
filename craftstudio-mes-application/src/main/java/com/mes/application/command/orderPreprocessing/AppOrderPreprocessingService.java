@@ -1040,17 +1040,21 @@ public class AppOrderPreprocessingService {
                                     orderItemId, callbackIdentity.preprocessRequestId());
                             return;
                         }
-                        productionPieceService.addProductionPiece(piece);
+                        ProductionPiece savedPiece = productionPieceService.addProductionPiece(piece);
                         // 上面的校验与写入不是一个原子操作。写入后再次校验，并清理竞争窗口内
                         // cancelOrder/transferOrder 已经判定为失效的回调所创建的零件。
                         if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
-                            productionPieceService.deleteProductionPiece(piece.getId());
+                            productionPieceService.deleteProductionPiece(savedPiece.getId());
                             log.warn("删除失效回调竞争生成的生产零件: orderItemId={}, productionPieceId={}, preprocessRequestId={}",
-                                    orderItemId, piece.getProductionPieceId(), callbackIdentity.preprocessRequestId());
+                                    orderItemId, savedPiece.getProductionPieceId(), callbackIdentity.preprocessRequestId());
                             return;
                         }
-                        indexProductionPieceImage(piece);
-                        resultPieces.add(piece);
+                        // pairs 较多时，生成、OSS 处理和图片索引可能持续很久。如果等整个回调全部结束后才
+                        // 统一划转，进程重启或请求被中断会留下已经落库、但数量仍停在“预处理”的零件。
+                        // 每个零件持久化成功后立即推进，使已完成的工作不依赖长回调最后一步才能生效。
+                        movePretreatmentToPendingTypesetting(List.of(savedPiece));
+                        indexProductionPieceImage(savedPiece);
+                        resultPieces.add(savedPiece);
                     }
                 } catch (Exception e) {
                     System.err.println("生成生产零件失败：" + e.getMessage());
@@ -1061,8 +1065,6 @@ public class AppOrderPreprocessingService {
             // 5. 如果成功生成了零件，更新订单项状态并推进到下一个节点
             if (!resultPieces.isEmpty()) {
                 updateOrderItemStatusToInProduction(orderItemId);
-                
-                movePretreatmentToPendingTypesetting(resultPieces);
                 
                 log.info("成功为订单项生成生产零件: orderItemId={}, generatedPieceCount={}", orderItemId, resultPieces.size());
             } else {
