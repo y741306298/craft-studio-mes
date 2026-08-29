@@ -176,7 +176,7 @@ public class DeliveryPkgController {
                 parseStatus(request.getStatus()), request.getManufacturerMetaId(), request.getOrgName(),
                 request.getOrderId(),
                 request.getRecipientName(), request.getRecipientPhone(), request.getKuaidiNum(),
-                request.getCreateDateStart(), request.getCreateDateEnd());
+                request.getCreateTimeStart(), request.getCreateTimeEnd());
         return ApiResponse.success(buildDeliveryPkgListItemResponses(items));
     }
 
