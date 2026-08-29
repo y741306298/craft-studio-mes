@@ -253,11 +253,10 @@ public class DeliveryPkgService {
             String recipientName,
             String recipientPhone,
             String kuaidiNum,
-            String createDateStart,
-            String createDateEnd) {
+            String createTimeStart,
+            String createTimeEnd) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
-                recipientPhone, kuaidiNum, toDateInstant(createDateStart, false),
-                toDateInstant(createDateEnd, true));
+                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
         return deliveryPkgRepository.findAllByConditions(filters);
     }
 
