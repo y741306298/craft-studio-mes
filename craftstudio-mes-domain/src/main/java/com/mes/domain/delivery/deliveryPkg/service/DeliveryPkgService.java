@@ -16,6 +16,7 @@ import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 
@@ -256,7 +257,8 @@ public class DeliveryPkgService {
             String createTimeStart,
             String createTimeEnd) {
         Map<String, Object> filters = buildFilters(status, manufacturerMetaId, orgName, orderId, recipientName,
-                recipientPhone, kuaidiNum, createTimeStart, createTimeEnd);
+                recipientPhone, kuaidiNum, toDateInstant(createTimeStart, false),
+                toDateInstant(createTimeEnd, true));
         return deliveryPkgRepository.findAllByConditions(filters);
     }
 
@@ -265,13 +267,16 @@ public class DeliveryPkgService {
             return date;
         }
         try {
-            LocalDate localDate = LocalDate.parse(date.trim());
+            String value = date.trim();
+            LocalDate localDate = value.indexOf('T') >= 0
+                    ? OffsetDateTime.parse(value).toLocalDate()
+                    : LocalDate.parse(value);
             return (endOfDay ? localDate.atTime(LocalTime.MAX) : localDate.atStartOfDay())
                     .atZone(BEIJING_ZONE)
                     .toInstant()
                     .toString();
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("日期格式错误，应为 yyyy-MM-dd", e);
+            throw new IllegalArgumentException("日期格式错误，应为 yyyy-MM-dd 或 ISO-8601", e);
         }
     }
 
