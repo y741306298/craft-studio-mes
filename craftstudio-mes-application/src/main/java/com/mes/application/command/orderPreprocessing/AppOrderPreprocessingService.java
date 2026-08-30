@@ -971,7 +971,7 @@ public class AppOrderPreprocessingService {
                         Double pieceHeight = svgSize[1] != null
                                 ? svgSize[1]
                                 : toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
-                        if (shouldIgnoreAlgorithmPiece(pieceWidth, pieceHeight)) {
+                        if (shouldIgnoreAlgorithmPiece(orderItem.getProcedureFlow(), pieceWidth, pieceHeight)) {
                             log.info("忽略尺寸过小的抠图算法结果: orderItemId={}, group={}, seq={}, widthMm={}, heightMm={}, minSizeMm={}",
                                     orderItemId, rawGroup, seq, pieceWidth, pieceHeight, MIN_ALGORITHM_PIECE_SIZE_MM);
                             continue;
@@ -1106,6 +1106,11 @@ public class AppOrderPreprocessingService {
     static boolean shouldIgnoreAlgorithmPiece(Double widthMm, Double heightMm) {
         return (widthMm != null && widthMm < MIN_ALGORITHM_PIECE_SIZE_MM)
                 || (heightMm != null && heightMm < MIN_ALGORITHM_PIECE_SIZE_MM);
+    }
+
+    static boolean shouldIgnoreAlgorithmPiece(ProcedureFlow procedureFlow, Double widthMm, Double heightMm) {
+        return SpliceProcessStrategies.hasSpliceNode(procedureFlow)
+                && shouldIgnoreAlgorithmPiece(widthMm, heightMm);
     }
 
 
