@@ -46,7 +46,7 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
                 filters,
                 Sort.by(
                         Sort.Order.desc("isUrgent"),
-                        Sort.Order.desc("updateTime")
+                        Sort.Order.desc("createTime")
                 )
         );
     }
@@ -56,7 +56,7 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
         Query query = new SoftDeleteQuery(buildFilterCriteria(filters)).with(
                 Sort.by(
                         Sort.Order.desc("isUrgent"),
-                        Sort.Order.desc("updateTime")
+                        Sort.Order.desc("createTime")
                 ));
         return mongoTemplate.find(query, poClass()).stream().map(OrderItemPo::toDO).toList();
     }

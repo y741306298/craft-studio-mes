@@ -319,7 +319,7 @@ public class AppTypesettingService {
             }
         }
 
-        sortTypesettingProductionPiecesByUrgencyAndCreateTime(allItems);
+        sortTypesettingProductionPiecesByUrgencyAndCreateTimeAscending(allItems);
 
         long total = allItems.size();
         int fromIndex = Math.min((current - 1) * size, allItems.size());
@@ -369,7 +369,7 @@ public class AppTypesettingService {
         } else {
             items = findPendingProductionPieceItemsByOrderScope(query);
         }
-        sortTypesettingProductionPiecesByUrgencyAndCreateTime(items);
+        sortTypesettingProductionPiecesByUrgencyAndCreateTimeDescending(items);
         return items;
     }
 
@@ -549,7 +549,15 @@ public class AppTypesettingService {
         }
     }
 
-    private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
+    private void sortTypesettingProductionPiecesByUrgencyAndCreateTimeAscending(List<TypesettingProductionPieceVO> items) {
+        items.sort(Comparator
+                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(TypesettingProductionPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())));
+    }
+
+    private void sortTypesettingProductionPiecesByUrgencyAndCreateTimeDescending(List<TypesettingProductionPieceVO> items) {
         items.sort(Comparator
                 .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
                 .reversed()
