@@ -176,12 +176,8 @@ public class AppDeliveryPkgService {
             boolean matchStart = request.getStartTime() == null || (item.getCreateTime() != null && !item.getCreateTime().before(request.getStartTime()));
             boolean matchEnd = request.getEndTime() == null || (item.getCreateTime() != null && !item.getCreateTime().after(request.getEndTime()));
             return matchOrderId && matchOrderItemId && matchCustomerName && matchCustomerPhone && matchCarrierName && matchOrgName && matchStart && matchEnd;
-        }).sorted(Comparator
-                .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
-                .reversed()
-                .thenComparing(DeliveryPkgPieceVO::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .collect(Collectors.toList());
+        }).collect(Collectors.toList());
+        sortDeliveryPkgPiecesByCreateTime(result);
         log.info("listPendingPackagingPieces completed: manufacturerId={}, pieces={}, elapsedMs={}",
                 manufacturerMetaId, result.size(), (System.nanoTime() - start) / 1_000_000.0);
         return result;
@@ -221,14 +217,20 @@ public class AppDeliveryPkgService {
 
         List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(productionPieces);
 
-        return items.stream()
+        List<DeliveryPkgPieceVO> result = items.stream()
                 .filter(item -> matchesDeliveryScopedRequest(item, request))
-                .sorted(Comparator
-                        .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
-                        .reversed()
-                        .thenComparing(DeliveryPkgPieceVO::getCreateTime,
-                                Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
+        sortDeliveryPkgPiecesByCreateTime(result);
+        return result;
+    }
+
+    /**
+     * 按创建时间正序排列待打包工件；创建时间缺失的数据放在最后。
+     */
+    private void sortDeliveryPkgPiecesByCreateTime(List<DeliveryPkgPieceVO> items) {
+        items.sort(Comparator.comparing(
+                DeliveryPkgPieceVO::getCreateTime,
+                Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
     private void validateSingleDeliveryScopedId(DeliveryPkgScopedRequest request) {

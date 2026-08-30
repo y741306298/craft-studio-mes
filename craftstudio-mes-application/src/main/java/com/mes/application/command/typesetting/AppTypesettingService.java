@@ -319,7 +319,7 @@ public class AppTypesettingService {
             }
         }
 
-        sortTypesettingProductionPiecesByUrgencyAndCreateTime(allItems);
+        sortTypesettingProductionPiecesByCreateTime(allItems);
 
         long total = allItems.size();
         int fromIndex = Math.min((current - 1) * size, allItems.size());
@@ -369,7 +369,7 @@ public class AppTypesettingService {
         } else {
             items = findPendingProductionPieceItemsByOrderScope(query);
         }
-        sortTypesettingProductionPiecesByUrgencyAndCreateTime(items);
+        sortTypesettingProductionPiecesByCreateTime(items);
         return items;
     }
 
@@ -549,12 +549,13 @@ public class AppTypesettingService {
         }
     }
 
-    private void sortTypesettingProductionPiecesByUrgencyAndCreateTime(List<TypesettingProductionPieceVO> items) {
-        items.sort(Comparator
-                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
-                .reversed()
-                .thenComparing(TypesettingProductionPieceVO::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())));
+    /**
+     * 按创建时间正序排列，确保先创建的工件先返回；创建时间缺失的数据放在最后。
+     */
+    private void sortTypesettingProductionPiecesByCreateTime(List<TypesettingProductionPieceVO> items) {
+        items.sort(Comparator.comparing(
+                TypesettingProductionPieceVO::getCreateTime,
+                Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
     /**
