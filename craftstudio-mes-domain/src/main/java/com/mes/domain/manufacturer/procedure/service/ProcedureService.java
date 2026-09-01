@@ -244,7 +244,11 @@ public class ProcedureService {
         piece.setHeight(height);
 
         piece.getProcedureFlow().getNodes().forEach(node -> node.setPieceQuantity(0));
-        piece.getProcedureFlow().getNodes().get(0).setPieceQuantity(orderItem.getQuantity());
+        piece.getProcedureFlow().getNodes().stream()
+                .filter(node -> "NODE_TYPESETTING".equals(node.getNodeId()) || "待排版".equals(node.getNodeName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("生产工件流程缺少待排版节点"))
+                .setPieceQuantity(orderItem.getQuantity());
         return piece;
     }
 

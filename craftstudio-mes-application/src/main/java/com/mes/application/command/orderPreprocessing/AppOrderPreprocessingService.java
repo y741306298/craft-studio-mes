@@ -26,7 +26,6 @@ import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
-import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityTransfer;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.procedure.service.ProcedureService;
@@ -209,8 +208,6 @@ public class AppOrderPreprocessingService {
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 if (pieces != null) {
                     generatedPieceCount += pieces.size();
-                    //说明直接生成了零件，预处理完成后，让所有的零件进入第一个节点，否则说明在等待处理零件，暂不处理
-                    movePretreatmentToPendingTypesetting(pieces);
                 }
                 log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
@@ -1049,10 +1046,6 @@ public class AppOrderPreprocessingService {
                                     orderItemId, savedPiece.getProductionPieceId(), callbackIdentity.preprocessRequestId());
                             return;
                         }
-                        // pairs 较多时，生成、OSS 处理和图片索引可能持续很久。如果等整个回调全部结束后才
-                        // 统一划转，进程重启或请求被中断会留下已经落库、但数量仍停在“预处理”的零件。
-                        // 每个零件持久化成功后立即推进，使已完成的工作不依赖长回调最后一步才能生效。
-                        movePretreatmentToPendingTypesetting(List.of(savedPiece));
                         indexProductionPieceImage(savedPiece);
                         resultPieces.add(savedPiece);
                     }
@@ -1137,20 +1130,6 @@ public class AppOrderPreprocessingService {
                 typesettingSequencePoolService.nextSequence(manufacturerMetaId, TypesettingSequenceUsageType.BLOOD));
         int total = groupToCount.getOrDefault(rawGroup, 1);
         return sequenceNo + "#" + seq + "-" + total;
-    }
-
-    private void movePretreatmentToPendingTypesetting(List<ProductionPiece> pieces) {
-        if (pieces == null || pieces.isEmpty()) {
-            return;
-        }
-        List<PieceQuantityTransfer> transfers = pieces.stream()
-                .filter(Objects::nonNull)
-                .filter(piece -> StringUtils.isNotBlank(piece.getProductionPieceId()))
-                .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
-                .map(piece -> new PieceQuantityTransfer(piece.getProductionPieceId(),
-                        "NODE_PRETREATMENT", "NODE_TYPESETTING", piece.getQuantity()))
-                .toList();
-        productionPieceService.transferPieceQuantitiesBetweenNodes(transfers);
     }
 
     public void indexProductionPieceImageForStrategy(ProductionPiece piece) {
