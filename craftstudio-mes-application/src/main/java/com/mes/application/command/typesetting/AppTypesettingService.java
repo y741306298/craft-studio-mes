@@ -72,6 +72,8 @@ import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.productionPieceGenerationTask.entity.ProductionPieceGenerationTask;
+import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
@@ -186,6 +188,8 @@ public class AppTypesettingService {
     private TypesettingSequencePoolService typesettingSequencePoolService;
     @Autowired
     private OrderItemService orderItemService;
+    @Autowired
+    private ProductionPieceGenerationTaskService productionPieceGenerationTaskService;
     @Autowired
     private ManufacturerDeviceCfgRepository manufacturerDeviceCfgRepository;
     @Autowired
@@ -1257,6 +1261,8 @@ public class AppTypesettingService {
             }
         }
 
+        ensureProductionPiecesGenerated(productionPieces);
+
         for (TypesettingInfo typesettingInfo : typesettingInfos) {
             Integer quantity = typesettingInfo.getQuantity() == null ? 0 : typesettingInfo.getQuantity();
             Integer leaveQuantity = typesettingInfo.getLeaveQuantity() == null ? 0 : typesettingInfo.getLeaveQuantity();
@@ -1420,6 +1426,29 @@ public class AppTypesettingService {
         }
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
+    }
+
+    /** Prevents layout while any item in one of the selected pieces' orders is still being generated. */
+    private void ensureProductionPiecesGenerated(List<ProductionPiece> productionPieces) {
+        Set<String> orderItemIds = productionPieces.stream()
+                .map(ProductionPiece::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        if (orderItemIds.isEmpty()) {
+            return;
+        }
+        Map<String, OrderItem> orderItems = orderItemService.findByOrderItemIds(orderItemIds).stream()
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
+        Set<String> orderIds = orderItems.values().stream()
+                .map(OrderItem::getOrderId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        for (ProductionPieceGenerationTask task : productionPieceGenerationTaskService.findByOrderIds(orderIds)) {
+            if (task.getOrderItemIdList() != null && !task.getOrderItemIdList().isEmpty()) {
+                throw new IllegalStateException("订单" + task.getOrderId() + "-订单项"
+                        + task.getOrderItemIdList().get(0) + "的生产零件未完全生成，请稍后排版");
+            }
+        }
     }
 
 

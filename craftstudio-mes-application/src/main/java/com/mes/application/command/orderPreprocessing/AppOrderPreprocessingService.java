@@ -28,6 +28,7 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.mes.domain.manufacturer.procedure.service.ProcedureService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
@@ -103,6 +104,9 @@ public class AppOrderPreprocessingService {
 
     @Autowired
     private ProductionPieceService productionPieceService;
+
+    @Autowired
+    private ProductionPieceGenerationTaskService productionPieceGenerationTaskService;
 
     @Autowired
     private ProcedureFlowService procedureFlowService;
@@ -208,6 +212,9 @@ public class AppOrderPreprocessingService {
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 if (pieces != null) {
                     generatedPieceCount += pieces.size();
+                }
+                if (pieces != null && !pieces.isEmpty()) {
+                    productionPieceGenerationTaskService.markGenerated(orderItem.getOrderId(), orderItem.getOrderItemId());
                 }
                 log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
@@ -1058,6 +1065,7 @@ public class AppOrderPreprocessingService {
             // 5. 如果成功生成了零件，更新订单项状态并推进到下一个节点
             if (!resultPieces.isEmpty()) {
                 updateOrderItemStatusToInProduction(orderItemId);
+                productionPieceGenerationTaskService.markGenerated(orderItem.getOrderId(), orderItemId);
                 
                 log.info("成功为订单项生成生产零件: orderItemId={}, generatedPieceCount={}", orderItemId, resultPieces.size());
             } else {

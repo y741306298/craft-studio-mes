@@ -42,6 +42,7 @@ import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
+import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
 import com.mes.domain.order.transferStatistics.entity.TransferDailyStatistics;
 import com.mes.domain.order.transferStatistics.service.TransferDailyStatisticsService;
@@ -77,6 +78,9 @@ public class AppOrderService {
 
     @Autowired
     private OrderItemService domainOrderItemService;
+
+    @Autowired
+    private ProductionPieceGenerationTaskService productionPieceGenerationTaskService;
 
     @Autowired
     private ProductionPieceService productionPieceService;
@@ -678,6 +682,10 @@ public class AppOrderService {
         List<OrderItem> orderItems = request.toOrderItems();
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
+        productionPieceGenerationTaskService.create(orderInfo.getOrderId(), orderItemsResult.stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(Objects::nonNull)
+                .toList());
         saveOrderDailyStatistics(orderInfo, orderItemsResult);
         preOrderLabelTaskService.createFromOrderInfo(orderInfo);
         // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
