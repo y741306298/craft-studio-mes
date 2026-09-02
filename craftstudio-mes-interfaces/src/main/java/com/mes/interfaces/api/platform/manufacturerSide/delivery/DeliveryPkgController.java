@@ -33,6 +33,8 @@ import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.infra.oss.ImageToImageSearchServiceImp;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsCloudPrintData;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsCloudPrintPlatform;
 import io.micrometer.common.util.StringUtils;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
@@ -360,7 +362,14 @@ public class DeliveryPkgController {
     /** 聚单平台面单复打，抖音面单会重新获取云打印数据。 */
     @PostMapping("/gather-platform/reprint")
     public ApiResponse<Object> gatherPlatformReprint(@RequestBody DeliveryPkgActionRequest request) {
-        return ApiResponse.success(buildAddResult(appDeliveryPkgService.reprintGatherPlatformLabel(request)));
+        DeliveryPkgAddResultVO deliveryPkgAddResultVO = buildAddResult(appDeliveryPkgService.reprintGatherPlatformLabel(request));
+//        LogisticsCloudPrintData logisticsCloudPrintData = new LogisticsCloudPrintData();
+//        logisticsCloudPrintData.setCloudPrintPlatform(LogisticsCloudPrintPlatform.CAINIAO);
+//        logisticsCloudPrintData.setPrintData("{\"encryptedData\":\"AES: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\",\"signature\":\"MD:qqzuKvFz9MTlEMV3+vJFqw==\",\"templateURL\":\"http://cloudprint.cainiao.com/template/standard/300336\",\"ver\":\"waybill_print_secret_version_1\"}");
+//        logisticsCloudPrintData.setCustomTemplateUrl("https://static-resources.wdtdata.com/production/yxm/ywyl/template/1/id1785394068083");
+//        logisticsCloudPrintData.setStandardTemplateUrl("https://cloudprint.cainiao.com/template/standard/300336/89");
+//        deliveryPkgAddResultVO.setLogisticsCloudPrintData(logisticsCloudPrintData);
+        return ApiResponse.success(deliveryPkgAddResultVO);
     }
 
     @PostMapping("/release")
