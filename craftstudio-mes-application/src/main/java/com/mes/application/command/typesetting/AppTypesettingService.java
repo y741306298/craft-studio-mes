@@ -554,12 +554,15 @@ public class AppTypesettingService {
     }
 
     /**
-     * 按创建时间正序排列，确保先创建的工件先返回；创建时间缺失的数据放在最后。
+     * 加急工件优先，同一优先级内按创建时间正序排列；创建时间缺失的数据放在最后。
      */
     private void sortTypesettingProductionPiecesByCreateTime(List<TypesettingProductionPieceVO> items) {
-        items.sort(Comparator.comparing(
-                TypesettingProductionPieceVO::getCreateTime,
-                Comparator.nullsLast(Comparator.naturalOrder())));
+        items.sort(Comparator
+                .comparing((TypesettingProductionPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(
+                        TypesettingProductionPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
     /**

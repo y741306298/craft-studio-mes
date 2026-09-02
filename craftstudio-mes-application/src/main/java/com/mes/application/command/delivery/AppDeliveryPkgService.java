@@ -225,12 +225,15 @@ public class AppDeliveryPkgService {
     }
 
     /**
-     * 按创建时间正序排列待打包工件；创建时间缺失的数据放在最后。
+     * 加急工件优先，同一优先级内按创建时间正序排列；创建时间缺失的数据放在最后。
      */
     private void sortDeliveryPkgPiecesByCreateTime(List<DeliveryPkgPieceVO> items) {
-        items.sort(Comparator.comparing(
-                DeliveryPkgPieceVO::getCreateTime,
-                Comparator.nullsLast(Comparator.naturalOrder())));
+        items.sort(Comparator
+                .comparing((DeliveryPkgPieceVO item) -> Boolean.TRUE.equals(item.getIsUrgent()))
+                .reversed()
+                .thenComparing(
+                        DeliveryPkgPieceVO::getCreateTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
     private void validateSingleDeliveryScopedId(DeliveryPkgScopedRequest request) {
