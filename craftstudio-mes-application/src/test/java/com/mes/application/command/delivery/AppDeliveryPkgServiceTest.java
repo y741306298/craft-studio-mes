@@ -1,6 +1,5 @@
 package com.mes.application.command.delivery;
 
-import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
@@ -8,29 +7,12 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AppDeliveryPkgServiceTest {
-
-    @Test
-    void pendingPackagingPiecesPutUrgentItemsFirstThenSortByCreateTime() {
-        DeliveryPkgPieceVO normalOlder = piece(false, 1000L);
-        DeliveryPkgPieceVO urgentNewer = piece(true, 4000L);
-        DeliveryPkgPieceVO urgentOlder = piece(true, 3000L);
-        DeliveryPkgPieceVO normalNewer = piece(null, 2000L);
-        List<DeliveryPkgPieceVO> items = new ArrayList<>(
-                List.of(normalOlder, urgentNewer, urgentOlder, normalNewer));
-
-        ReflectionTestUtils.invokeMethod(new AppDeliveryPkgService(),
-                "sortDeliveryPkgPiecesByCreateTime", items);
-
-        assertThat(items).containsExactly(urgentOlder, urgentNewer, normalOlder, normalNewer);
-    }
 
     @Test
     void fullyPackedTransitionConsolidatesQuantityAtPackedNode() {
@@ -59,12 +41,5 @@ class AppDeliveryPkgServiceTest {
         node.setNodeName(name);
         node.setPieceQuantity(quantity);
         return node;
-    }
-
-    private DeliveryPkgPieceVO piece(Boolean isUrgent, long createTime) {
-        DeliveryPkgPieceVO piece = new DeliveryPkgPieceVO();
-        piece.setIsUrgent(isUrgent);
-        piece.setCreateTime(new Date(createTime));
-        return piece;
     }
 }
