@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -54,17 +55,30 @@ public class TypesettingController {
      * @return 分页查询结果
      */
     @PostMapping("/list")
-        public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
-        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(request);
+    public ApiResponse<TypesettingAndProductionPiecesResponse> listTypesettingAndProductionPieces(@RequestBody TypesettingQuery request) {
+        TypesettingPiecesQueryResult result = timeListOperation("findTypesettingAndProductionPieces",
+                () -> appTypesettingService.findTypesettingAndProductionPieces(request));
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
         List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
         sanitizeProcedureFlow(allItems);
-        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(request, allItems);
+        List<TypesettingProductionPieceVO> materialScopedItems = timeListOperation("findMaterialScopedItemsForProcessingFlowOptions",
+                () -> findMaterialScopedItemsForProcessingFlowOptions(request, allItems));
         sanitizeProcedureFlow(materialScopedItems);
-        TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult());
+        TypesettingAndProductionPiecesResponse response = timeListOperation("buildTypesettingAndProductionPiecesResponse",
+                () -> buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult()));
         fillOrgInfo(response, request);
         return ApiResponse.success(response);
+    }
+
+    private <T> T timeListOperation(String operationName, Supplier<T> operation) {
+        long start = System.nanoTime();
+        try {
+            return operation.get();
+        } finally {
+            log.info("listTypesettingAndProductionPieces operation completed: operation={}, elapsedMs={}",
+                    operationName, (System.nanoTime() - start) / 1_000_000.0);
+        }
     }
 
     /**
