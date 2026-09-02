@@ -290,8 +290,12 @@ public class AppTypesettingService {
         boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
 
         if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = findPendingTypesettingProductionPieces(query);
-            Map<String, String> orderGroupIdCache = loadOrderGroupIds(productionPieces, query);
+            List<ProductionPiece> productionPieces = timeTypesettingListStep(
+                    "step4-findPendingTypesettingProductionPieces",
+                    () -> findPendingTypesettingProductionPieces(query));
+            Map<String, String> orderGroupIdCache = timeTypesettingListStep(
+                    "step5-loadOrderGroupIds",
+                    () -> loadOrderGroupIds(productionPieces, query));
             for (ProductionPiece piece : productionPieces) {
                 if (getPendingTypesettingQuantity(piece) > 0) {
                     TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
@@ -302,18 +306,20 @@ public class AppTypesettingService {
         }
 
         if (!queryPartOnly && !queryProductionPiecesByRoute) {
-            List<TypesettingInfo> typesettingInfos = timeMongoQuery("findPendingTypesettingInfos", () ->
-                    domainTypesettingService.findTypesettingByProcessingConditions(
-                            query.getManufacturerMetaId(),
-                            TypesettingStatus.PENDING.getCode(),
-                            query.getMaterialName(),
-                            query.getProcessingName(),
-                            query.getStartTime(),
-                            query.getEndTime(),
-                            null,
-                            1,
-                            Integer.MAX_VALUE
-                    ));
+            List<TypesettingInfo> typesettingInfos = timeTypesettingListStep(
+                    "step7-findPendingTypesettingInfos",
+                    () -> timeMongoQuery("findPendingTypesettingInfos", () ->
+                            domainTypesettingService.findTypesettingByProcessingConditions(
+                                    query.getManufacturerMetaId(),
+                                    TypesettingStatus.PENDING.getCode(),
+                                    query.getMaterialName(),
+                                    query.getProcessingName(),
+                                    query.getStartTime(),
+                                    query.getEndTime(),
+                                    null,
+                                    1,
+                                    Integer.MAX_VALUE
+                            )));
             for (TypesettingInfo info : typesettingInfos) {
                 Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
                 boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
@@ -538,6 +544,17 @@ public class AppTypesettingService {
             }
         }
         return orderIdsByItemId;
+    }
+
+    private <T> T timeTypesettingListStep(String stepName, Supplier<T> stepAction) {
+        long start = System.nanoTime();
+        try {
+            return stepAction.get();
+        } finally {
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            log.info("listTypesettingAndProductionPieces step completed: step={}, elapsedMs={}",
+                    stepName, elapsedMs);
+        }
     }
 
     /**
