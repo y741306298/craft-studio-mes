@@ -28,6 +28,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -76,8 +77,9 @@ public class TypesettingController {
         try {
             return operation.get();
         } finally {
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             log.info("listTypesettingAndProductionPieces operation completed: operation={}, elapsedMs={}",
-                    operationName, (System.nanoTime() - start) / 1_000_000.0);
+                    operationName, elapsedMs);
         }
     }
 
