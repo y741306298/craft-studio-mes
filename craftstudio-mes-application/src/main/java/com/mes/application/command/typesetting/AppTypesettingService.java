@@ -3747,14 +3747,16 @@ public class AppTypesettingService {
         Set<String> productionPieceIds = new LinkedHashSet<>();
         List<String> errorMessages = new ArrayList<>();
         for (String typesettingId : typesettingIds) {
-            collectCompleteReleaseTargets(typesettingId, layoutsToDelete, productionPieceIds,
+            collectReleaseTargets(typesettingId, layoutsToDelete, productionPieceIds,
                     new LinkedHashSet<>(), errorMessages);
         }
 
         List<String> releasedPieceIds = new ArrayList<>();
-        List<ProductionPiece> releasePieces = productionPieceService.findByProductionPieceIds(productionPieceIds);
+        List<ProductionPiece> releasePieces = productionPieceIds.isEmpty()
+                ? Collections.emptyList()
+                : productionPieceService.findByProductionPieceIds(productionPieceIds);
         List<PieceQuantityTransfer> completeReleaseTransfers = new ArrayList<>();
-        for (ProductionPiece piece : releasePieces) {
+        for (ProductionPiece piece : releasePieces == null ? Collections.<ProductionPiece>emptyList() : releasePieces) {
             if (piece == null || piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null) {
                 continue;
             }
@@ -3766,12 +3768,17 @@ public class AppTypesettingService {
                             "NODE_TYPESETTING", node.getPieceQuantity()));
                 }
             }
-            releasedPieceIds.add(piece.getId());
         }
-        try {
-            productionPieceService.transferPieceQuantitiesBetweenNodes(completeReleaseTransfers);
-        } catch (Exception e) {
-            errorMessages.add("批量回退工件失败: " + e.getMessage());
+        if (!completeReleaseTransfers.isEmpty()) {
+            try {
+                productionPieceService.transferPieceQuantitiesBetweenNodes(completeReleaseTransfers);
+                releasedPieceIds.addAll(completeReleaseTransfers.stream()
+                        .map(PieceQuantityTransfer::getProductionPieceId)
+                        .distinct()
+                        .toList());
+            } catch (Exception e) {
+                errorMessages.add("批量回退工件失败: " + e.getMessage());
+            }
         }
 
         List<String> deletedLayoutIds = new ArrayList<>();
@@ -3797,7 +3804,7 @@ public class AppTypesettingService {
         return result;
     }
 
-    private void collectCompleteReleaseTargets(String typesettingId,
+    private void collectReleaseTargets(String typesettingId,
                                                Map<String, TypesettingInfo> layoutsToDelete,
                                                Set<String> productionPieceIds,
                                                Set<String> visitingIds,
@@ -3833,13 +3840,13 @@ public class AppTypesettingService {
             if (TypesettingSourceType.PART.getCode().equals(cell.getSourceType())) {
                 productionPieceIds.add(cell.getSourceId());
             } else if (TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())) {
-                collectCompleteReleaseTargets(cell.getSourceId(), layoutsToDelete, productionPieceIds,
+                collectReleaseTargets(cell.getSourceId(), layoutsToDelete, productionPieceIds,
                         visitingIds, errorMessages);
             }
         }
         TypesettingInfo mirror = findMirrorTypesettingInfo(info);
         if (mirror != null && StringUtils.isNotBlank(mirror.getId())) {
-            collectCompleteReleaseTargets(mirror.getId(), layoutsToDelete, productionPieceIds,
+            collectReleaseTargets(mirror.getId(), layoutsToDelete, productionPieceIds,
                     visitingIds, errorMessages);
         }
         visitingIds.remove(typesettingId);
