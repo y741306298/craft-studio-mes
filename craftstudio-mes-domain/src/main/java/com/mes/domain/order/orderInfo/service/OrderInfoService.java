@@ -307,6 +307,28 @@ public class OrderInfoService {
     }
 
     /**
+     * 根据工厂和订单创建时间查询订单，用于订单金额统计。
+     */
+    public List<OrderInfo> findOrdersByManufacturerAndCreateTime(String manufacturerId, Date startTime,
+                                                                  Date endTime, int current, int size) {
+        if (StringUtils.isBlank(manufacturerId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "工厂 ID 不能为空");
+        }
+        if (startTime == null || endTime == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "开始时间和结束时间不能为空");
+        }
+        if (size <= 0 || size > 100) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
+        }
+
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerId", manufacturerId.trim());
+        filters.put("createTime_gte", startTime);
+        filters.put("createTime_lte", endTime);
+        return orderInfoRepository.filterList(current, size, filters);
+    }
+
+    /**
      * 根据客户信息查询订单号列表。
      *
      * @param customerName 客户姓名，支持模糊匹配

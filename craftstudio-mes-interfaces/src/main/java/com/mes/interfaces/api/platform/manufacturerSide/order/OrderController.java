@@ -9,6 +9,7 @@ import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
+import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
@@ -17,6 +18,7 @@ import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.application.dto.req.order.CancelOrderRequest;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
+import com.mes.application.dto.req.order.OrderPriceStatisticsRequest;
 import com.mes.application.dto.req.order.OrderItemsByOrderIdRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.application.dto.req.order.OrderTransferRecordListRequest;
@@ -63,6 +65,16 @@ public class OrderController {
     private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
 
     Logger logger = Logger.getLogger(OrderController.class.getName());
+
+    /**
+     * 根据订单创建时间和工厂 ID 查询全部订单，并统计非退单订单的金额。
+     */
+    @PostMapping("/price/statistics")
+    public ApiResponse<OrderPriceStatisticsVO> getOrderPriceStatistics(
+            @Valid @RequestBody OrderPriceStatisticsRequest request) {
+        return ApiResponse.success(appOrderService.findOrderPriceStatistics(
+                request.getManufacturerId(), request.getStartTime(), request.getEndTime()));
+    }
 
     /**
      * 分页查询订单列表（包含订单项）

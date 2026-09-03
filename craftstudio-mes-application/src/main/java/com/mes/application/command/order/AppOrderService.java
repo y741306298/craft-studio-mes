@@ -2,6 +2,7 @@ package com.mes.application.command.order;
 
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
+import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
@@ -121,6 +122,57 @@ public class AppOrderService {
     private static final ZoneId BEIJING_ZONE = ZoneId.of("Asia/Shanghai");
     private static final String NO_ROUTE_ID = "NO_ROUTE";
     private static final String NO_ROUTE_NAME = "无路线";
+
+    /**
+     * 查询指定工厂和创建时间范围内的全部订单，并汇总非退单订单的工厂价格快照。
+     */
+    public OrderPriceStatisticsVO findOrderPriceStatistics(String manufacturerId, Date startTime, Date endTime) {
+        if (StringUtils.isBlank(manufacturerId)) {
+            throw new IllegalArgumentException("工厂 ID 不能为空");
+        }
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("开始时间和结束时间不能为空");
+        }
+        if (startTime.after(endTime)) {
+            throw new IllegalArgumentException("开始时间不能晚于结束时间");
+        }
+
+        List<OrderInfo> orderInfos = new ArrayList<>();
+        int current = 1;
+        int size = 100;
+        while (true) {
+            List<OrderInfo> page = domainOrderInfoService.findOrdersByManufacturerAndCreateTime(
+                    manufacturerId, startTime, endTime, current, size);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            orderInfos.addAll(page);
+            if (page.size() < size) {
+                break;
+            }
+            current++;
+        }
+
+        BigDecimal actualPriceTotal = BigDecimal.ZERO;
+        BigDecimal logisticsPriceTotal = BigDecimal.ZERO;
+        BigDecimal paymentPriceTotal = BigDecimal.ZERO;
+        for (OrderInfo orderInfo : orderInfos) {
+            if (orderInfo == null || orderInfo.getStatus() == OrderStatus.RETURNED
+                    || orderInfo.getManufacturerInfo() == null
+                    || orderInfo.getManufacturerInfo().getPrice() == null) {
+                continue;
+            }
+            var price = orderInfo.getManufacturerInfo().getPrice();
+            actualPriceTotal = actualPriceTotal.add(zeroIfNull(price.getActualPrice()));
+            logisticsPriceTotal = logisticsPriceTotal.add(zeroIfNull(price.getLogisticsPrice()));
+            paymentPriceTotal = paymentPriceTotal.add(zeroIfNull(price.getPaymentPrice()));
+        }
+        return new OrderPriceStatisticsVO(orderInfos, actualPriceTotal, logisticsPriceTotal, paymentPriceTotal);
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
 
     /**
      * 同步生产中订单项的已打包状态。
