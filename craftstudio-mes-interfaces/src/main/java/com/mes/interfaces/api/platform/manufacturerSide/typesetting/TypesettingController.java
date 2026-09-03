@@ -434,7 +434,7 @@ public class TypesettingController {
             return false;
         }
         String itemMaterialName = item.getMaterialConfig().getMaterialSnapshot().getName();
-        return StringUtils.isNotBlank(itemMaterialName) && itemMaterialName.contains(materialName);
+        return StringUtils.isNotBlank(itemMaterialName) && itemMaterialName.equals(materialName.trim());
     }
 
     private TypesettingQuery copyTypesettingQuery(TypesettingQuery source) {
