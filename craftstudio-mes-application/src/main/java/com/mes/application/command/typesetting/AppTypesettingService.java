@@ -3721,24 +3721,134 @@ public class AppTypesettingService {
     }
 
     /**
-     * 释放排版：沿印版 cell 递归到叶子零件，删除整棵印版树，
-     * 并把叶子零件的待打印、打印中数量全部退回待排版。
+     * 释放排版：删除排版文件，将参与的零件状态改回待排版状态
      *
      * @param typesettingIds 排版 ID 列表
      * @return 操作结果
      */
     public ReleaseLayoutResult releaseLayout(List<String> typesettingIds) {
-        return releaseLayoutsToProductionPieces(typesettingIds, "释放排版");
+        if (typesettingIds == null || typesettingIds.isEmpty()) {
+            throw new RuntimeException("排版ID列表不能为空");
+        }
+
+        Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
+        Map<String, Integer> typesettingRollbackQuantity = new LinkedHashMap<>();
+        List<String> releasedPieceIds = new ArrayList<>();
+        List<String> errorMessages = new ArrayList<>();
+        List<String> deletedLayoutIds = new ArrayList<>();
+        Set<String> deletedLayoutIdSet = new LinkedHashSet<>();
+
+        for (String typesettingId : typesettingIds) {
+            if (StringUtils.isBlank(typesettingId)) {
+                continue;
+            }
+            if (deletedLayoutIdSet.contains(typesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = domainTypesettingService.findById(typesettingId);
+            if (info == null || StringUtils.isBlank(info.getId())) {
+                errorMessages.add("排版记录不存在: " + typesettingId);
+                continue;
+            }
+            TypesettingInfo pairedMirrorTypesetting = findReleaseLayoutMirrorPair(info);
+            if (pairedMirrorTypesetting != null && StringUtils.isNotBlank(pairedMirrorTypesetting.getId())) {
+                boolean pairedLayoutCanRelease = (pairedMirrorTypesetting.getLeaveQuantity() != null && pairedMirrorTypesetting.getLeaveQuantity() != 0)
+                        && TypesettingStatus.PENDING.getCode().equals(pairedMirrorTypesetting.getStatus());
+                if (!pairedLayoutCanRelease) {
+                    errorMessages.add("排版记录 " + info.getId() + " 的正面或反面文件已经被使用，无法释放");
+                    continue;
+                }
+            }
+
+            List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
+            if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
+                    && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
+                usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
+            }
+            for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
+                if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType()) || StringUtils.isBlank(usedCell.getSourceId())) {
+                    continue;
+                }
+                int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
+                if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                    if (!isMirrorTypesettingInfo(info)) {
+                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                    }
+                } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
+                    typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
+                }
+            }
+
+            try {
+                domainTypesettingService.deleteTypesetting(info.getId());
+                deletedLayoutIds.add(info.getId());
+                deletedLayoutIdSet.add(info.getId());
+            } catch (Exception e) {
+                errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
+                continue;
+            }
+
+            TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
+            if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
+                continue;
+            }
+            try {
+                domainTypesettingService.deleteTypesetting(mirrorTypesetting.getId());
+                deletedLayoutIds.add(mirrorTypesetting.getId());
+                deletedLayoutIdSet.add(mirrorTypesetting.getId());
+            } catch (Exception e) {
+                errorMessages.add("删除镜像排版记录失败(" + mirrorTypesetting.getId() + "): " + e.getMessage());
+            }
+        }
+
+        for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
+            String sourceTypesettingId = entry.getKey();
+            Integer rollbackQuantity = entry.getValue();
+            if (StringUtils.isBlank(sourceTypesettingId) || rollbackQuantity == null || rollbackQuantity <= 0) {
+                continue;
+            }
+            try {
+                TypesettingInfo sourceTypesetting = domainTypesettingService.findById(sourceTypesettingId);
+                if (sourceTypesetting == null || StringUtils.isBlank(sourceTypesetting.getId())) {
+                    errorMessages.add("来源印版不存在: " + sourceTypesettingId);
+                    continue;
+                }
+                sourceTypesetting.setStatus(TypesettingStatus.PENDING.getCode());
+                sourceTypesetting.setLeaveQuantity(rollbackQuantity);
+                domainTypesettingService.updateTypesetting(sourceTypesetting);
+            } catch (Exception e) {
+                errorMessages.add("回退印版失败(" + sourceTypesettingId + "): " + e.getMessage());
+            }
+        }
+
+        List<PieceQuantityTransfer> rollbackTransfers = productionPieceRollbackQuantity.entrySet().stream()
+                .filter(entry -> StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
+                .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
+                        "NODE_TYPESETTING", entry.getValue()))
+                .toList();
+        try {
+            productionPieceService.transferPieceQuantitiesBetweenNodes(rollbackTransfers);
+            releasedPieceIds.addAll(productionPieceRollbackQuantity.keySet());
+        } catch (Exception e) {
+            errorMessages.add("批量回退工件失败: " + e.getMessage());
+        }
+
+        ReleaseLayoutResult result = new ReleaseLayoutResult();
+        result.setSuccess(errorMessages.isEmpty());
+        result.setMessage(errorMessages.isEmpty()
+                ? "释放排版成功，删除排版记录 " + deletedLayoutIds.size() + " 条"
+                : "释放排版完成，存在部分失败: " + String.join("；", errorMessages));
+        result.setReleasedPieceCount(releasedPieceIds.size());
+        result.setReleasedPieceIds(releasedPieceIds);
+        result.setDeletedLayoutIds(deletedLayoutIds);
+        return result;
     }
 
     /**
-     * 完全释放排版。保留该接口以兼容已有调用方，释放逻辑与 {@link #releaseLayout(List)} 一致。
+     * 完全释放排版。与普通释放不同，本操作会沿印版 cell 递归到叶子零件，删除整棵印版树，
+     * 并把每个叶子零件当前位于“待打印”或“打印中”节点的全部数量退回“待排版”。
      */
     public ReleaseLayoutResult completeReleaseLayout(List<String> typesettingIds) {
-        return releaseLayoutsToProductionPieces(typesettingIds, "完全释放排版");
-    }
-
-    private ReleaseLayoutResult releaseLayoutsToProductionPieces(List<String> typesettingIds, String operationName) {
         if (typesettingIds == null || typesettingIds.isEmpty()) {
             throw new RuntimeException("排版ID列表不能为空");
         }
@@ -3789,8 +3899,8 @@ public class AppTypesettingService {
         ReleaseLayoutResult result = new ReleaseLayoutResult();
         result.setSuccess(errorMessages.isEmpty());
         result.setMessage(errorMessages.isEmpty()
-                ? operationName + "成功，删除排版记录 " + deletedLayoutIds.size() + " 条"
-                : operationName + "完成，存在部分失败: " + String.join("；", errorMessages));
+                ? "完全释放排版成功，删除排版记录 " + deletedLayoutIds.size() + " 条"
+                : "完全释放排版完成，存在部分失败: " + String.join("；", errorMessages));
         result.setReleasedPieceCount(releasedPieceIds.size());
         result.setReleasedPieceIds(releasedPieceIds);
         result.setDeletedLayoutIds(deletedLayoutIds);
@@ -3802,17 +3912,13 @@ public class AppTypesettingService {
                                                Set<String> productionPieceIds,
                                                Set<String> visitingIds,
                                                List<String> errorMessages) {
-        if (StringUtils.isBlank(typesettingId)) {
+        if (StringUtils.isBlank(typesettingId) || layoutsToDelete.containsKey(typesettingId)) {
             return;
         }
-        if (visitingIds.contains(typesettingId)) {
+        if (!visitingIds.add(typesettingId)) {
             errorMessages.add("印版引用存在循环: " + typesettingId);
             return;
         }
-        if (layoutsToDelete.containsKey(typesettingId)) {
-            return;
-        }
-        visitingIds.add(typesettingId);
         TypesettingInfo info = domainTypesettingService.findById(typesettingId);
         if (info == null || StringUtils.isBlank(info.getId())) {
             errorMessages.add("排版记录不存在: " + typesettingId);
@@ -3820,13 +3926,8 @@ public class AppTypesettingService {
             return;
         }
         layoutsToDelete.put(info.getId(), info);
-        List<TypesettingSourceCell> sourceCells = info.getTypesettingCells();
-        if ((sourceCells == null || sourceCells.isEmpty()) && info.getElement() != null
-                && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
-            sourceCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
-        }
-        for (TypesettingSourceCell cell : sourceCells == null
-                ? Collections.<TypesettingSourceCell>emptyList() : sourceCells) {
+        for (TypesettingSourceCell cell : info.getTypesettingCells() == null
+                ? Collections.<TypesettingSourceCell>emptyList() : info.getTypesettingCells()) {
             if (cell == null || StringUtils.isBlank(cell.getSourceId())) {
                 continue;
             }
@@ -3843,6 +3944,38 @@ public class AppTypesettingService {
                     visitingIds, errorMessages);
         }
         visitingIds.remove(typesettingId);
+    }
+
+    private TypesettingInfo findReleaseLayoutMirrorPair(TypesettingInfo info) {
+        if (info == null || StringUtils.isBlank(info.getTypesettingId())) {
+            return null;
+        }
+        String typesettingId = info.getTypesettingId();
+        if (typesettingId.endsWith("-Mirror")) {
+            String frontTypesettingId = typesettingId.substring(0, typesettingId.length() - "-Mirror".length());
+            return findExactTypesettingByTypesettingIdAndTemplateCode(frontTypesettingId, info.getTemplateCode(), info.getId());
+        }
+        String mirrorTypesettingId = typesettingId + "-Mirror";
+        return findExactTypesettingByTypesettingIdAndTemplateCode(mirrorTypesettingId, info.getTemplateCode(), info.getId());
+    }
+
+    private TypesettingInfo findExactTypesettingByTypesettingIdAndTemplateCode(String typesettingId,
+                                                                               String templateCode,
+                                                                               String excludedRecordId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return null;
+        }
+        List<TypesettingInfo> candidates = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        return candidates.stream()
+                .filter(candidate -> candidate != null)
+                .filter(candidate -> !Objects.equals(candidate.getId(), excludedRecordId))
+                .filter(candidate -> Objects.equals(candidate.getTypesettingId(), typesettingId))
+                .filter(candidate -> StringUtils.isBlank(templateCode) || Objects.equals(candidate.getTemplateCode(), templateCode))
+                .findFirst()
+                .orElse(null);
     }
 
     /**
