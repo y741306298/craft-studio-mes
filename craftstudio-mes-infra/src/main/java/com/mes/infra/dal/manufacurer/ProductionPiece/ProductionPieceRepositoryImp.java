@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,7 +22,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 @Repository
 @Slf4j
@@ -198,6 +198,25 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
 
     @Override
     public List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
+            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            int current, int size) {
+        int pageSize = Math.max(1, size);
+        Query query = pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId, routeId,
+                startTime, endTime);
+        query.with(Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime")))
+                .skip((long) (Math.max(1, current) - 1) * pageSize)
+                .limit(pageSize);
+        return mongoTemplate.find(query, ProductionPiecePo.class).stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public long countPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
+            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime) {
+        return mongoTemplate.count(pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId,
+                routeId, startTime, endTime), ProductionPiecePo.class);
+    }
+
+    private Query pendingTypesettingQuery(String manufacturerId, String materialName,
             List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
@@ -205,8 +224,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
                 Criteria.where("nodeName").is("待排版").and("pieceQuantity").gt(0)));
         if (materialName != null && !materialName.isBlank()) {
-            criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name")
-                    .regex(Pattern.quote(materialName), "i"));
+            criteriaList.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName.trim()));
         }
         if (processNames != null) {
             processNames.stream().filter(Objects::nonNull)
@@ -233,7 +251,7 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         }
         Query query = new Query(new Criteria().andOperator(criteriaList.toArray(new Criteria[0])));
         query.addCriteria(Criteria.where("deleteAt").is(null));
-        return mongoTemplate.find(query, ProductionPiecePo.class).stream().map(ProductionPiecePo::toDO).toList();
+        return query;
     }
 
     @Override

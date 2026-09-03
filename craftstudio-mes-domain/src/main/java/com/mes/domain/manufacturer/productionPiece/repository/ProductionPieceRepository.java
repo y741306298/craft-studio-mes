@@ -43,6 +43,10 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     java.util.List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
             java.util.List<ProcessingFlowCondition> processNames, String orderItemId, String routeId,
+            java.util.Date startTime, java.util.Date endTime, int current, int size);
+
+    long countPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
+            java.util.List<ProcessingFlowCondition> processNames, String orderItemId, String routeId,
             java.util.Date startTime, java.util.Date endTime);
 
     long normalizeInProgressStatuses(String manufacturerId, String packedStatus);
