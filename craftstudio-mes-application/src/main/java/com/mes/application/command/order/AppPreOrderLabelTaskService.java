@@ -50,6 +50,7 @@ public class AppPreOrderLabelTaskService {
     private static final long WDT_PRINT_RETRY_TTL_HOURS = 1L;
     private static final String WDT_PRINT_RETRY_KEY_PREFIX = "preOrderLabelTask:wdtPrintRetry:";
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
+    private static final int MQ_LOGISTICS_ORDER_ID_MAX_LENGTH = 64;
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
 
     @Autowired
@@ -372,7 +373,7 @@ public class AppPreOrderLabelTaskService {
 
         LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
         logisticsOrderInfo.setOrderId(Long.valueOf(orderInfo.getOrderId()));
-        logisticsOrderInfo.setLogisticsOrderId(kuaidiNum);
+        logisticsOrderInfo.setLogisticsOrderId(truncateLogisticsOrderId(kuaidiNum));
 
 //        Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
         try {
@@ -389,6 +390,14 @@ public class AppPreOrderLabelTaskService {
                     orderInfo.getOrderId(), kuaidiNum, ex);
             return failureReason;
         }
+    }
+
+    private static String truncateLogisticsOrderId(String value) {
+        if (value == null || value.codePointCount(0, value.length()) <= MQ_LOGISTICS_ORDER_ID_MAX_LENGTH) {
+            return value;
+        }
+        int endIndex = value.offsetByCodePoints(0, MQ_LOGISTICS_ORDER_ID_MAX_LENGTH);
+        return value.substring(0, endIndex);
     }
 
     /**
