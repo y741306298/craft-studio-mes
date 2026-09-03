@@ -35,6 +35,47 @@ class AppDeliveryPkgServiceTest {
         assertThat(packed.getPieceQuantity()).isEqualTo(10);
     }
 
+    @Test
+    void orderItemPackagingCompletionIgnoresRedoPieceStatus() {
+        ProductionPiece packedPiece = piece(false, 10);
+        ProductionPiece unfinishedRedoPiece = piece(true, 0);
+
+        Boolean allPacked = ReflectionTestUtils.invokeMethod(new AppDeliveryPkgService(),
+                "areNonRedoPiecesFullyPacked", List.of(packedPiece, unfinishedRedoPiece), 10);
+
+        assertThat(allPacked).isTrue();
+    }
+
+    @Test
+    void orderItemPackagingCompletionStillRequiresEveryNonRedoPieceToBePacked() {
+        ProductionPiece packedPiece = piece(false, 10);
+        ProductionPiece unfinishedPiece = piece(false, 0);
+
+        Boolean allPacked = ReflectionTestUtils.invokeMethod(new AppDeliveryPkgService(),
+                "areNonRedoPiecesFullyPacked", List.of(packedPiece, unfinishedPiece), 10);
+
+        assertThat(allPacked).isFalse();
+    }
+
+    @Test
+    void orderItemPackagingCompletionRequiresAtLeastOneNonRedoPiece() {
+        ProductionPiece redoPiece = piece(true, 10);
+
+        Boolean allPacked = ReflectionTestUtils.invokeMethod(new AppDeliveryPkgService(),
+                "areNonRedoPiecesFullyPacked", List.of(redoPiece), 10);
+
+        assertThat(allPacked).isFalse();
+    }
+
+    private ProductionPiece piece(boolean redo, int packedQuantity) {
+        ProcedureFlow flow = new ProcedureFlow();
+        flow.setNodes(List.of(node("NODE_PACKAGED", "已打包", packedQuantity)));
+        ProductionPiece piece = new ProductionPiece();
+        piece.setIsRedo(redo);
+        piece.setProcedureFlow(flow);
+        return piece;
+    }
+
     private ProcedureFlowNode node(String id, String name, int quantity) {
         ProcedureFlowNode node = new ProcedureFlowNode();
         node.setNodeId(id);
