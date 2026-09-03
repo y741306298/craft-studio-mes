@@ -950,7 +950,10 @@ public class ProductionPieceService {
                     ? targetQuantity + transfer.getQuantity() : Math.max(piece.getQuantity(), 0);
             int availableTargetCapacity = Math.max(pieceQuantity - targetQuantity, 0);
             int targetAddition = Math.min(transfer.getQuantity(), availableTargetCapacity);
-            int sourceDeduction = Math.min(sourceQuantity, targetAddition);
+            // 源节点扣减不能依赖目标节点还能增加多少。历史重复写入或重试可能已经让目标节点
+            // 达到零件总数量；此时仍应扣除本次已校验通过的源节点数量，以修复“待排版”和
+            // “排版中”同时各有一份的重复占用。
+            int sourceDeduction = Math.min(sourceQuantity, transfer.getQuantity());
             int deficitQuantity = Math.max(targetAddition - sourceDeduction, 0);
 
             fromNode.setPieceQuantity(sourceQuantity - sourceDeduction);
