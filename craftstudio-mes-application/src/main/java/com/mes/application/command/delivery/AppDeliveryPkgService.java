@@ -1280,13 +1280,15 @@ public class AppDeliveryPkgService {
                     Collections.emptyList());
             OrderItem orderItem = orderItemsById.get(orderItemId);
             Integer requiredPackedQuantity = getOrderItemQuantity(orderItem);
-            boolean allPacked = requiredPackedQuantity != null && !orderItemPieces.isEmpty()
-                    && orderItemPieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
+            boolean allPacked = areNonRedoPiecesFullyPacked(orderItemPieces, requiredPackedQuantity);
             if (!allPacked) {
                 continue;
             }
 
             for (ProductionPiece piece : orderItemPieces) {
+                if (Boolean.TRUE.equals(piece.getIsRedo())) {
+                    continue;
+                }
                 boolean changed = false;
                 if (!TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
                     piece.setStatus(TypesettingStatus.COMPLETED.getCode());
@@ -1318,6 +1320,20 @@ public class AppDeliveryPkgService {
         }
         productionPieceService.batchUpdatePackagingState(changedPieces);
         orderItemService.batchUpdateOrderItems(changedOrderItems);
+    }
+
+    /** 重做件不参与订单项是否已完成打包的判断，也不应被订单项状态同步强制完成。 */
+    private boolean areNonRedoPiecesFullyPacked(List<ProductionPiece> orderItemPieces,
+                                                 Integer requiredPackedQuantity) {
+        if (requiredPackedQuantity == null || orderItemPieces == null) {
+            return false;
+        }
+        List<ProductionPiece> nonRedoPieces = orderItemPieces.stream()
+                .filter(Objects::nonNull)
+                .filter(piece -> !Boolean.TRUE.equals(piece.getIsRedo()))
+                .collect(Collectors.toList());
+        return !nonRedoPieces.isEmpty()
+                && nonRedoPieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece) {
