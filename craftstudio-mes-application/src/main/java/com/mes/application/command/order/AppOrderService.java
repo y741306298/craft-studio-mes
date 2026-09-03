@@ -543,6 +543,7 @@ public class AppOrderService {
                 orderWithItemsVO.setRemark(orderInfo.getRemark());
                 orderWithItemsVO.setOrgInfo(orderInfo.getOrgInfo());
                 orderWithItemsVO.setManufacturerInfo(orderInfo.getManufacturerInfo());
+                orderWithItemsVO.setKuaidiNum(orderInfo.getKuaidiNum());
                 if (orderInfo.getPrice() != null && orderInfo.getPrice().getPaymentPrice() != null) {
                     orderWithItemsVO.setPaymentPrice(scaleStatisticsDecimal(orderInfo.getPrice().getPaymentPrice()));
                 } else {
