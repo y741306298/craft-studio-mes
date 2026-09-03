@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class AppPreOrderLabelTaskService {
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
     private static final int MQ_LOGISTICS_ORDER_ID_MAX_LENGTH = 64;
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
+    private static final String TEST_KUAIDI100_NUM = "TEST_KUAIDI100_NUM";
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -76,6 +78,9 @@ public class AppPreOrderLabelTaskService {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Value("${kuaidi100}")
+    private String kuaidi100Environment;
 
     /**
      * 预下快递单批处理开关，默认关闭，避免未显式配置时执行批处理。
@@ -127,7 +132,10 @@ public class AppPreOrderLabelTaskService {
 
             AppDeliveryPkgService.DeliveryPkgPrintResult printResult;
             if (isGatherPlatform(orderInfo)) {
-                printResult = preOrderWdtLabel(orderInfo, orderItems);
+                // 聚单平台也沿用 kuaidi100 环境开关；测试环境只推进本地流程，禁止真实换仓、打单。
+                printResult = isKuaidi100TestEnvironment()
+                        ? new AppDeliveryPkgService.DeliveryPkgPrintResult(null, TEST_KUAIDI100_NUM)
+                        : preOrderWdtLabel(orderInfo, orderItems);
             } else {
                 try {
                     printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
@@ -242,6 +250,10 @@ public class AppPreOrderLabelTaskService {
 
     private boolean isGatherPlatform(OrderInfo orderInfo) {
         return orderInfo.getChannel() != null && orderInfo.getChannel().getType() == OrderChannelType.GATHER_PLATFORM;
+    }
+
+    private boolean isKuaidi100TestEnvironment() {
+        return "test".equalsIgnoreCase(kuaidi100Environment);
     }
 
     /**

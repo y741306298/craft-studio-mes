@@ -67,6 +67,16 @@ class AppDeliveryPkgServiceTest {
         assertThat(allPacked).isFalse();
     }
 
+    @Test
+    void kuaidi100TestEnvironmentIsCaseInsensitive() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ReflectionTestUtils.setField(service, "kuaidi100Environment", "TEST");
+
+        Boolean testEnvironment = ReflectionTestUtils.invokeMethod(service, "isKuaidi100TestEnvironment");
+
+        assertThat(testEnvironment).isTrue();
+    }
+
     private ProductionPiece piece(boolean redo, int packedQuantity) {
         ProcedureFlow flow = new ProcedureFlow();
         flow.setNodes(List.of(node("NODE_PACKAGED", "已打包", packedQuantity)));
