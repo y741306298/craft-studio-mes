@@ -953,6 +953,17 @@ public class AppDeliveryPkgService {
     private DeliveryPkg packGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
                                                         List<ProductionPiece> pieces, Map<String, Integer> quantities,
                                                         String carrierId, String carrierName, String presetType) {
+        if (isKuaidi100TestEnvironment()) {
+            // 测试环境不得调用聚单平台换仓或打印接口，只写入默认单号并完成本地打包流程。
+            DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName,
+                    presetType, TEST_KUAIDI100_NUM);
+            transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
+                    request.getRouteNodeId(), TEST_KUAIDI100_NUM);
+            orderInfo.setKuaidiNum(TEST_KUAIDI100_NUM);
+            orderInfoService.updateOrder(orderInfo);
+            return pkg;
+        }
+
         String channelOrderId = orderInfo.getChannel().getOrderId();
         WdtLabelRecord record = wdtLabelRecordRepository.findForOrder(orderInfo.getOrderId(), channelOrderId,
                 orderInfo.getKuaidiNum());
