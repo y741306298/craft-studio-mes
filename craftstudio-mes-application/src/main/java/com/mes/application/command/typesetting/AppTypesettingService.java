@@ -631,6 +631,10 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版对象不能为空");
         }
 
+        // 在返回可选规格前校验本次参与排版的零件所属订单，避免用户选完规格、确认排版时
+        // 才得知同订单仍有零件正在生成。
+        ensureProductionPiecesGenerated(loadSelectedProductionPieces(typesettingCells));
+
         String materialId = resolveSameMaterialId(typesettingCells);
         String rmfId = resolveRequestManufacturerMetaId(request);
         boolean hasCoverBoard = typesettingCells.stream().anyMatch(this::hasCoverBoardNode);
@@ -656,6 +660,18 @@ public class AppTypesettingService {
             return limitLayoutSpecHeightAndDistinct(layoutSpecs, 2400);
         }
         return layoutSpecs;
+    }
+
+    private List<ProductionPiece> loadSelectedProductionPieces(List<TypesettingProductionPieceVO> typesettingCells) {
+        return typesettingCells.stream()
+                .filter(Objects::nonNull)
+                .filter(cell -> TypesettingSourceType.PART.getCode().equals(cell.getSourceType()))
+                .map(TypesettingProductionPieceVO::getSourceId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .map(productionPieceService::findById)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     private String resolveSameMaterialId(List<TypesettingProductionPieceVO> typesettingCells) {
@@ -1221,8 +1237,6 @@ public class AppTypesettingService {
                 typesettingInfos.add(dbTypesettingInfo);
             }
         }
-
-        ensureProductionPiecesGenerated(productionPieces);
 
         for (TypesettingInfo typesettingInfo : typesettingInfos) {
             Integer quantity = typesettingInfo.getQuantity() == null ? 0 : typesettingInfo.getQuantity();
