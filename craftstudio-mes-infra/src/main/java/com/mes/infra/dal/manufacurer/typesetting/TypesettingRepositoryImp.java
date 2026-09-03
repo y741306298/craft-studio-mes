@@ -26,31 +26,48 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, boolean urgent, long offset, int size) {
+            Date startTime, Date endTime, Boolean urgent, long offset, int size) {
         int pageSize = Math.max(1, size);
         Query query = new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName, processingNames,
                 startTime, endTime, urgent));
-        query.with(Sort.by(Sort.Order.asc("createTime")))
+        query.with(urgent == null
+                        ? Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime"))
+                        : Sort.by(Sort.Order.asc("createTime")))
                 .skip(Math.max(0, offset))
                 .limit(pageSize);
+        query.fields()
+                .exclude("typesettingCells")
+                .exclude("marks")
+                .exclude("deviceCode")
+                .exclude("deviceName")
+                .exclude("requireJsonFile")
+                .exclude("requirePltFile")
+                .exclude("requireSvgFile")
+                .exclude("codeGenerateType")
+                .exclude("tempCodeFormat")
+                .exclude("anchorPointShape")
+                .exclude("templateCode")
+                .exclude("layoutCategory");
         return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
     }
 
     @Override
     public long countPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, boolean urgent) {
+            Date startTime, Date endTime, Boolean urgent) {
         return mongoTemplate.count(new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName,
                 processingNames, startTime, endTime, urgent)), poClass());
     }
 
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, boolean urgent) {
+            Date startTime, Date endTime, Boolean urgent) {
         List<Criteria> criteria = new ArrayList<>();
         criteria.add(Criteria.where("manufacturerMetaId").is(manufacturerMetaId));
         criteria.add(Criteria.where("status").is(com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.PENDING.getCode()));
-        criteria.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));
+        if (urgent != null) {
+            criteria.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));
+        }
         criteria.add(Criteria.where("leaveQuantity").gt(0));
         if (StringUtils.isNotBlank(materialName)) {
             criteria.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName.trim()));

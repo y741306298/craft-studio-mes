@@ -293,6 +293,12 @@ public class AppTypesettingService {
         boolean includeParts = !queryTypesettingOnly;
         boolean includeTypesettings = !queryPartOnly && !queryProductionPiecesByRoute;
 
+        if (queryTypesettingOnly) {
+            long total = countPendingTypesettingInfos(query, null);
+            pageItems.addAll(findPendingTypesettingItems(query, null, globalOffset, size));
+            return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
+        }
+
         long urgentPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, true) : 0;
         long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true) : 0;
         long normalPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, false) : 0;
@@ -330,7 +336,7 @@ public class AppTypesettingService {
         return remaining - loaded.size();
     }
 
-    private long countPendingTypesettingInfos(TypesettingQuery query, boolean urgent) {
+    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent) {
         return timeMongoQuery("countPendingTypesettingInfos", () ->
                 domainTypesettingService.countPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
@@ -338,7 +344,7 @@ public class AppTypesettingService {
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItems(
-            TypesettingQuery query, boolean urgent, long offset, int limit) {
+            TypesettingQuery query, Boolean urgent, long offset, int limit) {
         List<TypesettingInfo> infos = timeMongoQuery("findPendingTypesettingInfos", () ->
                 domainTypesettingService.findPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
