@@ -166,16 +166,16 @@ public class ProductionPieceService {
 
     public List<ProductionPiece> findPendingTypesettingPiecesByProcessingConditions(
             String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
-            String orderItemId, String routeId, Date startTime, Date endTime, int current, int size) {
+            String orderItemId, String routeId, Date startTime, Date endTime, boolean urgent, long offset, int size) {
         return productionPieceRepository.listPendingTypesettingPiecesByConditions(
-                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, current, size);
+                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent, offset, size);
     }
 
     public long countPendingTypesettingPiecesByProcessingConditions(
             String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
-            String orderItemId, String routeId, Date startTime, Date endTime) {
+            String orderItemId, String routeId, Date startTime, Date endTime, boolean urgent) {
         return productionPieceRepository.countPendingTypesettingPiecesByConditions(
-                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime);
+                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent);
     }
 
     public List<ProductionPiece> findCreatedBefore(Date beforeTime, int current, int size) {

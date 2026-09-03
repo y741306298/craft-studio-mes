@@ -199,28 +199,31 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     @Override
     public List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
             List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
-            int current, int size) {
+            boolean urgent, long offset, int size) {
         int pageSize = Math.max(1, size);
         Query query = pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId, routeId,
-                startTime, endTime);
-        query.with(Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime")))
-                .skip((long) (Math.max(1, current) - 1) * pageSize)
+                startTime, endTime, urgent);
+        query.with(Sort.by(Sort.Order.asc("createTime")))
+                .skip(Math.max(0, offset))
                 .limit(pageSize);
         return mongoTemplate.find(query, ProductionPiecePo.class).stream().map(ProductionPiecePo::toDO).toList();
     }
 
     @Override
     public long countPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
-            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime) {
+            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            boolean urgent) {
         return mongoTemplate.count(pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId,
-                routeId, startTime, endTime), ProductionPiecePo.class);
+                routeId, startTime, endTime, urgent), ProductionPiecePo.class);
     }
 
     private Query pendingTypesettingQuery(String manufacturerId, String materialName,
-            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime) {
+            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            boolean urgent) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
         criteriaList.add(Criteria.where("status").is(com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode()));
+        criteriaList.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));
         criteriaList.add(Criteria.where("procedureFlow.nodes").elemMatch(
                 Criteria.where("nodeName").is("待排版").and("pieceQuantity").gt(0)));
         if (materialName != null && !materialName.isBlank()) {

@@ -117,6 +117,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.Comparator;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -284,69 +285,84 @@ public class AppTypesettingService {
         int current = query.getCurrent() == null || query.getCurrent() < 1 ? 1 : query.getCurrent();
         int size = query.getSize() == null || query.getSize() < 1 ? 50 : Math.min(query.getSize(), 100);
 
-        List<TypesettingProductionPieceVO> allItems = new ArrayList<>();
-        int candidateLimit;
-        try {
-            candidateLimit = Math.toIntExact((long) current * size);
-        } catch (ArithmeticException exception) {
-            throw new IllegalArgumentException("分页范围过大", exception);
-        }
-        long total = 0;
+        List<TypesettingProductionPieceVO> pageItems = new ArrayList<>(size);
+        long globalOffset = (long) (current - 1) * size;
         boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
         boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
         boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
+        boolean includeParts = !queryTypesettingOnly;
+        boolean includeTypesettings = !queryPartOnly && !queryProductionPiecesByRoute;
 
-        if (!queryTypesettingOnly) {
-            List<ProductionPiece> productionPieces = timeTypesettingListStep(
-                    "step4-findPendingTypesettingProductionPieces",
-                    () -> findPendingTypesettingProductionPieces(query, candidateLimit));
-            total += timeMongoQuery("countPendingTypesettingProductionPieces",
-                    () -> countPendingTypesettingProductionPieces(query));
-            Map<String, String> orderGroupIdCache = timeTypesettingListStep(
-                    "step5-loadOrderGroupIds",
-                    () -> loadOrderGroupIds(productionPieces, query));
-            for (ProductionPiece piece : productionPieces) {
-                if (getPendingTypesettingQuantity(piece) > 0) {
-                    TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
-                    applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
-                    allItems.add(vo);
-                }
-            }
+        if (queryTypesettingOnly) {
+            long total = countPendingTypesettingInfos(query, null);
+            pageItems.addAll(findPendingTypesettingItems(query, null, globalOffset, size));
+            return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
         }
 
-        if (!queryPartOnly && !queryProductionPiecesByRoute) {
-            List<TypesettingInfo> typesettingInfos = timeTypesettingListStep(
-                    "step7-findPendingTypesettingInfos",
-                    () -> timeMongoQuery("findPendingTypesettingInfos", () ->
-                            domainTypesettingService.findPendingTypesettingByProcessingConditions(
-                                    query.getManufacturerMetaId(),
-                                    query.getMaterialName(),
-                                    query.getProcessingName(),
-                                    query.getStartTime(),
-                                    query.getEndTime(),
-                                    1,
-                                    candidateLimit
-                            )));
-            total += timeMongoQuery("countPendingTypesettingInfos",
-                    () -> domainTypesettingService.countPendingTypesettingByProcessingConditions(
-                            query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                            query.getStartTime(), query.getEndTime()));
-            for (TypesettingInfo info : typesettingInfos) {
-                Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-                boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
-                if (leaveQuantity > 0 && isPending) {
-                    allItems.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
-                }
-            }
+        long urgentPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, true) : 0;
+        long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true) : 0;
+        long normalPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, false) : 0;
+        long normalTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, false) : 0;
+
+        // 全局顺序：加急优先；同一加急级别内零件优先于印版；各分组内部按创建时间正序。
+        long[] skipped = {globalOffset};
+        int remaining = size;
+        remaining = appendPageBucket(pageItems, skipped, remaining, urgentPartTotal,
+                (offset, limit) -> findPendingProductionPieceItems(query, true, offset, limit));
+        remaining = appendPageBucket(pageItems, skipped, remaining, urgentTypesettingTotal,
+                (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
+        remaining = appendPageBucket(pageItems, skipped, remaining, normalPartTotal,
+                (offset, limit) -> findPendingProductionPieceItems(query, false, offset, limit));
+        appendPageBucket(pageItems, skipped, remaining, normalTypesettingTotal,
+                (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
+
+        long total = urgentPartTotal + urgentTypesettingTotal + normalPartTotal + normalTypesettingTotal;
+        return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
+    }
+
+    private int appendPageBucket(List<TypesettingProductionPieceVO> pageItems, long[] skipped, int remaining,
+            long bucketTotal, BiFunction<Long, Integer, List<TypesettingProductionPieceVO>> loader) {
+        if (remaining <= 0) {
+            return 0;
         }
+        if (skipped[0] >= bucketTotal) {
+            skipped[0] -= bucketTotal;
+            return remaining;
+        }
+        int limit = (int) Math.min(remaining, bucketTotal - skipped[0]);
+        List<TypesettingProductionPieceVO> loaded = loader.apply(skipped[0], limit);
+        skipped[0] = 0;
+        pageItems.addAll(loaded);
+        return remaining - loaded.size();
+    }
 
-        sortTypesettingProductionPiecesByCreateTime(allItems);
+    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent) {
+        return timeMongoQuery("countPendingTypesettingInfos", () ->
+                domainTypesettingService.countPendingTypesettingByProcessingConditions(
+                        query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
+                        query.getStartTime(), query.getEndTime(), urgent));
+    }
 
-        int fromIndex = (int) Math.min((long) (current - 1) * size, allItems.size());
-        int toIndex = Math.min(fromIndex + size, allItems.size());
-        List<TypesettingProductionPieceVO> items = new ArrayList<>(allItems.subList(fromIndex, toIndex));
+    private List<TypesettingProductionPieceVO> findPendingTypesettingItems(
+            TypesettingQuery query, Boolean urgent, long offset, int limit) {
+        List<TypesettingInfo> infos = timeMongoQuery("findPendingTypesettingInfos", () ->
+                domainTypesettingService.findPendingTypesettingByProcessingConditions(
+                        query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
+                        query.getStartTime(), query.getEndTime(), urgent, offset, limit));
+        return infos.stream().map(TypesettingProductionPieceVO::fromTypesettingInfo).toList();
+    }
 
-        return new TypesettingPiecesQueryResult(new PagedResult<>(items, total, size, current), allItems);
+    private List<TypesettingProductionPieceVO> findPendingProductionPieceItems(
+            TypesettingQuery query, boolean urgent, long offset, int limit) {
+        List<ProductionPiece> pieces = findPendingTypesettingProductionPieces(query, urgent, offset, limit);
+        Map<String, String> orderGroupIdCache = loadOrderGroupIds(pieces, query);
+        List<TypesettingProductionPieceVO> items = new ArrayList<>(pieces.size());
+        for (ProductionPiece piece : pieces) {
+            TypesettingProductionPieceVO item = TypesettingProductionPieceVO.fromProductionPiece(piece);
+            applyECommerceGroupId(item, piece, query, orderGroupIdCache);
+            items.add(item);
+        }
+        return items;
     }
 
     /**
@@ -358,7 +374,8 @@ public class AppTypesettingService {
      * @param query 查询条件
      * @return 符合基础条件的生产零件
      */
-    private List<ProductionPiece> findPendingTypesettingProductionPieces(TypesettingQuery query, int limit) {
+    private List<ProductionPiece> findPendingTypesettingProductionPieces(
+            TypesettingQuery query, boolean urgent, long offset, int limit) {
         return timeMongoQuery("findPendingTypesettingProductionPieces", () ->
                 productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
                         query.getManufacturerMetaId(),
@@ -368,15 +385,17 @@ public class AppTypesettingService {
                         query.getRouteId(),
                         query.getStartTime(),
                         query.getEndTime(),
-                        1,
+                        urgent,
+                        offset,
                         limit
                 ));
     }
 
-    private long countPendingTypesettingProductionPieces(TypesettingQuery query) {
-        return productionPieceService.countPendingTypesettingPiecesByProcessingConditions(
-                query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                query.getOrderItemId(), query.getRouteId(), query.getStartTime(), query.getEndTime());
+    private long countPendingTypesettingProductionPieces(TypesettingQuery query, boolean urgent) {
+        return timeMongoQuery("countPendingTypesettingProductionPieces", () ->
+                productionPieceService.countPendingTypesettingPiecesByProcessingConditions(
+                        query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
+                        query.getOrderItemId(), query.getRouteId(), query.getStartTime(), query.getEndTime(), urgent));
     }
 
     /**
@@ -1038,103 +1057,6 @@ public class AppTypesettingService {
             }
             typesettingInfo.setDescription(TypesettingLayoutMode.fromCode(typesettingInfo.getLayoutMode()).getDescription());
         }
-    }
-
-    /**
-     * 查询全部（零件 + 排版）
-     */
-    private List<TypesettingProductionPieceVO> queryBoth(TypesettingQuery query) {
-        List<TypesettingProductionPieceVO> result = new ArrayList<>();
-
-        // 查询零件（只查询待排版状态）
-        result.addAll(queryPartsOnly(query));
-
-        // 查询排版
-        result.addAll(queryTypesettingOnly(query));
-
-        return result;
-    }
-
-    /**
-     * 统计全部数量
-     */
-    private long countBoth(TypesettingQuery query) {
-        return countPartsOnly(query) + countTypesettingOnly(query);
-    }
-
-    /**
-     * 只查询生产中且仍有待排版节点数量的零件。
-     */
-    private List<TypesettingProductionPieceVO> queryPartsOnly(TypesettingQuery query) {
-        List<ProductionPiece> parts = productionPieceService.findPendingTypesettingPiecesByProcessingConditions(
-                query.getManufacturerMetaId(),
-                query.getMaterialName(),
-                query.getProcessingName(),
-                query.getOrderItemId(),
-                query.getRouteId(),
-                query.getStartTime(),
-                query.getEndTime(),
-                query.getCurrent() == null ? 1 : query.getCurrent(),
-                query.getSize() == null ? 50 : query.getSize()
-        );
-
-        // 转换为 VO
-        List<TypesettingProductionPieceVO> voList = new ArrayList<>();
-        Map<String, String> orderGroupIdCache = loadOrderGroupIds(parts, query);
-        for (ProductionPiece piece : parts) {
-            if (getPendingTypesettingQuantity(piece) <= 0) {
-                continue;
-            }
-            TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
-            applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
-            voList.add(vo);
-        }
-
-        return voList;
-    }
-
-    /**
-     * 统计零件数量
-     */
-    private long countPartsOnly(TypesettingQuery query) {
-        return queryPartsOnly(query).size();
-    }
-
-    /**
-     * 只查询排版
-     */
-    private List<TypesettingProductionPieceVO> queryTypesettingOnly(TypesettingQuery query) {
-        // 不走分页查询：先查全量排版记录，再在内存中过滤 leaveQuantity > 0
-        List<TypesettingInfo> typesettings = domainTypesettingService.findTypesettingByProcessingConditions(
-                query.getManufacturerMetaId(),
-                query.getStatus(),
-                query.getMaterialName(),
-                query.getProcessingName(),
-                query.getStartTime(),
-                query.getEndTime(),
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-
-        // 转换为 VO
-        List<TypesettingProductionPieceVO> voList = new ArrayList<>();
-        for (TypesettingInfo info : typesettings) {
-            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-            if (leaveQuantity <= 0) {
-                continue;
-            }
-            voList.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
-        }
-
-        return voList;
-    }
-
-    /**
-     * 统计排版数量
-     */
-    private long countTypesettingOnly(TypesettingQuery query) {
-        return queryTypesettingOnly(query).size();
     }
 
     private int getPendingTypesettingQuantity(ProductionPiece piece) {

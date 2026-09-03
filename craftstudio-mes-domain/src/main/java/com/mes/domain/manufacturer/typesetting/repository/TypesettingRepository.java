@@ -15,8 +15,8 @@ public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
                                      String status, String remark);
 
     List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
-            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, int current, int size);
+            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent, long offset, int size);
 
     long countPendingByConditions(String manufacturerMetaId, String materialName,
-            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime);
+            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent);
 }
