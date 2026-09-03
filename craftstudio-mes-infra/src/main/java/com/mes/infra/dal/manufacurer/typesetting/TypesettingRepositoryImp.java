@@ -36,7 +36,7 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
                 .skip(Math.max(0, offset))
                 .limit(pageSize);
         query.fields()
-                .exclude("typesettingCells")
+                .exclude("procedureFlow")
                 .exclude("marks")
                 .exclude("deviceCode")
                 .exclude("deviceName")

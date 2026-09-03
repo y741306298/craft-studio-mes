@@ -8,6 +8,7 @@ import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
+import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
 
@@ -135,6 +136,11 @@ public class TypesettingProductionPieceVO {
     private List<String> materialConfigs;
 
     /**
+     * 印版包含的来源单元；零件来源时为空。
+     */
+    private List<TypesettingSourceCell> typesettingCells;
+
+    /**
      * 生产工件模板 SVG
      */
     private String templateCode;
@@ -205,6 +211,7 @@ public class TypesettingProductionPieceVO {
         vo.setQuantity(info.getQuantity());
         vo.setLeaveQuantity(info.getLeaveQuantity());
         vo.setMaterialConfigs(info.getMaterialConfigs());
+        vo.setTypesettingCells(info.getTypesettingCells());
         vo.setMaterialConfig(info.getMaterialConfig());
         vo.setOriName(info.getOriName());
         vo.setOriMaterialId(info.getOriMaterialId());
