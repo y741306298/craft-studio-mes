@@ -145,16 +145,16 @@ public class TypesettingService {
 
     public List<TypesettingInfo> findPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, long offset, int size) {
+            Date startTime, Date endTime, boolean urgent, long offset, int size) {
         return typesettingRepository.findPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, offset, size);
+                startTime, endTime, urgent, offset, size);
     }
 
     public long countPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime) {
+            Date startTime, Date endTime, boolean urgent) {
         return typesettingRepository.countPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime);
+                startTime, endTime, urgent);
     }
 
     

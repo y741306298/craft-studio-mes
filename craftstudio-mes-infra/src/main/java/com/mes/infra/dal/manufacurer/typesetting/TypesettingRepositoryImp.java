@@ -26,11 +26,11 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, long offset, int size) {
+            Date startTime, Date endTime, boolean urgent, long offset, int size) {
         int pageSize = Math.max(1, size);
         Query query = new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime));
-        query.with(Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime")))
+                startTime, endTime, urgent));
+        query.with(Sort.by(Sort.Order.asc("createTime")))
                 .skip(Math.max(0, offset))
                 .limit(pageSize);
         return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
@@ -39,17 +39,18 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public long countPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime) {
+            Date startTime, Date endTime, boolean urgent) {
         return mongoTemplate.count(new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName,
-                processingNames, startTime, endTime)), poClass());
+                processingNames, startTime, endTime, urgent)), poClass());
     }
 
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime) {
+            Date startTime, Date endTime, boolean urgent) {
         List<Criteria> criteria = new ArrayList<>();
         criteria.add(Criteria.where("manufacturerMetaId").is(manufacturerMetaId));
         criteria.add(Criteria.where("status").is(com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.PENDING.getCode()));
+        criteria.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));
         criteria.add(Criteria.where("leaveQuantity").gt(0));
         if (StringUtils.isNotBlank(materialName)) {
             criteria.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName.trim()));
