@@ -1,9 +1,13 @@
 package com.mes.application.command.order;
 
 import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
+import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
+import com.mes.domain.order.orderInfo.vo.OrderItemPriceInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.orderItemPriceAllocation.entity.OrderItemPriceAllocation;
+import com.mes.domain.order.orderItemPriceAllocation.repository.OrderItemPriceAllocationRepository;
 import com.mes.domain.order.orderTransferRecord.entity.OrderTransferRecord;
 import com.mes.domain.order.orderTransferRecord.service.OrderTransferRecordService;
 import com.mes.domain.order.transferStatistics.entity.TransferDailyStatistics;
@@ -29,6 +33,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AppOrderServiceTransferStatisticsTest {
+
+    @Test
+    void shouldCalculateTransferAmountByQuantityUsingAllocationBeforeManufacturerPrice() {
+        AppOrderService service = new AppOrderService();
+        OrderItemPriceAllocationRepository allocationRepository = mock(OrderItemPriceAllocationRepository.class);
+        ReflectionTestUtils.setField(service, "orderItemPriceAllocationRepository", allocationRepository);
+
+        OrderItem allocatedItem = item("I1", 10, "500.00");
+        OrderItem fallbackItem = item("I2", 3, "60.00");
+        OrderItemPriceAllocation allocation = new OrderItemPriceAllocation();
+        allocation.setPrice(new BigDecimal("100.00"));
+        when(allocationRepository.findByOrderItemIdAndManufacturerMetaId("I1", "S1"))
+                .thenReturn(allocation);
+
+        BigDecimal result = service.calculateTransferStatisticsAmount(
+                "S1",
+                List.of(transferItem("I1", 4), transferItem("I2", 1)),
+                Map.of("I1", allocatedItem, "I2", fallbackItem));
+
+        assertThat(result).isEqualByComparingTo("60.00");
+        verify(allocationRepository).findByOrderItemIdAndManufacturerMetaId("I1", "S1");
+        verify(allocationRepository).findByOrderItemIdAndManufacturerMetaId("I2", "S1");
+    }
 
     @Test
     void shouldSupportTargetOnlyTransferInQuery() {
@@ -143,5 +170,22 @@ class AppOrderServiceTransferStatisticsTest {
 
     private Date date(int year, int month, int day) {
         return Date.from(LocalDate.of(year, month, day).atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant());
+    }
+
+    private OrderItem item(String orderItemId, int quantity, String manufacturerActualPrice) {
+        OrderItemPriceInfo price = new OrderItemPriceInfo();
+        price.setActualPrice(new BigDecimal(manufacturerActualPrice));
+        OrderItem item = new OrderItem();
+        item.setOrderItemId(orderItemId);
+        item.setQuantity(quantity);
+        item.setManufacturerPrice(price);
+        return item;
+    }
+
+    private OrderTransferRequest.OrderTransferItemDto transferItem(String orderItemId, int quantity) {
+        OrderTransferRequest.OrderTransferItemDto item = new OrderTransferRequest.OrderTransferItemDto();
+        item.setOrderItemId(orderItemId);
+        item.setQuantity(quantity);
+        return item;
     }
 }
