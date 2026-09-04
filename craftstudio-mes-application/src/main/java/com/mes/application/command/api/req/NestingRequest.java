@@ -45,6 +45,10 @@ public class NestingRequest {
          */
         private String mirrorImg;
         /**
+         * 双面对裱时使用的镜像蒙版 SVG 地址
+         */
+        private String mirrorSvg;
+        /**
          * 兼容算法侧字段命名
          */
         private String imgFile;

@@ -32,11 +32,11 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         }
         nestManifest.setMirrorAppend(Boolean.TRUE);
         nestManifest.setMirrorRequirePlt(Boolean.FALSE);
-        fillMirrorImgForElements(nestManifest, productionPieces);
+        fillMirrorConfigForElements(nestManifest, productionPieces);
     }
 
-    private void fillMirrorImgForElements(NestingRequest.NestManifest nestManifest,
-                                          List<ProductionPiece> productionPieces) {
+    private void fillMirrorConfigForElements(NestingRequest.NestManifest nestManifest,
+                                             List<ProductionPiece> productionPieces) {
         if (nestManifest.getElements() == null || productionPieces == null) {
             return;
         }
@@ -51,6 +51,9 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
             MirrorConfig mirrorConfig = piece.getMirrorConfigs().get(0);
             if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getImg())) {
                 element.setMirrorImg(mirrorConfig.getImg());
+            }
+            if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getSvg())) {
+                element.setMirrorSvg(mirrorConfig.getSvg());
             }
         }
     }
