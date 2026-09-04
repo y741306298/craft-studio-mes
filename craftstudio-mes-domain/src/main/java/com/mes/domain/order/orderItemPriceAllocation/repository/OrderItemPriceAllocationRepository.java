@@ -4,4 +4,5 @@ import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.order.orderItemPriceAllocation.entity.OrderItemPriceAllocation;
 
 public interface OrderItemPriceAllocationRepository extends BaseRepository<OrderItemPriceAllocation> {
+    OrderItemPriceAllocation findByOrderItemIdAndManufacturerMetaId(String orderItemId, String manufacturerMetaId);
 }
