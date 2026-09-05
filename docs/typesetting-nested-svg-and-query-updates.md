@@ -36,13 +36,15 @@
 
 ## 3. toLayout 行为改动
 
-### 3.1 成功提交异步排版后数量维护
-在 `generateGridNestedFilesAsync` / `generateNestedFilesAsync` 受理后：
+### 3.1 完成校验后立即维护数量
+在所有 `toLayout` 校验完成、调用 `generateGridNestedFilesAsync` / `generateNestedFilesAsync` 之前：
 
 1. 对本次参与的 `ProductionPiece`：
-   - 调用 `transferPieceQuantityBetweenNodes`，将数量从 `NODE_TYPESETTING` 转到 `NODE_TYPESETTING_IN_PROGRESS`。
+   - 调用严格数量划转，将数量从 `NODE_TYPESETTING` 转到 `NODE_TYPESETTING_IN_PROGRESS`；任一零件的待排版数量或目标节点容量不足时，整批拒绝排版。
 2. 对本次引用的 `TypesettingInfo`：
    - 按本次 `quantity` 扣减 `leaveQuantity` 并落库。
+
+提前占用来源数量，确保异步排版请求执行期间，相同零件或历史印版不会被再次提交排版。
 
 ### 3.2 新建排版记录保存来源
 新建 `TypesettingInfo` 时，将请求中的 `typesettingCells` 转为 `TypesettingSourceCell` 并保存，作为本次排版提交的来源快照。

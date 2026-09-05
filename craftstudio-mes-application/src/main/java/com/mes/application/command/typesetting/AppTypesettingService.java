@@ -1303,6 +1303,29 @@ public class AppTypesettingService {
         } catch (Exception e) {
             return LayoutConfirmResult.failed(e.getMessage());
         }
+
+        // 所有 toLayout 校验完成后立即占用来源数量，避免算法调用期间同一零件再次进入排版。
+        // 此处必须早于异步排版请求；后续请求重新读取零件时会看到“待排版”数量已经扣减。
+        List<PieceQuantityTransfer> pieceTransfers = productionPieces.stream()
+                .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
+                .map(piece -> new PieceQuantityTransfer(piece.getId(), "NODE_TYPESETTING",
+                        "NODE_TYPESETTING_IN_PROGRESS", piece.getQuantity()))
+                .toList();
+        try {
+            productionPieceService.transferPieceQuantitiesBetweenNodesStrict(pieceTransfers);
+        } catch (Exception e) {
+            throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
+        }
+        for (TypesettingInfo info : typesettingInfos) {
+            Integer quantity = info.getQuantity();
+            if (quantity == null || quantity <= 0) {
+                continue;
+            }
+            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
+            info.setLeaveQuantity(Math.max(leaveQuantity - quantity, 0));
+            domainTypesettingService.updateTypesetting(info);
+        }
+
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         NestingResponse nestingResponse;
         switch (layoutMode.getLayoutCategory()) {
@@ -1328,26 +1351,6 @@ public class AppTypesettingService {
         result.setSuccess(true);
         result.setMessage("排版开始,耐心请等待");
 
-        // 7. 异步排版任务受理后，按本次数量更新零件/模板的剩余数量与工序流转
-        List<PieceQuantityTransfer> pieceTransfers = productionPieces.stream()
-                .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
-                .map(piece -> new PieceQuantityTransfer(piece.getId(), "NODE_TYPESETTING",
-                        "NODE_TYPESETTING_IN_PROGRESS", piece.getQuantity()))
-                .toList();
-        try {
-            productionPieceService.transferPieceQuantitiesBetweenNodes(pieceTransfers);
-        } catch (Exception e) {
-            throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
-        }
-        for (TypesettingInfo info : typesettingInfos) {
-            Integer quantity = info.getQuantity();
-            if (quantity == null || quantity <= 0) {
-                continue;
-            }
-            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-            info.setLeaveQuantity(Math.max(leaveQuantity - quantity, 0));
-            domainTypesettingService.updateTypesetting(info);
-        }
         //添加排版信息
         TypesettingInfo typesettingInfo = new TypesettingInfo();
         typesettingInfo.setTypesettingId(cacheKey);
