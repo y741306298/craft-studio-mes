@@ -907,6 +907,17 @@ public class ProductionPieceService {
      * 源节点数量不足时，允许目标节点入账并批量记录差额。
      */
     public void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers) {
+        transferPieceQuantitiesBetweenNodes(transfers, false);
+    }
+
+    /**
+     * 批量严格划转节点数量。任一源节点数量不足或目标节点容量不足时，整批拒绝划转。
+     */
+    public void transferPieceQuantitiesBetweenNodesStrict(List<PieceQuantityTransfer> transfers) {
+        transferPieceQuantitiesBetweenNodes(transfers, true);
+    }
+
+    private void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers, boolean strict) {
         if (transfers == null || transfers.isEmpty()) {
             return;
         }
@@ -949,6 +960,16 @@ public class ProductionPieceService {
             int pieceQuantity = piece.getQuantity() == null
                     ? targetQuantity + transfer.getQuantity() : Math.max(piece.getQuantity(), 0);
             int availableTargetCapacity = Math.max(pieceQuantity - targetQuantity, 0);
+            if (strict && sourceQuantity < transfer.getQuantity()) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "生产工件 " + piece.getProductionPieceId() + " 的“" + fromNode.getNodeName()
+                                + "”数量不足，需求=" + transfer.getQuantity() + "，可用=" + sourceQuantity);
+            }
+            if (strict && availableTargetCapacity < transfer.getQuantity()) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "生产工件 " + piece.getProductionPieceId() + " 的“" + toNode.getNodeName()
+                                + "”可用容量不足，需求=" + transfer.getQuantity() + "，可用=" + availableTargetCapacity);
+            }
             int targetAddition = Math.min(transfer.getQuantity(), availableTargetCapacity);
             // 源节点扣减不能依赖目标节点还能增加多少。历史重复写入或重试可能已经让目标节点
             // 达到零件总数量；此时仍应扣除本次已校验通过的源节点数量，以修复“待排版”和
