@@ -1,6 +1,7 @@
 package com.mes.application.command.print;
 
 import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
+import com.mes.application.command.print.vo.PendingPrintMaterialVO;
 import com.mes.application.command.print.vo.PrintReportResult;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.domain.base.repository.ApiResponse;
@@ -40,7 +41,14 @@ public class AppPrintService {
     @Autowired
     private ManufacturerDeviceCfgService manufacturerDeviceCfgService;
 
-    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, String typesettingId, Date startTime, Date endTime, String status, int current, int size) {
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId,
+            String deviceCfgId, String typesettingId, Date startTime, Date endTime, String status,
+            int current, int size) {
+        return findPendingPrintTypesetting(manufacturerMetaId, deviceCfgId, typesettingId, null,
+                startTime, endTime, status, current, size);
+    }
+
+    public PagedResult<PendingPrintTypesettingVO> findPendingPrintTypesetting(String manufacturerMetaId, String deviceCfgId, String typesettingId, String materialId, Date startTime, Date endTime, String status, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
         }
@@ -75,6 +83,7 @@ public class AppPrintService {
                     manufacturerMetaId,
                     TypesettingStatus.PRINTING.getCode(),
                     null,
+                    materialId,
                     null,
                     startTime,
                     endTime,
@@ -86,6 +95,7 @@ public class AppPrintService {
                     manufacturerMetaId,
                     TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
                     null,
+                    materialId,
                     null,
                     startTime,
                     endTime,
@@ -100,6 +110,7 @@ public class AppPrintService {
                     manufacturerMetaId,
                     status,
                     null,
+                    materialId,
                     null,
                     startTime,
                     endTime,
@@ -146,6 +157,37 @@ public class AppPrintService {
         }
 
         return new PagedResult<>(resultItems, total, resultItems.size(), current);
+    }
+
+    public List<PendingPrintMaterialVO> findPendingPrintMaterials(String manufacturerMetaId, String deviceCfgId,
+                                                                  Date startTime, Date endTime) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "manufacturerMetaId 不能为空");
+        }
+        String deviceCode = resolveDeviceCode(deviceCfgId);
+        Map<String, String> materials = new LinkedHashMap<>();
+        List<TypesettingInfo> items = typesettingService.findPrintableMaterials(
+                manufacturerMetaId, deviceCode, startTime, endTime);
+        for (TypesettingInfo item : items == null ? Collections.<TypesettingInfo>emptyList() : items) {
+            if (item == null || item.getMaterialConfig() == null
+                    || StringUtils.isBlank(item.getMaterialConfig().getMaterialId())) {
+                continue;
+            }
+            String materialName = item.getMaterialConfig().getMaterialSnapshot() == null
+                    ? null : item.getMaterialConfig().getMaterialSnapshot().getName();
+            materials.putIfAbsent(item.getMaterialConfig().getMaterialId(), materialName);
+        }
+        return materials.entrySet().stream()
+                .map(entry -> new PendingPrintMaterialVO(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    private String resolveDeviceCode(String deviceCfgId) {
+        if (StringUtils.isBlank(deviceCfgId)) {
+            return null;
+        }
+        ManufacturerDeviceCfg deviceCfg = manufacturerDeviceCfgService.findById(deviceCfgId);
+        return deviceCfg == null ? null : deviceCfg.getDeviceCode();
     }
 
     public TypesettingPrintTask findPrintTaskById(String id) {
