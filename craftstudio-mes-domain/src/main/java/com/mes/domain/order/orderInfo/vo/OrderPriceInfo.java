@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 public class OrderPriceInfo {
     private BigDecimal originalPrice;
     private BigDecimal actualPrice;
+    private BigDecimal oriActualPrice;
     private BigDecimal logisticsPrice;
     private BigDecimal paymentPrice;
 }
