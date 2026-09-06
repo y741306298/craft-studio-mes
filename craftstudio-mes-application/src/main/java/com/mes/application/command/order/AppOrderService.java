@@ -1288,6 +1288,11 @@ public class AppOrderService {
                     100
             );
             List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
+            if (safeProductionPieces.stream().anyMatch(productionPiece ->
+                    hasPendingTypesettingQuantityAtMost(productionPiece, itemDto.getQuantity()))) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError,
+                        "转单数量必须小于该订单项所有零件的待排版数量");
+            }
             if (safeProductionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单项已经开始生产，无法转单");
             }
@@ -2148,6 +2153,20 @@ public class AppOrderService {
             }
         }
         return false;
+    }
+
+    private boolean hasPendingTypesettingQuantityAtMost(ProductionPiece productionPiece, int transferQuantity) {
+        if (productionPiece == null
+                || productionPiece.getProcedureFlow() == null
+                || productionPiece.getProcedureFlow().getNodes() == null) {
+            return false;
+        }
+        return productionPiece.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(node -> Objects.equals("待排版", node.getNodeName()))
+                .map(ProcedureFlowNode::getPieceQuantity)
+                .filter(Objects::nonNull)
+                .anyMatch(pendingQuantity -> transferQuantity >= pendingQuantity);
     }
 
     /**
