@@ -51,6 +51,45 @@ public class TypesettingService {
             String manufacturerMetaId,
             String status,
             String materialName,
+            String materialId,
+            String processingName,
+            Date startTime,
+            Date endTime,
+            String deviceCode,
+            int current,
+            int size) {
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("manufacturerMetaId", manufacturerMetaId);
+        if (status != null) {
+            filters.put("status", status);
+        }
+        if (StringUtils.isNotBlank(materialName)) {
+            filters.put("materialConfig.materialSnapshot.name_like", materialName);
+        }
+        if (StringUtils.isNotBlank(materialId)) {
+            filters.put("materialConfig.materialId", materialId.trim());
+        }
+        if (StringUtils.isNotBlank(deviceCode)) {
+            filters.put("deviceCode", deviceCode);
+        }
+        if (startTime != null) {
+            filters.put("createTime_gte", startTime);
+        }
+        if (endTime != null) {
+            filters.put("createTime_lte", endTime);
+        }
+        return typesettingRepository.filterList(current, size, filters);
+    }
+
+    public List<TypesettingInfo> findPrintableMaterials(String manufacturerMetaId, String deviceCode,
+                                                         Date startTime, Date endTime) {
+        return typesettingRepository.findPrintableMaterials(manufacturerMetaId, deviceCode, startTime, endTime);
+    }
+
+    public List<TypesettingInfo> findTypesettingByConditions(
+            String manufacturerMetaId,
+            String status,
+            String materialName,
             String processingName,
             String deviceCode,
             int current,

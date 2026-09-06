@@ -2,8 +2,10 @@ package com.mes.interfaces.api.platform.manufacturerSide.print;
 
 import com.mes.application.command.print.AppPrintService;
 import com.mes.application.command.print.vo.PendingPrintTypesettingVO;
+import com.mes.application.command.print.vo.PendingPrintMaterialVO;
 import com.mes.application.command.print.vo.PrintReportResult;
 import com.mes.application.dto.req.typesetting.PendingPrintTypesettingListRequest;
+import com.mes.application.dto.req.typesetting.PendingPrintMaterialListRequest;
 import com.mes.application.dto.req.typesetting.ReleaseLayoutRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -19,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/manufacturerSide/print")
@@ -33,18 +37,29 @@ public class PrintController {
     @PostMapping("/pending/list")
     public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(
             @Valid @RequestBody PendingPrintTypesettingListRequest request) {
-        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, typesettingId={}, startTime={}, endTime={}, status={}, current={}, size={}",
-                request.getManufacturerMetaId(), request.getId(), request.getTypesettingId(), request.getStartTime(),
+        log.info("listPendingPrintTypesetting: manufacturerMetaId={}, id={}, typesettingId={}, materialId={}, startTime={}, endTime={}, status={}, current={}, size={}",
+                request.getManufacturerMetaId(), request.getId(), request.getTypesettingId(), request.getMaterialId(), request.getStartTime(),
                 request.getEndTime(), request.getStatus(), request.getCurrent(), request.getSize());
         return ApiResponse.success(appPrintService.findPendingPrintTypesetting(
                 request.getManufacturerMetaId(),
                 request.getId(),
                 request.getTypesettingId(),
+                request.getMaterialId(),
                 request.getStartTime(),
                 request.getEndTime(),
                 request.getStatus(),
                 request.getCurrent(),
                 request.getSize()));
+    }
+
+    /**
+     * 查询指定时间和设备下待打印、打印中印版所使用的全部材料。
+     */
+    @PostMapping("/pending/material/list")
+    public ApiResponse<List<PendingPrintMaterialVO>> listPendingPrintMaterials(
+            @Valid @RequestBody PendingPrintMaterialListRequest request) {
+        return ApiResponse.success(appPrintService.findPendingPrintMaterials(
+                request.getManufacturerMetaId(), request.getId(), request.getStartTime(), request.getEndTime()));
     }
 
     /**

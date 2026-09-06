@@ -59,6 +59,31 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
                 processingNames, startTime, endTime, urgent)), poClass());
     }
 
+    @Override
+    public List<TypesettingInfo> findPrintableMaterials(String manufacturerMetaId, String deviceCode,
+                                                         Date startTime, Date endTime) {
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(Criteria.where("manufacturerMetaId").is(manufacturerMetaId));
+        criteria.add(Criteria.where("status").in(
+                com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.PRINTING.getCode(),
+                com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.PRINTING_IN_PROGRESS.getCode()));
+        if (StringUtils.isNotBlank(deviceCode)) {
+            criteria.add(Criteria.where("deviceCode").is(deviceCode));
+        }
+        if (startTime != null) {
+            criteria.add(Criteria.where("createTime").gte(startTime));
+        }
+        if (endTime != null) {
+            criteria.add(Criteria.where("createTime").lte(endTime));
+        }
+        Query query = new SoftDeleteQuery(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        query.fields()
+                .include("materialConfig.materialId")
+                .include("materialConfig.materialSnapshot.name")
+                .exclude("_id");
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
             Date startTime, Date endTime, Boolean urgent) {
