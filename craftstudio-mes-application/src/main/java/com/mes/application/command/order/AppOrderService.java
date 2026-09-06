@@ -856,9 +856,16 @@ public class AppOrderService {
 
     private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
                                           long orderCount, BigDecimal multiplier, OrderStatisticsAmounts amounts) {
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, orderCount, multiplier, amounts, null);
+    }
+
+    private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
+                                          long orderCount, BigDecimal multiplier, OrderStatisticsAmounts amounts,
+                                          BigDecimal orderAmount) {
         BigDecimal totalArea = orderItems.stream().map(this::calculateOrderItemArea)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).multiply(multiplier);
-        BigDecimal manufacturerActualAmount = resolveManufacturerActualPrice(orderInfo).multiply(multiplier);
+        BigDecimal manufacturerActualAmount = (orderAmount == null
+                ? resolveManufacturerActualPrice(orderInfo) : orderAmount).multiply(multiplier);
         String enterpriseName = orderInfo.getOrgInfo() == null ? null : orderInfo.getOrgInfo().getName();
         String enterpriseId = orderInfo.getOrgId() == null ? enterpriseName : orderInfo.getOrgId().toString();
         if (StringUtils.isNotBlank(enterpriseId)) {
@@ -1146,8 +1153,9 @@ public class AppOrderService {
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
         }
-        BigDecimal transferAmount = calculateTransferStatisticsAmount(
+        OrderStatisticsAmounts transferredAmounts = calculateTransferStatisticsAmounts(
                 request.getManufacturerMetaId(), request.getOrderItemDtos(), orderItemById);
+        BigDecimal transferAmount = transferredAmounts.totalAmount();
 
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo, targetManufacturerMeta);
         domainOrderInfoService.addOrder(targetOrderInfo);
@@ -1224,12 +1232,10 @@ public class AppOrderService {
                 LocalDate.now(BEIJING_ZONE),
                 1L,
                 transferAmount);
-        adjustOrderDailyStatistics(request.getManufacturerMetaId(), sourceOrderInfo,
-                sourceItemsBeforeTransfer, -1, BigDecimal.valueOf(-1));
-        adjustOrderDailyStatistics(request.getManufacturerMetaId(), sourceOrderInfo,
-                sourceItemsAfterTransfer, 1, BigDecimal.ONE);
-        adjustOrderDailyStatistics(targetManufacturerMetaId, targetOrderInfo,
-                transferredItems, 1, BigDecimal.ONE);
+        adjustTransferOrderDailyStatistics(request.getManufacturerMetaId(), sourceOrderInfo,
+                sourceItemsBeforeTransfer, sourceItemsAfterTransfer, transferredAmounts);
+        adjustTransferredInOrderDailyStatistics(targetManufacturerMetaId, targetOrderInfo,
+                transferredItems, transferredAmounts);
 
         return ApiResponse.success("success");
     }
@@ -1540,13 +1546,14 @@ public class AppOrderService {
      * 按实际转单数量计算转单金额。订单项有落库的金额分摊时以分摊金额为准，
      * 否则使用订单项的工厂实际价；两者均按“转单数量 / 转单前数量”等比分摊。
      */
-    BigDecimal calculateTransferStatisticsAmount(String manufacturerMetaId,
-                                                  List<OrderTransferRequest.OrderTransferItemDto> transferItems,
-                                                  Map<String, OrderItem> sourceItemById) {
+    private OrderStatisticsAmounts calculateTransferStatisticsAmounts(String manufacturerMetaId,
+                                                                       List<OrderTransferRequest.OrderTransferItemDto> transferItems,
+                                                                       Map<String, OrderItem> sourceItemById) {
         if (transferItems == null || sourceItemById == null) {
-            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            return new OrderStatisticsAmounts(scaleStatisticsDecimal(BigDecimal.ZERO), Map.of(), Map.of(), Map.of());
         }
         BigDecimal total = BigDecimal.ZERO;
+        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>();
         for (OrderTransferRequest.OrderTransferItemDto transferItem : transferItems) {
             if (transferItem == null || transferItem.getQuantity() == null) {
                 continue;
@@ -1565,8 +1572,13 @@ public class AppOrderService {
                     .multiply(BigDecimal.valueOf(transferItem.getQuantity()))
                     .divide(BigDecimal.valueOf(sourceQuantity), 12, RoundingMode.HALF_UP);
             total = total.add(transferredPrice);
+            String materialId = resolveMaterialId(sourceItem);
+            if (StringUtils.isNotBlank(materialId)) {
+                amountByMaterialId.merge(materialId, transferredPrice, BigDecimal::add);
+            }
         }
-        return scaleStatisticsDecimal(total);
+        amountByMaterialId.replaceAll((ignored, amount) -> scaleStatisticsDecimal(amount));
+        return new OrderStatisticsAmounts(scaleStatisticsDecimal(total), amountByMaterialId, Map.of(), Map.of());
     }
 
     private OrderStatisticsAmounts calculateStatisticsAmounts(OrderInfo orderInfo, List<OrderItem> orderItems) {
@@ -1683,6 +1695,43 @@ public class AppOrderService {
             return;
         }
         incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, orderCount, multiplier);
+    }
+
+    private void adjustTransferOrderDailyStatistics(String manufacturerMetaId, OrderInfo orderInfo,
+                                                    List<OrderItem> itemsBeforeTransfer,
+                                                    List<OrderItem> itemsAfterTransfer,
+                                                    OrderStatisticsAmounts transferredAmounts) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            return;
+        }
+        OrderStatisticsAmounts beforeAmounts = calculateStatisticsAmounts(orderInfo, itemsBeforeTransfer);
+        OrderStatisticsAmounts transferredBeforeAmounts = new OrderStatisticsAmounts(
+                transferredAmounts.totalAmount(), transferredAmounts.amountByMaterialId(),
+                beforeAmounts.areaByMaterialId(), Map.of());
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, itemsBeforeTransfer, -1,
+                BigDecimal.valueOf(-1), transferredBeforeAmounts, transferredAmounts.totalAmount());
+
+        if (itemsAfterTransfer != null && !itemsAfterTransfer.isEmpty()) {
+            OrderStatisticsAmounts afterAmounts = calculateStatisticsAmounts(orderInfo, itemsAfterTransfer);
+            OrderStatisticsAmounts zeroAmountAfterTransfer = new OrderStatisticsAmounts(
+                    BigDecimal.ZERO, Map.of(), afterAmounts.areaByMaterialId(), Map.of());
+            incrementOrderDimensions(manufacturerMetaId, orderInfo, itemsAfterTransfer, 1,
+                    BigDecimal.ONE, zeroAmountAfterTransfer, BigDecimal.ZERO);
+        }
+    }
+
+    private void adjustTransferredInOrderDailyStatistics(String manufacturerMetaId, OrderInfo orderInfo,
+                                                          List<OrderItem> transferredItems,
+                                                          OrderStatisticsAmounts transferredAmounts) {
+        if (StringUtils.isBlank(manufacturerMetaId) || transferredItems == null || transferredItems.isEmpty()) {
+            return;
+        }
+        OrderStatisticsAmounts targetAmounts = calculateStatisticsAmounts(orderInfo, transferredItems);
+        OrderStatisticsAmounts transferredTargetAmounts = new OrderStatisticsAmounts(
+                transferredAmounts.totalAmount(), transferredAmounts.amountByMaterialId(),
+                targetAmounts.areaByMaterialId(), Map.of());
+        incrementOrderDimensions(manufacturerMetaId, orderInfo, transferredItems, 1,
+                BigDecimal.ONE, transferredTargetAmounts, transferredAmounts.totalAmount());
     }
 
     private record OrderStatisticsAmounts(BigDecimal totalAmount,
