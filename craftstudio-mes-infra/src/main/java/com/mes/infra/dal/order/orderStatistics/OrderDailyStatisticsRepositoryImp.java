@@ -137,4 +137,10 @@ public class OrderDailyStatisticsRepositoryImp extends BaseRepositoryImp<OrderDa
         return mongoTemplate.find(new Query(criteria), poClass()).stream()
                 .map(OrderDailyStatisticsPo::toDO).toList();
     }
+
+    @Override
+    public void deleteRange(String manufacturerMetaId, LocalDate startDate, LocalDate endDate) {
+        mongoTemplate.remove(new Query(Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("statisticsDate").gte(startDate).lte(endDate)), poClass());
+    }
 }

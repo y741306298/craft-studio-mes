@@ -12,4 +12,6 @@ public interface TransferDailyStatisticsRepository extends BaseRepository<Transf
 
     /** Source and target are optional dimensions. */
     TransferDailyStatistics sum(String sourceId, String targetId, LocalDate startDate, LocalDate endDate);
+
+    void deleteRange(String sourceId, LocalDate startDate, LocalDate endDate);
 }
