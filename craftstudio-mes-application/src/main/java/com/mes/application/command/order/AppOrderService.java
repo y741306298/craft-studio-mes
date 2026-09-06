@@ -151,14 +151,42 @@ public class AppOrderService {
                 continue;
             }
             LocalDate statisticsDate = order.getCreateTime().toInstant().atZone(BEIJING_ZONE).toLocalDate();
+            OrderStatisticsAmounts amounts = calculateCalibratedStatisticsAmounts(manufacturerMetaId, items);
             incrementOrderDimensions(manufacturerMetaId, statisticsDate, order, items, 1L, BigDecimal.ONE,
-                    calculateStatisticsAmounts(order, items), null);
+                    amounts, amounts.totalAmount());
             calibratedOrders++;
         }
 
         int calibratedTransfers = rebuildTransferDailyStatistics(manufacturerMetaId, startDate, endDate,
                 startTime, endTime);
         return "统计校准完成，订单数：" + calibratedOrders + "，转单数：" + calibratedTransfers;
+    }
+
+    /**
+     * 校准时以当前实际存在的订单项为准，并优先使用订单项已持久化的金额分摊。
+     * 没有金额分摊的订单项回退到自身的工厂实际价，不再读取订单快照的 actualPrice。
+     */
+    private OrderStatisticsAmounts calculateCalibratedStatisticsAmounts(String manufacturerMetaId,
+                                                                         List<OrderItem> orderItems) {
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>();
+        LinkedHashMap<String, BigDecimal> areaByMaterialId = new LinkedHashMap<>();
+        for (OrderItem orderItem : orderItems) {
+            OrderItemPriceAllocation allocation = orderItemPriceAllocationRepository
+                    .findByOrderItemIdAndManufacturerMetaId(orderItem.getOrderItemId(), manufacturerMetaId);
+            BigDecimal itemAmount = allocation != null && allocation.getPrice() != null
+                    ? allocation.getPrice() : resolveManufacturerActualPrice(orderItem);
+            totalAmount = totalAmount.add(itemAmount);
+
+            String materialId = resolveMaterialId(orderItem);
+            if (StringUtils.isNotBlank(materialId)) {
+                amountByMaterialId.merge(materialId, itemAmount, BigDecimal::add);
+                areaByMaterialId.merge(materialId, calculateOrderItemArea(orderItem), BigDecimal::add);
+            }
+        }
+        amountByMaterialId.replaceAll((ignored, amount) -> scaleStatisticsDecimal(amount));
+        return new OrderStatisticsAmounts(scaleStatisticsDecimal(totalAmount), amountByMaterialId,
+                areaByMaterialId, Map.of());
     }
 
     private List<OrderInfo> findAllOrders(String manufacturerMetaId, Date startTime, Date endTime) {
@@ -1339,6 +1367,7 @@ public class AppOrderService {
         orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
         List<OrderItem> sourceItemsAfterTransfer = domainOrderItemService.findByOrderId(
                 request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
+        updateSourceOrderAfterTransfer(sourceOrderInfo, sourceItemsAfterTransfer, transferAmount);
         transferDailyStatisticsService.increment(
                 request.getManufacturerMetaId(),
                 targetManufacturerMetaId,
@@ -1352,6 +1381,31 @@ public class AppOrderService {
                 transferredItems, transferredAmounts);
 
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 全部订单项均已转出时删除源订单；部分转出时同步扣减源订单的工厂实际价。
+     */
+    void updateSourceOrderAfterTransfer(OrderInfo sourceOrderInfo,
+                                        List<OrderItem> sourceItemsAfterTransfer,
+                                        BigDecimal transferAmount) {
+        if (sourceItemsAfterTransfer != null && sourceItemsAfterTransfer.isEmpty()) {
+            domainOrderInfoService.deleteOrder(sourceOrderInfo.getId());
+            return;
+        }
+
+        ManufacturerInfo manufacturerInfo = sourceOrderInfo.getManufacturerInfo();
+        if (manufacturerInfo == null || manufacturerInfo.getPrice() == null
+                || manufacturerInfo.getPrice().getActualPrice() == null) {
+            return;
+        }
+        BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
+        if (manufacturerInfo.getPrice().getOriActualPrice() == null) {
+            manufacturerInfo.getPrice().setOriActualPrice(manufacturerInfo.getPrice().getActualPrice());
+        }
+        manufacturerInfo.getPrice().setActualPrice(
+                manufacturerInfo.getPrice().getActualPrice().subtract(safeTransferAmount));
+        domainOrderInfoService.updateOrder(sourceOrderInfo);
     }
 
 
