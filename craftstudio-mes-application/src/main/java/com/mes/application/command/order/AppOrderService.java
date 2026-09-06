@@ -1319,6 +1319,8 @@ public class AppOrderService {
 
             OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
             targetOrderItem = domainOrderItemService.addOrderItem(targetOrderItem);
+            synchronizeTransferredItemPrices(request.getManufacturerMetaId(), targetManufacturerMetaId,
+                    sourceOrderItem, targetOrderItem, transferQuantity);
             transferredItems.add(targetOrderItem);
 
             List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
@@ -1381,6 +1383,65 @@ public class AppOrderService {
                 transferredItems, transferredAmounts);
 
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 按转单数量同步拆分订单项工厂实际价或已持久化的订单项金额分摊。
+     */
+    private void synchronizeTransferredItemPrices(String sourceManufacturerMetaId,
+                                                   String targetManufacturerMetaId,
+                                                   OrderItem sourceOrderItem,
+                                                   OrderItem targetOrderItem,
+                                                   int transferQuantity) {
+        int sourceQuantity = safeQuantity(sourceOrderItem.getQuantity());
+        if (sourceQuantity <= 0) {
+            return;
+        }
+        int remainQuantity = sourceQuantity - transferQuantity;
+        OrderItemPriceAllocation sourceAllocation = orderItemPriceAllocationRepository
+                .findByOrderItemIdAndManufacturerMetaId(
+                        sourceOrderItem.getOrderItemId(), sourceManufacturerMetaId);
+        if (sourceAllocation != null && sourceAllocation.getPrice() != null) {
+            BigDecimal transferredPrice = calculateTransferredItemPrice(
+                    sourceAllocation.getPrice(), transferQuantity, sourceQuantity);
+            OrderItemPriceAllocation targetAllocation = new OrderItemPriceAllocation();
+            targetAllocation.setOrderItemId(targetOrderItem.getOrderItemId());
+            targetAllocation.setManufacturerMetaId(targetManufacturerMetaId);
+            targetAllocation.setPrice(transferredPrice);
+            orderItemPriceAllocationRepository.add(targetAllocation);
+
+            if (remainQuantity == 0) {
+                orderItemPriceAllocationRepository.delete(sourceAllocation);
+            } else {
+                sourceAllocation.setPrice(scaleStatisticsDecimal(
+                        sourceAllocation.getPrice().subtract(transferredPrice)));
+                orderItemPriceAllocationRepository.update(sourceAllocation);
+            }
+            return;
+        }
+
+        if (sourceOrderItem.getManufacturerPrice() == null
+                || sourceOrderItem.getManufacturerPrice().getActualPrice() == null
+                || targetOrderItem.getManufacturerPrice() == null) {
+            return;
+        }
+        BigDecimal sourceActualPrice = sourceOrderItem.getManufacturerPrice().getActualPrice();
+        BigDecimal transferredPrice = calculateTransferredItemPrice(
+                sourceActualPrice, transferQuantity, sourceQuantity);
+        targetOrderItem.getManufacturerPrice().setActualPrice(transferredPrice);
+        domainOrderItemService.updateOrderItem(targetOrderItem);
+        if (remainQuantity > 0) {
+            sourceOrderItem.getManufacturerPrice().setActualPrice(
+                    scaleStatisticsDecimal(sourceActualPrice.subtract(transferredPrice)));
+        }
+    }
+
+    private BigDecimal calculateTransferredItemPrice(BigDecimal sourcePrice,
+                                                     int transferQuantity,
+                                                     int sourceQuantity) {
+        return scaleStatisticsDecimal(sourcePrice
+                .multiply(BigDecimal.valueOf(transferQuantity))
+                .divide(BigDecimal.valueOf(sourceQuantity), 12, RoundingMode.HALF_UP));
     }
 
     /**
