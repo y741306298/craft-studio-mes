@@ -335,7 +335,7 @@ public class DeliveryPkgController {
     }
 
     @PostMapping("/add")
-    public ApiResponse<Object> addPkg(@RequestBody DeliveryPkgAddRequest request) {
+        public ApiResponse<Object> addPkg(@RequestBody DeliveryPkgAddRequest request) {
         log.info("========== addPkg 入参开始 ==========");
         log.info("response: " + JsonLogUtil.toJSONString(request));
         log.info("========== addPkg 入参结束 ==========");
