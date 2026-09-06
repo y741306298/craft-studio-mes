@@ -28,4 +28,6 @@ public interface OrderDailyStatisticsRepository extends BaseRepository<OrderDail
                                    BigDecimal amount);
 
     List<OrderDailyStatistics> list(String manufacturerMetaId, LocalDate startDate, LocalDate endDate);
+
+    void deleteRange(String manufacturerMetaId, LocalDate startDate, LocalDate endDate);
 }

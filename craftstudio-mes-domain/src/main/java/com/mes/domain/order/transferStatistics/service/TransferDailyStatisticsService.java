@@ -23,4 +23,8 @@ public class TransferDailyStatisticsService {
                                        LocalDate startDate, LocalDate endDate) {
         return repository.sum(sourceId, targetId, startDate, endDate);
     }
+
+    public void deleteRange(String sourceId, LocalDate startDate, LocalDate endDate) {
+        repository.deleteRange(sourceId, startDate, endDate);
+    }
 }

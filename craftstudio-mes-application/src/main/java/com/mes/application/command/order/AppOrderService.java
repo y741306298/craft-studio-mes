@@ -124,6 +124,112 @@ public class AppOrderService {
     private static final String NO_ROUTE_NAME = "无路线";
 
     /**
+     * Rebuilds persisted order and transfer statistics from source documents. The operation is
+     * idempotent: statistics in the requested range are removed before being recreated.
+     */
+    public String calibrateDailyStatistics(String manufacturerMetaId, LocalDate startDate) {
+        if (StringUtils.isBlank(manufacturerMetaId) || startDate == null) {
+            throw new IllegalArgumentException("工厂和开始日期不能为空");
+        }
+        LocalDate endDate = LocalDate.now(BEIJING_ZONE);
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("开始日期不能晚于今天");
+        }
+
+        Date startTime = Date.from(startDate.atStartOfDay(BEIJING_ZONE).toInstant());
+        Date endTime = Date.from(endDate.plusDays(1).atStartOfDay(BEIJING_ZONE).minusNanos(1).toInstant());
+        List<OrderInfo> orders = findAllOrders(manufacturerMetaId, startTime, endTime);
+
+        orderDailyStatisticsService.deleteRange(manufacturerMetaId, startDate, endDate);
+        int calibratedOrders = 0;
+        for (OrderInfo order : orders) {
+            if (order == null || order.getStatus() == OrderStatus.RETURNED || order.getCreateTime() == null) {
+                continue;
+            }
+            List<OrderItem> items = findAllOrderItems(order.getOrderId(), manufacturerMetaId);
+            if (items.isEmpty()) {
+                continue;
+            }
+            LocalDate statisticsDate = order.getCreateTime().toInstant().atZone(BEIJING_ZONE).toLocalDate();
+            incrementOrderDimensions(manufacturerMetaId, statisticsDate, order, items, 1L, BigDecimal.ONE,
+                    calculateStatisticsAmounts(order, items), null);
+            calibratedOrders++;
+        }
+
+        int calibratedTransfers = rebuildTransferDailyStatistics(manufacturerMetaId, startDate, endDate,
+                startTime, endTime);
+        return "统计校准完成，订单数：" + calibratedOrders + "，转单数：" + calibratedTransfers;
+    }
+
+    private List<OrderInfo> findAllOrders(String manufacturerMetaId, Date startTime, Date endTime) {
+        List<OrderInfo> result = new ArrayList<>();
+        for (int page = 1; ; page++) {
+            List<OrderInfo> values = domainOrderInfoService.findOrdersByManufacturerAndCreateTime(
+                    manufacturerMetaId, startTime, endTime, page, 100);
+            result.addAll(values);
+            if (values.size() < 100) return result;
+        }
+    }
+
+    private List<OrderItem> findAllOrderItems(String orderId, String manufacturerMetaId) {
+        List<OrderItem> result = new ArrayList<>();
+        for (int page = 1; ; page++) {
+            List<OrderItem> values = domainOrderItemService.findByOrderId(orderId, manufacturerMetaId, page, 100);
+            result.addAll(values);
+            if (values.size() < 100) return result;
+        }
+    }
+
+    private int rebuildTransferDailyStatistics(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
+                                               Date startTime, Date endTime) {
+        List<OrderTransferRecord> allRecords = orderTransferRecordService.findAllTransferRecords(
+                manufacturerMetaId, null, null, null);
+        List<OrderTransferRecord> records = allRecords.stream()
+                .filter(record -> record.getCreateTime() != null
+                        && !record.getCreateTime().before(startTime) && !record.getCreateTime().after(endTime))
+                .toList();
+        transferDailyStatisticsService.deleteRange(manufacturerMetaId, startDate, endDate);
+
+        Map<String, Integer> originalQuantities = new HashMap<>();
+        for (OrderTransferRecord record : allRecords) {
+            originalQuantities.merge(record.getOrderItemId(), safeQuantity(record.getQuantity()), Integer::sum);
+        }
+        for (String itemId : new ArrayList<>(originalQuantities.keySet())) {
+            OrderItem remainingItem = domainOrderItemService.findByOrderItemId(itemId);
+            if (remainingItem != null && Objects.equals(manufacturerMetaId, remainingItem.getManufacturerId())) {
+                originalQuantities.merge(itemId, safeQuantity(remainingItem.getQuantity()), Integer::sum);
+            }
+        }
+
+        Map<String, List<OrderTransferRecord>> transferGroups = records.stream().collect(Collectors.groupingBy(
+                record -> record.getTargetId() + "|" + record.getOrderId() + "|" + record.getCreateTime().getTime(),
+                LinkedHashMap::new, Collectors.toList()));
+        for (List<OrderTransferRecord> group : transferGroups.values()) {
+            OrderTransferRecord first = group.get(0);
+            BigDecimal amount = group.stream().map(record -> calculateHistoricalTransferAmount(
+                    manufacturerMetaId, record, originalQuantities.getOrDefault(record.getOrderItemId(), 0)))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            LocalDate statisticsDate = first.getCreateTime().toInstant().atZone(BEIJING_ZONE).toLocalDate();
+            transferDailyStatisticsService.increment(manufacturerMetaId, first.getTargetId(), first.getTargetName(),
+                    statisticsDate, 1L, scaleStatisticsDecimal(amount));
+        }
+        return transferGroups.size();
+    }
+
+    private BigDecimal calculateHistoricalTransferAmount(String manufacturerMetaId, OrderTransferRecord record,
+                                                          int originalQuantity) {
+        if (originalQuantity <= 0 || record.getQuantity() == null) return BigDecimal.ZERO;
+        OrderItemPriceAllocation allocation = orderItemPriceAllocationRepository
+                .findByOrderItemIdAndManufacturerMetaId(record.getOrderItemId(), manufacturerMetaId);
+        OrderItem priceSource = domainOrderItemService.findByOrderItemId(record.getOrderItemId());
+        if (priceSource == null) priceSource = domainOrderItemService.findByOrderItemId(record.getTargetOrderItemId());
+        BigDecimal itemPrice = allocation != null && allocation.getPrice() != null
+                ? allocation.getPrice() : resolveManufacturerActualPrice(priceSource);
+        return itemPrice.multiply(BigDecimal.valueOf(record.getQuantity()))
+                .divide(BigDecimal.valueOf(originalQuantity), 12, RoundingMode.HALF_UP);
+    }
+
+    /**
      * 查询指定工厂和创建时间范围内的全部订单，并汇总非退单订单的工厂价格快照。
      */
     public OrderPriceStatisticsVO findOrderPriceStatistics(String manufacturerId, Date startTime, Date endTime) {
@@ -862,6 +968,13 @@ public class AppOrderService {
     private void incrementOrderDimensions(String manufacturerMetaId, OrderInfo orderInfo, List<OrderItem> orderItems,
                                           long orderCount, BigDecimal multiplier, OrderStatisticsAmounts amounts,
                                           BigDecimal orderAmount) {
+        incrementOrderDimensions(manufacturerMetaId, LocalDate.now(BEIJING_ZONE), orderInfo, orderItems,
+                orderCount, multiplier, amounts, orderAmount);
+    }
+
+    private void incrementOrderDimensions(String manufacturerMetaId, LocalDate statisticsDate, OrderInfo orderInfo,
+                                          List<OrderItem> orderItems, long orderCount, BigDecimal multiplier,
+                                          OrderStatisticsAmounts amounts, BigDecimal orderAmount) {
         BigDecimal totalArea = orderItems.stream().map(this::calculateOrderItemArea)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).multiply(multiplier);
         BigDecimal manufacturerActualAmount = (orderAmount == null
@@ -869,13 +982,13 @@ public class AppOrderService {
         String enterpriseName = orderInfo.getOrgInfo() == null ? null : orderInfo.getOrgInfo().getName();
         String enterpriseId = orderInfo.getOrgId() == null ? enterpriseName : orderInfo.getOrgId().toString();
         if (StringUtils.isNotBlank(enterpriseId)) {
-            incrementOrderDimension(manufacturerMetaId, enterpriseId, enterpriseName,
+            incrementOrderDimension(manufacturerMetaId, statisticsDate, enterpriseId, enterpriseName,
                     OrderStatisticsType.ENTERPRISE, orderCount, totalArea, manufacturerActualAmount);
         }
 
         String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
                 : orderItems.stream().map(OrderItem::getRouteId).filter(StringUtils::isNotBlank).findFirst().orElse(null);
-        incrementOrderDimension(manufacturerMetaId,
+        incrementOrderDimension(manufacturerMetaId, statisticsDate,
                 StringUtils.isBlank(routeId) ? NO_ROUTE_ID : routeId,
                 StringUtils.isBlank(routeId) ? NO_ROUTE_NAME : resolveRouteName(routeId),
                 OrderStatisticsType.ROUTE, orderCount, totalArea, manufacturerActualAmount);
@@ -888,7 +1001,7 @@ public class AppOrderService {
             }
         });
         amounts.amountByMaterialId().keySet().forEach(materialId -> materials.putIfAbsent(materialId, null));
-        materials.forEach((materialId, materialName) -> incrementOrderDimension(manufacturerMetaId, materialId,
+        materials.forEach((materialId, materialName) -> incrementOrderDimension(manufacturerMetaId, statisticsDate, materialId,
                 materialName, OrderStatisticsType.MATERIAL, orderCount,
                 amounts.areaByMaterialId().getOrDefault(materialId, BigDecimal.ZERO).multiply(multiplier),
                 amounts.amountByMaterialId().getOrDefault(materialId, BigDecimal.ZERO).multiply(multiplier)));
@@ -899,12 +1012,13 @@ public class AppOrderService {
         return route == null ? null : route.getRouteName();
     }
 
-    private void incrementOrderDimension(String manufacturerMetaId, String indexId, String indexName,
+    private void incrementOrderDimension(String manufacturerMetaId, LocalDate statisticsDate,
+                                         String indexId, String indexName,
                                          OrderStatisticsType type,
                                          long orderCount, BigDecimal area, BigDecimal amount) {
         orderDailyStatisticsService.increment(
                 manufacturerMetaId,
-                LocalDate.now(BEIJING_ZONE),
+                statisticsDate,
                 indexId,
                 indexName,
                 type,

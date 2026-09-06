@@ -20,6 +20,7 @@ import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderListRequest;
 import com.mes.application.dto.req.order.OrderPriceStatisticsRequest;
 import com.mes.application.dto.req.order.OrderItemsByOrderIdRequest;
+import com.mes.application.dto.req.order.OrderStatisticsCalibrationRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.application.dto.req.order.OrderTransferRecordListRequest;
 import com.mes.domain.base.repository.ApiResponse;
@@ -288,6 +289,16 @@ public class OrderController {
     @PostMapping("/transfer")
     public ApiResponse<String> transferOrder(@Valid @RequestBody OrderTransferRequest request) {
         return appOrderService.transferOrder(request);
+    }
+
+    /**
+     * 从指定日期起，依据订单、订单项和转单记录重新生成工厂的每日统计。
+     */
+    @PostMapping("/statistics/calibrate")
+    public ApiResponse<String> calibrateStatistics(
+            @Valid @RequestBody OrderStatisticsCalibrationRequest request) {
+        return ApiResponse.success(appOrderService.calibrateDailyStatistics(
+                request.getManufacturerMetaId(), request.getStartDate()));
     }
 
 

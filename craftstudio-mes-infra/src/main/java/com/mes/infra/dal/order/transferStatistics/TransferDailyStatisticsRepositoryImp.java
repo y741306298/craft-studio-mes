@@ -81,4 +81,11 @@ public class TransferDailyStatisticsRepositoryImp
     private BigDecimal scale(BigDecimal value) {
         return (value == null ? BigDecimal.ZERO : value).setScale(2, RoundingMode.HALF_UP);
     }
+
+
+    @Override
+    public void deleteRange(String sourceId, LocalDate startDate, LocalDate endDate) {
+        mongoTemplate.remove(new Query(Criteria.where("sourceId").is(sourceId)
+                .and("statisticsDate").gte(startDate).lte(endDate)), poClass());
+    }
 }

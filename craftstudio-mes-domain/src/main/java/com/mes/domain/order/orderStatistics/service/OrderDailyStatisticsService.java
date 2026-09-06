@@ -39,6 +39,10 @@ public class OrderDailyStatisticsService {
         return repository.list(manufacturerMetaId, startDate, endDate);
     }
 
+    public void deleteRange(String manufacturerMetaId, LocalDate startDate, LocalDate endDate) {
+        repository.deleteRange(manufacturerMetaId, startDate, endDate);
+    }
+
     public OrderDailyStatistics findByManufacturerMetaIdAndStatisticsDate(String manufacturerMetaId, LocalDate statisticsDate) {
         return sum(manufacturerMetaId, statisticsDate, statisticsDate, null, OrderStatisticsType.ENTERPRISE);
     }
