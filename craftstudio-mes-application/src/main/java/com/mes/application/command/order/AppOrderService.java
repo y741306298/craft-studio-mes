@@ -1146,6 +1146,9 @@ public class AppOrderService {
             orderItemById.put(itemDto.getOrderItemId(), orderItem);
             productionPiecesByOrderItemId.put(itemDto.getOrderItemId(), safeProductionPieces);
         }
+        BigDecimal transferAmount = calculateTransferStatisticsAmount(
+                request.getManufacturerMetaId(), request.getOrderItemDtos(), orderItemById);
+
         OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo, targetManufacturerMeta);
         domainOrderInfoService.addOrder(targetOrderInfo);
 
@@ -1214,8 +1217,6 @@ public class AppOrderService {
         orderPreprocessTaskQueue.submit(targetItemsToPreprocess);
         List<OrderItem> sourceItemsAfterTransfer = domainOrderItemService.findByOrderId(
                 request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
-        BigDecimal transferAmount = calculateTransferStatisticsAmount(
-                sourceOrderInfo, sourceItemsBeforeTransfer, sourceItemsAfterTransfer);
         transferDailyStatisticsService.increment(
                 request.getManufacturerMetaId(),
                 targetManufacturerMetaId,
@@ -1535,12 +1536,37 @@ public class AppOrderService {
         return calculateStatisticsAmounts(orderInfo, orderItems).totalAmount();
     }
 
-    /** Use the same before/after delta as orderDailyStatistics for the transferred amount. */
-    BigDecimal calculateTransferStatisticsAmount(OrderInfo orderInfo, List<OrderItem> itemsBeforeTransfer,
-                                                  List<OrderItem> itemsAfterTransfer) {
-        BigDecimal amountBeforeTransfer = calculateStatisticsAmount(orderInfo, itemsBeforeTransfer);
-        BigDecimal amountAfterTransfer = calculateStatisticsAmount(orderInfo, itemsAfterTransfer);
-        return scaleStatisticsDecimal(amountBeforeTransfer.subtract(amountAfterTransfer));
+    /**
+     * 按实际转单数量计算转单金额。订单项有落库的金额分摊时以分摊金额为准，
+     * 否则使用订单项的工厂实际价；两者均按“转单数量 / 转单前数量”等比分摊。
+     */
+    BigDecimal calculateTransferStatisticsAmount(String manufacturerMetaId,
+                                                  List<OrderTransferRequest.OrderTransferItemDto> transferItems,
+                                                  Map<String, OrderItem> sourceItemById) {
+        if (transferItems == null || sourceItemById == null) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        for (OrderTransferRequest.OrderTransferItemDto transferItem : transferItems) {
+            if (transferItem == null || transferItem.getQuantity() == null) {
+                continue;
+            }
+            OrderItem sourceItem = sourceItemById.get(transferItem.getOrderItemId());
+            int sourceQuantity = sourceItem == null ? 0 : safeQuantity(sourceItem.getQuantity());
+            if (sourceQuantity <= 0) {
+                continue;
+            }
+            OrderItemPriceAllocation allocation = orderItemPriceAllocationRepository
+                    .findByOrderItemIdAndManufacturerMetaId(transferItem.getOrderItemId(), manufacturerMetaId);
+            BigDecimal itemPrice = allocation != null && allocation.getPrice() != null
+                    ? allocation.getPrice()
+                    : resolveManufacturerActualPrice(sourceItem);
+            BigDecimal transferredPrice = itemPrice
+                    .multiply(BigDecimal.valueOf(transferItem.getQuantity()))
+                    .divide(BigDecimal.valueOf(sourceQuantity), 12, RoundingMode.HALF_UP);
+            total = total.add(transferredPrice);
+        }
+        return scaleStatisticsDecimal(total);
     }
 
     private OrderStatisticsAmounts calculateStatisticsAmounts(OrderInfo orderInfo, List<OrderItem> orderItems) {
