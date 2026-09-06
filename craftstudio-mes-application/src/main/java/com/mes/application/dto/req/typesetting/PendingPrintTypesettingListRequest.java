@@ -21,6 +21,11 @@ public class PendingPrintTypesettingListRequest extends PagedApiRequest {
      */
     private String typesettingId;
 
+    /**
+     * 材料 ID，精确搜索。
+     */
+    private String materialId;
+
     private Date startTime;
 
     private Date endTime;
