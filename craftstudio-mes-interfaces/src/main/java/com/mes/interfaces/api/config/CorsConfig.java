@@ -8,6 +8,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
+    private static final String ALGORITHM_CORE_API_CALL_RECORD_QUERY_PATH =
+            "/api/algorithmCoreApiCallRecord";
+
     private final ManufacturerSideAuthInterceptor manufacturerSideAuthInterceptor;
     private final ConfigSideAuthInterceptor configSideAuthInterceptor;
 
@@ -37,7 +40,8 @@ public class CorsConfig implements WebMvcConfigurer {
                         "/api/manufacturerSide/deliveryPkg/pkgDetail",
                         "/api/manufacturerSide/**/callback/**",
                         "/api/manufacturerSide/deviceCfg/factory/task/claim",
-                        "/api/manufacturerSide/deviceCfg/factory/task/download"
+                        "/api/manufacturerSide/deviceCfg/factory/task/download",
+                        ALGORITHM_CORE_API_CALL_RECORD_QUERY_PATH
                 );
 
         registry.addInterceptor(configSideAuthInterceptor)
@@ -45,7 +49,8 @@ public class CorsConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/configSide/auth/login",
                         "/api/configSide/auth/user/add",
-                        "/api/configSide/auth/token/configUserId"
+                        "/api/configSide/auth/token/configUserId",
+                        ALGORITHM_CORE_API_CALL_RECORD_QUERY_PATH
                 );
     }
 }
