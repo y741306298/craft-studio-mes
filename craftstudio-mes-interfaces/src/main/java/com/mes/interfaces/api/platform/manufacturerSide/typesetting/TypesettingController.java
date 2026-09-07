@@ -181,6 +181,9 @@ public class TypesettingController {
      */
     @PostMapping("/toLayout")
     public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+        logger.info("========== toLayout 入参开始 ==========");
+        logger.info("response: " + JsonLogUtil.toJSONString(request));
+        logger.info("========== toLayout 入参结束 ==========");
         LayoutConfirmResult result = appTypesettingService.toLayout(request);
         if (!result.isSuccess()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
