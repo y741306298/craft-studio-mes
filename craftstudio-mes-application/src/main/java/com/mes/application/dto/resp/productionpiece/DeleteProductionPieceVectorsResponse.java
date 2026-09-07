@@ -1,7 +1,8 @@
 package com.mes.application.dto.resp.productionpiece;
 
 public record DeleteProductionPieceVectorsResponse(
-        String beforeDate,
+        String startDate,
+        String endDate,
         int matchedPieceCount,
         int deletedVectorCount
 ) {
