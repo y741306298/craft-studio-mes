@@ -34,6 +34,7 @@ import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.vo.ManufacturerInfo;
+import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.mes.domain.order.orderItemPriceAllocation.entity.OrderItemPriceAllocation;
 import com.mes.domain.order.orderItemPriceAllocation.repository.OrderItemPriceAllocationRepository;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
@@ -1208,7 +1209,10 @@ public class AppOrderService {
         if (request == null || StringUtils.isBlank(request.getOrderId())) {
             return doTransferOrder(request, null);
         }
-        OrderInfo sourceOrderInfo = domainOrderInfoService.findByOrderId(request.getOrderId());
+        OrderInfo sourceOrderInfo = StringUtils.isBlank(request.getManufacturerMetaId())
+                ? null
+                : domainOrderInfoService.findByOrderIdAndManufacturerId(
+                        request.getOrderId(), request.getManufacturerMetaId());
         if (sourceOrderInfo == null) {
             return doTransferOrder(request, null);
         }
@@ -1254,13 +1258,15 @@ public class AppOrderService {
 
         OrderInfo sourceOrderInfo = lockedSourceOrderInfo != null
                 ? lockedSourceOrderInfo
-                : domainOrderInfoService.findByOrderId(request.getOrderId());
+                : domainOrderInfoService.findByOrderIdAndManufacturerId(
+                        request.getOrderId(), request.getManufacturerMetaId());
         if (sourceOrderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + request.getOrderId());
         }
 
         Map<String, OrderItem> orderItemById = new HashMap<>();
         Map<String, List<ProductionPiece>> productionPiecesByOrderItemId = new HashMap<>();
+        Set<String> requestedOrderItemIds = new HashSet<>();
         List<OrderItem> sourceItemsBeforeTransfer = domainOrderItemService.findByOrderId(
                 request.getOrderId(), request.getManufacturerMetaId(), 1, 100);
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
@@ -1270,12 +1276,17 @@ public class AppOrderService {
             if (itemDto.getQuantity() == null || itemDto.getQuantity() <= 0) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "转单数量必须大于 0");
             }
+            if (!requestedOrderItemIds.add(itemDto.getOrderItemId())) {
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams,
+                        "转单订单项不能重复：" + itemDto.getOrderItemId());
+            }
 
             OrderItem orderItem = domainOrderItemService.findByOrderItemId(itemDto.getOrderItemId());
             if (orderItem == null
                     || !Objects.equals(request.getOrderId(), orderItem.getOrderId())
                     || !Objects.equals(request.getManufacturerMetaId(), orderItem.getManufacturerId())) {
-                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单项不存在：" + itemDto.getOrderItemId());
+                return ApiResponse.fail(ApiResponse.RepStatusCode.badParams,
+                        "订单项不存在或已删除：" + itemDto.getOrderItemId());
             }
             if (itemDto.getQuantity() > safeQuantity(orderItem.getQuantity())) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.badParams,
@@ -1303,8 +1314,14 @@ public class AppOrderService {
         OrderStatisticsAmounts transferredAmounts = calculateTransferStatisticsAmounts(
                 request.getManufacturerMetaId(), request.getOrderItemDtos(), orderItemById);
         BigDecimal transferAmount = transferredAmounts.totalAmount();
+        String priceValidationError = validateTransferPrice(sourceOrderInfo, transferAmount);
+        if (priceValidationError != null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, priceValidationError);
+        }
 
-        OrderInfo targetOrderInfo = copyOrderInfoForTransfer(sourceOrderInfo, targetManufacturerMeta);
+        String targetOrderId = IdGenerator.generateOrderId();
+        OrderInfo targetOrderInfo = copyOrderInfoForTransfer(
+                sourceOrderInfo, targetManufacturerMeta, targetOrderId, transferAmount);
         domainOrderInfoService.addOrder(targetOrderInfo);
 
         // 先让本次转单涉及的旧预处理回调失效，再修改/删除源订单项。否则部分转单时，
@@ -1322,50 +1339,25 @@ public class AppOrderService {
             Integer transferQuantity = itemDto.getQuantity();
             String newOrderItemId = IdGenerator.generateOrderItemId();
 
-            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, newOrderItemId, targetManufacturerMetaId, transferQuantity);
+            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, targetOrderId, newOrderItemId,
+                    targetManufacturerMetaId, transferQuantity);
             targetOrderItem = domainOrderItemService.addOrderItem(targetOrderItem);
             synchronizeTransferredItemPrices(request.getManufacturerMetaId(), targetManufacturerMetaId,
                     sourceOrderItem, targetOrderItem, transferQuantity);
             transferredItems.add(targetOrderItem);
+            // 转入订单项必须按目标工厂配置重新预处理并生成全新的生产零件，不能复制源零件。
+            targetItemsToPreprocess.add(targetOrderItem);
 
             List<ProductionPiece> sourceProductionPieces = productionPiecesByOrderItemId.getOrDefault(
                     sourceOrderItem.getOrderItemId(), new ArrayList<>());
-            for (ProductionPiece sourceProductionPiece : sourceProductionPieces) {
-                ProductionPiece targetProductionPiece = copyProductionPieceForTransfer(
-                        sourceProductionPiece,
-                        newOrderItemId,
-                        targetManufacturerMetaId,
-                        transferQuantity
-                );
-                productionPieceService.addProductionPiece(targetProductionPiece);
-            }
-            // A source item can be transferred while its asynchronous preprocessing is still pending.
-            // In that case there are no pieces to copy and the new item needs its own preprocessing task.
-            if (sourceProductionPieces.isEmpty()) {
-                targetItemsToPreprocess.add(targetOrderItem);
-            }
-
-            int remainQuantity = safeQuantity(sourceOrderItem.getQuantity()) - transferQuantity;
-            if (remainQuantity == 0) {
-                for (ProductionPiece productionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
-                    productionPieceService.deleteProductionPiece(productionPiece.getId());
-                }
-                domainOrderItemService.deleteOrderItem(sourceOrderItem.getId());
-            } else {
-                sourceOrderItem.setQuantity(remainQuantity);
-                domainOrderItemService.updateOrderItem(sourceOrderItem);
-                for (ProductionPiece productionPiece : productionPiecesByOrderItemId.getOrDefault(sourceOrderItem.getOrderItemId(), new ArrayList<>())) {
-                    productionPiece.setQuantity(remainQuantity);
-                    setPendingTypesettingNodeQuantity(productionPiece, remainQuantity);
-                    productionPieceService.updateProductionPiece(productionPiece);
-                }
-            }
+            updateSourceOrderItemAfterTransfer(sourceOrderItem, sourceProductionPieces, transferQuantity);
 
             transferRecords.add(buildOrderTransferRecord(
                     request,
                     sourceManufacturerMeta,
                     targetManufacturerMeta,
                     sourceOrderItem,
+                    targetOrderId,
                     newOrderItemId,
                     transferQuantity
             ));
@@ -1388,6 +1380,35 @@ public class AppOrderService {
                 transferredItems, transferredAmounts);
 
         return ApiResponse.success("success");
+    }
+
+    /**
+     * 全数量转出时删除源订单项及其零件；部分转出时只同步剩余数量。
+     */
+    void updateSourceOrderItemAfterTransfer(OrderItem sourceOrderItem,
+                                            List<ProductionPiece> sourceProductionPieces,
+                                            int transferQuantity) {
+        int remainQuantity = safeQuantity(sourceOrderItem.getQuantity()) - transferQuantity;
+        if (remainQuantity < 0) {
+            throw new IllegalArgumentException("订单项转单后的剩余数量不能小于 0");
+        }
+        List<ProductionPiece> safeProductionPieces = sourceProductionPieces == null
+                ? List.of() : sourceProductionPieces;
+        if (remainQuantity == 0) {
+            for (ProductionPiece productionPiece : safeProductionPieces) {
+                productionPieceService.deleteProductionPiece(productionPiece.getId());
+            }
+            domainOrderItemService.deleteOrderItem(sourceOrderItem.getId());
+            return;
+        }
+
+        sourceOrderItem.setQuantity(remainQuantity);
+        domainOrderItemService.updateOrderItem(sourceOrderItem);
+        for (ProductionPiece productionPiece : safeProductionPieces) {
+            productionPiece.setQuantity(remainQuantity);
+            setPendingTypesettingNodeQuantity(productionPiece, remainQuantity);
+            productionPieceService.updateProductionPiece(productionPiece);
+        }
     }
 
     /**
@@ -1450,28 +1471,49 @@ public class AppOrderService {
     }
 
     /**
-     * 全部订单项均已转出时删除源订单；部分转出时同步扣减源订单的工厂实际价。
+     * 始终同步扣减源订单的工厂实际价；全部订单项均已转出时再删除源订单。
      */
     void updateSourceOrderAfterTransfer(OrderInfo sourceOrderInfo,
                                         List<OrderItem> sourceItemsAfterTransfer,
                                         BigDecimal transferAmount) {
-        if (sourceItemsAfterTransfer != null && sourceItemsAfterTransfer.isEmpty()) {
-            domainOrderInfoService.deleteOrder(sourceOrderInfo.getId());
-            return;
+        ManufacturerInfo manufacturerInfo = sourceOrderInfo.getManufacturerInfo();
+        if (manufacturerInfo != null && manufacturerInfo.getPrice() != null
+                && manufacturerInfo.getPrice().getActualPrice() != null) {
+            BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
+            if (manufacturerInfo.getPrice().getOriActualPrice() == null) {
+                manufacturerInfo.getPrice().setOriActualPrice(manufacturerInfo.getPrice().getActualPrice());
+            }
+            manufacturerInfo.getPrice().setActualPrice(
+                    manufacturerInfo.getPrice().getActualPrice().subtract(safeTransferAmount));
+            domainOrderInfoService.updateOrder(sourceOrderInfo);
         }
 
-        ManufacturerInfo manufacturerInfo = sourceOrderInfo.getManufacturerInfo();
-        if (manufacturerInfo == null || manufacturerInfo.getPrice() == null
-                || manufacturerInfo.getPrice().getActualPrice() == null) {
-            return;
+        if (sourceItemsAfterTransfer != null && sourceItemsAfterTransfer.isEmpty()) {
+            domainOrderInfoService.deleteOrder(sourceOrderInfo.getId());
         }
+    }
+
+    /**
+     * 转单金额必须能够与源订单的工厂实际价同步扣减，禁止把异常数据继续扣成负数。
+     */
+    String validateTransferPrice(OrderInfo sourceOrderInfo, BigDecimal transferAmount) {
         BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
-        if (manufacturerInfo.getPrice().getOriActualPrice() == null) {
-            manufacturerInfo.getPrice().setOriActualPrice(manufacturerInfo.getPrice().getActualPrice());
+        if (safeTransferAmount.signum() < 0) {
+            return "转单金额不能小于 0";
         }
-        manufacturerInfo.getPrice().setActualPrice(
-                manufacturerInfo.getPrice().getActualPrice().subtract(safeTransferAmount));
-        domainOrderInfoService.updateOrder(sourceOrderInfo);
+        ManufacturerInfo manufacturerInfo = sourceOrderInfo == null ? null : sourceOrderInfo.getManufacturerInfo();
+        BigDecimal sourceActualPrice = manufacturerInfo == null || manufacturerInfo.getPrice() == null
+                ? null : manufacturerInfo.getPrice().getActualPrice();
+        if (sourceActualPrice == null) {
+            return safeTransferAmount.signum() == 0 ? null : "源订单缺少工厂实际价，无法转单";
+        }
+        if (sourceActualPrice.signum() < 0) {
+            return "源订单工厂实际价不能小于 0";
+        }
+        if (safeTransferAmount.compareTo(sourceActualPrice) > 0) {
+            return "转单金额不能大于源订单剩余工厂实际价";
+        }
+        return null;
     }
 
 
@@ -1999,11 +2041,15 @@ public class AppOrderService {
         return users.get(0);
     }
 
-    private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo, ManufacturerMeta targetManufacturerMeta) {
+    private OrderInfo copyOrderInfoForTransfer(OrderInfo sourceOrderInfo,
+                                               ManufacturerMeta targetManufacturerMeta,
+                                               String targetOrderId,
+                                               BigDecimal transferAmount) {
         OrderInfo targetOrderInfo = deepCopy(sourceOrderInfo, OrderInfo.class);
         targetOrderInfo.setId(null);
         targetOrderInfo.setCreateTime(null);
         targetOrderInfo.setUpdateTime(null);
+        targetOrderInfo.setOrderId(targetOrderId);
         if (targetManufacturerMeta != null) {
             targetOrderInfo.setManufacturerId(targetManufacturerMeta.getManufacturerMetaId());
             targetOrderInfo.setManufacturerName(targetManufacturerMeta.getName());
@@ -2014,11 +2060,18 @@ public class AppOrderService {
             }
             manufacturerInfo.setId(targetManufacturerMeta.getManufacturerMetaId());
             manufacturerInfo.setName(targetManufacturerMeta.getName());
+            if (manufacturerInfo.getPrice() == null) {
+                manufacturerInfo.setPrice(new OrderPriceInfo());
+            }
+            BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
+            manufacturerInfo.getPrice().setActualPrice(safeTransferAmount);
+            manufacturerInfo.getPrice().setOriActualPrice(safeTransferAmount);
         }
         return targetOrderInfo;
     }
 
     private OrderItem copyOrderItemForTransfer(OrderItem sourceOrderItem,
+                                               String targetOrderId,
                                                String newOrderItemId,
                                                String targetManufacturerMetaId,
                                                Integer quantity) {
@@ -2027,33 +2080,22 @@ public class AppOrderService {
         targetOrderItem.setCreateTime(null);
         targetOrderItem.setUpdateTime(null);
         targetOrderItem.setOrderItemId(newOrderItemId);
+        targetOrderItem.setOrderId(targetOrderId);
         targetOrderItem.setManufacturerId(targetManufacturerMetaId);
         targetOrderItem.setQuantity(quantity);
         targetOrderItem.setProductionPieces(null);
+        targetOrderItem.setStatus(OrderStatus.PENDING);
+        targetOrderItem.setFailureReason(null);
+        targetOrderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
         normalizeProcedureFlowForTransfer(targetOrderItem.getProcedureFlow(), quantity);
         return targetOrderItem;
-    }
-
-    private ProductionPiece copyProductionPieceForTransfer(ProductionPiece sourceProductionPiece,
-                                                           String newOrderItemId,
-                                                           String targetManufacturerMetaId,
-                                                           Integer quantity) {
-        ProductionPiece targetProductionPiece = deepCopy(sourceProductionPiece, ProductionPiece.class);
-        targetProductionPiece.setId(null);
-        targetProductionPiece.setCreateTime(null);
-        targetProductionPiece.setUpdateTime(null);
-        targetProductionPiece.setProductionPieceId(null);
-        targetProductionPiece.setOrderItemId(newOrderItemId);
-        targetProductionPiece.setManufacturerId(targetManufacturerMetaId);
-        targetProductionPiece.setQuantity(quantity);
-        normalizeProcedureFlowForTransfer(targetProductionPiece.getProcedureFlow(), quantity);
-        return targetProductionPiece;
     }
 
     private OrderTransferRecord buildOrderTransferRecord(OrderTransferRequest request,
                                                           ManufacturerMeta sourceManufacturerMeta,
                                                           ManufacturerMeta targetManufacturerMeta,
                                                           OrderItem sourceOrderItem,
+                                                          String targetOrderId,
                                                           String targetOrderItemId,
                                                           Integer quantity) {
         OrderTransferRecord record = new OrderTransferRecord();
@@ -2063,6 +2105,7 @@ public class AppOrderService {
         record.setTargetId(targetManufacturerMeta == null ? null : targetManufacturerMeta.getManufacturerMetaId());
         record.setTargetName(targetManufacturerMeta == null ? null : targetManufacturerMeta.getName());
         record.setOrderItemId(sourceOrderItem.getOrderItemId());
+        record.setTargetOrderId(targetOrderId);
         record.setTargetOrderItemId(targetOrderItemId);
         record.setPreviewUrl(extractPreviewUrl(sourceOrderItem.getProductionImgFile()));
         record.setQuantity(quantity);

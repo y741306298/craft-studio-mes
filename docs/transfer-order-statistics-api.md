@@ -154,12 +154,22 @@ sourceId + targetId + statisticsDate
 
 写入使用 MongoDB 原子 `$inc` 和 `upsert`，同一天同一工厂流向的多次转单会累加到同一条记录。
 
-### 4.2 `orderTransferRecord.targetOrderItemId`
+### 4.2 `orderTransferRecord.targetOrderId/targetOrderItemId`
 
 转单记录同时保存：
 
 - `orderItemId`：源工厂原订单项目 ID；
+- `targetOrderId`：本次转单在目标工厂新生成的订单 ID；
 - `targetOrderItemId`：目标工厂新生成的订单项目 ID。
+
+每次转单都会生成独立的目标订单，目标订单的工厂实际价等于本次转单金额；本次生成的目标订单项目
+均通过 `targetOrderId` 关联到该目标订单。
+
+目标订单项目不会复制源工厂已有的生产零件。所有转入项目都会进入目标工厂的订单预处理队列，
+由预处理流程按目标工厂配置重新生成新的 `productionPiece`。
+
+源订单项目全数量转出时会软删除该源订单项目；源订单已经没有有效订单项目时，会同步软删除源订单。
+查询和再次转单只读取未删除的数据，因此已删除的订单项目不能再次转单。
 
 查询明细时优先使用 `targetOrderItemId` 精确查询目标项目。历史转单记录没有该字段时，兼容使用
 `orderId + targetId` 查询目标工厂订单项目。

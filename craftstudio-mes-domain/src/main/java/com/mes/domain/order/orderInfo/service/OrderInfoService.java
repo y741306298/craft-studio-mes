@@ -64,6 +64,20 @@ public class OrderInfoService {
         return findByOrderIdAndPlatformCode(orderId, null);
     }
 
+    /**
+     * 按业务订单号和所属工厂精确查询订单，避免转单生成的新订单干扰源订单定位。
+     */
+    public OrderInfo findByOrderIdAndManufacturerId(String orderId, String manufacturerId) {
+        if (StringUtils.isBlank(orderId) || StringUtils.isBlank(manufacturerId)) {
+            return null;
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("orderId", orderId);
+        filters.put("manufacturerId", manufacturerId);
+        List<OrderInfo> results = orderInfoRepository.filterList(1, 1, filters);
+        return results.isEmpty() ? null : results.get(0);
+    }
+
     public List<OrderInfo> findByOrderIds(Collection<String> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return Collections.emptyList();
