@@ -94,6 +94,7 @@ public class AppDeliveryPkgService {
     private static final String PRE_ORDER_SIID = "KX100L3AD65411C274";
     private static final String TEST_KUAIDI100_TASK_ID = "TEST_KUAIDI100_TASK_ID";
     private static final String TEST_KUAIDI100_NUM = "TEST_KUAIDI100_NUM";
+    private static final String DEFAULT_RECIPIENT_NAME = "神秘人";
 
     @Autowired
     private WorldRepository worldRepository;
@@ -1436,17 +1437,25 @@ public class AppDeliveryPkgService {
         deliveryPkg.setDeliveryPkgItems(pkgItems);
 
         DeliveryPkgPieceVO firstPiece = request.getPieces().get(0).getPiece();
-        if (firstPiece.getOrderCustomer() != null) {
-            deliveryPkg.setRecipientName(firstPiece.getOrderCustomer().getCustomerName());
-            deliveryPkg.setRecipientPhone(firstPiece.getOrderCustomer().getCustomerPhone());
-            if (firstPiece.getOrderCustomer().getAddress() != null) {
-                Address address = firstPiece.getOrderCustomer().getAddress();
+        OrderCustomer orderCustomer = firstPiece.getOrderCustomer();
+        deliveryPkg.setRecipientName(resolveRecipientName(orderCustomer));
+        if (orderCustomer != null) {
+            deliveryPkg.setRecipientPhone(orderCustomer.getCustomerPhone());
+            if (orderCustomer.getAddress() != null) {
+                Address address = orderCustomer.getAddress();
                 String s = address.buildFullAddressString(worldRepository.loadWorld());
                 deliveryPkg.setRecipientAddress(s);
             }
         }
 
         return deliveryPkgService.createDeliveryPkg(deliveryPkg);
+    }
+
+    private String resolveRecipientName(OrderCustomer orderCustomer) {
+        if (orderCustomer == null || StringUtils.isBlank(orderCustomer.getCustomerName())) {
+            return DEFAULT_RECIPIENT_NAME;
+        }
+        return orderCustomer.getCustomerName();
     }
 
 
