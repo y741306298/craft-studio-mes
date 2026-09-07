@@ -2078,6 +2078,8 @@ public class AppOrderService {
             BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
             manufacturerInfo.getPrice().setActualPrice(safeTransferAmount);
             manufacturerInfo.getPrice().setOriActualPrice(safeTransferAmount);
+            manufacturerInfo.getPrice().setLogisticsPrice(BigDecimal.ZERO);
+            manufacturerInfo.getPrice().setPaymentPrice(safeTransferAmount);
         }
         return targetOrderInfo;
     }
