@@ -1289,9 +1289,9 @@ public class AppOrderService {
             );
             List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
             if (safeProductionPieces.stream().anyMatch(productionPiece ->
-                    hasPendingTypesettingQuantityAtMost(productionPiece, itemDto.getQuantity()))) {
+                    hasPendingTypesettingQuantityLessThan(productionPiece, itemDto.getQuantity()))) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError,
-                        "转单数量必须小于该订单项所有零件的待排版数量");
+                        "转单数量不能大于该订单项任一零件的待排版数量");
             }
             if (safeProductionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
                 return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单项已经开始生产，无法转单");
@@ -2155,7 +2155,7 @@ public class AppOrderService {
         return false;
     }
 
-    private boolean hasPendingTypesettingQuantityAtMost(ProductionPiece productionPiece, int transferQuantity) {
+    private boolean hasPendingTypesettingQuantityLessThan(ProductionPiece productionPiece, int transferQuantity) {
         if (productionPiece == null
                 || productionPiece.getProcedureFlow() == null
                 || productionPiece.getProcedureFlow().getNodes() == null) {
@@ -2166,7 +2166,7 @@ public class AppOrderService {
                 .filter(node -> Objects.equals("待排版", node.getNodeName()))
                 .map(ProcedureFlowNode::getPieceQuantity)
                 .filter(Objects::nonNull)
-                .anyMatch(pendingQuantity -> transferQuantity >= pendingQuantity);
+                .anyMatch(pendingQuantity -> transferQuantity > pendingQuantity);
     }
 
     /**

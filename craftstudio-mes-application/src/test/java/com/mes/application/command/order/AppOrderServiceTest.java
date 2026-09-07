@@ -15,24 +15,24 @@ class AppOrderServiceTest {
     private final AppOrderService service = new AppOrderService();
 
     @Test
-    void rejectsTransferQuantityEqualToPendingTypesettingQuantity() {
-        assertThat(hasPendingTypesettingQuantityAtMost(productionPiece(5), 5)).isTrue();
+    void allowsTransferQuantityEqualToPendingTypesettingQuantity() {
+        assertThat(hasPendingTypesettingQuantityLessThan(productionPiece(5), 5)).isFalse();
     }
 
     @Test
     void rejectsTransferQuantityGreaterThanPendingTypesettingQuantity() {
-        assertThat(hasPendingTypesettingQuantityAtMost(productionPiece(5), 6)).isTrue();
+        assertThat(hasPendingTypesettingQuantityLessThan(productionPiece(5), 6)).isTrue();
     }
 
     @Test
     void allowsTransferQuantityLessThanPendingTypesettingQuantity() {
-        assertThat(hasPendingTypesettingQuantityAtMost(productionPiece(5), 4)).isFalse();
+        assertThat(hasPendingTypesettingQuantityLessThan(productionPiece(5), 4)).isFalse();
     }
 
-    private boolean hasPendingTypesettingQuantityAtMost(ProductionPiece piece, int transferQuantity) {
+    private boolean hasPendingTypesettingQuantityLessThan(ProductionPiece piece, int transferQuantity) {
         return Boolean.TRUE.equals(ReflectionTestUtils.invokeMethod(
                 service,
-                "hasPendingTypesettingQuantityAtMost",
+                "hasPendingTypesettingQuantityLessThan",
                 piece,
                 transferQuantity
         ));
