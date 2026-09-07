@@ -923,6 +923,7 @@ public class AppOrderPreprocessingService {
 
             // 4. 根据pairs生成生产零件
             List<ProductionPiece> resultPieces = new ArrayList<>();
+            List<ProductionPiece> piecesToAdd = new ArrayList<>();
             for (ImageMaskResponse.Pair pair : response.getPairs()) {
                 try {
                     ImageMaskResponse.SideResult sideResult = pair.getPrimaryResult();
@@ -1044,22 +1045,32 @@ public class AppOrderPreprocessingService {
                                     orderItemId, callbackIdentity.preprocessRequestId());
                             return;
                         }
-                        ProductionPiece savedPiece = productionPieceService.addProductionPiece(piece);
-                        // 上面的校验与写入不是一个原子操作。写入后再次校验，并清理竞争窗口内
-                        // cancelOrder/transferOrder 已经判定为失效的回调所创建的零件。
-                        if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
-                            productionPieceService.deleteProductionPiece(savedPiece.getId());
-                            log.warn("删除失效回调竞争生成的生产零件: orderItemId={}, productionPieceId={}, preprocessRequestId={}",
-                                    orderItemId, savedPiece.getProductionPieceId(), callbackIdentity.preprocessRequestId());
-                            return;
-                        }
-                        indexProductionPieceImage(savedPiece);
-                        resultPieces.add(savedPiece);
+                        piecesToAdd.add(piece);
                     }
                 } catch (Exception e) {
                     System.err.println("生成生产零件失败：" + e.getMessage());
                     throw e;
                 }
+            }
+
+            if (!piecesToAdd.isEmpty()) {
+                if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
+                    log.warn("生产零件批量入库前回调已失效: orderItemId={}, preprocessRequestId={}",
+                            orderItemId, callbackIdentity.preprocessRequestId());
+                    return;
+                }
+                resultPieces = productionPieceService.batchAddProductionPieces(piecesToAdd);
+                // 上面的校验与写入不是一个原子操作。写入后再次校验，并清理竞争窗口内
+                // cancelOrder/transferOrder 已经判定为失效的回调所创建的整批零件。
+                if (!isCallbackStillActive(orderItemId, callbackIdentity.preprocessRequestId())) {
+                    for (ProductionPiece savedPiece : resultPieces) {
+                        productionPieceService.deleteProductionPiece(savedPiece.getId());
+                    }
+                    log.warn("删除失效回调竞争生成的生产零件批次: orderItemId={}, pieceCount={}, preprocessRequestId={}",
+                            orderItemId, resultPieces.size(), callbackIdentity.preprocessRequestId());
+                    return;
+                }
+                resultPieces.forEach(this::indexProductionPieceImage);
             }
 
             // 5. 如果成功生成了零件，更新订单项状态并推进到下一个节点
