@@ -178,13 +178,18 @@ public class ProductionPieceService {
                 manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent);
     }
 
-    public List<ProductionPiece> findCreatedBefore(Date beforeTime, int current, int size) {
-        if (beforeTime == null) {
-            throw new IllegalArgumentException("截止时间不能为空");
+    public List<ProductionPiece> findCreatedBetween(
+            Date startTime, Date endExclusive, int current, int size) {
+        if (startTime == null || endExclusive == null) {
+            throw new IllegalArgumentException("开始时间和结束时间不能为空");
+        }
+        if (!startTime.before(endExclusive)) {
+            throw new IllegalArgumentException("开始时间必须早于结束时间");
         }
         Map<String, Object> filters = new HashMap<>();
-        // 仓储层仅支持包含上界；减一毫秒以保持“某日期以前”的严格语义。
-        filters.put("createTime_lte", new Date(beforeTime.getTime() - 1));
+        filters.put("createTime_gte", startTime);
+        // 仓储层仅支持包含上界；减一毫秒使 endExclusive 保持严格排除语义。
+        filters.put("createTime_lte", new Date(endExclusive.getTime() - 1));
         return productionPieceRepository.filterList(current, size, filters);
     }
 

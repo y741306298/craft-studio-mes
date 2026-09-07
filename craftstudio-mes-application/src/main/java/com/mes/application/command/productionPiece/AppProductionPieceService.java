@@ -44,19 +44,24 @@ public class AppProductionPieceService {
                 manufacturerMetaId, com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.COMPLETED.getCode());
     }
 
-    public DeleteProductionPieceVectorsResponse deleteVectorsCreatedBefore(LocalDate beforeDate) {
-        if (beforeDate == null) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "beforeDate 不能为空");
+    public DeleteProductionPieceVectorsResponse deleteVectorsCreatedBetween(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "startDate 和 endDate 不能为空");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "startDate 不能晚于 endDate");
         }
 
-        Date beforeTime = Date.from(beforeDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+        ZoneId zoneId = ZoneId.systemDefault();
+        Date startTime = Date.from(startDate.atStartOfDay(zoneId).toInstant());
+        Date endExclusive = Date.from(endDate.plusDays(1).atStartOfDay(zoneId).toInstant());
         int current = 1;
         int matchedPieceCount = 0;
         int deletedVectorCount = 0;
 
         while (true) {
-            List<ProductionPiece> pieces = domainProductionPieceService.findCreatedBefore(
-                    beforeTime, current, VECTOR_DELETE_BATCH_SIZE);
+            List<ProductionPiece> pieces = domainProductionPieceService.findCreatedBetween(
+                    startTime, endExclusive, current, VECTOR_DELETE_BATCH_SIZE);
             if (pieces == null || pieces.isEmpty()) {
                 break;
             }
@@ -80,7 +85,7 @@ public class AppProductionPieceService {
         }
 
         return new DeleteProductionPieceVectorsResponse(
-                beforeDate.toString(), matchedPieceCount, deletedVectorCount);
+                startDate.toString(), endDate.toString(), matchedPieceCount, deletedVectorCount);
     }
 
     /**
