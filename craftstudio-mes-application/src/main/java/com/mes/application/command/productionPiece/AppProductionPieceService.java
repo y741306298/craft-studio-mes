@@ -67,10 +67,11 @@ public class AppProductionPieceService {
                     .distinct()
                     .toList();
             if (!productionPieceIds.isEmpty()) {
-                if (!imageToImageSearchService.deleteImageVectors(productionPieceIds)) {
+                int deleted = imageToImageSearchService.deleteImageVectors(productionPieceIds);
+                if (deleted < 0) {
                     throw new IllegalStateException("DashVector 批量删除失败，page=" + current);
                 }
-                deletedVectorCount += productionPieceIds.size();
+                deletedVectorCount += deleted;
             }
             if (pieces.size() < VECTOR_DELETE_BATCH_SIZE) {
                 break;
