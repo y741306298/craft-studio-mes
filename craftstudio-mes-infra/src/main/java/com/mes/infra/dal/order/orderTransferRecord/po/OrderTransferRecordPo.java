@@ -17,6 +17,7 @@ public class OrderTransferRecordPo extends BasePO<OrderTransferRecord> {
     private String targetId;
     private String targetName;
     private String orderItemId;
+    private String targetOrderId;
     private String targetOrderItemId;
     private String previewUrl;
     private Integer quantity;
@@ -33,6 +34,7 @@ public class OrderTransferRecordPo extends BasePO<OrderTransferRecord> {
         record.setTargetId(this.targetId);
         record.setTargetName(this.targetName);
         record.setOrderItemId(this.orderItemId);
+        record.setTargetOrderId(this.targetOrderId);
         record.setTargetOrderItemId(this.targetOrderItemId);
         record.setPreviewUrl(this.previewUrl);
         record.setQuantity(this.quantity);
@@ -50,6 +52,7 @@ public class OrderTransferRecordPo extends BasePO<OrderTransferRecord> {
         this.targetId = _do.getTargetId();
         this.targetName = _do.getTargetName();
         this.orderItemId = _do.getOrderItemId();
+        this.targetOrderId = _do.getTargetOrderId();
         this.targetOrderItemId = _do.getTargetOrderItemId();
         this.previewUrl = _do.getPreviewUrl();
         this.quantity = _do.getQuantity();

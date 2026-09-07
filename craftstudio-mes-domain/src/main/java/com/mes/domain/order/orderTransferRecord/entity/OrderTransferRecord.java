@@ -14,6 +14,8 @@ public class OrderTransferRecord extends BaseEntity {
     private String targetId;
     private String targetName;
     private String orderItemId;
+    /** Order ID generated for this transfer at the target factory. */
+    private String targetOrderId;
     /** Order-item ID generated at the target factory. */
     private String targetOrderItemId;
     private String previewUrl;
