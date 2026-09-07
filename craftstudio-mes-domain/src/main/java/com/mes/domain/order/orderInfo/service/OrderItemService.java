@@ -158,6 +158,30 @@ public class OrderItemService {
     }
 
     /**
+     * 批量添加订单项。
+     *
+     * @param orderItems 待添加的订单项
+     * @return 添加后的订单项（包含持久化生成的 ID）
+     */
+    public List<OrderItem> batchAddOrderItems(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return List.of();
+        }
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项不能为空");
+            }
+            if (StringUtils.isBlank(orderItem.getOrderItemId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单项 ID 不能为空");
+            }
+            if (StringUtils.isBlank(orderItem.getOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
+            }
+        }
+        return List.copyOf(orderItemRepository.batchAdd(orderItems));
+    }
+
+    /**
      * 更新订单项
      * @param orderItem 订单项实体
      */

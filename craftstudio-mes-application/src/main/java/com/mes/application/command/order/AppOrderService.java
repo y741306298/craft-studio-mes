@@ -1331,20 +1331,32 @@ public class AppOrderService {
             domainOrderItemService.updateOrderItem(sourceOrderItem);
         }
 
+        List<OrderItem> targetItemsToAdd = new ArrayList<>();
+        Map<String, String> targetItemIdBySourceItemId = new HashMap<>();
+        for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
+            OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
+            String newOrderItemId = IdGenerator.generateOrderItemId();
+            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, targetOrderId, newOrderItemId,
+                    targetManufacturerMetaId, itemDto.getQuantity());
+            targetItemsToAdd.add(targetOrderItem);
+            targetItemIdBySourceItemId.put(itemDto.getOrderItemId(), newOrderItemId);
+        }
+
+        List<OrderItem> transferredItems = domainOrderItemService.batchAddOrderItems(targetItemsToAdd);
+        Map<String, OrderItem> transferredItemById = transferredItems.stream()
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item));
         List<OrderTransferRecord> transferRecords = new ArrayList<>();
         List<OrderItem> targetItemsToPreprocess = new ArrayList<>();
-        List<OrderItem> transferredItems = new ArrayList<>();
         for (OrderTransferRequest.OrderTransferItemDto itemDto : request.getOrderItemDtos()) {
             OrderItem sourceOrderItem = orderItemById.get(itemDto.getOrderItemId());
             Integer transferQuantity = itemDto.getQuantity();
-            String newOrderItemId = IdGenerator.generateOrderItemId();
-
-            OrderItem targetOrderItem = copyOrderItemForTransfer(sourceOrderItem, targetOrderId, newOrderItemId,
-                    targetManufacturerMetaId, transferQuantity);
-            targetOrderItem = domainOrderItemService.addOrderItem(targetOrderItem);
+            String targetOrderItemId = targetItemIdBySourceItemId.get(itemDto.getOrderItemId());
+            OrderItem targetOrderItem = transferredItemById.get(targetOrderItemId);
+            if (targetOrderItem == null) {
+                throw new IllegalStateException("未找到批量创建的转入订单项：" + targetOrderItemId);
+            }
             synchronizeTransferredItemPrices(request.getManufacturerMetaId(), targetManufacturerMetaId,
                     sourceOrderItem, targetOrderItem, transferQuantity);
-            transferredItems.add(targetOrderItem);
             // 转入订单项必须按目标工厂配置重新预处理并生成全新的生产零件，不能复制源零件。
             targetItemsToPreprocess.add(targetOrderItem);
 
@@ -1358,7 +1370,7 @@ public class AppOrderService {
                     targetManufacturerMeta,
                     sourceOrderItem,
                     targetOrderId,
-                    newOrderItemId,
+                    targetOrderItemId,
                     transferQuantity
             ));
         }
