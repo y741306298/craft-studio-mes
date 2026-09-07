@@ -688,18 +688,18 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
      * 删除图片向量
      */
     public boolean deleteImageVector(String docId) {
-        return deleteImageVectors(Collections.singletonList(docId));
+        return deleteImageVectors(Collections.singletonList(docId)) == 1;
     }
 
     /**
      * 按 Doc 主键批量删除图片向量。
      */
     @Override
-    public boolean deleteImageVectors(List<String> docIds) {
+    public int deleteImageVectors(List<String> docIds) {
         try {
             if (collection == null) {
                 System.err.println("DashVector collection not initialized");
-                return false;
+                return -1;
             }
 
             List<String> validDocIds = docIds == null ? Collections.emptyList() : docIds.stream()
@@ -707,7 +707,7 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     .distinct()
                     .toList();
             if (validDocIds.isEmpty()) {
-                return true;
+                return 0;
             }
 
             DeleteDocRequest request = DeleteDocRequest.builder()
@@ -716,17 +716,26 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
 
             Response<List<com.aliyun.dashvector.models.DocOpResult>> resp = collection.delete(request);
 
-            if (resp.isSuccess()) {
-                System.out.println("Successfully deleted image vectors, count=" + validDocIds.size());
-                return true;
-            } else {
-                System.err.println("Failed to delete image vector: " + resp.getMessage());
-                return false;
+            if (!resp.isSuccess()) {
+                System.err.println("Failed to delete image vectors, code=" + resp.getCode()
+                        + ", message=" + resp.getMessage() + ", requestId=" + resp.getRequestId());
+                return -1;
             }
+
+            int deletedCount = resp.getOutput() == null ? 0 : (int) resp.getOutput().stream()
+                    .filter(Objects::nonNull)
+                    .filter(result -> result.getCode() == 0)
+                    .count();
+            if (deletedCount < validDocIds.size()) {
+                System.err.println("DashVector did not delete every requested document, results=" + resp.getOutput());
+            }
+            System.out.println("DashVector delete completed, requested=" + validDocIds.size()
+                    + ", succeeded=" + deletedCount + ", requestId=" + resp.getRequestId());
+            return deletedCount;
         } catch (DashVectorException e) {
             System.err.println("Error deleting image vector: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return -1;
         }
     }
 

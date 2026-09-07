@@ -135,12 +135,13 @@ public class ProductionPieceController {
     }
 
     /**
-     * 删除指定日期零点以前创建的生产工件所对应的 DashVector Doc。
+     * 删除指定日期范围内创建的生产工件所对应的 DashVector Doc，包含起止日期全天。
      */
-    @DeleteMapping("/vectors/before")
-    public ApiResponse<DeleteProductionPieceVectorsResponse> deleteVectorsCreatedBefore(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate beforeDate) {
-        return ApiResponse.success(appProductionPieceService.deleteVectorsCreatedBefore(beforeDate));
+    @DeleteMapping("/vectors/between")
+    public ApiResponse<DeleteProductionPieceVectorsResponse> deleteVectorsCreatedBetween(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(appProductionPieceService.deleteVectorsCreatedBetween(startDate, endDate));
     }
 
     @PostMapping("/batchRedo")
