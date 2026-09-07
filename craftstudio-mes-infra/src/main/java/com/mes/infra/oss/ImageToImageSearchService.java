@@ -11,5 +11,5 @@ public interface ImageToImageSearchService {
 
     void indexImage(String docId, String imageUrl, String productionPieceId, String manufacturerMetaId);
 
-    boolean deleteImageVectors(List<String> docIds);
+    int deleteImageVectors(List<String> docIds);
 }
