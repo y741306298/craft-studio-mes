@@ -43,9 +43,15 @@ class AppOrderServiceTest {
     }
 
     @Test
-    void createsTransferOrderWithItsOwnOrderIdAndActualTransferPrice() {
+    void createsTransferOrderWithTransferredManufacturerPriceWithoutChangingOrderPrice() {
         OrderInfo source = orderInfoWithManufacturerPrice("100.00");
         source.setOrderId("SOURCE-ORDER");
+        source.getManufacturerInfo().getPrice().setLogisticsPrice(new BigDecimal("12.00"));
+        source.getManufacturerInfo().getPrice().setPaymentPrice(new BigDecimal("112.00"));
+        OrderPriceInfo orderPrice = new OrderPriceInfo();
+        orderPrice.setLogisticsPrice(new BigDecimal("20.00"));
+        orderPrice.setPaymentPrice(new BigDecimal("120.00"));
+        source.setPrice(orderPrice);
         ManufacturerMeta targetManufacturer = new ManufacturerMeta();
         targetManufacturer.setManufacturerMetaId("TARGET-MANUFACTURER");
         targetManufacturer.setName("目标工厂");
@@ -58,7 +64,13 @@ class AppOrderServiceTest {
         assertThat(target.getManufacturerId()).isEqualTo("TARGET-MANUFACTURER");
         assertThat(target.getManufacturerInfo().getPrice().getActualPrice()).isEqualByComparingTo("30.00");
         assertThat(target.getManufacturerInfo().getPrice().getOriActualPrice()).isEqualByComparingTo("30.00");
+        assertThat(target.getManufacturerInfo().getPrice().getLogisticsPrice()).isEqualByComparingTo("0.00");
+        assertThat(target.getManufacturerInfo().getPrice().getPaymentPrice()).isEqualByComparingTo("30.00");
+        assertThat(target.getPrice().getLogisticsPrice()).isEqualByComparingTo("20.00");
+        assertThat(target.getPrice().getPaymentPrice()).isEqualByComparingTo("120.00");
         assertThat(source.getManufacturerInfo().getPrice().getActualPrice()).isEqualByComparingTo("100.00");
+        assertThat(source.getManufacturerInfo().getPrice().getLogisticsPrice()).isEqualByComparingTo("12.00");
+        assertThat(source.getManufacturerInfo().getPrice().getPaymentPrice()).isEqualByComparingTo("112.00");
     }
 
     @Test

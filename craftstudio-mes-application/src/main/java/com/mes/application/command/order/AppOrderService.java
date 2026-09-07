@@ -2072,12 +2072,16 @@ public class AppOrderService {
             }
             manufacturerInfo.setId(targetManufacturerMeta.getManufacturerMetaId());
             manufacturerInfo.setName(targetManufacturerMeta.getName());
-            if (manufacturerInfo.getPrice() == null) {
-                manufacturerInfo.setPrice(new OrderPriceInfo());
+            OrderPriceInfo manufacturerPrice = manufacturerInfo.getPrice();
+            if (manufacturerPrice == null) {
+                manufacturerPrice = new OrderPriceInfo();
+                manufacturerInfo.setPrice(manufacturerPrice);
             }
             BigDecimal safeTransferAmount = transferAmount == null ? BigDecimal.ZERO : transferAmount;
-            manufacturerInfo.getPrice().setActualPrice(safeTransferAmount);
-            manufacturerInfo.getPrice().setOriActualPrice(safeTransferAmount);
+            manufacturerPrice.setActualPrice(safeTransferAmount);
+            manufacturerPrice.setOriActualPrice(safeTransferAmount);
+            manufacturerPrice.setLogisticsPrice(BigDecimal.ZERO);
+            manufacturerPrice.setPaymentPrice(safeTransferAmount);
         }
         return targetOrderInfo;
     }
