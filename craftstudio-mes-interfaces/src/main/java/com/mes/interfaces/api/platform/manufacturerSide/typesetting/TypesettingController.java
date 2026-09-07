@@ -180,11 +180,11 @@ public class TypesettingController {
      * @return 排版结果
      */
     @PostMapping("/toLayout")
-    public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody LayoutConfirmRequest request) {
+    public ApiResponse<LayoutConfirmResult> toLayout(@Valid @RequestBody ToLayoutRequest request) {
         logger.info("========== toLayout 入参开始 ==========");
         logger.info("response: " + JsonLogUtil.toJSONString(request));
         logger.info("========== toLayout 入参结束 ==========");
-        LayoutConfirmResult result = appTypesettingService.toLayout(request);
+        LayoutConfirmResult result = appTypesettingService.toLayout(request.toLayoutConfirmRequest());
         if (!result.isSuccess()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
