@@ -1221,6 +1221,7 @@ public class AppTypesettingService {
                 }
                 dbPiece.setQuantity(quantity);
                 cell.setQuantity(quantity);
+                cell.setOrderItemId(dbPiece.getOrderItemId());
                 cell.setIsRedo(dbPiece.getIsRedo());
                 cell.setHaveBlood(isBloodPieceByCoordinates(dbPiece));
                 productionPieces.add(dbPiece);

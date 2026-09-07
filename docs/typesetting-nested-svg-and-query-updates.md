@@ -36,7 +36,58 @@
 
 ## 3. toLayout 行为改动
 
-### 3.1 完成校验后立即维护数量
+### 3.1 入参精简
+
+`POST /api/manufacturerSide/typesetting/toLayout` 使用专用的 `ToLayoutRequest`，现有 JSON 字段名保持不变。
+`typesettingCells` 不再复用包含大量列表展示字段的 `TypesettingProductionPieceVO`，改用专门的
+`ToLayoutCellRequest`，只定义 `sourceType`、`sourceId`、`quantity` 三个入参字段。调用方只应提交下面这些字段：
+
+`toLayout` 内部仍保留原有的 `toProductionPiece()` / `toTypesettingInfo()` 转换：精简 cell 转换到内部 VO 后，
+`sourceId` 分别映射为领域对象 ID，`quantity` 映射为本次排版数量；服务端随后按 ID 查询完整数据库记录。
+因此三个 cell 字段可以覆盖这两个转换方法在 `toLayout` 中实际会用到的字段。
+
+| 字段 | 必填 | 是否直接使用入参 | 说明 |
+| --- | --- | --- | --- |
+| `manufacturerMetaId` | 是 | 是 | 用于生成排版任务 ID、上传目录以及查询工厂排版配置 |
+| `layoutMode` | 是 | 是 | 决定排版算法、间距和回调地址 |
+| `typesettingCells` | 是，至少一项 | 是 | 本次参与排版的来源列表 |
+| `typesettingCells[].sourceType` | 是 | 是 | 仅支持 `PRODUCTION_PIECE`（生产零件）和 `TYPESETTING`（历史印版） |
+| `typesettingCells[].sourceId` | 是 | 是 | 生产零件或历史印版的数据库 ID |
+| `typesettingCells[].quantity` | 是，且大于 0 | 是 | 本次占用并提交算法的数量；留白零件会按业务规则修正为 1 |
+| `containers` | 否 | 是 | 排版容器规格；不传时使用默认规格 `1500 × 1000` |
+| `containers[].width` | `containers` 项存在时需要 | 是 | 容器宽度，后端还会按工艺配置进行内缩 |
+| `containers[].height` | `containers` 项存在时需要 | 是 | 容器高度，后端还会按工艺配置进行内缩 |
+
+最小请求示例：
+
+```json
+{
+  "manufacturerMetaId": "factory-id",
+  "layoutMode": "layout-mode-code",
+  "typesettingCells": [
+    {
+      "sourceType": "PRODUCTION_PIECE",
+      "sourceId": "production-piece-id",
+      "quantity": 2
+    }
+  ]
+}
+```
+
+下列属性不再属于 `toLayout` 入参。后端根据 `sourceType + sourceId` 查询 `ProductionPiece` 或
+`TypesettingInfo` 后取得，避免客户端回传的列表快照过期或被篡改：
+
+- 材料：`materialConfig`、`materialConfigs`、`oriName`、`oriMaterialId`、`oriMaterialType`；
+- 工艺：`processingFlow`、`procedureFlow`；
+- 排版素材和尺寸：`templateCode`、`maskSvg`、`previewUrl`、`width`、`height`；
+- 状态和业务标记：`status`、`isUrgent`、`isRedo`、`haveBlood`、`leaveQuantity`；
+- 展示与关联信息：`id`、`groupId`、`orderItemId`、`remark`、`description`、`createTime`、
+  `typesettingCells`（来源印版的历史来源明细）。
+
+其中 `orderItemId`、`isRedo`、`haveBlood` 会在查询后回填到服务端请求快照，供异步回调和来源追踪使用；
+这些字段不是客户端输入。
+
+### 3.2 完成校验后立即维护数量
 在所有 `toLayout` 校验完成、调用 `generateGridNestedFilesAsync` / `generateNestedFilesAsync` 之前：
 
 1. 对本次参与的 `ProductionPiece`：
@@ -46,8 +97,22 @@
 
 提前占用来源数量，确保异步排版请求执行期间，相同零件或历史印版不会被再次提交排版。
 
-### 3.2 新建排版记录保存来源
+### 3.3 新建排版记录保存来源
 新建 `TypesettingInfo` 时，将请求中的 `typesettingCells` 转为 `TypesettingSourceCell` 并保存，作为本次排版提交的来源快照。
+
+### 3.4 异步算法调用次数与重复提交
+
+单次进入后端的 `toLayout` 调用只会执行一次异步排版算法：代码按 `layoutMode.layoutCategory` 进入一个
+`switch` 分支，并在每个分支调用一种算法后立即 `break`，不存在同一次方法执行同时调用通用和专用算法的路径。
+
+如果观察到两条异步算法调用记录，应结合两条记录的 `callbackCustomValue.id`（即本次生成的 `typesettingId`）判断：
+
+- ID 相同：需要继续排查算法服务、网关或日志采集侧是否重复记录/执行；MES 的一次方法执行只发出一次 HTTP 请求；
+- ID 不同：说明 MES 实际收到了两次 `toLayout` 请求，常见来源是前端重复点击、客户端超时重试或网关重试。
+
+来源锁用于防止两个请求**同时**处理同一来源，但第一个请求完成后会释放，并不提供跨请求幂等。可排版数量校验也不是
+重复请求校验：例如待排版数量为 10、每次请求数量为 1 时，两个串行请求都会正常通过，并分别占用 1；只有后一个请求的
+数量大于当时剩余的待排版数量时才会失败。历史印版同理，按当时的 `leaveQuantity` 判断。
 
 ---
 
