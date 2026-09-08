@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
@@ -75,6 +76,7 @@ import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.productionPieceGenerationTask.entity.ProductionPieceGenerationTask;
 import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
+import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import com.google.zxing.BarcodeFormat;
@@ -3754,6 +3756,19 @@ public class AppTypesettingService {
             throw new RuntimeException("排版ID列表不能为空");
         }
 
+        Map<String, TypesettingInfo> typesettingInfoMap = new LinkedHashMap<>();
+        for (String typesettingId : typesettingIds) {
+            if (StringUtils.isBlank(typesettingId) || typesettingInfoMap.containsKey(typesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = domainTypesettingService.findById(typesettingId);
+            if (info != null && TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "存在排版中的印版，不允许释放");
+            }
+            typesettingInfoMap.put(typesettingId, info);
+        }
+
         Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
         Map<String, Integer> typesettingRollbackQuantity = new LinkedHashMap<>();
         List<String> releasedPieceIds = new ArrayList<>();
@@ -3768,7 +3783,7 @@ public class AppTypesettingService {
             if (deletedLayoutIdSet.contains(typesettingId)) {
                 continue;
             }
-            TypesettingInfo info = domainTypesettingService.findById(typesettingId);
+            TypesettingInfo info = typesettingInfoMap.get(typesettingId);
             if (info == null || StringUtils.isBlank(info.getId())) {
                 errorMessages.add("排版记录不存在: " + typesettingId);
                 continue;
