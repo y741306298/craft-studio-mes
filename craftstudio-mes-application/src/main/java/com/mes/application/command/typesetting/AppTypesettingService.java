@@ -4509,7 +4509,7 @@ public class AppTypesettingService {
      * 2) 如果存在“覆膜”，其 paramConfigs 必须一致；
      * 3) 如果存在“覆板”，其 paramConfigs 也必须一致；
      * 4) 校验通过后，按节点顺序提取所有来源工序流的最长公共前缀；
-     * 5) 如果本次所有生产工件来源都包含“覆板”工艺，则生成的排版工序流必须包含“覆板”节点。
+     * 5) 如果本次所有来源都包含“覆膜”、“不覆膜”或“覆板”工艺，则生成的排版工序流必须保留对应节点。
      */
     private ProcedureFlow validateAndBuildCommonProcedureFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         List<ProcedureFlow> procedureFlows = new ArrayList<>();
@@ -4552,7 +4552,9 @@ public class AppTypesettingService {
             }
             commonNodes.add(base);
         }
-        appendCoverBoardNodeIfAllProductionPiecesHaveIt(commonNodes, productionPieces);
+        appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "覆膜");
+        appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "不覆膜");
+        appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "覆板");
         if (commonNodes.isEmpty()) {
             return null;
         }
@@ -4563,28 +4565,28 @@ public class AppTypesettingService {
     }
 
     /**
-     * 覆板生产工件生成排版后仍需要保留“覆板”工序。
+     * 生成排版后仍需要保留所有来源共有的指定工序。
      *
-     * <p>最长公共前缀可能在“覆板”之前就结束，导致新印版的 procedureFlow 丢失覆板节点；
-     * 当本次所有生产工件来源都包含覆板时，补入第一个生产工件上的覆板节点。若公共节点中已经
-     * 包含覆板，则不重复添加。</p>
+     * <p>最长公共前缀可能在后道工序之前就结束，导致新印版的 procedureFlow 丢失覆膜、覆板等节点；
+     * 当本次所有来源都包含指定工序时，补入第一个来源上的对应节点。若公共节点中已经
+     * 包含该工序，则不重复添加。</p>
      */
-    private void appendCoverBoardNodeIfAllProductionPiecesHaveIt(List<ProcedureFlowNode> commonNodes,
-                                                                  List<ProductionPiece> productionPieces) {
-        if (commonNodes == null || CollectionUtils.isEmpty(productionPieces)) {
+    private void appendNodeIfAllProcedureFlowsHaveIt(List<ProcedureFlowNode> commonNodes,
+                                                       List<ProcedureFlow> procedureFlows,
+                                                       String nodeName) {
+        if (commonNodes == null || CollectionUtils.isEmpty(procedureFlows) || StringUtils.isBlank(nodeName)) {
             return;
         }
-        if (commonNodes.stream().anyMatch(node -> node != null && "覆板".equals(node.getNodeName()))) {
+        if (commonNodes.stream().anyMatch(node -> node != null && nodeName.equals(node.getNodeName()))) {
             return;
         }
-        boolean allProductionPiecesHaveCoverBoard = productionPieces.stream()
-                .allMatch(piece -> piece != null && hasProcedureNode(piece.getProcedureFlow(), "覆板"));
-        if (!allProductionPiecesHaveCoverBoard) {
+        boolean allProcedureFlowsHaveNode = procedureFlows.stream()
+                .allMatch(flow -> hasProcedureNode(flow, nodeName));
+        if (!allProcedureFlowsHaveNode) {
             return;
         }
-        productionPieces.stream()
-                .map(ProductionPiece::getProcedureFlow)
-                .map(flow -> findProcedureNode(flow, "覆板"))
+        procedureFlows.stream()
+                .map(flow -> findProcedureNode(flow, nodeName))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .ifPresent(commonNodes::add);
