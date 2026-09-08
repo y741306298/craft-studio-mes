@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -110,13 +111,13 @@ public class DeliveryRouteService {
         deliveryRoute.setRouteId(routeId);
         
         List<RouteNode> routeNodes = deliveryRoute.getRouteNodes();
-        prepareRouteNodes(routeNodes);
+        prepareNewRouteNodes(routeNodes);
         deliveryRoute.setDeliveryRouteNodes(null);
         return deliveryRouteRepository.add(deliveryRoute);
     }
 
 
-    private void prepareRouteNodes(List<RouteNode> routeNodes) {
+    private void prepareNewRouteNodes(List<RouteNode> routeNodes) {
         if (routeNodes == null || routeNodes.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不能为空");
         }
@@ -126,7 +127,11 @@ public class DeliveryRouteService {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点名称不能为空");
             }
             routeNode.setId(String.valueOf(i + 1));
+            if (routeNode.getNodeOrder() == null) {
+                routeNode.setNodeOrder(i + 1);
+            }
         }
+        validateAndSortRouteNodes(routeNodes);
     }
 
     /**
@@ -143,13 +148,11 @@ public class DeliveryRouteService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线名称不能为空");
         }
         
-        List<String> removedSimpleNodeIds = List.of();
         if (deliveryRoute.getRouteNodes() != null) {
-            removedSimpleNodeIds = resolveRemovedSimpleRouteNodeIds(deliveryRoute.getId(), deliveryRoute.getRouteNodes());
-            prepareRouteNodes(deliveryRoute.getRouteNodes());
+            mergeRouteNodesForUpdate(deliveryRoute.getId(), deliveryRoute.getRouteNodes());
         }
         List<DeliveryRouteNode> routeNodes = deliveryRoute.getDeliveryRouteNodes();
-        List<String> removedNodeIds = new ArrayList<>(removedSimpleNodeIds);
+        List<String> removedNodeIds = new ArrayList<>();
         for (String removedRouteNodeId : resolveRemovedRouteNodeIds(deliveryRoute.getId(), routeNodes)) {
             addIfNotBlank(removedNodeIds, removedRouteNodeId);
         }
@@ -186,26 +189,67 @@ public class DeliveryRouteService {
         }
     }
 
-    private List<String> resolveRemovedSimpleRouteNodeIds(String routeId, List<RouteNode> newNodes) {
+    private void mergeRouteNodesForUpdate(String routeId, List<RouteNode> newNodes) {
         DeliveryRoute existingRoute = deliveryRouteRepository.findById(routeId);
-        if (existingRoute == null || existingRoute.getRouteNodes() == null || existingRoute.getRouteNodes().isEmpty()) {
-            return List.of();
+        if (existingRoute == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
         }
+        List<RouteNode> existingNodes = existingRoute.getRouteNodes() == null
+                ? List.of() : existingRoute.getRouteNodes();
+        Map<String, RouteNode> existingById = existingNodes.stream()
+                .filter(Objects::nonNull)
+                .filter(node -> StringUtils.isNotBlank(node.getId()))
+                .collect(Collectors.toMap(RouteNode::getId, node -> node));
         Set<String> retainedNodeIds = new HashSet<>();
-        if (newNodes != null) {
-            for (RouteNode node : newNodes) {
-                if (node != null && StringUtils.isNotBlank(node.getId())) {
-                    retainedNodeIds.add(node.getId());
+        int nextNodeId = nextNumericRouteNodeId(existingNodes);
+        for (RouteNode node : newNodes) {
+            if (node == null || StringUtils.isBlank(node.getName())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点名称不能为空");
+            }
+            if (StringUtils.isBlank(node.getId())) {
+                while (existingById.containsKey(String.valueOf(nextNodeId))) {
+                    nextNodeId++;
                 }
+                node.setId(String.valueOf(nextNodeId++));
+            } else if (!existingById.containsKey(node.getId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点 ID 不存在: " + node.getId());
+            }
+            if (!retainedNodeIds.add(node.getId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "同一路线下节点 ID 不能重复");
             }
         }
-        List<String> removedNodeIds = new ArrayList<>();
-        for (RouteNode node : existingRoute.getRouteNodes()) {
-            if (node != null && StringUtils.isNotBlank(node.getId()) && !retainedNodeIds.contains(node.getId())) {
-                removedNodeIds.add(node.getId());
+        if (!retainedNodeIds.containsAll(existingById.keySet())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "编辑配送路线不允许删除节点，请使用节点删除接口");
+        }
+        validateAndSortRouteNodes(newNodes);
+    }
+
+    private int nextNumericRouteNodeId(List<RouteNode> nodes) {
+        int maxId = 0;
+        for (RouteNode node : nodes) {
+            if (node == null || StringUtils.isBlank(node.getId())) {
+                continue;
+            }
+            try {
+                maxId = Math.max(maxId, Integer.parseInt(node.getId()));
+            } catch (NumberFormatException ignored) {
+                // Legacy non-numeric IDs do not participate in numeric ID allocation.
             }
         }
-        return removedNodeIds;
+        return maxId + 1;
+    }
+
+    private void validateAndSortRouteNodes(List<RouteNode> routeNodes) {
+        Set<Integer> orders = new HashSet<>();
+        for (RouteNode node : routeNodes) {
+            if (node.getNodeOrder() == null || node.getNodeOrder() <= 0) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点顺序必须为正整数");
+            }
+            if (!orders.add(node.getNodeOrder())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "同一路线下节点顺序不能重复");
+            }
+        }
+        routeNodes.sort(Comparator.comparing(RouteNode::getNodeOrder));
     }
 
     private List<String> resolveRemovedRouteNodeIds(String routeId, List<DeliveryRouteNode> newNodes) {
@@ -524,6 +568,68 @@ public class DeliveryRouteService {
                 deliveryRouteNodeRepository.batchUpdate(nodes);
             }
         }
+    }
+
+    /**
+     * 删除轻量路线节点，并将其后节点的顺序前移一位。
+     */
+    public void removeSimpleRouteNode(String routeId, String nodeId) {
+        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点 ID 不能为空");
+        }
+        DeliveryRoute route = deliveryRouteRepository.findById(routeId);
+        if (route == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "配送路线不存在");
+        }
+        List<RouteNode> nodes = route.getRouteNodes();
+        if (nodes == null || nodes.isEmpty()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不存在");
+        }
+        RouteNode removedNode = nodes.stream()
+                .filter(Objects::nonNull)
+                .filter(node -> nodeId.equals(node.getId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线节点不存在"));
+        assertNoInProductionOrderBinding(routeId, List.of(nodeId), "存在生产中的订单绑定了该路线节点，不能删除节点");
+
+        Integer removedOrder = removedNode.getNodeOrder();
+        nodes.remove(removedNode);
+        if (removedOrder != null) {
+            for (RouteNode node : nodes) {
+                if (node.getNodeOrder() != null && node.getNodeOrder() > removedOrder) {
+                    node.setNodeOrder(node.getNodeOrder() - 1);
+                }
+            }
+        }
+        nodes.sort(Comparator.comparing(RouteNode::getNodeOrder, Comparator.nullsLast(Integer::compareTo)));
+        deliveryRouteRepository.update(route);
+        unbindAddressesByRouteNodes(routeId, List.of(nodeId));
+        clearRouteBindings(routeId, List.of(nodeId));
+        deleteRouteNodeBindings(List.of(nodeId));
+    }
+
+    /**
+     * 按每条路线当前的数组顺序回填轻量节点顺序，返回更新的路线数量。
+     */
+    public int migrateSimpleRouteNodeOrders() {
+        List<DeliveryRoute> routesToUpdate = new ArrayList<>();
+        for (DeliveryRoute route : deliveryRouteRepository.listAll()) {
+            List<RouteNode> nodes = route.getRouteNodes();
+            if (nodes == null || nodes.isEmpty()) {
+                continue;
+            }
+            for (int i = 0; i < nodes.size(); i++) {
+                RouteNode node = nodes.get(i);
+                if (node != null) {
+                    node.setNodeOrder(i + 1);
+                }
+            }
+            routesToUpdate.add(route);
+        }
+        if (!routesToUpdate.isEmpty()) {
+            deliveryRouteRepository.batchUpdate(routesToUpdate);
+        }
+        return routesToUpdate.size();
     }
 
 

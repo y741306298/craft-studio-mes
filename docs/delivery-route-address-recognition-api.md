@@ -55,6 +55,7 @@
 | --- | --- | --- |
 | `id` | string | 服务端按传入顺序生成，值为 `"1"`, `"2"`, `"3"` ... |
 | `name` | string | 节点名称，不能为空 |
+| `nodeOrder` | integer | 节点在所属路线中的实际顺序，为正整数且同一路线内唯一 |
 
 ### 3.2 DeliveryRouteListResponse
 
@@ -126,8 +127,8 @@ POST {basePath}/list
         "routeId": "ROUTE_001",
         "routeName": "城北线路",
         "routeNodes": [
-          { "id": "1", "name": "节点A" },
-          { "id": "2", "name": "节点B" }
+          { "id": "1", "name": "节点A", "nodeOrder": 1 },
+          { "id": "2", "name": "节点B", "nodeOrder": 2 }
         ],
         "status": "ACTIVE",
         "createTime": "2026-06-11 10:00:00",
@@ -170,7 +171,7 @@ GET {basePath}/{id}
     "routeId": "ROUTE_001",
     "routeName": "城北线路",
     "routeNodes": [
-      { "id": "1", "name": "节点A" }
+      { "id": "1", "name": "节点A", "nodeOrder": 1 }
     ],
     "status": "ACTIVE",
     "createTime": "2026-06-11 10:00:00",
@@ -192,8 +193,8 @@ POST {basePath}/add
   "routeName": "城北线路",
   "manufacturerMetaId": "MANUFACTURER_ID",
   "routeNodes": [
-    { "name": "节点A" },
-    { "name": "节点B" }
+    { "name": "节点A", "nodeOrder": 1 },
+    { "name": "节点B", "nodeOrder": 2 }
   ],
   "status": "ACTIVE"
 }
@@ -208,11 +209,12 @@ POST {basePath}/add
 | `routeNodes` | RouteNode[] | 是 | 路线节点列表 |
 | `routeNodes[].name` | string | 是 | 节点名称，不能为空 |
 | `routeNodes[].id` | string | 否 | 无需前端传；服务端按顺序生成 |
+| `routeNodes[].nodeOrder` | integer | 否 | 节点实际顺序，必须为正整数且同一路线内不能重复；新增路线时未传则按数组位置生成 |
 | `status` | string | 否 | 路线状态 |
 
 #### 业务说明
 
-服务端会校验 `routeNodes` 非空、每个节点名称非空，并按传入顺序将节点 ID 设置为 `"1"`, `"2"`, `"3"` ...。
+服务端会校验 `routeNodes` 非空、每个节点名称非空，并按传入顺序将节点 ID 设置为 `"1"`, `"2"`, `"3"` ...。节点最终按 `nodeOrder` 升序保存，未传 `nodeOrder` 时按照请求数组位置从 `1` 开始补全。
 
 #### 响应体
 
@@ -236,18 +238,35 @@ POST {basePath}/edit
   "routeName": "城北线路-更新",
   "manufacturerMetaId": "MANUFACTURER_ID",
   "routeNodes": [
-    { "name": "节点A" },
-    { "name": "节点B" },
-    { "name": "节点C" }
+    { "id": "1", "name": "节点A-新名称", "nodeOrder": 2 },
+    { "id": "2", "name": "节点B", "nodeOrder": 1 },
+    { "name": "节点C", "nodeOrder": 3 }
   ],
   "status": "ACTIVE"
 }
 ```
 
-#### 说明
+#### 字段说明
 
-* `id` 必填，用于定位要编辑的路线。
-* 若传入 `routeNodes`，服务端会重新按顺序生成 `routeNodes[].id`。
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `id` | string | 是 | 配送路线 Mongo ID，用于定位要编辑的路线 |
+| `routeName` | string | 是 | 路线名称 |
+| `manufacturerMetaId` | string | 否 | 厂商 ID |
+| `routeNodes` | RouteNode[] | 否 | 路线节点完整列表；传入时必须包含所有已有节点 |
+| `routeNodes[].id` | string | 已有节点是；新增节点否 | 已有节点必须原样回传详情接口返回的 ID；新增节点不传 ID，由服务端生成 |
+| `routeNodes[].name` | string | 是 | 节点名称；携带已有节点 ID 时更新该节点名称，不携带 ID 时新增节点 |
+| `routeNodes[].nodeOrder` | integer | 是 | 节点实际顺序，必须为正整数且同一路线内不能重复；更新后按该字段升序保存 |
+| `status` | string | 否 | 路线状态 |
+
+#### 业务规则
+
+* 编辑接口只允许新增节点或修改已有节点名称，不允许删除节点。
+* 已有节点必须携带原 `id`。服务端根据 `id` 定位并更新节点名称，不得重新生成或改变已有节点 ID。
+* 不携带 `id` 的节点视为新增节点，由服务端为其生成不与已有节点重复的新 ID。
+* 编辑时以实际传入的 `nodeOrder` 更新已有及新增节点顺序；同一路线下出现重复顺序时请求失败。
+* `routeNodes` 必须是完整列表。与编辑前相比缺少任一已有节点时，请求应失败；不得把缺少的节点当作删除，也不得清除其订单、地址或生产工件绑定。
+* 需要删除节点时不得调用本接口，应使用独立的节点删除接口，并执行相应的生产中订单绑定校验。
 * 路线不存在时返回失败，提示“配送路线不存在”。
 
 #### 响应体
@@ -257,6 +276,22 @@ POST {basePath}/edit
   "data": "success"
 }
 ```
+
+#### 4.5.1 删除轻量路线节点
+
+```http
+DELETE {basePath}/{routeId}/routeNodes/{nodeId}
+```
+
+该接口专门用于删除 `RouteNode`。删除成功后，所有 `nodeOrder` 大于被删节点顺序的节点会自动减 `1`；若节点绑定了生产中的订单，则拒绝删除。
+
+#### 4.5.2 回填全部路线节点顺序
+
+```http
+POST {basePath}/routeNodes/migrate-order
+```
+
+该接口用于一次性迁移历史数据。服务端遍历全部未删除路线，按照每条路线当前 `routeNodes` 数组顺序，将 `nodeOrder` 从 `1` 开始依次回填并持久化。响应 `data` 为本次更新的路线数量。该接口可重复执行。
 
 ### 4.6 删除配送路线
 
@@ -604,5 +639,5 @@ DELETE {basePath}/address-recognition/batch
 
 1. 路线列表搜索优先使用 `name`，兼容旧字段 `routeName`。
 2. 地址识别记录搜索优先使用 `name`，兼容旧字段 `detailAddress`。
-3. `routeNodes[].id` 不需要前端传，服务端按传入顺序自动生成。
+3. 新增路线时，`routeNodes[].id` 不需要前端传，服务端按传入顺序自动生成；编辑路线时，已有节点必须携带原 `id`，只有新增节点不传 `id`。
 4. 排版/生产工件和待打包列表没有 `name` 搜索变更；本次 `name` 搜索仅限配送路线和地址识别记录。

@@ -3,6 +3,7 @@ package com.mes.infra.dal.delivery.deliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.infra.base.BaseRepositoryImp;
+import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.mes.infra.dal.delivery.deliveryRoute.po.DeliveryRoutePo;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -97,6 +98,14 @@ public class DeliveryRouteRepositoryImp extends BaseRepositoryImp<DeliveryRoute,
                         Criteria.where("_id").in(routeIds),
                         Criteria.where("routeId").in(routeIds)));
         return mongoTemplate.find(new Query(criteria), poClass()).stream()
+                .map(DeliveryRoutePo::toDO)
+                .toList();
+    }
+
+    @Override
+    public List<DeliveryRoute> listAll() {
+        return mongoTemplate.find(new SoftDeleteQuery().with(Sort.by(Sort.Direction.ASC, "_id")), poClass())
+                .stream()
                 .map(DeliveryRoutePo::toDO)
                 .toList();
     }

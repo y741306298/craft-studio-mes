@@ -188,6 +188,19 @@ public class DeliveryRouteController {
         return ApiResponse.success("success");
     }
 
+    @DeleteMapping("/{routeId}/routeNodes/{nodeId}")
+    public ApiResponse<String> removeSimpleRouteNode(
+            @PathVariable String routeId,
+            @PathVariable String nodeId) {
+        appDeliveryRouteService.removeSimpleRouteNode(routeId, nodeId);
+        return ApiResponse.success("success");
+    }
+
+    @PostMapping("/routeNodes/migrate-order")
+    public ApiResponse<Integer> migrateRouteNodeOrders() {
+        return ApiResponse.success(appDeliveryRouteService.migrateSimpleRouteNodeOrders());
+    }
+
 
     @PostMapping("/address-recognition/list")
     public PagedApiResponse<AddressRecognitionRecordResponse> listAddressRecognitionRecords(
