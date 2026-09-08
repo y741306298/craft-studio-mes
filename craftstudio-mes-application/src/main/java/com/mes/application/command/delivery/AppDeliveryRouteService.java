@@ -129,6 +129,17 @@ public class AppDeliveryRouteService {
         domainDeliveryRouteService.removeRouteNode(routeId, nodeId);
     }
 
+    public void removeSimpleRouteNode(String routeId, String nodeId) {
+        if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
+            throw new IllegalArgumentException("路线和节点 ID 不能为空");
+        }
+        domainDeliveryRouteService.removeSimpleRouteNode(routeId, nodeId);
+    }
+
+    public int migrateSimpleRouteNodeOrders() {
+        return domainDeliveryRouteService.migrateSimpleRouteNodeOrders();
+    }
+
     public PagedResult<AddressRecognitionRecordResponse> listAddressRecognitionRecords(
             String manufacturerMetaId, String routeId, String nodeId, String status, Boolean assigned, String detailAddress, PagedQuery query) {
         boolean queryAssigned = Boolean.TRUE.equals(assigned)
