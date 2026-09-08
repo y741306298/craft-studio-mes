@@ -1247,6 +1247,11 @@ public class AppTypesettingService {
             }
         }
 
+        String doubleSideConsistencyResult = validateDoubleSideMountingConsistency(productionPieces, typesettingInfos);
+        if (!doubleSideConsistencyResult.equals("PASS")) {
+            return LayoutConfirmResult.failed(doubleSideConsistencyResult);
+        }
+
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
             int pendingQuantity = getPendingTypesettingQuantity(productionPiece);
@@ -4041,6 +4046,37 @@ public class AppTypesettingService {
         }
         name = name.trim();
         return name.isEmpty() ? null : name;
+    }
+
+    /**
+     * 首次排版全部由生产工件组成时，双面对裱类工艺不能与普通工件混排。
+     *
+     * <p>双面对裱类工艺的识别统一复用 {@link ProcedureFlowNodeMatcher}，包含“双面对裱”、
+     * “覆双面”或“双面喷”（双面胶相关节点除外）。二次排版含印版来源时不执行此限制。</p>
+     */
+    private String validateDoubleSideMountingConsistency(List<ProductionPiece> productionPieces,
+                                                         List<TypesettingInfo> typesettingInfos) {
+        if (CollectionUtils.isEmpty(productionPieces) || !CollectionUtils.isEmpty(typesettingInfos)) {
+            return "PASS";
+        }
+        boolean hasDoubleSideMounting = productionPieces.stream()
+                .filter(Objects::nonNull)
+                .anyMatch(piece -> ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow()));
+        if (!hasDoubleSideMounting) {
+            return "PASS";
+        }
+        boolean allHaveAnyDoubleSideMounting = productionPieces.stream()
+                .filter(Objects::nonNull)
+                .allMatch(piece -> ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow()));
+        if (allHaveAnyDoubleSideMounting) {
+            return "PASS";
+        }
+        return productionPieces.stream()
+                .filter(Objects::nonNull)
+                .filter(piece -> !ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow()))
+                .findFirst()
+                .map(piece -> piece.getProductionPieceId() + "不包含双面对裱、覆双面、双面喷中的任一工艺，不能一起排版")
+                .orElse("PASS");
     }
 
     /**
