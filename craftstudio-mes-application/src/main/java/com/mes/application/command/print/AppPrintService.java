@@ -303,12 +303,25 @@ public class AppPrintService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版ID列表不能为空");
         }
 
+        Map<String, TypesettingInfo> typesettingInfoMap = new LinkedHashMap<>();
+        for (String typesettingId : typesettingIds) {
+            if (StringUtils.isBlank(typesettingId) || typesettingInfoMap.containsKey(typesettingId)) {
+                continue;
+            }
+            TypesettingInfo info = typesettingService.findById(typesettingId);
+            if (info != null && TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "存在排版中的印版，不允许释放");
+            }
+            typesettingInfoMap.put(typesettingId, info);
+        }
+
         Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId)) {
                 continue;
             }
-            TypesettingInfo info = typesettingService.findById(typesettingId);
+            TypesettingInfo info = typesettingInfoMap.get(typesettingId);
             if (info == null) {
                 continue;
             }
