@@ -39,6 +39,16 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
     }
 
     @Override
+    public List<OrderItem> findByOrderIds(Collection<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return List.of();
+        }
+        return mongoTemplate.find(
+                new SoftDeleteQuery(Criteria.where("orderId").in(orderIds)), poClass())
+                .stream().map(OrderItemPo::toDO).toList();
+    }
+
+    @Override
     public List<OrderItem> filterListUrgentFirst(long current, int size, Map<String, Object> filters) {
         return filterList(
                 current,

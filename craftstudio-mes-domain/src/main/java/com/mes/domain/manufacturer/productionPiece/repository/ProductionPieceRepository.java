@@ -14,6 +14,9 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds);
 
+    /** Clears route bindings for every production piece belonging to the supplied order items. */
+    long clearRouteBindingsByOrderItemIds(Collection<String> orderItemIds);
+
     /** Atomically transfers quantities between procedure nodes using conditional MongoDB updates. */
     long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities);
     

@@ -11,6 +11,8 @@ public interface OrderItemRepository extends BaseRepository<OrderItem> {
 
     List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds);
 
+    List<OrderItem> findByOrderIds(Collection<String> orderIds);
+
     /**
      * 根据条件过滤订单项列表，并优先返回加急订单项。
      *

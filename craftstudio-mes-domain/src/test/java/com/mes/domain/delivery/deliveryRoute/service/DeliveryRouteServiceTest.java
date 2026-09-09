@@ -8,6 +8,8 @@ import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecord
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteNodeBindingRepository;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.manufacturer.productionPiece.repository.ProductionPieceRepository;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
+import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,15 +36,21 @@ class DeliveryRouteServiceTest {
     private DeliveryRouteService service;
     private DeliveryRouteRepository routeRepository;
     private AddressRecognitionRecordRepository addressRecognitionRecordRepository;
+    private OrderInfoRepository orderInfoRepository;
+    private OrderItemRepository orderItemRepository;
+    private ProductionPieceRepository productionPieceRepository;
 
     @BeforeEach
     void setUp() {
         service = new DeliveryRouteService();
         routeRepository = mock(DeliveryRouteRepository.class);
         ReflectionTestUtils.setField(service, "deliveryRouteRepository", routeRepository);
-        ReflectionTestUtils.setField(service, "orderInfoRepository", mock(OrderInfoRepository.class));
-        ReflectionTestUtils.setField(service, "orderItemRepository", mock(OrderItemRepository.class));
-        ReflectionTestUtils.setField(service, "productionPieceRepository", mock(ProductionPieceRepository.class));
+        orderInfoRepository = mock(OrderInfoRepository.class);
+        orderItemRepository = mock(OrderItemRepository.class);
+        productionPieceRepository = mock(ProductionPieceRepository.class);
+        ReflectionTestUtils.setField(service, "orderInfoRepository", orderInfoRepository);
+        ReflectionTestUtils.setField(service, "orderItemRepository", orderItemRepository);
+        ReflectionTestUtils.setField(service, "productionPieceRepository", productionPieceRepository);
         addressRecognitionRecordRepository = mock(AddressRecognitionRecordRepository.class);
         ReflectionTestUtils.setField(service, "addressRecognitionRecordRepository", addressRecognitionRecordRepository);
         ReflectionTestUtils.setField(service, "deliveryRouteNodeBindingRepository", mock(DeliveryRouteNodeBindingRepository.class));
@@ -156,6 +165,55 @@ class DeliveryRouteServiceTest {
 
         verify(addressRecognitionRecordRepository, never()).batchUpdate(any());
         verify(addressRecognitionRecordRepository, never()).update(any());
+    }
+
+    @Test
+    void batchUnbindDeduplicatesAndUpdatesEachHierarchyInBulk() {
+        AddressRecognitionRecord first = addressRecognitionRecord("record-1");
+        first.setOrderId("order-1");
+        first.setRouteId("route-1");
+        first.setNodeId("node-1");
+        first.setOrder(1);
+        first.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
+        AddressRecognitionRecord second = addressRecognitionRecord("record-2");
+        second.setOrderId("order-1");
+        List<String> uniqueIds = List.of("record-1", "record-2");
+        when(addressRecognitionRecordRepository.findByIds(uniqueIds))
+                .thenReturn(Map.of("record-1", first, "record-2", second));
+
+        OrderInfo order = new OrderInfo();
+        order.setOrderId("order-1");
+        order.setRouteId("route-1");
+        order.setRouteNodeId("node-1");
+        when(orderInfoRepository.findByOrderIds(any())).thenReturn(List.of(order));
+        OrderItem item = new OrderItem();
+        item.setOrderItemId("item-1");
+        item.setOrderId("order-1");
+        item.setRouteId("route-1");
+        item.setRouteNodeId("node-1");
+        when(orderItemRepository.findByOrderIds(any())).thenReturn(List.of(item));
+
+        service.unbindAddressRecognitionRecords(List.of("record-1", "record-1", "record-2"));
+
+        verify(addressRecognitionRecordRepository).findByIds(uniqueIds);
+        verify(addressRecognitionRecordRepository).batchUpdate(List.of(first, second));
+        verify(addressRecognitionRecordRepository, never()).findById(any());
+        verify(addressRecognitionRecordRepository, never()).update(any());
+        verify(orderInfoRepository, times(1)).findByOrderIds(any());
+        verify(orderInfoRepository).batchUpdate(List.of(order));
+        verify(orderItemRepository, times(1)).findByOrderIds(any());
+        verify(orderItemRepository).batchUpdate(List.of(item));
+        verify(productionPieceRepository).clearRouteBindingsByOrderItemIds(java.util.Set.of("item-1"));
+        assertThat(List.of(first, second)).allSatisfy(record -> {
+            assertThat(record.getRouteId()).isNull();
+            assertThat(record.getNodeId()).isNull();
+            assertThat(record.getOrder()).isNull();
+            assertThat(record.getStatus()).isEqualTo(AddressRecognitionRecordStatus.UNASSIGNED);
+        });
+        assertThat(order.getRouteId()).isNull();
+        assertThat(order.getRouteNodeId()).isNull();
+        assertThat(item.getRouteId()).isNull();
+        assertThat(item.getRouteNodeId()).isNull();
     }
 
     private DeliveryRoute route(String id, RouteNode... nodes) {
