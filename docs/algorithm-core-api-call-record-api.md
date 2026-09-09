@@ -41,9 +41,27 @@ GET /api/algorithmCoreApiCallRecord?type=generateMaskFilesAsync&sourceId=ORDER_I
 | `url` | 实际请求地址 |
 | `apiPath` | 算法 API 路径 |
 | `requestBody` | JSON 字符串格式的请求体快照 |
-| `callbackCustomValue` | JSON 字符串格式的回调自定义数据 |
+| `callbackCustomValue` | JSON 对象格式的回调自定义数据 |
 | `type` | 算法调用类型 |
 | `sourceId` | 从回调自定义数据解析出的业务来源 ID |
 | `createTime` | 记录创建时间 |
+
+## 异步算法调用与 sourceId 映射
+
+`sourceId` 在发起 HTTP 请求前写入调用记录，其值来自请求中的
+`callbackConfig.callbackCustomValue`。
+
+| `AlgorithmCoreApiService` 方法 | 记录的 `type` | 是否保存 `sourceId` | `sourceId` 来源 | 当前调用方填入的值 |
+|---|---|---|---|---|
+| `generateMaskFilesAsync(ImageMaskRequest)` | `generateMaskFilesAsync` | 是 | `callbackCustomValue.orderItemId` | 订单项 ID |
+| `convertGrayImgToSvgAsync(GrayImgToSvgRequest)` | `convertGrayImgToSvgAsync` | 是 | `callbackCustomValue.orderItemId` | 订单项 ID；当前业务代码未调用该异步方法 |
+| `generateNestedFilesAsync(NestingRequest)` | `generateNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
+| `generateGridNestedFilesAsync(NestingRequest)` | `generateGridNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
+| `generateRectNestedFilesAsync(NestingRequest)` | `generateRectNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
+| `generateVerticalNestedFilesAsync(NestingRequest)` | `generateVerticalNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
+| `generateFormeAsync(FormeGenerationRequest)` | `generateFormeAsync` | 是 | `callbackCustomValue.id` | `TypesettingInfo.id` |
+| `generateFormeAsync(String, String)` | `generateFormeAsync` | 是，前提是 JSON 内有回调自定义数据 | `callbackCustomValue.id` | 当前调用方序列化的 `FormeGenerationRequest` 中为 `TypesettingInfo.id` |
+| `callAlgorithmAsync(..., responseType)` | `null` | 否 | 无 | 该无 `type` 重载当前没有业务调用 |
+| `callAlgorithmAsync(..., type, responseType)` | 由调用方传入 | 取决于 `type` 是否已在 `AlgorithmCoreApiCallType` 中定义 | 枚举定义的字段 | 上述业务方法均传入已定义的 `type` |
 
 当 `type` 不在枚举内，或任一查询参数为空时，接口返回参数错误。
