@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -680,8 +681,38 @@ public class DeliveryRouteService {
         if (StringUtils.isBlank(routeId) || StringUtils.isBlank(nodeId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "路线和节点不能为空");
         }
-        for (String recordId : recordIds) {
-            bindAddressRecognitionRecord(recordId, routeId, nodeId, order);
+        if (recordIds.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "绑定参数不能为空");
+        }
+
+        List<String> uniqueRecordIds = new ArrayList<>(new LinkedHashSet<>(recordIds));
+        Map<String, AddressRecognitionRecord> recordsById = addressRecognitionRecordRepository.findByIds(uniqueRecordIds);
+        if (recordsById == null || recordsById.size() != uniqueRecordIds.size()) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不存在");
+        }
+
+        Integer nextOrder = order;
+        if (nextOrder == null) {
+            Integer maxOrder = addressRecognitionRecordRepository.findMaxOrderByRouteNode(routeId, nodeId);
+            nextOrder = maxOrder == null ? 0 : maxOrder + 1;
+        }
+
+        List<AddressRecognitionRecord> records = new ArrayList<>(uniqueRecordIds.size());
+        for (String recordId : uniqueRecordIds) {
+            AddressRecognitionRecord record = recordsById.get(recordId);
+            if (record == null) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录不存在");
+            }
+            record.setRouteId(routeId);
+            record.setNodeId(nodeId);
+            record.setOrder(order == null ? nextOrder++ : order);
+            record.setStatus(AddressRecognitionRecordStatus.ASSIGNED);
+            records.add(record);
+        }
+        addressRecognitionRecordRepository.batchUpdate(records);
+
+        for (AddressRecognitionRecord record : records) {
+            syncAddressRecognitionRouteBinding(record, routeId, nodeId);
         }
     }
 

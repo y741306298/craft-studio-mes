@@ -1,5 +1,7 @@
 package com.mes.domain.delivery.deliveryRoute.service;
 
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecord;
+import com.mes.domain.delivery.deliveryRoute.entity.AddressRecognitionRecordStatus;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.entity.RouteNode;
 import com.mes.domain.delivery.deliveryRoute.repository.AddressRecognitionRecordRepository;
@@ -16,11 +18,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +32,7 @@ class DeliveryRouteServiceTest {
 
     private DeliveryRouteService service;
     private DeliveryRouteRepository routeRepository;
+    private AddressRecognitionRecordRepository addressRecognitionRecordRepository;
 
     @BeforeEach
     void setUp() {
@@ -37,7 +42,8 @@ class DeliveryRouteServiceTest {
         ReflectionTestUtils.setField(service, "orderInfoRepository", mock(OrderInfoRepository.class));
         ReflectionTestUtils.setField(service, "orderItemRepository", mock(OrderItemRepository.class));
         ReflectionTestUtils.setField(service, "productionPieceRepository", mock(ProductionPieceRepository.class));
-        ReflectionTestUtils.setField(service, "addressRecognitionRecordRepository", mock(AddressRecognitionRecordRepository.class));
+        addressRecognitionRecordRepository = mock(AddressRecognitionRecordRepository.class);
+        ReflectionTestUtils.setField(service, "addressRecognitionRecordRepository", addressRecognitionRecordRepository);
         ReflectionTestUtils.setField(service, "deliveryRouteNodeBindingRepository", mock(DeliveryRouteNodeBindingRepository.class));
     }
 
@@ -109,6 +115,49 @@ class DeliveryRouteServiceTest {
         verify(routeRepository).batchUpdate(List.of(first));
     }
 
+    @Test
+    void batchBindLoadsAndUpdatesAddressRecognitionRecordsOnce() {
+        AddressRecognitionRecord first = addressRecognitionRecord("record-1");
+        AddressRecognitionRecord second = addressRecognitionRecord("record-2");
+        List<String> recordIds = List.of("record-1", "record-2");
+        when(addressRecognitionRecordRepository.findByIds(recordIds))
+                .thenReturn(Map.of("record-1", first, "record-2", second));
+        when(addressRecognitionRecordRepository.findMaxOrderByRouteNode("route-1", "node-1"))
+                .thenReturn(4);
+
+        service.bindAddressRecognitionRecords(recordIds, "route-1", "node-1", null);
+
+        ArgumentCaptor<List<AddressRecognitionRecord>> captor = ArgumentCaptor.forClass(List.class);
+        verify(addressRecognitionRecordRepository).findByIds(recordIds);
+        verify(addressRecognitionRecordRepository).batchUpdate(captor.capture());
+        verify(addressRecognitionRecordRepository, never()).findById(any());
+        verify(addressRecognitionRecordRepository, never()).update(any());
+        assertThat(captor.getValue()).containsExactly(first, second);
+        assertThat(captor.getValue()).extracting(AddressRecognitionRecord::getRouteId)
+                .containsExactly("route-1", "route-1");
+        assertThat(captor.getValue()).extracting(AddressRecognitionRecord::getNodeId)
+                .containsExactly("node-1", "node-1");
+        assertThat(captor.getValue()).extracting(AddressRecognitionRecord::getOrder)
+                .containsExactly(5, 6);
+        assertThat(captor.getValue()).extracting(AddressRecognitionRecord::getStatus)
+                .containsOnly(AddressRecognitionRecordStatus.ASSIGNED);
+    }
+
+    @Test
+    void batchBindDoesNotUpdateWhenAnyAddressRecognitionRecordIsMissing() {
+        AddressRecognitionRecord first = addressRecognitionRecord("record-1");
+        List<String> recordIds = List.of("record-1", "missing");
+        when(addressRecognitionRecordRepository.findByIds(recordIds))
+                .thenReturn(Map.of("record-1", first));
+
+        assertThatThrownBy(() -> service.bindAddressRecognitionRecords(recordIds, "route-1", "node-1", 1))
+                .isInstanceOf(BusinessNotAllowException.class)
+                .hasMessageContaining("地址识别记录不存在");
+
+        verify(addressRecognitionRecordRepository, never()).batchUpdate(any());
+        verify(addressRecognitionRecordRepository, never()).update(any());
+    }
+
     private DeliveryRoute route(String id, RouteNode... nodes) {
         DeliveryRoute route = new DeliveryRoute();
         route.setId(id);
@@ -122,5 +171,11 @@ class DeliveryRouteServiceTest {
         node.setName(name);
         node.setNodeOrder(order);
         return node;
+    }
+
+    private AddressRecognitionRecord addressRecognitionRecord(String id) {
+        AddressRecognitionRecord record = new AddressRecognitionRecord();
+        record.setId(id);
+        return record;
     }
 }
