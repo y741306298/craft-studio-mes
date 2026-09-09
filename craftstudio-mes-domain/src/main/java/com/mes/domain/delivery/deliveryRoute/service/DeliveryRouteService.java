@@ -20,6 +20,7 @@ import com.mes.domain.order.orderInfo.repository.OrderInfoRepository;
 import com.mes.domain.order.orderInfo.repository.OrderItemRepository;
 import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -393,7 +394,7 @@ public class DeliveryRouteService {
             if (records == null || records.isEmpty()) {
                 break;
             }
-            records.forEach(this::unbindAddressRecognitionRecord);
+            unbindAddressRecognitionRecordEntities(records);
             if (records.size() < size) {
                 break;
             }
@@ -412,7 +413,7 @@ public class DeliveryRouteService {
                 if (records == null || records.isEmpty()) {
                     break;
                 }
-                records.forEach(this::unbindAddressRecognitionRecord);
+                unbindAddressRecognitionRecordEntities(records);
                 if (records.size() < size) {
                     break;
                 }
@@ -878,86 +879,88 @@ public class DeliveryRouteService {
         if (recordIds == null || recordIds.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
-        for (String recordId : recordIds) {
-            unbindAddressRecognitionRecord(recordId);
+        if (recordIds.stream().anyMatch(StringUtils::isBlank)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
+        List<String> uniqueRecordIds = new ArrayList<>(new LinkedHashSet<>(recordIds));
+        Map<String, AddressRecognitionRecord> recordsById = addressRecognitionRecordRepository.findByIds(uniqueRecordIds);
+        if (recordsById == null || recordsById.isEmpty()) {
+            return;
+        }
+        List<AddressRecognitionRecord> records = uniqueRecordIds.stream()
+                .map(recordsById::get)
+                .filter(Objects::nonNull)
+                .toList();
+        if (records.isEmpty()) {
+            return;
+        }
+        unbindAddressRecognitionRecordEntities(records);
     }
 
     public void unbindAddressRecognitionRecord(String recordId) {
         if (StringUtils.isBlank(recordId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "地址识别记录 ID 不能为空");
         }
-        AddressRecognitionRecord record = addressRecognitionRecordRepository.findById(recordId);
-        if (record == null) {
+        unbindAddressRecognitionRecords(List.of(recordId));
+    }
+
+    private void unbindAddressRecognitionRecordEntities(List<AddressRecognitionRecord> records) {
+        Set<String> orderIds = new LinkedHashSet<>();
+        List<Address> addresses = new ArrayList<>();
+        for (AddressRecognitionRecord record : records) {
+            if (StringUtils.isNotBlank(record.getOrderId())) {
+                orderIds.add(record.getOrderId());
+            }
+            if (record.getAddress() != null
+                    && StringUtils.isNotBlank(record.getAddress().getTerminalRegionCode())
+                    && StringUtils.isNotBlank(record.getAddress().getDetailAddress())) {
+                addresses.add(record.getAddress());
+            }
+            record.setRouteId(null);
+            record.setNodeId(null);
+            record.setOrder(null);
+            record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
+        }
+        addressRecognitionRecordRepository.batchUpdate(records);
+
+        if (!addresses.isEmpty()) {
+            List<OrderInfo> addressOrders = orderInfoRepository.findByAddressesAndStatuses(addresses, List.of(
+                    OrderStatus.PENDING, OrderStatus.IN_PRODUCTION));
+            if (addressOrders != null) {
+                addressOrders.stream().filter(Objects::nonNull).map(OrderInfo::getOrderId)
+                        .filter(StringUtils::isNotBlank).forEach(orderIds::add);
+            }
+        }
+        clearOrderRouteBindings(orderIds);
+    }
+
+    private void clearOrderRouteBindings(Set<String> orderIds) {
+        if (orderIds.isEmpty()) {
             return;
         }
-        unbindAddressRecognitionRecord(record);
-    }
+        List<OrderInfo> orders = orderInfoRepository.findByOrderIds(orderIds);
+        if (orders != null && !orders.isEmpty()) {
+            orders.forEach(order -> {
+                order.setRouteId(null);
+                order.setRouteNodeId(null);
+            });
+            orderInfoRepository.batchUpdate(orders);
+        }
 
-    private void unbindAddressRecognitionRecord(AddressRecognitionRecord record) {
-        record.setRouteId(null);
-        record.setNodeId(null);
-        record.setOrder(null);
-        record.setStatus(AddressRecognitionRecordStatus.UNASSIGNED);
-        addressRecognitionRecordRepository.update(record);
-        clearAddressRecognitionRouteBinding(record);
-    }
-
-    private void clearAddressRecognitionRouteBinding(AddressRecognitionRecord record) {
-        if (record == null) {
+        List<OrderItem> orderItems = orderItemRepository.findByOrderIds(orderIds);
+        if (orderItems == null || orderItems.isEmpty()) {
             return;
         }
-
-        Set<String> orderIds = new HashSet<>();
-        if (StringUtils.isNotBlank(record.getOrderId())) {
-            orderIds.add(record.getOrderId());
-        }
-        orderIds.addAll(listProductionOrderIdsByAddress(record));
-
-        for (String orderId : orderIds) {
-            clearOrderRouteBinding(orderId);
-        }
-    }
-
-    private void clearOrderRouteBinding(String orderId) {
-        if (StringUtils.isBlank(orderId)) {
-            return;
-        }
-
-        Map<String, Object> orderFilters = new HashMap<>();
-        orderFilters.put("orderId", orderId);
-        List<OrderInfo> orderInfos = orderInfoRepository.filterList(1, 1, orderFilters);
-        if (orderInfos != null && !orderInfos.isEmpty()) {
-            OrderInfo orderInfo = orderInfos.get(0);
-            orderInfo.setRouteId(null);
-            orderInfo.setRouteNodeId(null);
-            orderInfoRepository.update(orderInfo);
-        }
-
-        Map<String, Object> itemFilters = new HashMap<>();
-        itemFilters.put("orderId", orderId);
-        long current = 1;
-        int size = 100;
-        while (true) {
-            List<OrderItem> orderItems = orderItemRepository.filterList(current, size, itemFilters);
-            if (orderItems == null || orderItems.isEmpty()) {
-                break;
+        Set<String> orderItemIds = new LinkedHashSet<>();
+        orderItems.forEach(orderItem -> {
+            orderItem.setRouteId(null);
+            orderItem.setRouteNodeId(null);
+            if (StringUtils.isNotBlank(orderItem.getOrderItemId())) {
+                orderItemIds.add(orderItem.getOrderItemId());
             }
-            for (OrderItem orderItem : orderItems) {
-                orderItem.setRouteId(null);
-                orderItem.setRouteNodeId(null);
-                clearProductionPiecesRouteBinding(orderItem.getOrderItemId());
-            }
-            orderItemRepository.batchUpdate(orderItems);
-            if (orderItems.size() < size) {
-                break;
-            }
-            current++;
-        }
-    }
-
-    private void clearProductionPiecesRouteBinding(String orderItemId) {
-        syncProductionPiecesRouteBinding(orderItemId, null, null);
+        });
+        orderItemRepository.batchUpdate(orderItems);
+        productionPieceRepository.clearRouteBindingsByOrderItemIds(orderItemIds);
     }
 
     public void bindTerminalAddressToRouteNode(String terminalRegionCode, String detailAddress, String routeNodeId) {

@@ -102,6 +102,19 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
         return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
     }
+
+    @Override
+    public long clearRouteBindingsByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return 0;
+        }
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
+        Update update = new Update()
+                .unset("routeId")
+                .unset("routeNodeId")
+                .set("updateTime", new Date());
+        return mongoTemplate.updateMulti(query, update, poClass()).getModifiedCount();
+    }
     
     @Override
     public void updateByProductionPieceId(ProductionPiece productionPiece) {
