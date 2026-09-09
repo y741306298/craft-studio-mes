@@ -865,6 +865,7 @@ public class AppDeliveryPkgService {
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
         }
         java.util.Set<String> touchedOrderItemIds = selectedPieces.stream()
+                .filter(piece -> !Boolean.TRUE.equals(piece.getIsRedo()))
                 .map(ProductionPiece::getOrderItemId)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toSet());
@@ -1207,7 +1208,10 @@ public class AppDeliveryPkgService {
         if (piece == null) {
             return;
         }
-        if (touchedOrderItemIds != null && StringUtils.isNotBlank(piece.getOrderItemId())) {
+        // 重做件只更新自身状态，不触发整单零件及订单项的打包完成状态同步。
+        if (!Boolean.TRUE.equals(piece.getIsRedo())
+                && touchedOrderItemIds != null
+                && StringUtils.isNotBlank(piece.getOrderItemId())) {
             touchedOrderItemIds.add(piece.getOrderItemId());
         }
         boolean pieceFullyPacked = isPieceFullyPacked(piece);
@@ -1290,17 +1294,19 @@ public class AppDeliveryPkgService {
         for (String orderItemId : validOrderItemIds) {
             List<ProductionPiece> orderItemPieces = piecesByOrderItemId.getOrDefault(orderItemId,
                     Collections.emptyList());
+            List<ProductionPiece> nonRedoPieces = orderItemPieces.stream()
+                    .filter(Objects::nonNull)
+                    .filter(piece -> !Boolean.TRUE.equals(piece.getIsRedo()))
+                    .collect(Collectors.toList());
             OrderItem orderItem = orderItemsById.get(orderItemId);
             Integer requiredPackedQuantity = getOrderItemQuantity(orderItem);
-            boolean allPacked = areNonRedoPiecesFullyPacked(orderItemPieces, requiredPackedQuantity);
+            boolean allPacked = arePiecesFullyPacked(nonRedoPieces, requiredPackedQuantity);
             if (!allPacked) {
                 continue;
             }
 
-            for (ProductionPiece piece : orderItemPieces) {
-                if (Boolean.TRUE.equals(piece.getIsRedo())) {
-                    continue;
-                }
+            // 订单项完成打包只同步非重做件；重做件的状态仅由其自身的打包进度驱动。
+            for (ProductionPiece piece : nonRedoPieces) {
                 boolean changed = false;
                 if (!TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus())) {
                     piece.setStatus(TypesettingStatus.COMPLETED.getCode());
@@ -1334,18 +1340,9 @@ public class AppDeliveryPkgService {
         orderItemService.batchUpdateOrderItems(changedOrderItems);
     }
 
-    /** 重做件不参与订单项是否已完成打包的判断，也不应被订单项状态同步强制完成。 */
-    private boolean areNonRedoPiecesFullyPacked(List<ProductionPiece> orderItemPieces,
-                                                 Integer requiredPackedQuantity) {
-        if (requiredPackedQuantity == null || orderItemPieces == null) {
-            return false;
-        }
-        List<ProductionPiece> nonRedoPieces = orderItemPieces.stream()
-                .filter(Objects::nonNull)
-                .filter(piece -> !Boolean.TRUE.equals(piece.getIsRedo()))
-                .collect(Collectors.toList());
-        return !nonRedoPieces.isEmpty()
-                && nonRedoPieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
+    private boolean arePiecesFullyPacked(List<ProductionPiece> pieces, Integer requiredPackedQuantity) {
+        return requiredPackedQuantity != null && pieces != null && !pieces.isEmpty()
+                && pieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece) {
