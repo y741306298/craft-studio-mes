@@ -61,15 +61,25 @@ public class TypesettingController {
                 () -> appTypesettingService.findTypesettingAndProductionPieces(request));
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
-        List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
-        sanitizeProcedureFlow(allItems);
-        List<TypesettingProductionPieceVO> materialScopedItems = timeListOperation("findMaterialScopedItemsForProcessingFlowOptions",
-                () -> findMaterialScopedItemsForProcessingFlowOptions(request, allItems));
-        sanitizeProcedureFlow(materialScopedItems);
-        TypesettingAndProductionPiecesResponse response = timeListOperation("buildTypesettingAndProductionPiecesResponse",
-                () -> buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult()));
+        TypesettingAndProductionPiecesResponse response = new TypesettingAndProductionPiecesResponse(
+                items, result.getPagedResult().total(), result.getPagedResult().current(),
+                null, null, buildSourceTypeList(), null);
         fillOrgInfo(response, request);
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 查询符合条件的全部待排版数据，并生成材料、工艺筛选项。
+     */
+    @PostMapping("/filters")
+    public ApiResponse<TypesettingFilterOptionsResponse> listTypesettingFilterOptions(@RequestBody TypesettingQuery request) {
+        List<TypesettingProductionPieceVO> allItems = timeListOperation("findAllTypesettingAndProductionPiecesForFilters",
+                () -> appTypesettingService.findAllTypesettingAndProductionPieces(request));
+        sanitizeProcedureFlow(allItems);
+        return ApiResponse.success(new TypesettingFilterOptionsResponse(
+                buildProcessingFlowList(allItems),
+                buildMaterialList(allItems)
+        ));
     }
 
     private <T> T timeListOperation(String operationName, Supplier<T> operation) {
@@ -131,11 +141,9 @@ public class TypesettingController {
         TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
-        List<TypesettingProductionPieceVO> allItems = new ArrayList<>(result.getAllItems());
-        sanitizeProcedureFlow(allItems);
-        List<TypesettingProductionPieceVO> materialScopedItems = findMaterialScopedItemsForProcessingFlowOptions(query, allItems);
-        sanitizeProcedureFlow(materialScopedItems);
-        TypesettingAndProductionPiecesResponse response = buildTypesettingAndProductionPiecesResponse(items, allItems, materialScopedItems, result.getPagedResult());
+        TypesettingAndProductionPiecesResponse response = new TypesettingAndProductionPiecesResponse(
+                items, result.getPagedResult().total(), result.getPagedResult().current(),
+                null, null, buildSourceTypeList(), null);
         fillOrgInfo(response, query);
         return ApiResponse.success(response);
     }
@@ -396,71 +404,6 @@ public class TypesettingController {
         if (orderInfo != null) {
             response.setOrgInfo(orderInfo.getOrgInfo());
         }
-    }
-
-    private TypesettingAndProductionPiecesResponse buildTypesettingAndProductionPiecesResponse(List<TypesettingProductionPieceVO> items,
-                                                                                               List<TypesettingProductionPieceVO> allItems,
-                                                                                               List<TypesettingProductionPieceVO> processingFlowSourceItems,
-                                                                                               PagedResult<TypesettingProductionPieceVO> pagedResult) {
-        List<TypesettingAndProductionPiecesResponse.ProcessingFlowOption> processingFlowList = buildProcessingFlowList(processingFlowSourceItems);
-        List<String> materialList = buildMaterialList(allItems);
-        List<TypesettingAndProductionPiecesResponse.SourceTypeOption> sourceType = buildSourceTypeList();
-        return new TypesettingAndProductionPiecesResponse(items, pagedResult.total(), pagedResult.current(), processingFlowList, materialList, sourceType, null);
-    }
-
-    /**
-     * 查询 materialName 等基础条件命中的全部对象，用作工艺下拉选项来源。
-     *
-     * <p>processingFlowList 需要先按材料筛选，再返回该材料下包含的全部原始工艺；
-     * 因此这里复用列表查询条件，但清空 processingName，避免工艺下拉被当前工艺筛选项反向收窄。</p>
-     */
-    private List<TypesettingProductionPieceVO> findMaterialScopedItemsForProcessingFlowOptions(TypesettingQuery request, List<TypesettingProductionPieceVO> allItems) {
-        if (request == null || request.getProcessingName() == null || request.getProcessingName().isEmpty()) {
-            return allItems == null ? new ArrayList<>() : new ArrayList<>(allItems);
-        }
-        TypesettingQuery materialScopedQuery = copyTypesettingQuery(request);
-        materialScopedQuery.setProcessingName(null);
-        TypesettingPiecesQueryResult materialScopedResult = appTypesettingService.findTypesettingAndProductionPieces(materialScopedQuery);
-        if (materialScopedResult == null || materialScopedResult.getAllItems() == null) {
-            return new ArrayList<>();
-        }
-        return materialScopedResult.getAllItems().stream()
-                .filter(item -> matchesMaterialName(item, request.getMaterialName()))
-                .collect(Collectors.toCollection(ArrayList::new));
-    }
-
-    private boolean matchesMaterialName(TypesettingProductionPieceVO item, String materialName) {
-        if (StringUtils.isBlank(materialName)) {
-            return true;
-        }
-        if (item == null || item.getMaterialConfig() == null || item.getMaterialConfig().getMaterialSnapshot() == null) {
-            return false;
-        }
-        String itemMaterialName = item.getMaterialConfig().getMaterialSnapshot().getName();
-        return StringUtils.isNotBlank(itemMaterialName) && itemMaterialName.equals(materialName.trim());
-    }
-
-    private TypesettingQuery copyTypesettingQuery(TypesettingQuery source) {
-        TypesettingQuery target = new TypesettingQuery();
-        if (source == null) {
-            return target;
-        }
-        target.setCurrent(source.getCurrent());
-        target.setSize(source.getSize());
-        target.setManufacturerMetaId(source.getManufacturerMetaId());
-        target.setQueryType(source.getQueryType());
-        target.setStatus(source.getStatus());
-        target.setMaterialName(source.getMaterialName());
-        target.setProcessingName(source.getProcessingName());
-        target.setTypesettingId(source.getTypesettingId());
-        target.setOrderId(source.getOrderId());
-        target.setOrderItemId(source.getOrderItemId());
-        target.setECommerceMmodel(source.getECommerceMmodel());
-        target.setStartTime(source.getStartTime());
-        target.setEndTime(source.getEndTime());
-        target.setSourceType(source.getSourceType());
-        target.setRouteId(source.getRouteId());
-        return target;
     }
 
     private List<TypesettingAndProductionPiecesResponse.ProcessingFlowOption> buildProcessingFlowList(List<TypesettingProductionPieceVO> items) {

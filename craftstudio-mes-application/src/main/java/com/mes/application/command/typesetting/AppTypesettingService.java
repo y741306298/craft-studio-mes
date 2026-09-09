@@ -322,6 +322,54 @@ public class AppTypesettingService {
         return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
     }
 
+    /**
+     * 查询符合待排版列表条件的全部数据，供筛选项接口汇总材料和工艺使用。
+     *
+     * <p>该查询不受列表页码和每页条数影响。数据按固定批次读取，避免为了生成筛选项
+     * 再次把分页参数放大为一个不受控的值。</p>
+     */
+    public List<TypesettingProductionPieceVO> findAllTypesettingAndProductionPieces(TypesettingQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("查询参数不能为空");
+        }
+        if (StringUtils.isBlank(query.getManufacturerMetaId())) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+
+        List<TypesettingProductionPieceVO> items = new ArrayList<>();
+        boolean queryPartOnly = TypesettingSourceType.PART.getCode().equals(query.getSourceType());
+        boolean queryTypesettingOnly = TypesettingSourceType.TYPESETTING.getCode().equals(query.getSourceType());
+        boolean queryProductionPiecesByRoute = StringUtils.isNotBlank(query.getRouteId());
+
+        if (!queryTypesettingOnly) {
+            appendAllItems(items, countPendingTypesettingProductionPieces(query, true),
+                    (offset, limit) -> findPendingProductionPieceItems(query, true, offset, limit));
+            appendAllItems(items, countPendingTypesettingProductionPieces(query, false),
+                    (offset, limit) -> findPendingProductionPieceItems(query, false, offset, limit));
+        }
+        if (!queryPartOnly && !queryProductionPiecesByRoute) {
+            if (queryTypesettingOnly) {
+                appendAllItems(items, countPendingTypesettingInfos(query, null),
+                        (offset, limit) -> findPendingTypesettingItems(query, null, offset, limit));
+            } else {
+                appendAllItems(items, countPendingTypesettingInfos(query, true),
+                        (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, false),
+                        (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
+            }
+        }
+        return items;
+    }
+
+    private void appendAllItems(List<TypesettingProductionPieceVO> target, long total,
+            BiFunction<Long, Integer, List<TypesettingProductionPieceVO>> loader) {
+        final int batchSize = 500;
+        for (long offset = 0; offset < total; offset += batchSize) {
+            int limit = (int) Math.min(batchSize, total - offset);
+            target.addAll(loader.apply(offset, limit));
+        }
+    }
+
     private int appendPageBucket(List<TypesettingProductionPieceVO> pageItems, long[] skipped, int remaining,
             long bucketTotal, BiFunction<Long, Integer, List<TypesettingProductionPieceVO>> loader) {
         if (remaining <= 0) {
