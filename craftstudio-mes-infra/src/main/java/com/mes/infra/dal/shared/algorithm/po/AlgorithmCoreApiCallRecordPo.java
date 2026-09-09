@@ -15,7 +15,7 @@ public class AlgorithmCoreApiCallRecordPo extends BasePO<AlgorithmCoreApiCallRec
     private String url;
     private String apiPath;
     private String requestBody;
-    private String callbackCustomValue;
+    private Object callbackCustomValue;
     private String type;
     private String sourceId;
 

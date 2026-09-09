@@ -152,7 +152,7 @@ public class AlgorithmCoreApiService {
         record.setApiPath(apiPath);
         record.setRequestBody(JSON.toJSONString(requestBody));
         Object callbackCustomValue = extractCallbackCustomValue(requestBody);
-        record.setCallbackCustomValue(callbackCustomValue == null ? null : JSON.toJSONString(callbackCustomValue));
+        record.setCallbackCustomValue(callbackCustomValue == null ? null : JSON.toJSON(callbackCustomValue));
         record.setType(type);
         record.setSourceId(resolveSourceId(type, callbackCustomValue));
         algorithmCoreApiCallRecordRepository.add(record);
