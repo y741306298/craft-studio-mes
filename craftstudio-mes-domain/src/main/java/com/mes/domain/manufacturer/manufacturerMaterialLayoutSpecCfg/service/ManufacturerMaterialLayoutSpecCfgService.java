@@ -45,6 +45,10 @@ public class ManufacturerMaterialLayoutSpecCfgService {
         return repository.filterTotal(buildFilters(manufacturerMetaId, materialId));
     }
 
+    public long migrateInsetCmToMm() {
+        return repository.migrateInsetCmToMm();
+    }
+
     private Map<String, Object> buildFilters(String manufacturerMetaId, String materialId) {
         Map<String, Object> filters = new HashMap<>();
         if (StringUtils.isNotBlank(manufacturerMetaId)) {

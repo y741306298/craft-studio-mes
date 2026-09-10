@@ -111,4 +111,15 @@ public class ManufacturerMaterialLayoutSpecCfgController {
         appCfgService.delete(id);
         return ApiResponse.success("success");
     }
+
+    /**
+     * 一次性迁移历史步进配置：insetCm 改名为 insetMm，并将厘米值乘以 10。
+     *
+     * <p>接口仅处理仍包含 insetCm 的 MongoDB 文档，因此可重复调用；
+     * 返回值为本次实际修改的文档数。</p>
+     */
+    @PostMapping("/migrate-inset-mm")
+    public ApiResponse<Long> migrateInsetCmToMm() {
+        return ApiResponse.success(appCfgService.migrateInsetCmToMm());
+    }
 }

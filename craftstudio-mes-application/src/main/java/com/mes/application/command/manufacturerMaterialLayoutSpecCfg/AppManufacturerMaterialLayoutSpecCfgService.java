@@ -68,6 +68,10 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
         return cfgService.findByManufacturerMetaIdAndMaterialId(manufacturerMetaId, materialId);
     }
 
+    public long migrateInsetCmToMm() {
+        return cfgService.migrateInsetCmToMm();
+    }
+
     /**
      * 校验工厂材料步进配置。
      * <p>
@@ -100,7 +104,7 @@ public class AppManufacturerMaterialLayoutSpecCfgService {
             if (step.getMaxLengthMeter().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("阶梯长度必须大于0");
             }
-            if (step.getInsetCm() == null) {
+            if (step.getInsetMm() == null) {
                 throw new IllegalArgumentException("阶梯内缩值不能为空");
             }
         }

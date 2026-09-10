@@ -25,7 +25,7 @@
 | 字段 | 说明 | 示例 |
 | --- | --- | --- |
 | `maxLengthMeter` | 长度阶梯上限，单位：米。 | `0.1` 表示 0.1m 内。 |
-| `insetCm` | 当前阶梯步进值，单位：厘米。 | `2.5` 表示外扩 2.5cm，`-0.5` 表示内缩 0.5cm。 |
+| `insetMm` | 当前阶梯步进值，单位：毫米。 | `25` 表示外扩 25mm，`-5` 表示内缩 5mm。 |
 
 ### ManufacturerMaterialLayoutSpecCfg（工厂材料步进配置）
 
@@ -86,6 +86,7 @@ Controller：`ManufacturerMaterialLayoutSpecCfgController`
 | `POST` | `/add` | 新增工厂材料步进配置。 |
 | `POST` | `/edit` | 编辑工厂材料步进配置。 |
 | `GET` / `DELETE` | `/delete/{id}` | 删除工厂材料步进配置。 |
+| `POST` | `/migrate-inset-mm` | 一次性将历史 `insetCm` 数据转换为 `insetMm`，返回修改的文档数。 |
 
 #### 新增/编辑工厂材料步进配置请求示例
 
@@ -103,12 +104,23 @@ Controller：`ManufacturerMaterialLayoutSpecCfgController`
     "height": 18
   },
   "insetSteps": [
-    { "maxLengthMeter": 0.1, "insetCm": 1.0 },
-    { "maxLengthMeter": 0.5, "insetCm": 1.5 },
-    { "maxLengthMeter": 1.2, "insetCm": -0.5 }
+    { "maxLengthMeter": 0.1, "insetMm": 10 },
+    { "maxLengthMeter": 0.5, "insetMm": 15 },
+    { "maxLengthMeter": 1.2, "insetMm": -5 }
   ]
 }
 ```
+
+#### 历史数据迁移
+
+升级到 `insetMm` 后，由管理员调用一次：
+
+```http
+POST /api/configSide/manufacturerMaterialLayoutSpecCfg/migrate-inset-mm
+```
+
+迁移仅匹配 `insetSteps.insetCm` 存在的文档，将每个阶梯改为 `insetMm = insetCm × 10`，
+并移除旧字段。重复调用不会再次换算已迁移的数据。
 
 ## 配置流程建议
 
