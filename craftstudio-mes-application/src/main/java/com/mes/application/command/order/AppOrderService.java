@@ -944,10 +944,30 @@ public class AppOrderService {
                         return summary;
                     });
         }
+        fillMissingRouteNames(dimensions.get(OrderStatisticsType.ROUTE));
         return new OrderStatisticsFiltersVO(
                 toDimensionVOs(dimensions.get(OrderStatisticsType.ENTERPRISE)),
                 toDimensionVOs(dimensions.get(OrderStatisticsType.MATERIAL)),
                 toDimensionVOs(dimensions.get(OrderStatisticsType.ROUTE)));
+    }
+
+    private void fillMissingRouteNames(Map<String, OrderStatisticsDimensionSummary> routes) {
+        if (routes == null) return;
+        Set<String> routeIds = routes.entrySet().stream()
+                .filter(entry -> StringUtils.isBlank(entry.getValue().indexName))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (routeIds.isEmpty()) return;
+
+        deliveryRouteRepository.findByIdsOrRouteIds(routeIds).forEach(route -> {
+            if (StringUtils.isBlank(route.getRouteName())) return;
+            if (StringUtils.isNotBlank(route.getId()) && routes.containsKey(route.getId())) {
+                routes.get(route.getId()).indexName = route.getRouteName();
+            }
+            if (StringUtils.isNotBlank(route.getRouteId()) && routes.containsKey(route.getRouteId())) {
+                routes.get(route.getRouteId()).indexName = route.getRouteName();
+            }
+        });
     }
 
     private List<OrderStatisticsDimensionVO> toDimensionVOs(Map<String, OrderStatisticsDimensionSummary> values) {
@@ -1015,11 +1035,9 @@ public class AppOrderService {
                     OrderStatisticsType.ENTERPRISE, orderCount, totalArea, manufacturerActualAmount);
         }
 
-        String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
-                : orderItems.stream().map(OrderItem::getRouteId).filter(StringUtils::isNotBlank).findFirst().orElse(null);
+        RouteStatisticsDimension route = resolveRouteStatisticsDimension(orderInfo, orderItems);
         incrementOrderDimension(manufacturerMetaId, statisticsDate,
-                StringUtils.isBlank(routeId) ? NO_ROUTE_ID : routeId,
-                StringUtils.isBlank(routeId) ? NO_ROUTE_NAME : resolveRouteName(routeId),
+                route.id(), route.name(),
                 OrderStatisticsType.ROUTE, orderCount, totalArea, manufacturerActualAmount);
 
         LinkedHashMap<String, String> materials = new LinkedHashMap<>();
@@ -1036,9 +1054,27 @@ public class AppOrderService {
                 amounts.amountByMaterialId().getOrDefault(materialId, BigDecimal.ZERO).multiply(multiplier)));
     }
 
-    private String resolveRouteName(String routeId) {
-        DeliveryRoute route = deliveryRouteRepository.findByRouteId(routeId);
-        return route == null ? null : route.getRouteName();
+    private RouteStatisticsDimension resolveRouteStatisticsDimension(OrderInfo orderInfo,
+                                                                     List<OrderItem> orderItems) {
+        String routeId = StringUtils.isNotBlank(orderInfo.getRouteId()) ? orderInfo.getRouteId()
+                : orderItems.stream().map(OrderItem::getRouteId)
+                .filter(StringUtils::isNotBlank).findFirst().orElse(null);
+        if (StringUtils.isBlank(routeId)) {
+            return new RouteStatisticsDimension(NO_ROUTE_ID, NO_ROUTE_NAME);
+        }
+        String routeName = deliveryRouteRepository.findByIdsOrRouteIds(Set.of(routeId)).stream()
+                .filter(route -> Objects.equals(routeId, route.getId()) || Objects.equals(routeId, route.getRouteId()))
+                .map(DeliveryRoute::getRouteName)
+                .filter(StringUtils::isNotBlank)
+                .findFirst()
+                .orElse(null);
+        if (StringUtils.isBlank(routeName)) {
+            log.warn("生成订单日统计时未找到路线名称，routeId={}", routeId);
+        }
+        return new RouteStatisticsDimension(routeId, routeName);
+    }
+
+    private record RouteStatisticsDimension(String id, String name) {
     }
 
     private void incrementOrderDimension(String manufacturerMetaId, LocalDate statisticsDate,

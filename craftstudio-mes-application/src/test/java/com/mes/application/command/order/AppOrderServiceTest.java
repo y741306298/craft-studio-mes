@@ -1,5 +1,8 @@
 package com.mes.application.command.order;
 
+import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
+import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
+import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -11,17 +14,25 @@ import com.mes.domain.order.orderInfo.vo.OrderPriceInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import com.mes.domain.order.enums.OrderStatus;
+import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
+import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
+import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AppOrderServiceTest {
 
@@ -144,6 +155,55 @@ class AppOrderServiceTest {
         assertThat(sourceOrder.getManufacturerInfo().getPrice().getActualPrice()).isEqualByComparingTo("0.00");
         verify(orderInfoService).updateOrder(sourceOrder);
         verify(orderInfoService).deleteOrder("SOURCE-ORDER-ID");
+    }
+
+    @Test
+    void fillsMissingRouteNameInOrderStatisticsFilters() {
+        OrderDailyStatisticsService statisticsService = mock(OrderDailyStatisticsService.class);
+        DeliveryRouteRepository routeRepository = mock(DeliveryRouteRepository.class);
+        ReflectionTestUtils.setField(service, "orderDailyStatisticsService", statisticsService);
+        ReflectionTestUtils.setField(service, "deliveryRouteRepository", routeRepository);
+        LocalDate date = LocalDate.of(2026, 9, 10);
+        OrderDailyStatistics statistics = new OrderDailyStatistics();
+        statistics.setType(OrderStatisticsType.ROUTE);
+        statistics.setIndexId("ROUTE-DOCUMENT-ID");
+        statistics.setTotalOrderCount(1L);
+        DeliveryRoute route = new DeliveryRoute();
+        route.setId("ROUTE-DOCUMENT-ID");
+        route.setRouteId("ROUTE-BUSINESS-ID");
+        route.setRouteName("华东路线");
+        when(statisticsService.list("MANUFACTURER", date, date)).thenReturn(List.of(statistics));
+        when(routeRepository.findByIdsOrRouteIds(Set.of("ROUTE-DOCUMENT-ID"))).thenReturn(List.of(route));
+
+        OrderStatisticsFiltersVO result = service.findOrderStatisticsFilters("MANUFACTURER", date, date);
+
+        assertThat(result.getRoutes()).singleElement().satisfies(dimension -> {
+            assertThat(dimension.getId()).isEqualTo("ROUTE-DOCUMENT-ID");
+            assertThat(dimension.getName()).isEqualTo("华东路线");
+        });
+    }
+
+    @Test
+    void persistsRouteNameWhenGeneratingOrderDailyStatistics() {
+        OrderDailyStatisticsService statisticsService = mock(OrderDailyStatisticsService.class);
+        DeliveryRouteRepository routeRepository = mock(DeliveryRouteRepository.class);
+        ReflectionTestUtils.setField(service, "orderDailyStatisticsService", statisticsService);
+        ReflectionTestUtils.setField(service, "deliveryRouteRepository", routeRepository);
+        DeliveryRoute route = new DeliveryRoute();
+        route.setId("ROUTE-DOCUMENT-ID");
+        route.setRouteId("ROUTE-BUSINESS-ID");
+        route.setRouteName("华东路线");
+        when(routeRepository.findByIdsOrRouteIds(Set.of("ROUTE-BUSINESS-ID"))).thenReturn(List.of(route));
+        OrderInfo orderInfo = new OrderInfo();
+        orderInfo.setRouteId("ROUTE-BUSINESS-ID");
+
+        ReflectionTestUtils.invokeMethod(service, "incrementOrderDimensions",
+                "MANUFACTURER", orderInfo, List.of(), 1L, BigDecimal.ONE);
+
+        verify(statisticsService).increment(
+                eq("MANUFACTURER"), any(LocalDate.class),
+                eq("ROUTE-BUSINESS-ID"), eq("华东路线"), eq(OrderStatisticsType.ROUTE),
+                eq(1L), eq(new BigDecimal("0.00")), eq(new BigDecimal("0.00")));
     }
 
     private boolean hasPendingTypesettingQuantityLessThan(ProductionPiece piece, int transferQuantity) {
