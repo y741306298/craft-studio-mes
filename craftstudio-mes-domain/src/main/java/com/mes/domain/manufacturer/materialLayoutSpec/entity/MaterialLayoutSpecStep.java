@@ -12,7 +12,7 @@ public class MaterialLayoutSpecStep {
     private BigDecimal maxLengthMeter;
 
     /**
-     * 内缩值（厘米）。
+     * 内缩值（毫米）。
      */
-    private BigDecimal insetCm;
+    private BigDecimal insetMm;
 }

@@ -114,33 +114,29 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
     private Double resolveInsetMm(List<MaterialLayoutSpecStep> steps, double lengthMm) {
         double lengthMeter = lengthMm / 1000D;
         List<MaterialLayoutSpecStep> sortedSteps = steps.stream()
-                .filter(step -> step != null && step.getMaxLengthMeter() != null && step.getInsetCm() != null)
+                .filter(step -> step != null && step.getMaxLengthMeter() != null && step.getInsetMm() != null)
                 .sorted(Comparator.comparing(MaterialLayoutSpecStep::getMaxLengthMeter))
                 .toList();
         MaterialLayoutSpecStep previousStep = null;
         for (MaterialLayoutSpecStep currentStep : sortedSteps) {
             if (currentStep.getMaxLengthMeter().compareTo(BigDecimal.valueOf(lengthMeter)) >= 0) {
-                BigDecimal insetCm = interpolateInsetCm(previousStep, currentStep, lengthMeter);
-                return cmToMm(insetCm);
+                BigDecimal insetMm = interpolateInsetMm(previousStep, currentStep, lengthMeter);
+                return insetMm.doubleValue();
             }
             previousStep = currentStep;
         }
-        return previousStep == null ? null : cmToMm(previousStep.getInsetCm());
+        return previousStep == null ? null : previousStep.getInsetMm().doubleValue();
     }
 
-    private BigDecimal interpolateInsetCm(MaterialLayoutSpecStep previousStep, MaterialLayoutSpecStep currentStep, double lengthMeter) {
+    private BigDecimal interpolateInsetMm(MaterialLayoutSpecStep previousStep, MaterialLayoutSpecStep currentStep, double lengthMeter) {
         if (previousStep == null
                 || currentStep.getMaxLengthMeter().equals(previousStep.getMaxLengthMeter())) {
-            return currentStep.getInsetCm();
+            return currentStep.getInsetMm();
         }
         double stepLengthRange = currentStep.getMaxLengthMeter().subtract(previousStep.getMaxLengthMeter()).doubleValue();
         double lengthOffset = BigDecimal.valueOf(lengthMeter).subtract(previousStep.getMaxLengthMeter()).doubleValue();
-        BigDecimal insetRange = currentStep.getInsetCm().subtract(previousStep.getInsetCm());
-        return previousStep.getInsetCm().add(insetRange.multiply(BigDecimal.valueOf(lengthOffset / stepLengthRange)));
-    }
-
-    private double cmToMm(BigDecimal insetCm) {
-        return insetCm == null ? 0D : insetCm.multiply(BigDecimal.TEN).doubleValue();
+        BigDecimal insetRange = currentStep.getInsetMm().subtract(previousStep.getInsetMm());
+        return previousStep.getInsetMm().add(insetRange.multiply(BigDecimal.valueOf(lengthOffset / stepLengthRange)));
     }
 
     private double nullToZero(Double value) {
