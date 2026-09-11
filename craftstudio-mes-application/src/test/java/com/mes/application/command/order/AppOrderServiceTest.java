@@ -1,6 +1,10 @@
 package com.mes.application.command.order;
 
 import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
+import com.mes.application.dto.req.order.OrderAddRequest;
+import com.mes.application.support.PodvOrgInfoHelper;
+import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.domain.delivery.deliveryRoute.entity.DeliveryRoute;
 import com.mes.domain.delivery.deliveryRoute.repository.DeliveryRouteRepository;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -17,6 +21,8 @@ import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderStatistics.entity.OrderDailyStatistics;
 import com.mes.domain.order.orderStatistics.entity.OrderStatisticsType;
 import com.mes.domain.order.orderStatistics.service.OrderDailyStatisticsService;
+import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
+import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -32,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AppOrderServiceTest {
@@ -204,6 +211,40 @@ class AppOrderServiceTest {
                 eq("MANUFACTURER"), any(LocalDate.class),
                 eq("ROUTE-BUSINESS-ID"), eq("华东路线"), eq(OrderStatisticsType.ROUTE),
                 eq(1L), eq(new BigDecimal("0.00")), eq(new BigDecimal("0.00")));
+    }
+
+    @Test
+    void skipsAllAddOperationsWhenNonReturnedOrderAlreadyExists() {
+        OrderAddRequest request = mock(OrderAddRequest.class);
+        OrderInfoService orderInfoService = mock(OrderInfoService.class);
+        OrderDailyStatisticsService statisticsService = mock(OrderDailyStatisticsService.class);
+        ProductionPieceGenerationTaskService generationTaskService = mock(ProductionPieceGenerationTaskService.class);
+        PreOrderLabelTaskService labelTaskService = mock(PreOrderLabelTaskService.class);
+        AppOrderPreprocessingService preprocessingService = mock(AppOrderPreprocessingService.class);
+        OrderPreprocessTaskQueue preprocessTaskQueue = mock(OrderPreprocessTaskQueue.class);
+        ReflectionTestUtils.setField(service, "podvOrgInfoHelper", mock(PodvOrgInfoHelper.class));
+        ReflectionTestUtils.setField(service, "domainOrderInfoService", orderInfoService);
+        ReflectionTestUtils.setField(service, "orderDailyStatisticsService", statisticsService);
+        ReflectionTestUtils.setField(service, "productionPieceGenerationTaskService", generationTaskService);
+        ReflectionTestUtils.setField(service, "preOrderLabelTaskService", labelTaskService);
+        ReflectionTestUtils.setField(service, "appOrderPreprocessingService", preprocessingService);
+        ReflectionTestUtils.setField(service, "orderPreprocessTaskQueue", preprocessTaskQueue);
+        OrderInfo orderInfo = orderInfoWithManufacturerPrice("1555.20");
+        orderInfo.setOrderId("2098348860696453122");
+        orderInfo.setManufacturerId("6a26a93758a9abfcdc66d93c");
+        OrderInfo existingOrder = new OrderInfo();
+        existingOrder.setStatus(OrderStatus.PENDING);
+        when(request.toOrderInfo()).thenReturn(orderInfo);
+        when(request.toOrderItems()).thenReturn(List.of());
+        when(orderInfoService.findByOrderIdAndManufacturerId(
+                "2098348860696453122", "6a26a93758a9abfcdc66d93c")).thenReturn(existingOrder);
+
+        OrderInfo result = service.addOrderWithItems(request);
+
+        assertThat(result).isSameAs(existingOrder);
+        verify(orderInfoService, never()).addOrderWithItems(any(), any());
+        verifyNoInteractions(statisticsService);
+        verifyNoInteractions(generationTaskService, labelTaskService, preprocessingService, preprocessTaskQueue);
     }
 
     private boolean hasPendingTypesettingQuantityLessThan(ProductionPiece piece, int transferQuantity) {
