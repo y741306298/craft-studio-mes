@@ -292,13 +292,13 @@ public class OrderController {
     }
 
     /**
-     * 从指定日期起，依据订单、订单项和转单记录重新生成工厂的每日统计。
+     * 依据真实的订单和订单项，重新生成指定工厂在指定日期的订单统计。
      */
     @PostMapping("/statistics/calibrate")
     public ApiResponse<String> calibrateStatistics(
             @Valid @RequestBody OrderStatisticsCalibrationRequest request) {
         return ApiResponse.success(appOrderService.calibrateDailyStatistics(
-                request.getManufacturerMetaId(), request.getStartDate()));
+                request.getManufacturerMetaId(), request.getStatisticsDate()));
     }
 
 

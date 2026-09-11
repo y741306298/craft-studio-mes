@@ -1,5 +1,6 @@
 package com.mes.application.dto.req.order;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,7 +13,8 @@ public class OrderStatisticsCalibrationRequest {
     @NotBlank(message = "工厂 ID 不能为空")
     private String manufacturerMetaId;
 
-    @NotNull(message = "开始日期不能为空")
+    @NotNull(message = "统计日期不能为空")
     @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate startDate;
+    @JsonAlias("startDate")
+    private LocalDate statisticsDate;
 }

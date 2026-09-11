@@ -125,23 +125,22 @@ public class AppOrderService {
     private static final String NO_ROUTE_NAME = "无路线";
 
     /**
-     * Rebuilds persisted order and transfer statistics from source documents. The operation is
-     * idempotent: statistics in the requested range are removed before being recreated.
+     * 按指定日期重建工厂的订单日统计。统计口径与 addOrderWithItems 一致，
+     * 但数据来源为已持久化的 OrderInfo 和 OrderItem。
      */
-    public String calibrateDailyStatistics(String manufacturerMetaId, LocalDate startDate) {
-        if (StringUtils.isBlank(manufacturerMetaId) || startDate == null) {
-            throw new IllegalArgumentException("工厂和开始日期不能为空");
+    public String calibrateDailyStatistics(String manufacturerMetaId, LocalDate statisticsDate) {
+        if (StringUtils.isBlank(manufacturerMetaId) || statisticsDate == null) {
+            throw new IllegalArgumentException("工厂和统计日期不能为空");
         }
-        LocalDate endDate = LocalDate.now(BEIJING_ZONE);
-        if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("开始日期不能晚于今天");
+        if (statisticsDate.isAfter(LocalDate.now(BEIJING_ZONE))) {
+            throw new IllegalArgumentException("统计日期不能晚于今天");
         }
 
-        Date startTime = Date.from(startDate.atStartOfDay(BEIJING_ZONE).toInstant());
-        Date endTime = Date.from(endDate.plusDays(1).atStartOfDay(BEIJING_ZONE).minusNanos(1).toInstant());
+        Date startTime = Date.from(statisticsDate.atStartOfDay(BEIJING_ZONE).toInstant());
+        Date endTime = Date.from(statisticsDate.plusDays(1).atStartOfDay(BEIJING_ZONE).minusNanos(1).toInstant());
         List<OrderInfo> orders = findAllOrders(manufacturerMetaId, startTime, endTime);
 
-        orderDailyStatisticsService.deleteRange(manufacturerMetaId, startDate, endDate);
+        orderDailyStatisticsService.deleteRange(manufacturerMetaId, statisticsDate, statisticsDate);
         int calibratedOrders = 0;
         for (OrderInfo order : orders) {
             if (order == null || order.getStatus() == OrderStatus.RETURNED || order.getCreateTime() == null) {
@@ -151,43 +150,11 @@ public class AppOrderService {
             if (items.isEmpty()) {
                 continue;
             }
-            LocalDate statisticsDate = order.getCreateTime().toInstant().atZone(BEIJING_ZONE).toLocalDate();
-            OrderStatisticsAmounts amounts = calculateCalibratedStatisticsAmounts(manufacturerMetaId, items);
             incrementOrderDimensions(manufacturerMetaId, statisticsDate, order, items, 1L, BigDecimal.ONE,
-                    amounts, amounts.totalAmount());
+                    calculateStatisticsAmounts(order, items), null);
             calibratedOrders++;
         }
-
-        int calibratedTransfers = rebuildTransferDailyStatistics(manufacturerMetaId, startDate, endDate,
-                startTime, endTime);
-        return "统计校准完成，订单数：" + calibratedOrders + "，转单数：" + calibratedTransfers;
-    }
-
-    /**
-     * 校准时以当前实际存在的订单项为准，并优先使用订单项已持久化的金额分摊。
-     * 没有金额分摊的订单项回退到自身的工厂实际价，不再读取订单快照的 actualPrice。
-     */
-    private OrderStatisticsAmounts calculateCalibratedStatisticsAmounts(String manufacturerMetaId,
-                                                                         List<OrderItem> orderItems) {
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        LinkedHashMap<String, BigDecimal> amountByMaterialId = new LinkedHashMap<>();
-        LinkedHashMap<String, BigDecimal> areaByMaterialId = new LinkedHashMap<>();
-        for (OrderItem orderItem : orderItems) {
-            OrderItemPriceAllocation allocation = orderItemPriceAllocationRepository
-                    .findByOrderItemIdAndManufacturerMetaId(orderItem.getOrderItemId(), manufacturerMetaId);
-            BigDecimal itemAmount = allocation != null && allocation.getPrice() != null
-                    ? allocation.getPrice() : resolveManufacturerActualPrice(orderItem);
-            totalAmount = totalAmount.add(itemAmount);
-
-            String materialId = resolveMaterialId(orderItem);
-            if (StringUtils.isNotBlank(materialId)) {
-                amountByMaterialId.merge(materialId, itemAmount, BigDecimal::add);
-                areaByMaterialId.merge(materialId, calculateOrderItemArea(orderItem), BigDecimal::add);
-            }
-        }
-        amountByMaterialId.replaceAll((ignored, amount) -> scaleStatisticsDecimal(amount));
-        return new OrderStatisticsAmounts(scaleStatisticsDecimal(totalAmount), amountByMaterialId,
-                areaByMaterialId, Map.of());
+        return "统计校准完成，日期：" + statisticsDate + "，订单数：" + calibratedOrders;
     }
 
     private List<OrderInfo> findAllOrders(String manufacturerMetaId, Date startTime, Date endTime) {
@@ -207,55 +174,6 @@ public class AppOrderService {
             result.addAll(values);
             if (values.size() < 100) return result;
         }
-    }
-
-    private int rebuildTransferDailyStatistics(String manufacturerMetaId, LocalDate startDate, LocalDate endDate,
-                                               Date startTime, Date endTime) {
-        List<OrderTransferRecord> allRecords = orderTransferRecordService.findAllTransferRecords(
-                manufacturerMetaId, null, null, null);
-        List<OrderTransferRecord> records = allRecords.stream()
-                .filter(record -> record.getCreateTime() != null
-                        && !record.getCreateTime().before(startTime) && !record.getCreateTime().after(endTime))
-                .toList();
-        transferDailyStatisticsService.deleteRange(manufacturerMetaId, startDate, endDate);
-
-        Map<String, Integer> originalQuantities = new HashMap<>();
-        for (OrderTransferRecord record : allRecords) {
-            originalQuantities.merge(record.getOrderItemId(), safeQuantity(record.getQuantity()), Integer::sum);
-        }
-        for (String itemId : new ArrayList<>(originalQuantities.keySet())) {
-            OrderItem remainingItem = domainOrderItemService.findByOrderItemId(itemId);
-            if (remainingItem != null && Objects.equals(manufacturerMetaId, remainingItem.getManufacturerId())) {
-                originalQuantities.merge(itemId, safeQuantity(remainingItem.getQuantity()), Integer::sum);
-            }
-        }
-
-        Map<String, List<OrderTransferRecord>> transferGroups = records.stream().collect(Collectors.groupingBy(
-                record -> record.getTargetId() + "|" + record.getOrderId() + "|" + record.getCreateTime().getTime(),
-                LinkedHashMap::new, Collectors.toList()));
-        for (List<OrderTransferRecord> group : transferGroups.values()) {
-            OrderTransferRecord first = group.get(0);
-            BigDecimal amount = group.stream().map(record -> calculateHistoricalTransferAmount(
-                    manufacturerMetaId, record, originalQuantities.getOrDefault(record.getOrderItemId(), 0)))
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            LocalDate statisticsDate = first.getCreateTime().toInstant().atZone(BEIJING_ZONE).toLocalDate();
-            transferDailyStatisticsService.increment(manufacturerMetaId, first.getTargetId(), first.getTargetName(),
-                    statisticsDate, 1L, scaleStatisticsDecimal(amount));
-        }
-        return transferGroups.size();
-    }
-
-    private BigDecimal calculateHistoricalTransferAmount(String manufacturerMetaId, OrderTransferRecord record,
-                                                          int originalQuantity) {
-        if (originalQuantity <= 0 || record.getQuantity() == null) return BigDecimal.ZERO;
-        OrderItemPriceAllocation allocation = orderItemPriceAllocationRepository
-                .findByOrderItemIdAndManufacturerMetaId(record.getOrderItemId(), manufacturerMetaId);
-        OrderItem priceSource = domainOrderItemService.findByOrderItemId(record.getOrderItemId());
-        if (priceSource == null) priceSource = domainOrderItemService.findByOrderItemId(record.getTargetOrderItemId());
-        BigDecimal itemPrice = allocation != null && allocation.getPrice() != null
-                ? allocation.getPrice() : resolveManufacturerActualPrice(priceSource);
-        return itemPrice.multiply(BigDecimal.valueOf(record.getQuantity()))
-                .divide(BigDecimal.valueOf(originalQuantity), 12, RoundingMode.HALF_UP);
     }
 
     /**
