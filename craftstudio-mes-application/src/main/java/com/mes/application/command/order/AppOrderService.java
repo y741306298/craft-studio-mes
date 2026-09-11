@@ -868,6 +868,14 @@ public class AppOrderService {
         OrderInfo orderInfo = request.toOrderInfo();
         orderInfo.setOrgInfo(podvOrgInfoHelper.normalize(orderInfo.getPlatformCode(), orderInfo.getOrgInfo()));
         List<OrderItem> orderItems = request.toOrderItems();
+        String manufacturerMetaId = resolveManufacturerMetaId(orderInfo, orderItems);
+        OrderInfo existingOrder = domainOrderInfoService.findByOrderIdAndManufacturerId(
+                orderInfo.getOrderId(), manufacturerMetaId);
+        if (existingOrder != null && existingOrder.getStatus() != OrderStatus.RETURNED) {
+            log.info("addOrderWithItems 跳过重复订单: orderId={}, manufacturerMetaId={}, status={}",
+                    orderInfo.getOrderId(), manufacturerMetaId, existingOrder.getStatus());
+            return existingOrder;
+        }
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
         productionPieceGenerationTaskService.create(orderInfo.getOrderId(), orderItemsResult.stream()
@@ -987,6 +995,11 @@ public class AppOrderService {
     }
 
     private void saveOrderDailyStatistics(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            log.info("addOrderWithItems 跳过订单统计，没有新增订单项: orderId={}",
+                    orderInfo == null ? null : orderInfo.getOrderId());
+            return;
+        }
         String manufacturerMetaId = resolveManufacturerMetaId(orderInfo, orderItems);
         if (StringUtils.isBlank(manufacturerMetaId)) {
             log.warn("addOrderWithItems 跳过订单统计，manufacturerMetaId 为空");
