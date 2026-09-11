@@ -83,8 +83,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
             mirrorConfig.setThumbnail(processingService.completeOssUrlForStrategy(mirrorImageData.thumbnail));
             piece.setMirrorConfigs(List.of(mirrorConfig));
         }
-        processingService.getProductionPieceService().addProductionPiece(piece);
-        processingService.indexProductionPieceImageForStrategy(piece);
+        // 由预处理服务与同批次其他同步生成的零件一起批量持久化并建立索引。
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
         return pieces;

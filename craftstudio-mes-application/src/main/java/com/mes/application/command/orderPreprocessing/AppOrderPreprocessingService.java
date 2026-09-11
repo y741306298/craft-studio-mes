@@ -199,6 +199,8 @@ public class AppOrderPreprocessingService {
         }
         log.info("订单预处理开始: itemCount={}", orderItems.size());
         int generatedPieceCount = 0;
+        List<ProductionPiece> piecesToAdd = new ArrayList<>();
+        List<OrderItem> directlyGeneratedOrderItems = new ArrayList<>();
         List<String> failedOrderItems = new ArrayList<>();
         List<String> failedOrderItemIds = new ArrayList<>();
 
@@ -208,13 +210,15 @@ public class AppOrderPreprocessingService {
                 log.info("订单项预处理开始: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
                 //转化成生产零件，同时判断是否需要调用抠图算法
                 List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
-                // 处理成功，将订单项状态改为生产中
-                updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 if (pieces != null) {
                     generatedPieceCount += pieces.size();
                 }
                 if (pieces != null && !pieces.isEmpty()) {
-                    productionPieceGenerationTaskService.markGenerated(orderItem.getOrderId(), orderItem.getOrderItemId());
+                    piecesToAdd.addAll(pieces);
+                    directlyGeneratedOrderItems.add(orderItem);
+                } else {
+                    // 异步蒙版策略没有立即生成零件，保持原有状态推进逻辑。
+                    updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 }
                 log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
@@ -226,6 +230,18 @@ public class AppOrderPreprocessingService {
                 String err = "订单项=" + orderItemId + ", 错误=" + e.getMessage();
                 failedOrderItems.add(err);
                 log.error("处理订单项失败: {}", err, e);
+            }
+        }
+
+        // 与蒙版回调保持一致：先汇总本批次同步生成的零件，再一次性批量入库，
+        // 避免按订单项循环执行单条新增。
+        if (!piecesToAdd.isEmpty()) {
+            List<ProductionPiece> savedPieces = productionPieceService.batchAddProductionPieces(piecesToAdd);
+            savedPieces.forEach(this::indexProductionPieceImage);
+            for (OrderItem orderItem : directlyGeneratedOrderItems) {
+                updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
+                productionPieceGenerationTaskService.markGenerated(
+                        orderItem.getOrderId(), orderItem.getOrderItemId());
             }
         }
 
