@@ -29,6 +29,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 
@@ -211,6 +213,45 @@ class AppOrderServiceTest {
                 eq("MANUFACTURER"), any(LocalDate.class),
                 eq("ROUTE-BUSINESS-ID"), eq("华东路线"), eq(OrderStatisticsType.ROUTE),
                 eq(1L), eq(new BigDecimal("0.00")), eq(new BigDecimal("0.00")));
+    }
+
+    @Test
+    void recalibratesOnlySpecifiedDateFromPersistedOrderAndItems() {
+        OrderInfoService orderInfoService = mock(OrderInfoService.class);
+        OrderItemService orderItemService = mock(OrderItemService.class);
+        OrderDailyStatisticsService statisticsService = mock(OrderDailyStatisticsService.class);
+        DeliveryRouteRepository routeRepository = mock(DeliveryRouteRepository.class);
+        ReflectionTestUtils.setField(service, "domainOrderInfoService", orderInfoService);
+        ReflectionTestUtils.setField(service, "domainOrderItemService", orderItemService);
+        ReflectionTestUtils.setField(service, "orderDailyStatisticsService", statisticsService);
+        ReflectionTestUtils.setField(service, "deliveryRouteRepository", routeRepository);
+
+        LocalDate date = LocalDate.of(2026, 9, 10);
+        ZoneId beijingZone = ZoneId.of("Asia/Shanghai");
+        Date dayStart = Date.from(date.atStartOfDay(beijingZone).toInstant());
+        Date dayEnd = Date.from(date.plusDays(1).atStartOfDay(beijingZone).minusNanos(1).toInstant());
+        OrderInfo persistedOrder = orderInfoWithManufacturerPrice("88.00");
+        persistedOrder.setOrderId("ORDER-1");
+        persistedOrder.setStatus(OrderStatus.PENDING);
+        persistedOrder.setCreateTime(dayStart);
+        OrderItem persistedItem = new OrderItem();
+        persistedItem.setOrderId("ORDER-1");
+        persistedItem.setOrderItemId("ITEM-1");
+        persistedItem.setManufacturerId("MANUFACTURER");
+        persistedItem.setQuantity(2);
+
+        when(orderInfoService.findOrdersByManufacturerAndCreateTime(
+                "MANUFACTURER", dayStart, dayEnd, 1, 100)).thenReturn(List.of(persistedOrder));
+        when(orderItemService.findByOrderId("ORDER-1", "MANUFACTURER", 1, 100))
+                .thenReturn(List.of(persistedItem));
+
+        String result = service.calibrateDailyStatistics("MANUFACTURER", date);
+
+        assertThat(result).isEqualTo("统计校准完成，日期：2026-09-10，订单数：1");
+        verify(statisticsService).deleteRange("MANUFACTURER", date, date);
+        verify(statisticsService).increment(
+                "MANUFACTURER", date, "NO_ROUTE", "无路线", OrderStatisticsType.ROUTE,
+                1L, new BigDecimal("0.00"), new BigDecimal("88.00"));
     }
 
     @Test
