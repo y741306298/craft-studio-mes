@@ -171,6 +171,13 @@ public class ProductionPieceService {
                 manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent, offset, size);
     }
 
+    public List<ProductionPiece> findPendingTypesettingPiecesByOrderItemIds(
+            String manufacturerId, Collection<String> orderItemIds, String materialName,
+            List<ProcessingFlowCondition> processingName, String routeId, Date startTime, Date endTime) {
+        return productionPieceRepository.findPendingTypesettingPiecesByOrderItemIds(manufacturerId, orderItemIds,
+                materialName, processingName, routeId, startTime, endTime);
+    }
+
     public long countPendingTypesettingPiecesByProcessingConditions(
             String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
             String orderItemId, String routeId, Date startTime, Date endTime, boolean urgent) {

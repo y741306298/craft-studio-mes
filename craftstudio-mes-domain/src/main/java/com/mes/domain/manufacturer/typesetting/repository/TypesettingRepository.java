@@ -20,6 +20,9 @@ public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
     long countPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent);
 
+    List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
+            String materialName, List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime);
+
     /**
      * 查询待打印或打印中印版的材料字段。实现层仅投影材料 ID 和名称。
      */

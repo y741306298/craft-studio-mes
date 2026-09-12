@@ -196,6 +196,12 @@ public class TypesettingService {
                 startTime, endTime, urgent);
     }
 
+    public List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
+            String materialName, List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime) {
+        return typesettingRepository.findPendingByTypesettingId(manufacturerMetaId, typesettingId, materialName,
+                processingNames, startTime, endTime);
+    }
+
     
     public List<TypesettingInfo> findTypesettingByProcessingConditions(
             String manufacturerMetaId,

@@ -60,6 +60,17 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     }
 
     @Override
+    public List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
+            String materialName, List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime) {
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(pendingCriteria(manufacturerMetaId, materialName, processingNames, startTime, endTime, null));
+        criteria.add(Criteria.where("typesettingId").is(typesettingId));
+        Query query = new SoftDeleteQuery(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        query.with(Sort.by(Sort.Order.asc("createTime")));
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
+    @Override
     public List<TypesettingInfo> findPrintableMaterials(String manufacturerMetaId, String deviceCode,
                                                          Date startTime, Date endTime) {
         List<Criteria> criteria = new ArrayList<>();

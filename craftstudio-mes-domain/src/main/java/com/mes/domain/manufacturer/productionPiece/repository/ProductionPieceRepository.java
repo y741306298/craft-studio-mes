@@ -14,6 +14,10 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds);
 
+    List<ProductionPiece> findPendingTypesettingPiecesByOrderItemIds(String manufacturerId,
+            Collection<String> orderItemIds, String materialName, List<ProcessingFlowCondition> processNames,
+            String routeId, java.util.Date startTime, java.util.Date endTime);
+
     /** Clears route bindings for every production piece belonging to the supplied order items. */
     long clearRouteBindingsByOrderItemIds(Collection<String> orderItemIds);
 
