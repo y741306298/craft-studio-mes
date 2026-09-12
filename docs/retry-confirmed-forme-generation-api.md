@@ -4,8 +4,19 @@
 
 `POST /api/manufacturerSide/typesetting/forme/retryConfirmed`
 
-无需请求体。接口查询所有 `status=confirmed` 的印版，并根据每条记录保存的 `layoutMode`、
+请求体必须提供创建时间范围。接口查询范围内所有 `status=confirmed` 的印版，并根据每条记录保存的 `layoutMode`、
 `element.nestedSvg` 和 `remark` 重新构建、提交印版生成请求。
+
+```json
+{
+  "startTime": "2026-09-12T00:00:00.000Z",
+  "endTime": "2026-09-12T23:59:59.999Z"
+}
+```
+
+`startTime` 和 `endTime` 都是必填字段，查询包含两个时间边界，且开始时间不能晚于结束时间。
+重试和 `confirmPrint`、`confirmLayout` 共用同一个印版请求组装入口，确保 forme、outputs、上传配置、
+回调配置、marks 和定位点参数保持一致。
 
 支持的操作标记：
 

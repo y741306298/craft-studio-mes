@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.application.dto.req.typesetting.RetryConfirmedFormeRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
@@ -1627,8 +1628,7 @@ public class AppTypesettingService {
             typesettingInfo.applyLayoutModeConfig();
 
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:LAYOUT";
             // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
             typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
@@ -1647,12 +1647,11 @@ public class AppTypesettingService {
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
                 mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
                         TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
                 // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
@@ -2840,8 +2839,7 @@ public class AppTypesettingService {
             typesettingInfo.applyLayoutModeConfig();
 
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
             TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
             if (mirrorTypesettingInfo != null) {
@@ -2854,12 +2852,11 @@ public class AppTypesettingService {
                 ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
                 mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
                         TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
                 // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
@@ -2952,8 +2949,12 @@ public class AppTypesettingService {
      * 重新提交所有仍停留在 confirmed 状态的印版生成任务。
      * 每条记录按库内 remark 保留原操作类型（确认排版或确认打印），回调仍按原链路完成落库。
      */
-    public RetryFormeGenerationResult retryAllConfirmedFormeGeneration() {
-        List<TypesettingInfo> confirmedTypesettings = domainTypesettingService.findAllByStatus(TypesettingStatus.CONFIRMED);
+    public RetryFormeGenerationResult retryAllConfirmedFormeGeneration(RetryConfirmedFormeRequest retryRequest) {
+        if (retryRequest == null) {
+            throw new IllegalArgumentException("重试印版生成参数不能为空");
+        }
+        List<TypesettingInfo> confirmedTypesettings = domainTypesettingService.findAllByStatusAndCreateTime(
+                TypesettingStatus.CONFIRMED, retryRequest.getStartTime(), retryRequest.getEndTime());
         RetryFormeGenerationResult result = new RetryFormeGenerationResult();
         if (confirmedTypesettings == null) {
             confirmedTypesettings = Collections.emptyList();
@@ -3000,9 +3001,10 @@ public class AppTypesettingService {
             }
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(latest.getLayoutMode());
             latest.applyLayoutModeConfig();
-            String businessId = resolveFormeBusinessId(latest, layoutMode);
-            FormeGenerationRequest request = buildFormeGenerationRequest(latest, layoutMode, businessId);
-            mergeAnchorPointMarks(latest, request);
+            String businessId = isMirrorTypesettingInfo(latest)
+                    ? resolveMirrorFormeBusinessId(latest, resolveFormeBusinessId(latest, layoutMode))
+                    : resolveFormeBusinessId(latest, layoutMode);
+            FormeGenerationRequest request = buildConfirmFormeGenerationRequest(latest, layoutMode, businessId);
             // 构建器可能重新生成码图、marks 和扩边尺寸，必须先持久化，确保随后回调及打印任务使用同一份元数据。
             mergeExistingMarksBeforeUpdate(latest);
             domainTypesettingService.updateTypesetting(latest);
@@ -3014,6 +3016,17 @@ public class AppTypesettingService {
     }
 
     private record FormeRetrySubmission(String requestJson, String callbackUrl) {
+    }
+
+    /**
+     * confirmLayout、confirmPrint 和补偿重试共用同一参数组装入口，避免三条链路生成不同的印版请求。
+     */
+    private FormeGenerationRequest buildConfirmFormeGenerationRequest(TypesettingInfo typesettingInfo,
+                                                                      TypesettingLayoutMode layoutMode,
+                                                                      String businessId) {
+        FormeGenerationRequest request = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+        mergeAnchorPointMarks(typesettingInfo, request);
+        return request;
     }
 
     public ConfirmPrintResult batchConfirmPrint(BatchConfirmPrintRequest request) {

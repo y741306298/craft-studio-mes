@@ -372,11 +372,17 @@ public class TypesettingService {
         return typesettingRepository.fuzzySearch(searchFilters, current, size);
     }
 
-    public List<TypesettingInfo> findAllByStatus(TypesettingStatus status) {
+    public List<TypesettingInfo> findAllByStatusAndCreateTime(TypesettingStatus status, Date startTime, Date endTime) {
         if (status == null) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版状态不能为空");
         }
-        return typesettingRepository.findByStatus(status.getCode());
+        if (startTime == null || endTime == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "开始时间和结束时间不能为空");
+        }
+        if (startTime.after(endTime)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "开始时间不能晚于结束时间");
+        }
+        return typesettingRepository.findByStatusAndCreateTime(status.getCode(), startTime, endTime);
     }
 
     /**

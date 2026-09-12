@@ -9,7 +9,7 @@ import java.util.Date;
 import java.util.List;
 
 public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
-    List<TypesettingInfo> findByStatus(String status);
+    List<TypesettingInfo> findByStatusAndCreateTime(String status, Date startTime, Date endTime);
 
     void batchUpdateCallbackFailure(Collection<String> ids, String status, String remark);
 

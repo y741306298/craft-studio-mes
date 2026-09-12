@@ -231,11 +231,12 @@ public class TypesettingController {
     }
 
     /**
-     * 扫描所有 confirmed 印版，并按原确认操作重新提交印版生成请求。
+     * 扫描指定创建时间范围内的 confirmed 印版，并按原确认操作重新提交印版生成请求。
      */
     @PostMapping("/forme/retryConfirmed")
-    public ApiResponse<RetryFormeGenerationResult> retryConfirmedFormeGeneration() {
-        return ApiResponse.success(appTypesettingService.retryAllConfirmedFormeGeneration());
+    public ApiResponse<RetryFormeGenerationResult> retryConfirmedFormeGeneration(
+            @Valid @RequestBody RetryConfirmedFormeRequest request) {
+        return ApiResponse.success(appTypesettingService.retryAllConfirmedFormeGeneration(request));
     }
 
     /**
