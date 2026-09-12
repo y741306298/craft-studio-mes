@@ -219,30 +219,15 @@ public class AppPrintService {
         }
 
         int effectiveReportQuantity = 0;
+        Integer expectedLeaveQuantity = dbInfo.getLeaveQuantity();
+        int newLeaveQuantity = expectedLeaveQuantity == null ? 0 : expectedLeaveQuantity;
+        String newStatus = dbInfo.getStatus();
         if (reportQuantity != null && reportQuantity > 0) {
-            // CAS makes claiming the remaining quantity idempotent across retries and concurrent requests.
-            while (true) {
-                Integer expectedLeaveQuantity = dbInfo.getLeaveQuantity();
-                int currentLeaveQuantity = expectedLeaveQuantity == null ? 0 : expectedLeaveQuantity;
-                effectiveReportQuantity = Math.min(reportQuantity, currentLeaveQuantity);
-                if (effectiveReportQuantity == 0) {
-                    break;
-                }
-                int newLeaveQuantity = currentLeaveQuantity - effectiveReportQuantity;
-                String newStatus = newLeaveQuantity == 0
-                        ? TypesettingStatus.COMPLETED.getCode() : dbInfo.getStatus();
-                if (typesettingService.compareAndSetPrintReport(request.getId(), expectedLeaveQuantity,
-                        newLeaveQuantity, newStatus, request.getRemark())) {
-                    dbInfo.setLeaveQuantity(newLeaveQuantity);
-                    dbInfo.setStatus(newStatus);
-                    break;
-                }
-                dbInfo = typesettingService.findById(request.getId());
-                if (dbInfo == null) {
-                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
-                            "排版信息不存在：" + request.getId());
-                }
-            }
+            int currentLeaveQuantity = expectedLeaveQuantity == null ? 0 : expectedLeaveQuantity;
+            effectiveReportQuantity = Math.min(reportQuantity, currentLeaveQuantity);
+            newLeaveQuantity = currentLeaveQuantity - effectiveReportQuantity;
+            newStatus = newLeaveQuantity == 0
+                    ? TypesettingStatus.COMPLETED.getCode() : dbInfo.getStatus();
         } else {
             if (StringUtils.isNotBlank(request.getRemark())) {
                 dbInfo.setRemark(request.getRemark());
@@ -253,21 +238,40 @@ public class AppPrintService {
             typesettingService.updateTypesetting(dbInfo);
         }
 
-        boolean canComplete = reportQuantity != null
-                && (dbInfo.getLeaveQuantity() == null || dbInfo.getLeaveQuantity() <= 0);
-
         int transferCount = 0;
+        String reportRemark = StringUtils.isNotBlank(request.getRemark())
+                ? request.getRemark() : dbInfo.getRemark();
         boolean skipQuantityTransferForMirror = isMirrorTypesettingInfo(dbInfo);
         if (effectiveReportQuantity > 0 && dbInfo.getTypesettingCells() != null
                 && !skipQuantityTransferForMirror) {
             Map<String, Integer> pieceQuantityMap = new LinkedHashMap<>();
             accumulateProductionPieceQuantities(
                     dbInfo.getTypesettingCells(), effectiveReportQuantity, pieceQuantityMap, new HashSet<>(), false);
+            Collection<String> productionPieceIds = pieceQuantityMap.keySet();
+            List<ProductionPiece> existingPieces = productionPieceService.findByProductionPieceIds(productionPieceIds);
+            Set<String> existingPieceIds = new HashSet<>();
+            for (ProductionPiece piece : existingPieces == null ? Collections.<ProductionPiece>emptyList() : existingPieces) {
+                if (piece == null) {
+                    continue;
+                }
+                if (StringUtils.isNotBlank(piece.getId())) {
+                    existingPieceIds.add(piece.getId());
+                }
+                if (StringUtils.isNotBlank(piece.getProductionPieceId())) {
+                    existingPieceIds.add(piece.getProductionPieceId());
+                }
+            }
+
             List<PieceQuantityTransfer> transfers = new ArrayList<>();
+            List<String> missingPieceIds = new ArrayList<>();
             for (Map.Entry<String, Integer> entry : pieceQuantityMap.entrySet()) {
                 String productionPieceId = entry.getKey();
                 Integer transferQuantity = entry.getValue();
                 if (StringUtils.isBlank(productionPieceId) || transferQuantity == null || transferQuantity <= 0) {
+                    continue;
+                }
+                if (!existingPieceIds.contains(productionPieceId)) {
+                    missingPieceIds.add(productionPieceId);
                     continue;
                 }
 
@@ -276,9 +280,30 @@ public class AppPrintService {
             }
             productionPieceService.transferPieceQuantitiesBetweenNodes(transfers);
             transferCount = transfers.size();
+            if (!missingPieceIds.isEmpty()) {
+                reportRemark = appendRemark(reportRemark,
+                        "打印报备跳过不存在的零件：" + String.join("、", missingPieceIds));
+            }
         }
 
+        // 印版状态和剩余数量必须最后更新，避免零件处理失败时留下“已完成”的印版。
+        if (reportQuantity != null && reportQuantity > 0 && effectiveReportQuantity > 0) {
+            if (!typesettingService.compareAndSetPrintReport(request.getId(), expectedLeaveQuantity,
+                    newLeaveQuantity, newStatus, reportRemark)) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "排版信息已发生变化，请刷新后重试：" + request.getId());
+            }
+            dbInfo.setLeaveQuantity(newLeaveQuantity);
+            dbInfo.setStatus(newStatus);
+        }
+
+        boolean canComplete = reportQuantity != null
+                && (dbInfo.getLeaveQuantity() == null || dbInfo.getLeaveQuantity() <= 0);
         return new PrintReportResult(canComplete, transferCount);
+    }
+
+    private String appendRemark(String remark, String appendedRemark) {
+        return StringUtils.isBlank(remark) ? appendedRemark : remark + "；" + appendedRemark;
     }
 
     public void startTypesettingPrintById(String typesettingId) {
