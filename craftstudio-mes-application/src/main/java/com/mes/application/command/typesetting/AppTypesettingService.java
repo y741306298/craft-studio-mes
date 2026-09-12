@@ -130,6 +130,7 @@ public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
+    private static final String FORME_CALLBACK_LOCK_PREFIX = "typesetting:forme:callback:lock:";
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final long NESTING_CALLBACK_RECORD_WAIT_MILLIS = 10_000;
@@ -2974,14 +2975,22 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(recordId)) {
             throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
-        TypesettingInfo lockInfo = domainTypesettingService.findById(recordId);
-        List<String> callbackLockKeys = buildTypesettingOperationLockKeys(lockInfo, recordId);
+        // 确认接口会持有排版操作锁直到算法提交返回；算法可能在提交尚未返回时就发起回调。
+        // 回调必须使用独立锁防重，否则会与确认线程互相竞争，导致完整结果被直接拒绝而无法落库。
+        List<String> callbackLockKeys = buildFormeCallbackLockKeys(recordId);
         String callbackLockToken = acquireOperationLocks(callbackLockKeys, "印版生成回调正在处理中，请稍后重试");
         try {
             doHandleGenerateFormeCallback(response, recordId);
         } finally {
             releaseOperationLocks(callbackLockKeys, callbackLockToken);
         }
+    }
+
+    private List<String> buildFormeCallbackLockKeys(String recordId) {
+        if (StringUtils.isBlank(recordId)) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(FORME_CALLBACK_LOCK_PREFIX + recordId);
     }
 
     private void doHandleGenerateFormeCallback(FormeGenerationResponse response, String recordId) {
