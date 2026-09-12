@@ -92,7 +92,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -185,6 +187,11 @@ public class AppTypesettingService {
     private TypesettingContainerWidthInsetService containerWidthInsetService;
     @Autowired
     private ProductionPieceService productionPieceService;
+    private TransactionTemplate transactionTemplate;
+    @Autowired
+    public void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+    }
     @Autowired
     private TypesettingPrintTaskService typesettingPrintTaskService;
     @Autowired
@@ -3799,7 +3806,6 @@ public class AppTypesettingService {
     }
 
     private ReleaseLayoutResult doReleaseLayout(List<String> typesettingIds) {
-
         Map<String, TypesettingInfo> typesettingInfoMap = new LinkedHashMap<>();
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId) || typesettingInfoMap.containsKey(typesettingId)) {
@@ -3813,18 +3819,13 @@ public class AppTypesettingService {
             typesettingInfoMap.put(typesettingId, info);
         }
 
-        Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
-        Map<String, Integer> typesettingRollbackQuantity = new LinkedHashMap<>();
         List<String> releasedPieceIds = new ArrayList<>();
         List<String> errorMessages = new ArrayList<>();
         List<String> deletedLayoutIds = new ArrayList<>();
-        Set<String> deletedLayoutIdSet = new LinkedHashSet<>();
+        Set<String> processedLayoutIds = new LinkedHashSet<>();
 
         for (String typesettingId : typesettingIds) {
-            if (StringUtils.isBlank(typesettingId)) {
-                continue;
-            }
-            if (deletedLayoutIdSet.contains(typesettingId)) {
+            if (StringUtils.isBlank(typesettingId) || processedLayoutIds.contains(typesettingId)) {
                 continue;
             }
             TypesettingInfo info = typesettingInfoMap.get(typesettingId);
@@ -3834,7 +3835,8 @@ public class AppTypesettingService {
             }
             TypesettingInfo pairedMirrorTypesetting = findReleaseLayoutMirrorPair(info);
             if (pairedMirrorTypesetting != null && StringUtils.isNotBlank(pairedMirrorTypesetting.getId())) {
-                boolean pairedLayoutCanRelease = (pairedMirrorTypesetting.getLeaveQuantity() != null && pairedMirrorTypesetting.getLeaveQuantity() != 0)
+                boolean pairedLayoutCanRelease = pairedMirrorTypesetting.getLeaveQuantity() != null
+                        && pairedMirrorTypesetting.getLeaveQuantity() != 0
                         && TypesettingStatus.PENDING.getCode().equals(pairedMirrorTypesetting.getStatus());
                 if (!pairedLayoutCanRelease) {
                     errorMessages.add("排版记录 " + info.getId() + " 的正面或反面文件已经被使用，无法释放");
@@ -3842,88 +3844,97 @@ public class AppTypesettingService {
                 }
             }
 
-            List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
-            if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
-                    && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
-                usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
-            }
-            for (TypesettingSourceCell usedCell : usedCells == null ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
-                if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType()) || StringUtils.isBlank(usedCell.getSourceId())) {
-                    continue;
-                }
-                int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0 ? 1 : usedCell.getQuantity();
-                if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
-                    if (!isMirrorTypesettingInfo(info)) {
-                        productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
-                    }
-                } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
-                    typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
-                }
-            }
-
-            try {
-                domainTypesettingService.deleteTypesetting(info.getId());
-                deletedLayoutIds.add(info.getId());
-                deletedLayoutIdSet.add(info.getId());
-            } catch (Exception e) {
-                errorMessages.add("删除排版记录失败(" + info.getId() + "): " + e.getMessage());
-                continue;
-            }
-
             TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
-            if (mirrorTypesetting == null || StringUtils.isBlank(mirrorTypesetting.getId())) {
-                continue;
-            }
             try {
-                domainTypesettingService.deleteTypesetting(mirrorTypesetting.getId());
-                deletedLayoutIds.add(mirrorTypesetting.getId());
-                deletedLayoutIdSet.add(mirrorTypesetting.getId());
+                SingleLayoutReleaseResult singleResult = transactionTemplate.execute(status ->
+                        releaseSingleLayout(info, mirrorTypesetting));
+                if (singleResult == null) {
+                    throw new IllegalStateException("释放事务未返回结果");
+                }
+                releasedPieceIds.addAll(singleResult.releasedPieceIds());
+                deletedLayoutIds.addAll(singleResult.deletedLayoutIds());
+                processedLayoutIds.addAll(singleResult.deletedLayoutIds());
             } catch (Exception e) {
-                errorMessages.add("删除镜像排版记录失败(" + mirrorTypesetting.getId() + "): " + e.getMessage());
+                errorMessages.add("释放排版记录失败(" + info.getId() + "): " + e.getMessage());
             }
         }
 
-        for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
-            String sourceTypesettingId = entry.getKey();
-            Integer rollbackQuantity = entry.getValue();
-            if (StringUtils.isBlank(sourceTypesettingId) || rollbackQuantity == null || rollbackQuantity <= 0) {
+        return buildReleaseLayoutResult(errorMessages, releasedPieceIds, deletedLayoutIds);
+    }
+
+    /**
+     * 单张印版在独立 MongoDB 事务中释放。一次性校验并批量回退该印版的全部零件，
+     * 任一零件失败都会回滚整张印版的工件更新和印版删除，不影响后续印版继续处理。
+     */
+    private SingleLayoutReleaseResult releaseSingleLayout(TypesettingInfo info, TypesettingInfo mirrorTypesetting) {
+        Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
+        Map<String, Integer> typesettingRollbackQuantity = new LinkedHashMap<>();
+        List<TypesettingSourceCell> usedCells = info.getTypesettingCells();
+        if ((usedCells == null || usedCells.isEmpty()) && info.getElement() != null
+                && StringUtils.isNotBlank(info.getElement().getNestedSvg())) {
+            usedCells = extractUsedSourceCells(info.getTypesettingId(), info.getElement().getNestedSvg());
+        }
+        for (TypesettingSourceCell usedCell : usedCells == null
+                ? Collections.<TypesettingSourceCell>emptyList() : usedCells) {
+            if (usedCell == null || StringUtils.isBlank(usedCell.getSourceType())
+                    || StringUtils.isBlank(usedCell.getSourceId())) {
                 continue;
             }
-            try {
-                TypesettingInfo sourceTypesetting = domainTypesettingService.findById(sourceTypesettingId);
-                if (sourceTypesetting == null || StringUtils.isBlank(sourceTypesetting.getId())) {
-                    errorMessages.add("来源印版不存在: " + sourceTypesettingId);
-                    continue;
+            int usedQuantity = usedCell.getQuantity() == null || usedCell.getQuantity() <= 0
+                    ? 1 : usedCell.getQuantity();
+            if (TypesettingSourceType.PART.getCode().equals(usedCell.getSourceType())) {
+                if (!isMirrorTypesettingInfo(info)) {
+                    productionPieceRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
                 }
-                sourceTypesetting.setStatus(TypesettingStatus.PENDING.getCode());
-                sourceTypesetting.setLeaveQuantity(rollbackQuantity);
-                domainTypesettingService.updateTypesetting(sourceTypesetting);
-            } catch (Exception e) {
-                errorMessages.add("回退印版失败(" + sourceTypesettingId + "): " + e.getMessage());
+            } else if (TypesettingSourceType.TYPESETTING.getCode().equals(usedCell.getSourceType())) {
+                typesettingRollbackQuantity.merge(usedCell.getSourceId(), usedQuantity, Integer::sum);
             }
         }
 
         List<PieceQuantityTransfer> rollbackTransfers = productionPieceRollbackQuantity.entrySet().stream()
-                .filter(entry -> StringUtils.isNotBlank(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
                 .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
                         "NODE_TYPESETTING", entry.getValue()))
                 .toList();
-        try {
-            productionPieceService.transferPieceQuantitiesBetweenNodes(rollbackTransfers);
-            releasedPieceIds.addAll(productionPieceRollbackQuantity.keySet());
-        } catch (Exception e) {
-            errorMessages.add("批量回退工件失败: " + e.getMessage());
+        productionPieceService.transferPieceQuantitiesBetweenNodesStrict(rollbackTransfers);
+
+        for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
+            TypesettingInfo sourceTypesetting = domainTypesettingService.findById(entry.getKey());
+            if (sourceTypesetting == null || StringUtils.isBlank(sourceTypesetting.getId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                        "来源印版不存在: " + entry.getKey());
+            }
+            sourceTypesetting.setStatus(TypesettingStatus.PENDING.getCode());
+            sourceTypesetting.setLeaveQuantity(entry.getValue());
+            domainTypesettingService.updateTypesetting(sourceTypesetting);
         }
 
+        List<String> deletedIds = new ArrayList<>();
+        domainTypesettingService.deleteTypesetting(info.getId());
+        deletedIds.add(info.getId());
+        if (mirrorTypesetting != null && StringUtils.isNotBlank(mirrorTypesetting.getId())
+                && !Objects.equals(info.getId(), mirrorTypesetting.getId())) {
+            domainTypesettingService.deleteTypesetting(mirrorTypesetting.getId());
+            deletedIds.add(mirrorTypesetting.getId());
+        }
+        return new SingleLayoutReleaseResult(
+                new ArrayList<>(productionPieceRollbackQuantity.keySet()), deletedIds);
+    }
+
+    private ReleaseLayoutResult buildReleaseLayoutResult(List<String> errorMessages,
+                                                          List<String> releasedPieceIds,
+                                                          List<String> deletedLayoutIds) {
         ReleaseLayoutResult result = new ReleaseLayoutResult();
         result.setSuccess(errorMessages.isEmpty());
         result.setMessage(errorMessages.isEmpty()
                 ? "释放排版成功，删除排版记录 " + deletedLayoutIds.size() + " 条"
                 : "释放排版完成，存在部分失败: " + String.join("；", errorMessages));
-        result.setReleasedPieceCount(releasedPieceIds.size());
-        result.setReleasedPieceIds(releasedPieceIds);
+        result.setReleasedPieceCount(new LinkedHashSet<>(releasedPieceIds).size());
+        result.setReleasedPieceIds(new ArrayList<>(new LinkedHashSet<>(releasedPieceIds)));
         result.setDeletedLayoutIds(deletedLayoutIds);
         return result;
+    }
+
+    private record SingleLayoutReleaseResult(List<String> releasedPieceIds, List<String> deletedLayoutIds) {
     }
 
     /**
