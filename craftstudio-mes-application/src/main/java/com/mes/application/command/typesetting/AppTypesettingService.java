@@ -487,29 +487,18 @@ public class AppTypesettingService {
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItemsByTypesettingId(TypesettingQuery query) {
-        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findTypesettingByProcessingConditions(
+        List<TypesettingInfo> typesettingInfos = domainTypesettingService.findPendingByTypesettingId(
                 query.getManufacturerMetaId(),
-                null,
+                query.getTypesettingId().trim(),
                 query.getMaterialName(),
                 query.getProcessingName(),
                 query.getStartTime(),
-                query.getEndTime(),
-                null,
-                1,
-                SCOPED_FULL_LIST_SIZE
+                query.getEndTime()
         );
-        List<TypesettingProductionPieceVO> items = new ArrayList<>();
-        for (TypesettingInfo info : typesettingInfos) {
-            if (info == null) {
-                continue;
-            }
-            Integer leaveQuantity = info.getLeaveQuantity() == null ? 0 : info.getLeaveQuantity();
-            boolean isPending = TypesettingStatus.PENDING.getCode().equals(info.getStatus());
-            if (leaveQuantity > 0 && isPending && matchesTypesettingId(info.getTypesettingId(), query.getTypesettingId())) {
-                items.add(TypesettingProductionPieceVO.fromTypesettingInfo(info));
-            }
-        }
-        return items;
+        return typesettingInfos.stream()
+                .filter(Objects::nonNull)
+                .map(TypesettingProductionPieceVO::fromTypesettingInfo)
+                .collect(Collectors.toList());
     }
 
     private List<TypesettingProductionPieceVO> findPendingProductionPieceItemsByOrderScope(TypesettingQuery query) {
@@ -517,29 +506,9 @@ public class AppTypesettingService {
                 ? findOrderItemIdsByOrderId(query.getOrderId(), query.getManufacturerMetaId())
                 : Collections.singletonList(query.getOrderItemId());
 
-        List<ProductionPiece> matchedPieces = new ArrayList<>();
-        for (String orderItemId : orderItemIds) {
-            if (StringUtils.isBlank(orderItemId)) {
-                continue;
-            }
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByProcessingConditions(
-                    query.getManufacturerMetaId(),
-                    null,
-                    query.getMaterialName(),
-                    query.getProcessingName(),
-                    orderItemId,
-                    query.getRouteId(),
-                    query.getStartTime(),
-                    query.getEndTime(),
-                    1,
-                    SCOPED_FULL_LIST_SIZE
-            );
-            for (ProductionPiece piece : productionPieces) {
-                if (getPendingTypesettingQuantity(piece) > 0) {
-                    matchedPieces.add(piece);
-                }
-            }
-        }
+        List<ProductionPiece> matchedPieces = productionPieceService.findPendingTypesettingPiecesByOrderItemIds(
+                query.getManufacturerMetaId(), orderItemIds, query.getMaterialName(), query.getProcessingName(),
+                query.getRouteId(), query.getStartTime(), query.getEndTime());
 
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
         Map<String, String> orderGroupIdCache = loadOrderGroupIds(matchedPieces, query);

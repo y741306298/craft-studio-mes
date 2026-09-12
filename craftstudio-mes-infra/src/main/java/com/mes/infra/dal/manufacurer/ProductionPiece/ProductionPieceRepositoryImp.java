@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 @Repository
 @Slf4j
@@ -100,6 +101,48 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
             return Collections.emptyList();
         }
         Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
+        return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public List<ProductionPiece> findPendingTypesettingPiecesByOrderItemIds(String manufacturerId,
+            Collection<String> orderItemIds, String materialName,
+            List<ProcessingFlowCondition> processNames, String routeId, Date startTime, Date endTime) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteria.add(Criteria.where("orderItemId").in(orderItemIds));
+        criteria.add(Criteria.where("procedureFlow.nodes").elemMatch(
+                Criteria.where("nodeName").is("待排版").and("pieceQuantity").gt(0)));
+        if (materialName != null && !materialName.isBlank()) {
+            criteria.add(Criteria.where("materialConfig.materialSnapshot.name")
+                    .regex(Pattern.quote(materialName.trim()), "i"));
+        }
+        if (routeId != null && !routeId.isBlank()) {
+            criteria.add(Criteria.where("routeId").is(routeId));
+        }
+        if (startTime != null) {
+            criteria.add(Criteria.where("createTime").gte(startTime));
+        }
+        if (endTime != null) {
+            criteria.add(Criteria.where("createTime").lte(endTime));
+        }
+        if (processNames != null) {
+            processNames.stream().filter(Objects::nonNull)
+                    .filter(condition -> condition.getProcessName() != null
+                            && !condition.getProcessName().isBlank())
+                    .forEach(condition -> {
+                        Criteria node = Criteria.where("nodeName").is(condition.getProcessName());
+                        if (condition.getAccessoryName() != null && !condition.getAccessoryName().isBlank()) {
+                            node.and("paramConfigs.param.accessorySnapshot.name").is(condition.getAccessoryName());
+                        }
+                        criteria.add(Criteria.where("procedureFlow.nodes").elemMatch(node));
+                    });
+        }
+        Query query = new SoftDeleteQuery(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        query.with(Sort.by(Sort.Order.asc("createTime")));
         return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
     }
 
