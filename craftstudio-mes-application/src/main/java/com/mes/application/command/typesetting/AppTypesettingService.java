@@ -45,6 +45,7 @@ import com.mes.application.dto.req.typesetting.ConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmLayoutRequest;
 import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
+import com.mes.application.dto.req.typesetting.RetryConfirmedFormeRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
@@ -132,6 +133,7 @@ public class AppTypesettingService {
 
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
+    private static final String FORME_CALLBACK_LOCK_PREFIX = "typesetting:forme:callback:lock:";
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final long NESTING_CALLBACK_RECORD_WAIT_MILLIS = 10_000;
@@ -1633,8 +1635,7 @@ public class AppTypesettingService {
             typesettingInfo.applyLayoutModeConfig();
 
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:LAYOUT";
             // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
             typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
@@ -1653,12 +1654,11 @@ public class AppTypesettingService {
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
                 mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
                         TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
                 // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
@@ -2846,8 +2846,7 @@ public class AppTypesettingService {
             typesettingInfo.applyLayoutModeConfig();
 
             String businessId = resolveFormeBusinessId(typesettingInfo, layoutMode);
-            FormeGenerationRequest formeRequest = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-            mergeAnchorPointMarks(typesettingInfo, formeRequest);
+            FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
             TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
             if (mirrorTypesettingInfo != null) {
@@ -2860,12 +2859,11 @@ public class AppTypesettingService {
                 ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
                 mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
-                FormeGenerationRequest mirrorFormeRequest = buildFormeGenerationRequest(
+                FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
                         TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                mergeAnchorPointMarks(mirrorTypesettingInfo, mirrorFormeRequest);
                 // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
@@ -2954,6 +2952,90 @@ public class AppTypesettingService {
         return ok;
     }
 
+    /**
+     * 重新提交所有仍停留在 confirmed 状态的印版生成任务。
+     * 每条记录按库内 remark 保留原操作类型（确认排版或确认打印），回调仍按原链路完成落库。
+     */
+    public RetryFormeGenerationResult retryAllConfirmedFormeGeneration(RetryConfirmedFormeRequest retryRequest) {
+        if (retryRequest == null) {
+            throw new IllegalArgumentException("重试印版生成参数不能为空");
+        }
+        List<TypesettingInfo> confirmedTypesettings = domainTypesettingService.findAllByStatusAndCreateTime(
+                TypesettingStatus.CONFIRMED, retryRequest.getStartTime(), retryRequest.getEndTime());
+        RetryFormeGenerationResult result = new RetryFormeGenerationResult();
+        if (confirmedTypesettings == null) {
+            confirmedTypesettings = Collections.emptyList();
+        }
+        result.setTotal(confirmedTypesettings.size());
+        for (TypesettingInfo snapshot : confirmedTypesettings) {
+            String recordId = snapshot == null ? null : snapshot.getId();
+            try {
+                FormeRetrySubmission submission = prepareConfirmedFormeRetry(recordId);
+                if (submission == null) {
+                    result.setSkipped(result.getSkipped() + 1);
+                    continue;
+                }
+                algorithmCoreApiService.generateFormeAsync(submission.requestJson(), submission.callbackUrl());
+                result.setSubmitted(result.getSubmitted() + 1);
+            } catch (Exception ex) {
+                result.setFailed(result.getFailed() + 1);
+                result.getFailures().add(new RetryFormeGenerationResult.Failure(
+                        recordId, resolveExceptionMessage(ex)));
+                log.error("重新提交印版生成任务失败，recordId={}", recordId, ex);
+            }
+        }
+        return result;
+    }
+
+    private FormeRetrySubmission prepareConfirmedFormeRetry(String recordId) {
+        if (StringUtils.isBlank(recordId)) {
+            throw new IllegalArgumentException("印版记录ID不能为空");
+        }
+        TypesettingInfo lockInfo = domainTypesettingService.findById(recordId);
+        List<String> lockKeys = buildTypesettingOperationLockKeys(lockInfo, recordId);
+        String lockToken = acquireOperationLocks(lockKeys, "印版记录正在处理中，请稍后重试");
+        try {
+            TypesettingInfo latest = domainTypesettingService.findById(recordId);
+            if (latest == null || !TypesettingStatus.CONFIRMED.getCode().equals(latest.getStatus())) {
+                return null;
+            }
+            String remark = StringUtils.trimToEmpty(latest.getRemark());
+            if (!"FORME_OP:LAYOUT".equals(remark) && !remark.startsWith("FORME_OP:PRINT:")) {
+                throw new IllegalStateException("confirmed 印版缺少有效的生成操作标记，remark=" + latest.getRemark());
+            }
+            if (latest.getElement() == null || StringUtils.isBlank(latest.getElement().getNestedSvg())) {
+                throw new IllegalStateException("印版缺少 nestedSvg，无法重新生成");
+            }
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(latest.getLayoutMode());
+            latest.applyLayoutModeConfig();
+            String businessId = isMirrorTypesettingInfo(latest)
+                    ? resolveMirrorFormeBusinessId(latest, resolveFormeBusinessId(latest, layoutMode))
+                    : resolveFormeBusinessId(latest, layoutMode);
+            FormeGenerationRequest request = buildConfirmFormeGenerationRequest(latest, layoutMode, businessId);
+            // 构建器可能重新生成码图、marks 和扩边尺寸，必须先持久化，确保随后回调及打印任务使用同一份元数据。
+            mergeExistingMarksBeforeUpdate(latest);
+            domainTypesettingService.updateTypesetting(latest);
+            return new FormeRetrySubmission(
+                    JSON.toJSONString(request), request.getCallbackConfig().getCallbackUrl());
+        } finally {
+            releaseOperationLocks(lockKeys, lockToken);
+        }
+    }
+
+    private record FormeRetrySubmission(String requestJson, String callbackUrl) {
+    }
+
+    /**
+     * confirmLayout、confirmPrint 和补偿重试共用同一参数组装入口，避免三条链路生成不同的印版请求。
+     */
+    private FormeGenerationRequest buildConfirmFormeGenerationRequest(TypesettingInfo typesettingInfo,
+                                                                      TypesettingLayoutMode layoutMode,
+                                                                      String businessId) {
+        FormeGenerationRequest request = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
+        mergeAnchorPointMarks(typesettingInfo, request);
+        return request;
+    }
+
     public ConfirmPrintResult batchConfirmPrint(BatchConfirmPrintRequest request) {
         if (request == null || request.getRequests() == null || request.getRequests().isEmpty()) {
             throw new RuntimeException("批量确认打印参数不能为空");
@@ -2981,14 +3063,22 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(recordId)) {
             throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
-        TypesettingInfo lockInfo = domainTypesettingService.findById(recordId);
-        List<String> callbackLockKeys = buildTypesettingOperationLockKeys(lockInfo, recordId);
+        // 确认接口会持有排版操作锁直到算法提交返回；算法可能在提交尚未返回时就发起回调。
+        // 回调必须使用独立锁防重，否则会与确认线程互相竞争，导致完整结果被直接拒绝而无法落库。
+        List<String> callbackLockKeys = buildFormeCallbackLockKeys(recordId);
         String callbackLockToken = acquireOperationLocks(callbackLockKeys, "印版生成回调正在处理中，请稍后重试");
         try {
             doHandleGenerateFormeCallback(response, recordId);
         } finally {
             releaseOperationLocks(callbackLockKeys, callbackLockToken);
         }
+    }
+
+    private List<String> buildFormeCallbackLockKeys(String recordId) {
+        if (StringUtils.isBlank(recordId)) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(FORME_CALLBACK_LOCK_PREFIX + recordId);
     }
 
     private void doHandleGenerateFormeCallback(FormeGenerationResponse response, String recordId) {

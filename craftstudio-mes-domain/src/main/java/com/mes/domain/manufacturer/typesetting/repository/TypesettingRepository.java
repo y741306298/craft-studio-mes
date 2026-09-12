@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.List;
 
 public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
+    List<TypesettingInfo> findByStatusAndCreateTime(String status, Date startTime, Date endTime);
+
     void batchUpdateCallbackFailure(Collection<String> ids, String status, String remark);
 
     boolean compareAndSetPrintReport(String id, Integer expectedLeaveQuantity, int leaveQuantity,

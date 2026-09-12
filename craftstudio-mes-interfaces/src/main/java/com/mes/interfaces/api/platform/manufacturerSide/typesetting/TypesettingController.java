@@ -231,6 +231,15 @@ public class TypesettingController {
     }
 
     /**
+     * 扫描指定创建时间范围内的 confirmed 印版，并按原确认操作重新提交印版生成请求。
+     */
+    @PostMapping("/forme/retryConfirmed")
+    public ApiResponse<RetryFormeGenerationResult> retryConfirmedFormeGeneration(
+            @Valid @RequestBody RetryConfirmedFormeRequest request) {
+        return ApiResponse.success(appTypesettingService.retryAllConfirmedFormeGeneration(request));
+    }
+
+    /**
      * 确认打印：将排版数据根据状态机改为待打印状态
      *
      * @param request 确认打印请求，包含排版ID、设备编号
