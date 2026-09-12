@@ -989,8 +989,9 @@ public class ProductionPieceService {
             int sourceDeduction = Math.min(sourceQuantity, transfer.getQuantity());
             int deficitQuantity = Math.max(targetAddition - sourceDeduction, 0);
 
-            fromNode.setPieceQuantity(sourceQuantity - sourceDeduction);
+            // 软划转先增加目标节点，再扣减源节点；源节点按实际可用量扣减，永远不会小于 0。
             toNode.setPieceQuantity(targetQuantity + targetAddition);
+            fromNode.setPieceQuantity(Math.max(sourceQuantity - sourceDeduction, 0));
             if (fromNode.getPieceQuantity() == 0) {
                 fromNode.setNodeStatus(NodeStatus.COMPLETED);
             }

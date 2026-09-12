@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProductionPieceServiceTest {
+
+    @Test
+    void softTransferAddsTargetAndNeverMakesSourceNegative() {
+        ProductionPieceRepository repository = mock(ProductionPieceRepository.class);
+        ProductionPieceService service = new ProductionPieceService();
+        ReflectionTestUtils.setField(service, "productionPieceRepository", repository);
+        ProductionPiece piece = piece("piece-1", 0, 1, 5);
+        when(repository.findByProductionPieceIds(List.of("piece-1"))).thenReturn(List.of(piece));
+
+        service.transferPieceQuantitiesBetweenNodes(List.of(
+                new PieceQuantityTransfer("piece-1", "NODE_TYPESETTING_IN_PROGRESS",
+                        "NODE_TYPESETTING", 3)));
+
+        assertThat(piece.getProcedureFlow().getNodes().get(0).getPieceQuantity()).isEqualTo(3);
+        assertThat(piece.getProcedureFlow().getNodes().get(1).getPieceQuantity()).isZero();
+        verify(repository).batchUpdate(List.of(piece));
+    }
 
     @Test
     void strictTransferRejectsBatchWhenPendingQuantityIsInsufficient() {
