@@ -1119,7 +1119,9 @@ public class AppTypesettingService {
                 .filter(Objects::nonNull)
                 .filter(cell -> !Integer.valueOf(0).equals(cell.getQuantity()))
                 .filter(cell -> StringUtils.isNotBlank(cell.getSourceType()) && StringUtils.isNotBlank(cell.getSourceId()))
-                .map(cell -> TYPESETTING_OPERATION_LOCK_PREFIX + "toLayout:" + cell.getSourceType() + ":" + cell.getSourceId())
+                .map(cell -> TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
+                        ? buildTypesettingOperationLockKey(cell.getSourceId())
+                        : TYPESETTING_OPERATION_LOCK_PREFIX + "source:" + cell.getSourceType() + ":" + cell.getSourceId())
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
@@ -1127,15 +1129,22 @@ public class AppTypesettingService {
 
     /**
      * 并发备注：
-     * confirmLayout 与 confirmPrint 都会把同一条排版记录从“待确认”推进到后续生成印版任务，
-     * 因此二者使用同一个 confirm 锁，避免一个人确认排版、另一个人确认打印时重复确认同一条记录。
+     * 排版、确认、下发、回调和释放统一使用排版记录锁；同时锁定数据库 ID 和业务 typesettingId，
+     * 避免不同接口使用不同标识时绕过同一印版的互斥保护。
      */
-    private String buildConfirmLayoutOperationLockKey(String id) {
-        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    private String buildTypesettingOperationLockKey(String id) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "typesetting:" + id;
     }
 
-    private String buildConfirmPrintOperationLockKey(String id) {
-        return TYPESETTING_OPERATION_LOCK_PREFIX + "confirm:" + id;
+    private List<String> buildTypesettingOperationLockKeys(TypesettingInfo info, String requestedId) {
+        return Stream.of(requestedId,
+                        info == null ? null : info.getId(),
+                        info == null ? null : info.getTypesettingId())
+                .filter(StringUtils::isNotBlank)
+                .map(this::buildTypesettingOperationLockKey)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private String acquireOperationLocks(List<String> lockKeys, String failureMessage) {
@@ -1583,7 +1592,8 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new IllegalArgumentException("确认排版参数不能为空，且必须包含排版ID");
         }
-        List<String> operationLockKeys = Collections.singletonList(buildConfirmLayoutOperationLockKey(request.getId()));
+        TypesettingInfo lockInfo = domainTypesettingService.findById(request.getId());
+        List<String> operationLockKeys = buildTypesettingOperationLockKeys(lockInfo, request.getId());
         String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认中，请勿重复确认");
         try {
             return doConfirmLayout(request);
@@ -2792,7 +2802,8 @@ public class AppTypesettingService {
         if (request == null || StringUtils.isBlank(request.getId())) {
             throw new RuntimeException("排版ID不能为空");
         }
-        List<String> operationLockKeys = Collections.singletonList(buildConfirmPrintOperationLockKey(request.getId()));
+        TypesettingInfo lockInfo = domainTypesettingService.findById(request.getId());
+        List<String> operationLockKeys = buildTypesettingOperationLockKeys(lockInfo, request.getId());
         String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在确认打印中，请勿重复确认");
         try {
             return doConfirmPrint(request);
@@ -2963,8 +2974,8 @@ public class AppTypesettingService {
         if (StringUtils.isBlank(recordId)) {
             throw new IllegalArgumentException("印版生成回调缺少排版记录ID");
         }
-        List<String> callbackLockKeys = Collections.singletonList(
-                TYPESETTING_OPERATION_LOCK_PREFIX + "formeCallback:" + recordId);
+        TypesettingInfo lockInfo = domainTypesettingService.findById(recordId);
+        List<String> callbackLockKeys = buildTypesettingOperationLockKeys(lockInfo, recordId);
         String callbackLockToken = acquireOperationLocks(callbackLockKeys, "印版生成回调正在处理中，请稍后重试");
         try {
             doHandleGenerateFormeCallback(response, recordId);
@@ -3773,6 +3784,22 @@ public class AppTypesettingService {
             throw new RuntimeException("排版ID列表不能为空");
         }
 
+        List<String> operationLockKeys = typesettingIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .flatMap(id -> buildTypesettingOperationLockKeys(domainTypesettingService.findById(id), id).stream())
+                .distinct()
+                .sorted()
+                .toList();
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在处理中，暂时不能释放");
+        try {
+            return doReleaseLayout(typesettingIds);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private ReleaseLayoutResult doReleaseLayout(List<String> typesettingIds) {
+
         Map<String, TypesettingInfo> typesettingInfoMap = new LinkedHashMap<>();
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId) || typesettingInfoMap.containsKey(typesettingId)) {
@@ -3907,6 +3934,22 @@ public class AppTypesettingService {
         if (typesettingIds == null || typesettingIds.isEmpty()) {
             throw new RuntimeException("排版ID列表不能为空");
         }
+
+        List<String> operationLockKeys = typesettingIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .flatMap(id -> buildTypesettingOperationLockKeys(domainTypesettingService.findById(id), id).stream())
+                .distinct()
+                .sorted()
+                .toList();
+        String operationLockToken = acquireOperationLocks(operationLockKeys, "排版记录正在处理中，暂时不能释放");
+        try {
+            return doCompleteReleaseLayout(typesettingIds);
+        } finally {
+            releaseOperationLocks(operationLockKeys, operationLockToken);
+        }
+    }
+
+    private ReleaseLayoutResult doCompleteReleaseLayout(List<String> typesettingIds) {
 
         Map<String, TypesettingInfo> layoutsToDelete = new LinkedHashMap<>();
         Set<String> productionPieceIds = new LinkedHashSet<>();
