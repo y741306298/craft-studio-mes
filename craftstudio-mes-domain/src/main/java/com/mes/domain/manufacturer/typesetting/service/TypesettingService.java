@@ -372,6 +372,13 @@ public class TypesettingService {
         return typesettingRepository.fuzzySearch(searchFilters, current, size);
     }
 
+    public List<TypesettingInfo> findAllByStatus(TypesettingStatus status) {
+        if (status == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版状态不能为空");
+        }
+        return typesettingRepository.findByStatus(status.getCode());
+    }
+
     /**
      * 获取排版信息总数
      * @param typesettingId 排版文件 ID，可为空

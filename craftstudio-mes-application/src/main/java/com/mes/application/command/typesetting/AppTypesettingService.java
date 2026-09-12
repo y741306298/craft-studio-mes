@@ -2948,6 +2948,74 @@ public class AppTypesettingService {
         return ok;
     }
 
+    /**
+     * 重新提交所有仍停留在 confirmed 状态的印版生成任务。
+     * 每条记录按库内 remark 保留原操作类型（确认排版或确认打印），回调仍按原链路完成落库。
+     */
+    public RetryFormeGenerationResult retryAllConfirmedFormeGeneration() {
+        List<TypesettingInfo> confirmedTypesettings = domainTypesettingService.findAllByStatus(TypesettingStatus.CONFIRMED);
+        RetryFormeGenerationResult result = new RetryFormeGenerationResult();
+        if (confirmedTypesettings == null) {
+            confirmedTypesettings = Collections.emptyList();
+        }
+        result.setTotal(confirmedTypesettings.size());
+        for (TypesettingInfo snapshot : confirmedTypesettings) {
+            String recordId = snapshot == null ? null : snapshot.getId();
+            try {
+                FormeRetrySubmission submission = prepareConfirmedFormeRetry(recordId);
+                if (submission == null) {
+                    result.setSkipped(result.getSkipped() + 1);
+                    continue;
+                }
+                algorithmCoreApiService.generateFormeAsync(submission.requestJson(), submission.callbackUrl());
+                result.setSubmitted(result.getSubmitted() + 1);
+            } catch (Exception ex) {
+                result.setFailed(result.getFailed() + 1);
+                result.getFailures().add(new RetryFormeGenerationResult.Failure(
+                        recordId, resolveExceptionMessage(ex)));
+                log.error("重新提交印版生成任务失败，recordId={}", recordId, ex);
+            }
+        }
+        return result;
+    }
+
+    private FormeRetrySubmission prepareConfirmedFormeRetry(String recordId) {
+        if (StringUtils.isBlank(recordId)) {
+            throw new IllegalArgumentException("印版记录ID不能为空");
+        }
+        TypesettingInfo lockInfo = domainTypesettingService.findById(recordId);
+        List<String> lockKeys = buildTypesettingOperationLockKeys(lockInfo, recordId);
+        String lockToken = acquireOperationLocks(lockKeys, "印版记录正在处理中，请稍后重试");
+        try {
+            TypesettingInfo latest = domainTypesettingService.findById(recordId);
+            if (latest == null || !TypesettingStatus.CONFIRMED.getCode().equals(latest.getStatus())) {
+                return null;
+            }
+            String remark = StringUtils.trimToEmpty(latest.getRemark());
+            if (!"FORME_OP:LAYOUT".equals(remark) && !remark.startsWith("FORME_OP:PRINT:")) {
+                throw new IllegalStateException("confirmed 印版缺少有效的生成操作标记，remark=" + latest.getRemark());
+            }
+            if (latest.getElement() == null || StringUtils.isBlank(latest.getElement().getNestedSvg())) {
+                throw new IllegalStateException("印版缺少 nestedSvg，无法重新生成");
+            }
+            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(latest.getLayoutMode());
+            latest.applyLayoutModeConfig();
+            String businessId = resolveFormeBusinessId(latest, layoutMode);
+            FormeGenerationRequest request = buildFormeGenerationRequest(latest, layoutMode, businessId);
+            mergeAnchorPointMarks(latest, request);
+            // 构建器可能重新生成码图、marks 和扩边尺寸，必须先持久化，确保随后回调及打印任务使用同一份元数据。
+            mergeExistingMarksBeforeUpdate(latest);
+            domainTypesettingService.updateTypesetting(latest);
+            return new FormeRetrySubmission(
+                    JSON.toJSONString(request), request.getCallbackConfig().getCallbackUrl());
+        } finally {
+            releaseOperationLocks(lockKeys, lockToken);
+        }
+    }
+
+    private record FormeRetrySubmission(String requestJson, String callbackUrl) {
+    }
+
     public ConfirmPrintResult batchConfirmPrint(BatchConfirmPrintRequest request) {
         if (request == null || request.getRequests() == null || request.getRequests().isEmpty()) {
             throw new RuntimeException("批量确认打印参数不能为空");
