@@ -8,6 +8,7 @@ import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceServic
 import com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
 import com.mes.infra.oss.ImageToImageSearchService;
@@ -223,6 +224,17 @@ public class AppProductionPieceService {
             }
             ProcedureFlowNode nodeCopy = new ProcedureFlowNode();
             BeanUtils.copyProperties(sourceNode, nodeCopy);
+            // A redo is a new production piece. Retain only the route definition; carrying over
+            // quantities or execution state from the original piece can make a downstream node
+            // appear full before the redo enters typesetting.
+            nodeCopy.setPieceQuantity(0);
+            nodeCopy.setNodeStatus(NodeStatus.PENDING);
+            nodeCopy.setOperatorId(null);
+            nodeCopy.setOperatorName(null);
+            nodeCopy.setStartTime(null);
+            nodeCopy.setEndTime(null);
+            nodeCopy.setRetryCount(null);
+            nodeCopy.setErrorMessage(null);
             nodeCopies.add(nodeCopy);
         }
         flowCopy.setNodes(nodeCopies);
