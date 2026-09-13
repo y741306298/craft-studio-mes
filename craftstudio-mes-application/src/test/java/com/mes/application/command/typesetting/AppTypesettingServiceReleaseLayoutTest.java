@@ -11,16 +11,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -89,16 +85,10 @@ class AppTypesettingServiceReleaseLayoutTest {
         AppTypesettingService service = new AppTypesettingService();
         TypesettingService typesettingService = mock(TypesettingService.class);
         ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
-        TransactionTemplate transactionTemplate = mock(TransactionTemplate.class);
         ReflectionTestUtils.setField(service, "domainTypesettingService", typesettingService);
         ReflectionTestUtils.setField(service, "productionPieceService", productionPieceService);
-        ReflectionTestUtils.setField(service, "transactionTemplate", transactionTemplate);
         when(typesettingService.findById("layout-1")).thenReturn(first);
         when(typesettingService.findById("layout-2")).thenReturn(second);
-        doAnswer(invocation -> {
-            TransactionCallback<?> callback = invocation.getArgument(0);
-            return callback.doInTransaction(mock(TransactionStatus.class));
-        }).when(transactionTemplate).execute(any());
         return new TestContext(service, typesettingService, productionPieceService);
     }
 

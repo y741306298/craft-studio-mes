@@ -85,10 +85,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
@@ -181,11 +177,6 @@ public class AppTypesettingService {
     private TypesettingContainerWidthInsetService containerWidthInsetService;
     @Autowired
     private ProductionPieceService productionPieceService;
-    private TransactionTemplate transactionTemplate;
-    @Autowired
-    public void setTransactionManager(PlatformTransactionManager transactionManager) {
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
-    }
     @Autowired
     private TypesettingPrintTaskService typesettingPrintTaskService;
     @Autowired
@@ -3928,11 +3919,7 @@ public class AppTypesettingService {
 
             TypesettingInfo mirrorTypesetting = findMirrorTypesettingInfo(info);
             try {
-                SingleLayoutReleaseResult singleResult = transactionTemplate.execute(status ->
-                        releaseSingleLayout(info, mirrorTypesetting));
-                if (singleResult == null) {
-                    throw new IllegalStateException("释放事务未返回结果");
-                }
+                SingleLayoutReleaseResult singleResult = releaseSingleLayout(info, mirrorTypesetting);
                 releasedPieceIds.addAll(singleResult.releasedPieceIds());
                 deletedLayoutIds.addAll(singleResult.deletedLayoutIds());
                 processedLayoutIds.addAll(singleResult.deletedLayoutIds());
@@ -3945,8 +3932,8 @@ public class AppTypesettingService {
     }
 
     /**
-     * 单张印版在独立 MongoDB 事务中释放。一次性校验并批量回退该印版的全部零件，
-     * 任一零件失败都会回滚整张印版的工件更新和印版删除，不影响后续印版继续处理。
+     * 单张印版的释放步骤。当前 MongoDB 为 standalone 部署，因此不启动 MongoDB 事务；
+     * 先批量回退该印版的全部零件，成功后再更新来源印版并删除当前印版。
      */
     private SingleLayoutReleaseResult releaseSingleLayout(TypesettingInfo info, TypesettingInfo mirrorTypesetting) {
         Map<String, Integer> productionPieceRollbackQuantity = new LinkedHashMap<>();
