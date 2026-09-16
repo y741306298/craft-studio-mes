@@ -4,6 +4,7 @@ import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.UploadConfig;
 import lombok.Data;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class NestingRequest {
@@ -18,14 +19,6 @@ public class NestingRequest {
          * 是否需要生成 plt 结果
          */
         private Boolean requirePlt;
-        /**
-         * 是否需要生成镜像结果
-         */
-        private Boolean mirrorAppend;
-        /**
-         * 镜像结果是否需要 plt
-         */
-        private Boolean mirrorRequirePlt;
         private List<Container> containers;
         private List<Element> elements;
     }
@@ -41,13 +34,9 @@ public class NestingRequest {
         private String id;
         private String img;
         /**
-         * 双面对裱时使用的镜像原图地址
+         * 双面对裱配置，key 为生产工件的 MongoDB _id。
          */
-        private String mirrorImg;
-        /**
-         * 双面对裱时使用的镜像蒙版 SVG 地址
-         */
-        private String mirrorSvg;
+        private Map<String, ElementMirrorConfig> mirrorConfig;
         /**
          * 兼容算法侧字段命名
          */
@@ -83,6 +72,14 @@ public class NestingRequest {
          * 固定旋转角度（单位：度）
          */
         private Integer rotation;
+    }
+
+    @Data
+    public static class ElementMirrorConfig {
+        /** 镜像原图地址。 */
+        private String img;
+        /** 是否为该镜像图生成 plt，默认为 true。 */
+        private Boolean requirePlt = Boolean.TRUE;
     }
 
 

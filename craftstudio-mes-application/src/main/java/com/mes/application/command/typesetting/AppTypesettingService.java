@@ -2455,8 +2455,6 @@ public class AppTypesettingService {
         NestingRequestComposeService composeService = nestingRequestComposeServiceMap.get(layoutMode);
         manifest.setSpacing(composeService == null ? layoutMode.getNestingSpacingMm() : composeService.resolveSpacing(layoutMode));
         manifest.setRequirePlt(Boolean.TRUE);
-        manifest.setMirrorAppend(Boolean.FALSE);
-        manifest.setMirrorRequirePlt(Boolean.FALSE);
         manifest.setContainers(containers);
         manifest.setElements(composeService == null
                 ? elements

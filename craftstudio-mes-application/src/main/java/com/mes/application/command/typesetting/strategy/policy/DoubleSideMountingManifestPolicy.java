@@ -8,10 +8,12 @@ import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * “双面对裱”策略：存在该工艺时，镜像附加且镜像不要求 plt。
+ * “双面对裱”策略：为存在镜像原图的零件拼接算法镜像配置。
  */
 @Component
 public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
@@ -30,8 +32,6 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
         if (nestManifest == null) {
             return;
         }
-        nestManifest.setMirrorAppend(Boolean.TRUE);
-        nestManifest.setMirrorRequirePlt(Boolean.FALSE);
         fillMirrorConfigForElements(nestManifest, productionPieces);
     }
 
@@ -50,10 +50,11 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
             }
             MirrorConfig mirrorConfig = piece.getMirrorConfigs().get(0);
             if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getImg())) {
-                element.setMirrorImg(mirrorConfig.getImg());
-            }
-            if (mirrorConfig != null && StringUtils.isNotBlank(mirrorConfig.getSvg())) {
-                element.setMirrorSvg(mirrorConfig.getSvg());
+                NestingRequest.ElementMirrorConfig elementMirrorConfig = new NestingRequest.ElementMirrorConfig();
+                elementMirrorConfig.setImg(mirrorConfig.getImg());
+                Map<String, NestingRequest.ElementMirrorConfig> elementMirrorConfigs = new LinkedHashMap<>();
+                elementMirrorConfigs.put(piece.getId(), elementMirrorConfig);
+                element.setMirrorConfig(elementMirrorConfigs);
             }
         }
     }
