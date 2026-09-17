@@ -91,7 +91,10 @@
 在所有 `toLayout` 校验完成、调用 `generateGridNestedFilesAsync` / `generateNestedFilesAsync` 之前：
 
 1. 对本次参与的 `ProductionPiece`：
-   - 调用严格数量划转，将数量从 `NODE_TYPESETTING` 转到 `NODE_TYPESETTING_IN_PROGRESS`；任一零件的待排版数量或目标节点容量不足时，整批拒绝排版。
+   - 使用带待排版数量条件的 MongoDB 原子增量更新，将数量从 `NODE_TYPESETTING` 转到
+     `NODE_TYPESETTING_IN_PROGRESS`；只有实际占用数量与请求零件数完全一致时才继续调用排版算法。
+   - 不再通过读取并替换整个 `ProductionPiece` 文档来占用数量，避免并发更新覆盖节点数量后，已经排版的
+     数量重新出现在 `listTypesettingAndProductionPieces` / `listTypesettingAndProductionPiecesById` 查询中。
 2. 对本次引用的 `TypesettingInfo`：
    - 按本次 `quantity` 扣减 `leaveQuantity` 并落库。
 

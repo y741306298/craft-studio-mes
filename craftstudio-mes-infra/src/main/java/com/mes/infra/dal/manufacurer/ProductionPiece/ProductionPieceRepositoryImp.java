@@ -29,6 +29,58 @@ import java.util.regex.Pattern;
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
 
     @Override
+    public long reservePendingTypesettingQuantities(Map<String, Integer> requiredQuantities) {
+        if (requiredQuantities == null || requiredQuantities.isEmpty()) {
+            return 0;
+        }
+        BulkOperations bulk = mongoTemplate.bulkOps(BulkOperations.BulkMode.ORDERED, poClass());
+        int operationCount = 0;
+        Date updateTime = new Date();
+        for (Map.Entry<String, Integer> entry : requiredQuantities.entrySet()) {
+            String id = entry.getKey();
+            Integer required = entry.getValue();
+            if (id == null || id.isBlank() || required == null || required <= 0) {
+                continue;
+            }
+            // 两个条件互斥，因此同一零件只会命中一次。数量恰好用尽时同步完成“待排版”节点。
+            bulk.updateOne(pendingTypesettingReservationQuery(id, required, true),
+                    pendingTypesettingReservationUpdate(required, updateTime)
+                            .set("procedureFlow.nodes.$[pendingNode].nodeStatus",
+                                    com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus.COMPLETED));
+            bulk.updateOne(pendingTypesettingReservationQuery(id, required, false),
+                    pendingTypesettingReservationUpdate(required, updateTime));
+            operationCount++;
+        }
+        if (operationCount == 0) {
+            return 0;
+        }
+        return bulk.execute().getMatchedCount();
+    }
+
+    private Query pendingTypesettingReservationQuery(String id, int required, boolean exhausting) {
+        Criteria pendingQuantity = Criteria.where("nodeName").is("待排版").and("pieceQuantity");
+        if (exhausting) {
+            pendingQuantity.is(required);
+        } else {
+            pendingQuantity.gt(required);
+        }
+        return new SoftDeleteQuery(Criteria.where("_id").is(id).andOperator(
+                Criteria.where("procedureFlow.nodes").elemMatch(pendingQuantity),
+                Criteria.where("procedureFlow.nodes").elemMatch(Criteria.where("nodeName").is("排版中"))));
+    }
+
+    private Update pendingTypesettingReservationUpdate(int required, Date updateTime) {
+        return new Update()
+                .inc("procedureFlow.nodes.$[pendingNode].pieceQuantity", -required)
+                .inc("procedureFlow.nodes.$[inProgressNode].pieceQuantity", required)
+                .set("procedureFlow.nodes.$[inProgressNode].nodeStatus",
+                        com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus.PENDING)
+                .set("updateTime", updateTime)
+                .filterArray(Criteria.where("pendingNode.nodeName").is("待排版"))
+                .filterArray(Criteria.where("inProgressNode.nodeName").is("排版中"));
+    }
+
+    @Override
     public long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities) {
         if (requiredQuantities == null || requiredQuantities.isEmpty()) {
             return 0;

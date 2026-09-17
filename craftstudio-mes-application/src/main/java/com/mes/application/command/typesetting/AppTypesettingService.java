@@ -1332,13 +1332,16 @@ public class AppTypesettingService {
 
         // 所有 toLayout 校验完成后立即占用来源数量，避免算法调用期间同一零件再次进入排版。
         // 此处必须早于异步排版请求；后续请求重新读取零件时会看到“待排版”数量已经扣减。
-        List<PieceQuantityTransfer> pieceTransfers = productionPieces.stream()
+        Map<String, Integer> pieceReservations = productionPieces.stream()
                 .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
-                .map(piece -> new PieceQuantityTransfer(piece.getId(), "NODE_TYPESETTING",
-                        "NODE_TYPESETTING_IN_PROGRESS", piece.getQuantity()))
-                .toList();
+                .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getQuantity,
+                        Integer::sum, LinkedHashMap::new));
         try {
-            productionPieceService.transferPieceQuantitiesBetweenNodesStrict(pieceTransfers);
+            long reservedCount = productionPieceService.reservePendingTypesettingQuantities(pieceReservations);
+            if (reservedCount != pieceReservations.size()) {
+                throw new IllegalStateException("生产工件数量已发生变化，期望占用="
+                        + pieceReservations.size() + "，实际占用=" + reservedCount);
+            }
         } catch (Exception e) {
             throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
         }
