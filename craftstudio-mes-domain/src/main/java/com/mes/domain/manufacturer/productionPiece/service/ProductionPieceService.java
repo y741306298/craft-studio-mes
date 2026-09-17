@@ -929,6 +929,19 @@ public class ProductionPieceService {
         transferPieceQuantitiesBetweenNodes(transfers, true);
     }
 
+    /**
+     * 原子占用待排版数量。
+     *
+     * <p>排版入口不能使用“先读取整个零件、修改内存对象、再 replace 整个文档”的方式占用数量。
+     * 该方式可能被其他并发的零件更新覆盖，造成 toLayout 已成功返回，但待排版数量重新出现。
+     * 仓储层通过带数量条件的 MongoDB 增量更新，保证待排版扣减和排版中增加在同一个文档更新中完成。</p>
+     *
+     * @return 实际成功占用的零件数量
+     */
+    public long reservePendingTypesettingQuantities(Map<String, Integer> requiredQuantities) {
+        return productionPieceRepository.reservePendingTypesettingQuantities(requiredQuantities);
+    }
+
     private void transferPieceQuantitiesBetweenNodes(List<PieceQuantityTransfer> transfers, boolean strict) {
         if (transfers == null || transfers.isEmpty()) {
             return;

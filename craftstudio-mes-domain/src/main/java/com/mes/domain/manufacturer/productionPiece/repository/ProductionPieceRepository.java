@@ -23,6 +23,9 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     /** Atomically transfers quantities between procedure nodes using conditional MongoDB updates. */
     long transferTypesettingQuantitiesToPrinting(Map<String, Integer> requiredQuantities);
+
+    /** Atomically reserves pending quantities for layout using conditional MongoDB updates. */
+    long reservePendingTypesettingQuantities(Map<String, Integer> requiredQuantities);
     
     /**
      * 根据 productionPieceId 更新生产工件
