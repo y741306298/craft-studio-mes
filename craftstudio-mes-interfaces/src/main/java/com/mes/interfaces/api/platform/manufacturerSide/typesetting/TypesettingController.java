@@ -65,7 +65,10 @@ public class TypesettingController {
                 items, result.getPagedResult().total(), result.getPagedResult().current(),
                 null, null, buildSourceTypeList(), null);
         fillOrgInfo(response, request);
-        return ApiResponse.success(response);
+        ApiResponse<TypesettingAndProductionPiecesResponse> apiResponse = ApiResponse.success(response);
+        log.info("listTypesettingAndProductionPieces response items: {}", JsonLogUtil.toJSONString(
+                items.stream().map(TypesettingPieceLogItem::from).toList()));
+        return apiResponse;
     }
 
     /**
@@ -196,7 +199,20 @@ public class TypesettingController {
         if (!result.isSuccess()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
-        return ApiResponse.success(result);
+        ApiResponse<LayoutConfirmResult> response = ApiResponse.success(result);
+        logger.info("========== toLayout 出参开始 ==========");
+        logger.info("response: " + JsonLogUtil.toJSONString(response));
+        logger.info("========== toLayout 出参结束 ==========");
+        return response;
+    }
+
+    /** Restricts list response logging to identifiers and state needed for diagnostics. */
+    private record TypesettingPieceLogItem(String id, String orderItemId, String groupId,
+                                           String sourceId, String sourceType, String status) {
+        private static TypesettingPieceLogItem from(TypesettingProductionPieceVO item) {
+            return new TypesettingPieceLogItem(item.getId(), item.getOrderItemId(), item.getGroupId(),
+                    item.getSourceId(), item.getSourceType(), item.getStatus());
+        }
     }
 
     /**
