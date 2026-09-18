@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public abstract class AbstractBuckleProcessStrategy {
-    protected static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/point.png";
+    protected static final String MARK_IMG = "https://craftstudio-mes-prod.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-point.png";
     protected static final String MARK_SOURCE_NAME = "point.png";
     protected static final double MARK_SIZE_MM = 8D;
     protected static final double EDGE_OFFSET_MM = 25D;

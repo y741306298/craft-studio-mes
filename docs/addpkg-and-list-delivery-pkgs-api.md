@@ -174,7 +174,7 @@
     },
     "barCode": {
       "format": "base64-png",
-      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg",
+      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-line.jpg",
       "width": 70.0,
       "height": 25.0
     },
@@ -208,7 +208,7 @@
     },
     "barCode": {
       "format": "base64-png",
-      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg",
+      "content": "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-line.jpg",
       "width": 70.0,
       "height": 25.0
     },

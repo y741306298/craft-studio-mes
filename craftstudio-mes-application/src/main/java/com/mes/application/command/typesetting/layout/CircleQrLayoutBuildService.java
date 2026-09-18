@@ -54,7 +54,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final int ANCHOR_INNER_SHIFT_MM = 30;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
-    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
+    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
     private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
@@ -80,7 +80,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
      * 圆形二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
      * - marks 使用 C+B+A 拼接生成的标签条；
-     * - 定位点使用 basetag/circle.svg。
+     * - 定位点使用 basetag/basetag-circle.svg。
      */
     @Override
     public TypesettingLayoutMode supportMode() {
@@ -170,7 +170,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, topLeftX);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
         int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
-        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
+        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
         tl.setImg("circle.png");
