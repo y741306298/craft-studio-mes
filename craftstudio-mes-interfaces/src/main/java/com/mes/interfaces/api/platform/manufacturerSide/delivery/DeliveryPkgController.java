@@ -402,7 +402,7 @@ public class DeliveryPkgController {
         barCode.setFormat("base64-png");
         barCode.setWidth(70.00);
         barCode.setHeight(25.00);
-        barCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/line.jpg");
+        barCode.setContent("https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-line.jpg");
         result.setBarCode(barCode);
 
         String routeDesc = "";
