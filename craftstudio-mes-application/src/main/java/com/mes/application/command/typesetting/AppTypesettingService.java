@@ -1336,12 +1336,18 @@ public class AppTypesettingService {
                 .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
                 .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getQuantity,
                         Integer::sum, LinkedHashMap::new));
+        if (pieceReservations.isEmpty()) {
+            log.warn("toLayout未生成零件占用明细, typesettingId={}, sourceCellCount={}, manufacturerMetaId={}",
+                    cacheKey, typesettingCells.size(), request.getManufacturerMetaId());
+        }
         try {
             long reservedCount = productionPieceService.reservePendingTypesettingQuantities(pieceReservations);
             if (reservedCount != pieceReservations.size()) {
                 throw new IllegalStateException("生产工件数量已发生变化，期望占用="
                         + pieceReservations.size() + "，实际占用=" + reservedCount);
             }
+            log.info("toLayout零件占用成功, typesettingId={}, expected={}, matched={}, reservations={}",
+                    cacheKey, pieceReservations.size(), reservedCount, pieceReservations);
         } catch (Exception e) {
             throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
         }
@@ -3965,7 +3971,11 @@ public class AppTypesettingService {
                 .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
                         "NODE_TYPESETTING", entry.getValue()))
                 .toList();
+        log.info("释放排版开始回退零件数量, typesettingId={}, typesettingRecordId={}, rollbackQuantities={}",
+                info.getTypesettingId(), info.getId(), productionPieceRollbackQuantity);
         productionPieceService.transferPieceQuantitiesBetweenNodesStrict(rollbackTransfers);
+        log.info("释放排版完成回退零件数量, typesettingId={}, typesettingRecordId={}, rollbackCount={}",
+                info.getTypesettingId(), info.getId(), rollbackTransfers.size());
 
         for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
             TypesettingInfo sourceTypesetting = domainTypesettingService.findById(entry.getKey());
