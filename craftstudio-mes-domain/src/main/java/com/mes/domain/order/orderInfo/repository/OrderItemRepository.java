@@ -11,6 +11,11 @@ public interface OrderItemRepository extends BaseRepository<OrderItem> {
 
     List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds);
 
+    /**
+     * 批量查询指定订单下可能已存在的订单项，供订单导入时一次性完成去重检查。
+     */
+    List<OrderItem> findByOrderIdAndOrderItemIds(String orderId, Collection<String> orderItemIds);
+
     List<OrderItem> findByOrderIds(Collection<String> orderIds);
 
     /** 按创建时间正序查询指定订单的全部有效订单项。 */

@@ -17,7 +17,6 @@ import com.mes.application.command.statistics.vo.OrderStatisticsFiltersVO;
 import com.mes.application.command.statistics.vo.TransferOrderStatisticsVO;
 import com.mes.application.command.statistics.vo.TransferOrderItemVO;
 import com.mes.application.command.statistics.vo.TransferFactoryVO;
-import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.dto.req.order.OrderAddRequest;
 import com.mes.application.dto.req.order.OrderTransferRequest;
 import com.mes.application.support.PodvOrgInfoHelper;
@@ -99,9 +98,6 @@ public class AppOrderService {
 
     @Autowired
     private OrderPreprocessTaskQueue orderPreprocessTaskQueue;
-
-    @Autowired
-    private AppOrderPreprocessingService appOrderPreprocessingService;
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -803,14 +799,10 @@ public class AppOrderService {
                 .toList());
         saveOrderDailyStatistics(orderInfo, orderItemsResult);
         preOrderLabelTaskService.createFromOrderInfo(orderInfo);
-        // 灰度图转 SVG 必须先同步完成，之后才能进入其他异步预处理。
-        List<OrderItem> readyToPreprocessOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(orderItemsResult);
-        // 入库和必要的灰度图转 SVG 成功后立即返回，后续预处理改为异步队列执行
-        log.info("addOrderWithItems 准备提交订单预处理任务: orderId={}, itemCount={}, readyItemCount={}",
-                orderInfo.getOrderId(),
-                orderItemsResult == null ? 0 : orderItemsResult.size(),
-                readyToPreprocessOrderItems == null ? 0 : readyToPreprocessOrderItems.size());
-        orderPreprocessTaskQueue.submit(readyToPreprocessOrderItems);
+        // 灰度图转 SVG 及后续预处理均由后台队列执行，订单入库后无需等待外部算法服务。
+        log.info("addOrderWithItems 准备提交订单预处理任务: orderId={}, itemCount={}",
+                orderInfo.getOrderId(), orderItemsResult == null ? 0 : orderItemsResult.size());
+        orderPreprocessTaskQueue.submit(orderItemsResult);
         log.info("addOrderWithItems 已提交订单预处理任务: orderId={}", orderInfo.getOrderId());
         return orderInfo;
     }
@@ -925,13 +917,14 @@ public class AppOrderService {
             return;
         }
         OrderStatisticsAmounts amounts = calculateStatisticsAmounts(orderInfo, orderItems);
-        amounts.itemAllocations().forEach((orderItemId, price) -> {
+        List<OrderItemPriceAllocation> allocations = amounts.itemAllocations().entrySet().stream().map(entry -> {
             OrderItemPriceAllocation allocation = new OrderItemPriceAllocation();
-            allocation.setOrderItemId(orderItemId);
+            allocation.setOrderItemId(entry.getKey());
             allocation.setManufacturerMetaId(manufacturerMetaId);
-            allocation.setPrice(scaleStatisticsDecimal(price));
-            orderItemPriceAllocationRepository.add(allocation);
-        });
+            allocation.setPrice(scaleStatisticsDecimal(entry.getValue()));
+            return allocation;
+        }).toList();
+        orderItemPriceAllocationRepository.batchAdd(allocations);
         incrementOrderDimensions(manufacturerMetaId, orderInfo, orderItems, 1, BigDecimal.ONE, amounts);
     }
 

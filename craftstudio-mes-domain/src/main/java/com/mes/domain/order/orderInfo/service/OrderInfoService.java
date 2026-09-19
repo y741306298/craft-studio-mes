@@ -611,21 +611,36 @@ public class OrderInfoService {
 
         matchOrCreateAddressRecognitionRecord(orderInfo, orderItems);
 
-        // 为每个订单项生成唯一的 orderItemId 并完善 procedureFlow 数据
+        // 先补齐订单项标识，再一次性查询数据库中的重复项，避免逐项 count 形成 N+1 查询。
+        Set<String> candidateOrderItemIds = new HashSet<>();
+        for (OrderItem item : orderItems) {
+            if (item == null) {
+                continue;
+            }
+            if (StringUtils.isBlank(item.getOrderItemId())) {
+                item.setOrderItemId(IdGenerator.generateOrderItemId());
+            }
+            item.setOrderId(orderInfo.getOrderId());
+            item.setChannel(orderInfo.getChannel());
+            item.setOrgInfo(orderInfo.getOrgInfo());
+            candidateOrderItemIds.add(item.getOrderItemId());
+        }
+        Set<String> existingItemKeys = orderItemRepository
+                .findByOrderIdAndOrderItemIds(orderInfo.getOrderId(), candidateOrderItemIds)
+                .stream()
+                .map(this::orderItemKey)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 为每个非重复订单项完善 procedureFlow 数据
         List<OrderItem> itemsToAdd = new ArrayList<>();
         Set<String> newItemKeys = new HashSet<>();
         for (OrderItem item : orderItems) {
             if (item == null) {
                 continue;
             }
-            if (StringUtils.isBlank(item.getOrderItemId())) {
-                String orderItemId = IdGenerator.generateOrderItemId();
-                item.setOrderItemId(orderItemId);
-            }
-            item.setOrderId(orderInfo.getOrderId());
-            item.setChannel(orderInfo.getChannel());
-            item.setOrgInfo(orderInfo.getOrgInfo());
-            if (isDuplicateOrderItem(orderInfo, item, newItemKeys)) {
+            String itemKey = orderItemKey(orderInfo, item);
+            if (itemKey != null && (!newItemKeys.add(itemKey) || existingItemKeys.contains(itemKey))) {
                 continue;
             }
 
@@ -683,24 +698,18 @@ public class OrderInfoService {
         return orderItemsResult;
     }
 
-    private boolean isDuplicateOrderItem(OrderInfo orderInfo, OrderItem item, Set<String> newItemKeys) {
+    private String orderItemKey(OrderInfo orderInfo, OrderItem item) {
         String orderId = item.getOrderId();
         String orderItemId = item.getOrderItemId();
         String manufacturerMetaId = resolveOrderItemManufacturerMetaId(orderInfo, item);
         if (StringUtils.isBlank(orderId) || StringUtils.isBlank(orderItemId) || StringUtils.isBlank(manufacturerMetaId)) {
-            return false;
+            return null;
         }
+        return orderId + "|" + orderItemId + "|" + manufacturerMetaId;
+    }
 
-        String itemKey = orderId + "|" + orderItemId + "|" + manufacturerMetaId;
-        if (!newItemKeys.add(itemKey)) {
-            return true;
-        }
-
-        Map<String, Object> filters = new HashMap<>();
-        filters.put("orderId", orderId);
-        filters.put("orderItemId", orderItemId);
-        filters.put("manufacturerId", manufacturerMetaId);
-        return orderItemRepository.filterTotal(filters) > 0;
+    private String orderItemKey(OrderItem item) {
+        return orderItemKey(null, item);
     }
 
     private String resolveOrderItemManufacturerMetaId(OrderInfo orderInfo, OrderItem item) {
