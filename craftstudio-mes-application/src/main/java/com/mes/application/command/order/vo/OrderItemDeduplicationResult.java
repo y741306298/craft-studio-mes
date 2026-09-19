@@ -11,6 +11,6 @@ public class OrderItemDeduplicationResult {
     private String orderId;
     private String keptOrderItemId;
     private int matchedOrderItemCount;
-    private int deletedOrderItemCount;
+    private long deletedOrderItemCount;
     private long deletedProductionPieceCount;
 }

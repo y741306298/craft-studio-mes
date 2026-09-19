@@ -13,6 +13,12 @@ public interface OrderItemRepository extends BaseRepository<OrderItem> {
 
     List<OrderItem> findByOrderIds(Collection<String> orderIds);
 
+    /** 按创建时间正序查询指定订单的全部有效订单项。 */
+    List<OrderItem> findAllByOrderId(String orderId);
+
+    /** 批量软删除订单项。 */
+    long deleteByIds(Collection<String> ids);
+
     /**
      * 根据条件过滤订单项列表，并优先返回加急订单项。
      *

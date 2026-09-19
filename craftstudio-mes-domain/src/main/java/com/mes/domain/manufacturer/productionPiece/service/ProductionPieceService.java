@@ -349,6 +349,13 @@ public class ProductionPieceService {
         return productionPieceRepository.deleteByOrderItemId(orderItemId);
     }
 
+    public long deleteProductionPiecesByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return 0;
+        }
+        return productionPieceRepository.deleteByOrderItemIds(orderItemIds);
+    }
+
     /**
      * 根据工艺路线 ID 查询生产工件（支持分页）
      */

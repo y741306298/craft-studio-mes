@@ -14,6 +14,7 @@ POST /api/manufacturerSide/order/item/deduplicate?orderId=2101141077316124674
 
 接口会查询该 `orderId` 下所有未删除的订单项，按 `createTime` 升序、MongoDB 文档 ID
 升序排列，保留第一条；其余订单项及其通过 `orderItemId` 关联的 `productionPiece` 会被软删除。
+查询和两类删除均使用 MongoDB 批量操作，不会逐条发送数千次数据库请求。
 
 ## 返回示例
 

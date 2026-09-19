@@ -1147,11 +1147,12 @@ public class AppOrderService {
         }
 
         String normalizedOrderId = orderId.trim();
-        List<OrderItem> orderItems = new ArrayList<>(findAllOrderItemsByOrderId(normalizedOrderId));
+        List<OrderItem> orderItems = domainOrderItemService.findAllByOrderId(normalizedOrderId);
         if (orderItems.isEmpty()) {
             throw new IllegalArgumentException("订单项不存在，orderId：" + normalizedOrderId);
         }
 
+        orderItems = new ArrayList<>(orderItems);
         orderItems.sort(Comparator
                 .comparing(OrderItem::getCreateTime, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(OrderItem::getId, Comparator.nullsLast(String::compareTo)));
@@ -1164,18 +1165,17 @@ public class AppOrderService {
             }
         }
 
-        long deletedProductionPieceCount = 0;
-        for (OrderItem duplicate : duplicateOrderItems) {
-            deletedProductionPieceCount += productionPieceService
-                    .deleteProductionPiecesByOrderItemId(duplicate.getOrderItemId());
-            domainOrderItemService.deleteOrderItem(duplicate.getId());
-        }
+        List<String> duplicateOrderItemIds = duplicateOrderItems.stream().map(OrderItem::getOrderItemId).toList();
+        List<String> duplicateDocumentIds = duplicateOrderItems.stream().map(OrderItem::getId).toList();
+        long deletedProductionPieceCount = productionPieceService
+                .deleteProductionPiecesByOrderItemIds(duplicateOrderItemIds);
+        long deletedOrderItemCount = domainOrderItemService.deleteOrderItemsByIds(duplicateDocumentIds);
 
         return new OrderItemDeduplicationResult(
                 normalizedOrderId,
                 keptOrderItem.getOrderItemId(),
                 orderItems.size(),
-                duplicateOrderItems.size(),
+                deletedOrderItemCount,
                 deletedProductionPieceCount);
     }
 
