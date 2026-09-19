@@ -49,6 +49,9 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      */
     long deleteByOrderItemId(String orderItemId);
 
+    /** 根据多个订单项目 ID 批量软删除生产工件。 */
+    long deleteByOrderItemIds(Collection<String> orderItemIds);
+
     java.util.List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, java.util.List<ProcessingFlowCondition> processNames, Double width, String routeId);
 
     java.util.List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,

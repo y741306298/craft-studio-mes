@@ -9,11 +9,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
 
 @Repository
 @Slf4j
@@ -46,6 +48,26 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
         return mongoTemplate.find(
                 new SoftDeleteQuery(Criteria.where("orderId").in(orderIds)), poClass())
                 .stream().map(OrderItemPo::toDO).toList();
+    }
+
+    @Override
+    public List<OrderItem> findAllByOrderId(String orderId) {
+        return mongoTemplate.find(
+                new SoftDeleteQuery(Criteria.where("orderId").is(orderId))
+                        .with(Sort.by(Sort.Order.asc("createTime"), Sort.Order.asc("_id"))),
+                poClass()).stream().map(OrderItemPo::toDO).toList();
+    }
+
+    @Override
+    public long deleteByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        Date now = new Date();
+        return mongoTemplate.updateMulti(
+                new SoftDeleteQuery(Criteria.where("_id").in(ids)),
+                new Update().set(SoftDeleteQuery.DELETED_AT, now).set("updateTime", now),
+                poClass()).getModifiedCount();
     }
 
     @Override
