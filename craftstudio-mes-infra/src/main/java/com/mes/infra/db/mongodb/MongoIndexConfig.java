@@ -20,8 +20,18 @@ public class MongoIndexConfig {
 
     @PostConstruct
     public void ensureIndexes() {
+        ensureOrderItemIndexes();
         ensureProductionPieceIndexes();
         ensureTypesettingIndexes();
+    }
+
+    private void ensureOrderItemIndexes() {
+        mongoTemplate.indexOps("orderItem")
+                .ensureIndex(new Index()
+                        .on("orderId", Sort.Direction.ASC)
+                        .on("orderItemId", Sort.Direction.ASC)
+                        .on("manufacturerId", Sort.Direction.ASC)
+                        .named("idx_order_item_import_deduplication"));
     }
 
     private void ensureProductionPieceIndexes() {
