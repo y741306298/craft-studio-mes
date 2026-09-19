@@ -157,6 +157,8 @@ public class TypesettingController {
      * 查询状态为待确认（confirming）的排版信息列表（分页）
      *
      * @param manufacturerMetaId 厂商元数据ID
+     * @param typesettingId 排版编号（支持模糊匹配）
+     * @param materialId 材料 ID
      * @param current 当前页码（默认1）
      * @param size 每页大小（默认20，最大100）
      * @return 分页查询结果
@@ -165,13 +167,23 @@ public class TypesettingController {
     public ApiResponse<PagedResult<TypesettingInfo>> listConfirmingTypesetting(
             @RequestParam String manufacturerMetaId,
             @RequestParam(required = false) String typesettingId,
+            @RequestParam(required = false) String materialId,
             @RequestParam(required = false, defaultValue = "1") int current,
             @RequestParam(required = false, defaultValue = "20") int size) {
         
         PagedResult<TypesettingInfo> result = 
-                appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, current, size);
+                appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, materialId, current, size);
         
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 查询状态为待排版（pending）的印版所使用的全部材料。
+     */
+    @GetMapping("/pending/material/list")
+    public ApiResponse<List<TypesettingMaterialVO>> listPendingTypesettingMaterials(
+            @RequestParam String manufacturerMetaId) {
+        return ApiResponse.success(appTypesettingService.findPendingTypesettingMaterials(manufacturerMetaId));
     }
 
     /**

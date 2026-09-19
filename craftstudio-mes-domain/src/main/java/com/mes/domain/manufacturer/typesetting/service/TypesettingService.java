@@ -86,6 +86,10 @@ public class TypesettingService {
         return typesettingRepository.findPrintableMaterials(manufacturerMetaId, deviceCode, startTime, endTime);
     }
 
+    public List<TypesettingInfo> findMaterialsByStatuses(String manufacturerMetaId, Collection<String> statuses) {
+        return typesettingRepository.findMaterialsByStatuses(manufacturerMetaId, statuses);
+    }
+
     public List<TypesettingInfo> findTypesettingByConditions(
             String manufacturerMetaId,
             String status,
