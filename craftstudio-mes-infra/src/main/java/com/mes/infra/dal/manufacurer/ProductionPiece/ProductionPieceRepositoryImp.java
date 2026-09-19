@@ -265,6 +265,20 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
     }
 
     @Override
+    public long deleteByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return 0;
+        }
+
+        Date now = new Date();
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
+        Update update = new Update()
+                .set(SoftDeleteQuery.DELETED_AT, now)
+                .set("updateTime", now);
+        return mongoTemplate.updateMulti(query, update, poClass()).getModifiedCount();
+    }
+
+    @Override
     public List<ProductionPiece> listPendingPackagingPiecesByConditions(String manufacturerId, String materialName, List<ProcessingFlowCondition> processNames, Double width, String routeId) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));

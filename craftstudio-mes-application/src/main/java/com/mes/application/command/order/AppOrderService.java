@@ -1,6 +1,7 @@
 package com.mes.application.command.order;
 
 import com.mes.application.command.order.vo.OrderItemVO;
+import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
 import com.mes.application.command.order.vo.OrderQuery;
@@ -59,7 +60,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -1133,6 +1133,50 @@ public class AppOrderService {
         }
         orderPreprocessTaskQueue.submit(orderItems);
         return deletedCount;
+    }
+
+    /**
+     * 清理指定订单重复生成的订单项。按创建时间正序保留第一条订单项，删除其余订单项及其生产工件。
+     *
+     * @param orderId 订单 ID
+     * @return 清理结果
+     */
+    public OrderItemDeduplicationResult deduplicateOrderItems(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        String normalizedOrderId = orderId.trim();
+        List<OrderItem> orderItems = domainOrderItemService.findAllByOrderId(normalizedOrderId);
+        if (orderItems.isEmpty()) {
+            throw new IllegalArgumentException("订单项不存在，orderId：" + normalizedOrderId);
+        }
+
+        orderItems = new ArrayList<>(orderItems);
+        orderItems.sort(Comparator
+                .comparing(OrderItem::getCreateTime, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(OrderItem::getId, Comparator.nullsLast(String::compareTo)));
+
+        OrderItem keptOrderItem = orderItems.get(0);
+        List<OrderItem> duplicateOrderItems = orderItems.subList(1, orderItems.size());
+        for (OrderItem duplicate : duplicateOrderItems) {
+            if (StringUtils.isBlank(duplicate.getId()) || StringUtils.isBlank(duplicate.getOrderItemId())) {
+                throw new IllegalStateException("重复订单项缺少 ID，无法安全删除，orderId：" + normalizedOrderId);
+            }
+        }
+
+        List<String> duplicateOrderItemIds = duplicateOrderItems.stream().map(OrderItem::getOrderItemId).toList();
+        List<String> duplicateDocumentIds = duplicateOrderItems.stream().map(OrderItem::getId).toList();
+        long deletedProductionPieceCount = productionPieceService
+                .deleteProductionPiecesByOrderItemIds(duplicateOrderItemIds);
+        long deletedOrderItemCount = domainOrderItemService.deleteOrderItemsByIds(duplicateDocumentIds);
+
+        return new OrderItemDeduplicationResult(
+                normalizedOrderId,
+                keptOrderItem.getOrderItemId(),
+                orderItems.size(),
+                deletedOrderItemCount,
+                deletedProductionPieceCount);
     }
 
     private OrderItem resolveOrderItem(String orderItemId) {

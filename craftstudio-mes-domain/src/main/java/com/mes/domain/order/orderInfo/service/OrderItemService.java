@@ -60,6 +60,20 @@ public class OrderItemService {
         return orderItemRepository.findByOrderItemIds(orderItemIds);
     }
 
+    public List<OrderItem> findAllByOrderId(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "订单 ID 不能为空");
+        }
+        return orderItemRepository.findAllByOrderId(orderId);
+    }
+
+    public long deleteOrderItemsByIds(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return orderItemRepository.deleteByIds(ids);
+    }
+
     /**
      * 根据订单 ID 查询订单项列表（支持分页）
      * @param orderId 订单 ID
