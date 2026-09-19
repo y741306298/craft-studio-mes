@@ -56,7 +56,7 @@ public class OrderPreprocessTaskQueue {
     @Value("${order.preprocess.queue.retry-backoff-ms:1000}")
     private long retryBackoffMs;
 
-    @Value("${order.preprocess.queue.batch-size:100}")
+    @Value("${order.preprocess.queue.batch-size:1000}")
     private int batchSize;
 
     @Value("${order.preprocess.queue.pending-recovery-age-ms:1800000}")
