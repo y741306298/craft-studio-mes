@@ -8,6 +8,7 @@ import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
 import com.mes.application.command.order.vo.OrderItemVO;
+import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
 import com.mes.application.command.order.vo.OrderQuery;
@@ -278,6 +279,17 @@ public class OrderController {
     public ApiResponse<String> reprocessPendingOrFailedOrderItems(@RequestParam String orderId) {
         long deletedCount = appOrderService.reprocessPendingOrFailedOrderItems(orderId);
         return ApiResponse.success("重新处理任务已提交，已删除生产工件数量：" + deletedCount);
+    }
+
+    /**
+     * 根据订单 ID 清理重复订单项，保留创建时间最早的一条，并删除其余订单项关联的生产工件。
+     *
+     * @param orderId 订单 ID
+     * @return 清理结果
+     */
+    @PostMapping("/item/deduplicate")
+    public ApiResponse<OrderItemDeduplicationResult> deduplicateOrderItems(@RequestParam String orderId) {
+        return ApiResponse.success(appOrderService.deduplicateOrderItems(orderId));
     }
 
 
