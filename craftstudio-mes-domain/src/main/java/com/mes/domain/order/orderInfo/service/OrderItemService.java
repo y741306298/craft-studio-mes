@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 
 @Service
@@ -110,6 +112,24 @@ public class OrderItemService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "每页大小必须在 1-100 之间");
         }
         return orderItemRepository.filterList(current, size, filters);
+    }
+
+    /**
+     * 查询长时间未更新的待预处理订单项。
+     *
+     * <p>这是后台恢复任务使用的内部查询，不受面向分页接口的 100 条限制。</p>
+     */
+    public List<OrderItem> findStalePendingItems(Date updatedBefore, int limit) {
+        if (updatedBefore == null) {
+            throw new IllegalArgumentException("截止更新时间不能为空");
+        }
+        if (limit <= 0) {
+            throw new IllegalArgumentException("查询数量必须大于 0");
+        }
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("status", OrderStatus.PENDING.getCode());
+        filters.put("updateTime_lte", updatedBefore);
+        return orderItemRepository.filterList(1, limit, filters);
     }
 
     /**
