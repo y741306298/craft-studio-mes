@@ -4,6 +4,7 @@ import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
+import com.mes.application.command.order.vo.OrderProductionPieceDeletionResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
@@ -1106,6 +1107,37 @@ public class AppOrderService {
 
     public long reprocessOrderItem(String orderItemId) {
         return reprocessOrderItem(orderItemId, null);
+    }
+
+    /**
+     * 逻辑删除指定订单下所有订单项关联的生产工件。
+     *
+     * @param orderId 订单 ID
+     * @return 删除结果
+     */
+    public OrderProductionPieceDeletionResult deleteProductionPiecesByOrderId(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        String normalizedOrderId = orderId.trim();
+        List<OrderItem> orderItems = domainOrderItemService.findAllByOrderId(normalizedOrderId);
+        if (orderItems.isEmpty()) {
+            throw new IllegalArgumentException("订单项不存在，orderId：" + normalizedOrderId);
+        }
+
+        List<String> orderItemIds = orderItems.stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        if (orderItemIds.isEmpty()) {
+            throw new IllegalStateException("订单项缺少 orderItemId，无法删除生产工件，orderId：" + normalizedOrderId);
+        }
+
+        // 仓储层使用一次 updateMulti 按全部 orderItemId 批量软删除，避免逐订单项查询或删除产生 N+1。
+        long deletedCount = productionPieceService.deleteProductionPiecesByOrderItemIds(orderItemIds);
+        return new OrderProductionPieceDeletionResult(normalizedOrderId, orderItemIds, deletedCount);
     }
 
     /**
