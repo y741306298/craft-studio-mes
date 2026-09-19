@@ -1,6 +1,5 @@
 package com.mes.application.command.orderPreprocessing;
 
-import com.mes.domain.order.enums.OrderStatus;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
 import jakarta.annotation.PostConstruct;
@@ -15,10 +14,8 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -41,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 public class OrderPreprocessTaskQueue {
 
     private static final Logger log = LoggerFactory.getLogger(OrderPreprocessTaskQueue.class);
-
     private final AppOrderPreprocessingService appOrderPreprocessingService;
 
     @Autowired
@@ -147,18 +143,17 @@ public class OrderPreprocessTaskQueue {
     /**
      * The local queue is deliberately lightweight and is lost on a process restart. Pending order
      * items are the durable source of truth, so periodically put stale ones back into the queue.
-     * Always query page one: processing changes the status and therefore shrinks this result set;
-     * incrementing the page would skip records.
+     * Query one configured processing batch directly; this background recovery query is not
+     * constrained by the 100-record limit used by paginated API queries.
      */
     @Scheduled(fixedDelayString = "${order.preprocess.queue.pending-recovery-interval-ms:60000}")
     public void recoverStalePendingItems() {
         if (queue == null) {
             return;
         }
-        Map<String, Object> filters = new HashMap<>();
-        filters.put("status", OrderStatus.PENDING.getCode());
-        filters.put("updateTime_lte", new Date(System.currentTimeMillis() - Math.max(0, pendingRecoveryAgeMs)));
-        List<OrderItem> pendingItems = orderItemService.filterList(1, Math.min(100, Math.max(1, batchSize)), filters);
+        int recoveryBatchSize = Math.max(1, batchSize);
+        Date updatedBefore = new Date(System.currentTimeMillis() - Math.max(0, pendingRecoveryAgeMs));
+        List<OrderItem> pendingItems = orderItemService.findStalePendingItems(updatedBefore, recoveryBatchSize);
         if (pendingItems == null || pendingItems.isEmpty()) {
             return;
         }
