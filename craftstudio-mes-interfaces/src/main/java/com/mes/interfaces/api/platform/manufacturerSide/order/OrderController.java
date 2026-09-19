@@ -11,6 +11,7 @@ import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
 import com.mes.application.command.order.vo.OrderPriceStatisticsVO;
+import com.mes.application.command.order.vo.OrderProductionPieceDeletionResult;
 import com.mes.application.command.order.vo.OrderQuery;
 import com.mes.application.command.order.vo.OrderWithItemsVO;
 
@@ -267,6 +268,18 @@ public class OrderController {
                                                    @RequestParam(required = false) String orderId) {
         long deletedCount = appOrderService.reprocessOrderItem(orderItemId, orderId);
         return ApiResponse.success("重新处理任务已提交，已删除生产工件数量：" + deletedCount);
+    }
+
+    /**
+     * 根据订单 ID 查询全部订单项，并逻辑删除这些订单项关联的所有生产工件。
+     *
+     * @param orderId 订单 ID
+     * @return 删除结果
+     */
+    @DeleteMapping("/{orderId}/productionPieces")
+    public ApiResponse<OrderProductionPieceDeletionResult> deleteProductionPiecesByOrderId(
+            @PathVariable String orderId) {
+        return ApiResponse.success(appOrderService.deleteProductionPiecesByOrderId(orderId));
     }
 
     /**
