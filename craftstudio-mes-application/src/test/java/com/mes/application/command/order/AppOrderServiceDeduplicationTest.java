@@ -1,6 +1,7 @@
 package com.mes.application.command.order;
 
 import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
+import com.mes.application.command.orderPreprocessing.OrderPreprocessTaskQueue;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
@@ -25,7 +26,8 @@ class AppOrderServiceDeduplicationTest {
     void keepsEarliestOrderItemAndDeletesLaterItemsAndTheirProductionPieces() {
         OrderItemService orderItemService = mock(OrderItemService.class);
         ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
-        AppOrderService service = service(orderItemService, productionPieceService);
+        OrderPreprocessTaskQueue taskQueue = mock(OrderPreprocessTaskQueue.class);
+        AppOrderService service = service(orderItemService, productionPieceService, taskQueue);
 
         OrderItem earliest = orderItem("mongo-1", "item-1", 1000);
         OrderItem latest = orderItem("mongo-3", "item-3", 3000);
@@ -41,6 +43,7 @@ class AppOrderServiceDeduplicationTest {
         assertThat(result.getMatchedOrderItemCount()).isEqualTo(3);
         assertThat(result.getDeletedOrderItemCount()).isEqualTo(2);
         assertThat(result.getDeletedProductionPieceCount()).isEqualTo(3);
+        verify(taskQueue).cancel(List.of("item-1", "item-2", "item-3"));
         verify(productionPieceService).deleteProductionPiecesByOrderItemIds(List.of("item-2", "item-3"));
         verify(orderItemService).deleteOrderItemsByIds(List.of("mongo-2", "mongo-3"));
     }
@@ -49,7 +52,8 @@ class AppOrderServiceDeduplicationTest {
     void rejectsMissingOrderIdWithoutDeletingAnything() {
         OrderItemService orderItemService = mock(OrderItemService.class);
         ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
-        AppOrderService service = service(orderItemService, productionPieceService);
+        OrderPreprocessTaskQueue taskQueue = mock(OrderPreprocessTaskQueue.class);
+        AppOrderService service = service(orderItemService, productionPieceService, taskQueue);
 
         assertThatThrownBy(() -> service.deduplicateOrderItems(" "))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -61,10 +65,12 @@ class AppOrderServiceDeduplicationTest {
     }
 
     private AppOrderService service(OrderItemService orderItemService,
-                                    ProductionPieceService productionPieceService) {
+                                    ProductionPieceService productionPieceService,
+                                    OrderPreprocessTaskQueue taskQueue) {
         AppOrderService service = new AppOrderService();
         ReflectionTestUtils.setField(service, "domainOrderItemService", orderItemService);
         ReflectionTestUtils.setField(service, "productionPieceService", productionPieceService);
+        ReflectionTestUtils.setField(service, "orderPreprocessTaskQueue", taskQueue);
         return service;
     }
 

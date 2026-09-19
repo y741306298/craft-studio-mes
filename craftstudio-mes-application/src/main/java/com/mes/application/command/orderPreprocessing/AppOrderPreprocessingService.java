@@ -68,6 +68,7 @@ import java.util.regex.Pattern;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -75,7 +76,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * 订单预处理应用服务。
@@ -89,6 +92,24 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 public class AppOrderPreprocessingService {
+
+    private final Set<String> cancelledOrderItemIds = ConcurrentHashMap.newKeySet();
+
+    public void cancelOrderItems(Collection<String> orderItemIds) {
+        if (orderItemIds != null) {
+            orderItemIds.stream().filter(StringUtils::isNotBlank).forEach(cancelledOrderItemIds::add);
+        }
+    }
+
+    public boolean isOrderItemCancelled(String orderItemId) {
+        return StringUtils.isNotBlank(orderItemId) && cancelledOrderItemIds.contains(orderItemId);
+    }
+
+    public void clearCancelledOrderItems(Collection<String> orderItemIds) {
+        if (orderItemIds != null) {
+            cancelledOrderItemIds.removeAll(orderItemIds);
+        }
+    }
     private static final Set<String> MARKLESS_SPLICE_NODE_NAMES = Set.of("写真拼接", "无痕拼接", "板材拼接");
     private static final String MASK_CALLBACK_LOCK_PREFIX = "orderPreprocessing:maskCallback:lock:";
     private static final String MASK_CALLBACK_COMPLETED_PREFIX = "orderPreprocessing:maskCallback:completed:";
@@ -206,6 +227,11 @@ public class AppOrderPreprocessingService {
         // 2. 遍历每个订单项进行处理
         for (OrderItem orderItem : orderItems) {
             try {
+                if (orderItem == null || isOrderItemCancelled(orderItem.getOrderItemId())) {
+                    log.info("订单项预处理已取消，跳过: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
+                    continue;
+                }
+                log.info("订单项预处理开始: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
                 //转化成生产零件，同时判断是否需要调用抠图算法
                 List<ProductionPiece> pieces = processSingleOrderItem(orderItem);
                 if (pieces != null) {
@@ -232,6 +258,14 @@ public class AppOrderPreprocessingService {
 
         // 与蒙版回调保持一致：先汇总本批次同步生成的零件，再一次性批量入库，
         // 避免按订单项循环执行单条新增。
+        if (!piecesToAdd.isEmpty()) {
+            Set<String> cancelledIds = piecesToAdd.stream()
+                    .map(ProductionPiece::getOrderItemId)
+                    .filter(this::isOrderItemCancelled)
+                    .collect(Collectors.toSet());
+            piecesToAdd.removeIf(piece -> cancelledIds.contains(piece.getOrderItemId()));
+            directlyGeneratedOrderItems.removeIf(item -> cancelledIds.contains(item.getOrderItemId()));
+        }
         if (!piecesToAdd.isEmpty()) {
             List<ProductionPiece> savedPieces = productionPieceService.batchAddProductionPieces(piecesToAdd);
             savedPieces.forEach(this::indexProductionPieceImage);

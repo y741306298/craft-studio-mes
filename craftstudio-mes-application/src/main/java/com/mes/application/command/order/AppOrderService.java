@@ -1167,9 +1167,14 @@ public class AppOrderService {
 
         List<String> duplicateOrderItemIds = duplicateOrderItems.stream().map(OrderItem::getOrderItemId).toList();
         List<String> duplicateDocumentIds = duplicateOrderItems.stream().map(OrderItem::getId).toList();
+        List<String> allOrderItemIds = orderItems.stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .toList();
+        orderPreprocessTaskQueue.cancel(allOrderItemIds);
+        long deletedOrderItemCount = domainOrderItemService.deleteOrderItemsByIds(duplicateDocumentIds);
         long deletedProductionPieceCount = productionPieceService
                 .deleteProductionPiecesByOrderItemIds(duplicateOrderItemIds);
-        long deletedOrderItemCount = domainOrderItemService.deleteOrderItemsByIds(duplicateDocumentIds);
 
         return new OrderItemDeduplicationResult(
                 normalizedOrderId,

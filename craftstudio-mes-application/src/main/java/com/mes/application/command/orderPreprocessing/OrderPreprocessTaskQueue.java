@@ -13,10 +13,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +48,8 @@ public class OrderPreprocessTaskQueue {
     private OrderItemService orderItemService;
     private BlockingQueue<OrderPreprocessTask> queue;
     private final Set<String> queuedOrderItemIds = ConcurrentHashMap.newKeySet();
+    private final Set<String> processingOrderItemIds = ConcurrentHashMap.newKeySet();
+    private final Object taskStateLock = new Object();
     private final ExecutorService workerExecutor;
 
     @Value("${order.preprocess.queue.capacity:1000}")
@@ -109,6 +114,37 @@ public class OrderPreprocessTaskQueue {
     }
 
     /**
+     * 取消尚未处理或正在处理的订单项。预处理服务还会在生产工件入库前再次检查取消标记。
+     */
+    public void cancel(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return;
+        }
+        Set<String> ids = Set.copyOf(orderItemIds);
+        int removedQueuedItemCount = 0;
+        Set<String> activeIds = new HashSet<>();
+        synchronized (taskStateLock) {
+            for (OrderPreprocessTask task : new ArrayList<>(queue)) {
+                if (!queue.remove(task)) {
+                    continue;
+                }
+                List<OrderItem> remainingItems = task.getOrderItems().stream()
+                        .filter(item -> item != null && !ids.contains(item.getOrderItemId()))
+                        .toList();
+                removedQueuedItemCount += task.getOrderItems().size() - remainingItems.size();
+                if (!remainingItems.isEmpty()) {
+                    queue.offer(new OrderPreprocessTask(remainingItems, task.getRetryCount()));
+                }
+            }
+            ids.stream().filter(processingOrderItemIds::contains).forEach(activeIds::add);
+            appOrderPreprocessingService.cancelOrderItems(activeIds);
+            queuedOrderItemIds.removeAll(ids);
+        }
+        log.info("订单预处理任务已全部取消: requestedCount={}, removedQueuedCount={}, activeCount={}",
+                ids.size(), removedQueuedItemCount, activeIds.size());
+    }
+
+    /**
      * The local queue is deliberately lightweight and is lost on a process restart. Pending order
      * items are the durable source of truth, so periodically put stale ones back into the queue.
      * Always query page one: processing changes the status and therefore shrinks this result set;
@@ -133,13 +169,29 @@ public class OrderPreprocessTaskQueue {
     private void consumeLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                OrderPreprocessTask task = queue.poll(1, TimeUnit.SECONDS);
+                OrderPreprocessTask task;
+                synchronized (taskStateLock) {
+                    task = queue.poll();
+                    if (task != null) {
+                        task.getOrderItems().stream().filter(Objects::nonNull)
+                                .map(OrderItem::getOrderItemId).filter(Objects::nonNull)
+                                .forEach(processingOrderItemIds::add);
+                    }
+                }
                 if (task == null) {
+                    Thread.sleep(100);
                     continue;
                 }
                 log.info("订单预处理任务开始消费: itemCount={}, retry={}, queueSize={}", task.getOrderItems().size(), task.getRetryCount(), queue.size());
-                if (handleTask(task)) {
-                    task.getOrderItems().forEach(item -> queuedOrderItemIds.remove(item.getOrderItemId()));
+                try {
+                    if (handleTask(task)) {
+                        task.getOrderItems().forEach(item -> queuedOrderItemIds.remove(item.getOrderItemId()));
+                    }
+                } finally {
+                    List<String> taskItemIds = task.getOrderItems().stream().filter(Objects::nonNull)
+                            .map(OrderItem::getOrderItemId).filter(Objects::nonNull).toList();
+                    processingOrderItemIds.removeAll(taskItemIds);
+                    appOrderPreprocessingService.clearCancelledOrderItems(taskItemIds);
                 }
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
@@ -151,7 +203,11 @@ public class OrderPreprocessTaskQueue {
 
     private boolean handleTask(OrderPreprocessTask task) {
         try {
-            List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(task.getOrderItems());
+            List<OrderItem> activeOrderItems = task.getOrderItems().stream()
+                    .filter(item -> item != null
+                            && !appOrderPreprocessingService.isOrderItemCancelled(item.getOrderItemId()))
+                    .toList();
+            List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(activeOrderItems);
             log.info("订单预处理任务灰度图转换完成: originalItemCount={}, readyItemCount={}", task.getOrderItems().size(), readyOrderItems == null ? 0 : readyOrderItems.size());
             appOrderPreprocessingService.preprocessOrder(readyOrderItems);
             log.info("订单预处理任务处理完成: itemCount={}", readyOrderItems == null ? 0 : readyOrderItems.size());
