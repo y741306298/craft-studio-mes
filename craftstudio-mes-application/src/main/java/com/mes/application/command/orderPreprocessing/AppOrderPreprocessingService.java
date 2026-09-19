@@ -218,7 +218,6 @@ public class AppOrderPreprocessingService {
             log.info("订单预处理跳过: orderItems为空");
             return;
         }
-        log.info("订单预处理开始: itemCount={}", orderItems.size());
         int generatedPieceCount = 0;
         List<ProductionPiece> piecesToAdd = new ArrayList<>();
         List<OrderItem> directlyGeneratedOrderItems = new ArrayList<>();
@@ -245,7 +244,6 @@ public class AppOrderPreprocessingService {
                     // 异步蒙版策略没有立即生成零件，保持原有状态推进逻辑。
                     updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
                 }
-                log.info("订单项预处理完成: orderItemId={}, generatedPieceCount={}", orderItem.getOrderItemId(), pieces == null ? 0 : pieces.size());
             } catch (Exception e) {
                 // 失败状态由队列在重试耗尽后统一写入，避免短暂故障被过早标记为永久失败。
                 String orderItemId = orderItem == null ? null : orderItem.getOrderItemId();
@@ -301,13 +299,11 @@ public class AppOrderPreprocessingService {
         }
 
         if (matchedStrategies.isEmpty()) {
-            log.info("订单项未命中任何预处理策略: orderItemId={}", orderItem == null ? null : orderItem.getOrderItemId());
             return new ArrayList<>();
         }
 
         List<ProductionPiece> finalResult = null;
         for (OrderItemProcessingStrategy strategy : matchedStrategies) {
-            log.info("命中订单预处理策略: type={}, remark={}, orderItemId={}", strategy.getStrategyType(), strategy.getStrategyRemark(), orderItem.getOrderItemId());
             List<ProductionPiece> current = strategy.process(orderItem, procedureFlow, this);
             if (current != null) {
                 if (finalResult == null) {
