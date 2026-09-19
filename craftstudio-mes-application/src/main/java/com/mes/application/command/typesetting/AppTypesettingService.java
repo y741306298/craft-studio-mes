@@ -893,11 +893,14 @@ public class AppTypesettingService {
     /**
      * 查询状态为待确认（confirming）的排版信息列表（分页）
      * @param manufacturerMetaId 厂商元数据ID
+     * @param typesettingId 排版编号（支持模糊匹配）
+     * @param materialId 材料 ID
      * @param current 当前页码
      * @param size 每页大小
      * @return 分页结果
      */
-    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, String typesettingId, int current, int size) {
+    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, String typesettingId,
+                                                                  String materialId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new IllegalArgumentException("manufacturerMetaId 不能为空");
         }
@@ -912,6 +915,10 @@ public class AppTypesettingService {
                 manufacturerMetaId,
                 TypesettingStatus.CONFIRMING.getCode(),
                 null,
+                materialId,
+                null,
+                null,
+                null,
                 null,
                 1,
                 Integer.MAX_VALUE
@@ -920,6 +927,10 @@ public class AppTypesettingService {
                 manufacturerMetaId,
                 TypesettingStatus.IN_PROGRESS.getCode(),
                 null,
+                materialId,
+                null,
+                null,
+                null,
                 null,
                 1,
                 Integer.MAX_VALUE
@@ -927,6 +938,10 @@ public class AppTypesettingService {
         List<TypesettingInfo> failedTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.FAILED.getCode(),
+                null,
+                materialId,
+                null,
+                null,
                 null,
                 null,
                 1,
@@ -974,6 +989,30 @@ public class AppTypesettingService {
         long total = allTypesettingInfos.size();
 
         return new PagedResult<>(pagedTypesettingInfos, total, size, current);
+    }
+
+    /**
+     * 查询待排版列表中全部印版使用的材料，并按材料 ID 去重。
+     */
+    public List<TypesettingMaterialVO> findPendingTypesettingMaterials(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        List<TypesettingInfo> items = domainTypesettingService.findMaterialsByStatuses(
+                manufacturerMetaId, List.of(TypesettingStatus.PENDING.getCode()));
+        Map<String, String> materials = new LinkedHashMap<>();
+        for (TypesettingInfo item : items == null ? Collections.<TypesettingInfo>emptyList() : items) {
+            if (item == null || item.getMaterialConfig() == null
+                    || StringUtils.isBlank(item.getMaterialConfig().getMaterialId())) {
+                continue;
+            }
+            String materialName = item.getMaterialConfig().getMaterialSnapshot() == null
+                    ? null : item.getMaterialConfig().getMaterialSnapshot().getName();
+            materials.putIfAbsent(item.getMaterialConfig().getMaterialId(), materialName);
+        }
+        return materials.entrySet().stream()
+                .map(entry -> new TypesettingMaterialVO(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
     }
 
     /**

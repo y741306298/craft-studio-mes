@@ -30,4 +30,7 @@ public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
      */
     List<TypesettingInfo> findPrintableMaterials(String manufacturerMetaId, String deviceCode,
                                                   Date startTime, Date endTime);
+
+    /** 查询指定状态印版的材料字段。实现层仅投影材料 ID 和名称。 */
+    List<TypesettingInfo> findMaterialsByStatuses(String manufacturerMetaId, Collection<String> statuses);
 }

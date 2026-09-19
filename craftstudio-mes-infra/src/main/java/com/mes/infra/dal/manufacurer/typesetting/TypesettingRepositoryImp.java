@@ -104,6 +104,18 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
         return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
     }
 
+    @Override
+    public List<TypesettingInfo> findMaterialsByStatuses(String manufacturerMetaId, Collection<String> statuses) {
+        Query query = new SoftDeleteQuery(new Criteria().andOperator(
+                Criteria.where("manufacturerMetaId").is(manufacturerMetaId),
+                Criteria.where("status").in(statuses)));
+        query.fields()
+                .include("materialConfig.materialId")
+                .include("materialConfig.materialSnapshot.name")
+                .exclude("_id");
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
             Date startTime, Date endTime, Boolean urgent) {
