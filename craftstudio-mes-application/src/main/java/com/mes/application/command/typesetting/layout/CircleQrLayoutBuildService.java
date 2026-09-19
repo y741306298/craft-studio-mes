@@ -173,28 +173,28 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("circle.png");
+        tl.setImg("basetag-circle.png");
         tl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tl.setSvg(circleSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("circle.png");
+        tr.setImg("basetag-circle.png");
         tr.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tr.setSvg(circleSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("circle.png");
+        bl.setImg("basetag-circle.png");
         bl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         bl.setSvg(circleSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("circle.png");
+        br.setImg("basetag-circle.png");
         br.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         br.setSvg(circleSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
@@ -207,14 +207,14 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - anchorSizeMm / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("circle.png");
+                leftPoint.setImg("basetag-circle.png");
                 leftPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 leftPoint.setSvg(circleSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("circle.png");
+                rightPoint.setImg("basetag-circle.png");
                 rightPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 rightPoint.setSvg(circleSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));

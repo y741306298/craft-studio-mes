@@ -175,28 +175,28 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         String crossSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-cross.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("cross.png");
+        tl.setImg("basetag-cross.png");
         tl.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         tl.setSvg(crossSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("cross.png");
+        tr.setImg("basetag-cross.png");
         tr.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         tr.setSvg(crossSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("cross.png");
+        bl.setImg("basetag-cross.png");
         bl.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         bl.setSvg(crossSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("cross.png");
+        br.setImg("basetag-cross.png");
         br.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         br.setSvg(crossSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
@@ -209,14 +209,14 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - anchorSizeMm / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("cross.png");
+                leftPoint.setImg("basetag-cross.png");
                 leftPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
                 leftPoint.setSvg(crossSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("cross.png");
+                rightPoint.setImg("basetag-cross.png");
                 rightPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
                 rightPoint.setSvg(crossSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));
