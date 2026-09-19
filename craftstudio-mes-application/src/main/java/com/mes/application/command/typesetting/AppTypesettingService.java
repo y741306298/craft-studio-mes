@@ -893,11 +893,14 @@ public class AppTypesettingService {
     /**
      * 查询状态为待确认（confirming）的排版信息列表（分页）
      * @param manufacturerMetaId 厂商元数据ID
+     * @param typesettingId 排版编号（支持模糊匹配）
+     * @param materialId 材料 ID
      * @param current 当前页码
      * @param size 每页大小
      * @return 分页结果
      */
-    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, String typesettingId, int current, int size) {
+    public PagedResult<TypesettingInfo> findConfirmingTypesetting(String manufacturerMetaId, String typesettingId,
+                                                                  String materialId, int current, int size) {
         if (StringUtils.isBlank(manufacturerMetaId)) {
             throw new IllegalArgumentException("manufacturerMetaId 不能为空");
         }
@@ -912,6 +915,10 @@ public class AppTypesettingService {
                 manufacturerMetaId,
                 TypesettingStatus.CONFIRMING.getCode(),
                 null,
+                materialId,
+                null,
+                null,
+                null,
                 null,
                 1,
                 Integer.MAX_VALUE
@@ -920,6 +927,10 @@ public class AppTypesettingService {
                 manufacturerMetaId,
                 TypesettingStatus.IN_PROGRESS.getCode(),
                 null,
+                materialId,
+                null,
+                null,
+                null,
                 null,
                 1,
                 Integer.MAX_VALUE
@@ -927,6 +938,10 @@ public class AppTypesettingService {
         List<TypesettingInfo> failedTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
                 manufacturerMetaId,
                 TypesettingStatus.FAILED.getCode(),
+                null,
+                materialId,
+                null,
+                null,
                 null,
                 null,
                 1,
@@ -974,6 +989,30 @@ public class AppTypesettingService {
         long total = allTypesettingInfos.size();
 
         return new PagedResult<>(pagedTypesettingInfos, total, size, current);
+    }
+
+    /**
+     * 查询待排版列表中全部印版使用的材料，并按材料 ID 去重。
+     */
+    public List<TypesettingMaterialVO> findPendingTypesettingMaterials(String manufacturerMetaId) {
+        if (StringUtils.isBlank(manufacturerMetaId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        List<TypesettingInfo> items = domainTypesettingService.findMaterialsByStatuses(
+                manufacturerMetaId, List.of(TypesettingStatus.PENDING.getCode()));
+        Map<String, String> materials = new LinkedHashMap<>();
+        for (TypesettingInfo item : items == null ? Collections.<TypesettingInfo>emptyList() : items) {
+            if (item == null || item.getMaterialConfig() == null
+                    || StringUtils.isBlank(item.getMaterialConfig().getMaterialId())) {
+                continue;
+            }
+            String materialName = item.getMaterialConfig().getMaterialSnapshot() == null
+                    ? null : item.getMaterialConfig().getMaterialSnapshot().getName();
+            materials.putIfAbsent(item.getMaterialConfig().getMaterialId(), materialName);
+        }
+        return materials.entrySet().stream()
+                .map(entry -> new TypesettingMaterialVO(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -1336,12 +1375,18 @@ public class AppTypesettingService {
                 .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
                 .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getQuantity,
                         Integer::sum, LinkedHashMap::new));
+        if (pieceReservations.isEmpty()) {
+            log.warn("toLayout未生成零件占用明细, typesettingId={}, sourceCellCount={}, manufacturerMetaId={}",
+                    cacheKey, typesettingCells.size(), request.getManufacturerMetaId());
+        }
         try {
             long reservedCount = productionPieceService.reservePendingTypesettingQuantities(pieceReservations);
             if (reservedCount != pieceReservations.size()) {
                 throw new IllegalStateException("生产工件数量已发生变化，期望占用="
                         + pieceReservations.size() + "，实际占用=" + reservedCount);
             }
+            log.info("toLayout零件占用成功, typesettingId={}, expected={}, matched={}, reservations={}",
+                    cacheKey, pieceReservations.size(), reservedCount, pieceReservations);
         } catch (Exception e) {
             throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
         }
@@ -3965,7 +4010,11 @@ public class AppTypesettingService {
                 .map(entry -> new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
                         "NODE_TYPESETTING", entry.getValue()))
                 .toList();
+        log.info("释放排版开始回退零件数量, typesettingId={}, typesettingRecordId={}, rollbackQuantities={}",
+                info.getTypesettingId(), info.getId(), productionPieceRollbackQuantity);
         productionPieceService.transferPieceQuantitiesBetweenNodesStrict(rollbackTransfers);
+        log.info("释放排版完成回退零件数量, typesettingId={}, typesettingRecordId={}, rollbackCount={}",
+                info.getTypesettingId(), info.getId(), rollbackTransfers.size());
 
         for (Map.Entry<String, Integer> entry : typesettingRollbackQuantity.entrySet()) {
             TypesettingInfo sourceTypesetting = domainTypesettingService.findById(entry.getKey());
