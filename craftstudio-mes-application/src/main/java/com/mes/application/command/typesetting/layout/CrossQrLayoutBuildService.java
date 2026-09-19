@@ -55,7 +55,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final int ANCHOR_INNER_SHIFT_MM = 30;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
-    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
+    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
     private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
@@ -82,7 +82,7 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
      * 十字二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
      * - marks 使用 C+B+A 拼接生成的标签条；
-     * - 定位点使用 basetag/cross.svg。
+     * - 定位点使用 basetag/basetag-cross.svg。
      */
     @Override
     public TypesettingLayoutMode supportMode() {
@@ -172,31 +172,31 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, topLeftX);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
         int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
-        String crossSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/cross.svg";
+        String crossSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-cross.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("cross.png");
+        tl.setImg("basetag-cross.png");
         tl.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         tl.setSvg(crossSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("cross.png");
+        tr.setImg("basetag-cross.png");
         tr.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         tr.setSvg(crossSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("cross.png");
+        bl.setImg("basetag-cross.png");
         bl.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         bl.setSvg(crossSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("cross.png");
+        br.setImg("basetag-cross.png");
         br.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
         br.setSvg(crossSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
@@ -209,14 +209,14 @@ public class CrossQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - anchorSizeMm / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("cross.png");
+                leftPoint.setImg("basetag-cross.png");
                 leftPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
                 leftPoint.setSvg(crossSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("cross.png");
+                rightPoint.setImg("basetag-cross.png");
                 rightPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CROSS.getCode());
                 rightPoint.setSvg(crossSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));

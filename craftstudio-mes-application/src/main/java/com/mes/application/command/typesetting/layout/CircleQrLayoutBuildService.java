@@ -54,7 +54,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int SIDE_ANCHOR_INTERVAL_MM = 1150;
     private static final int ANCHOR_INNER_SHIFT_MM = 30;
     private static final String TAG_TEXT_FONT = "Source Han Sans SC VF";
-    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/rightarrow.png";
+    private static final String RIGHT_ARROW_URL = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-rightarrow.png";
 
     private final OssTagUploadService ossTagUploadService;
     private final QrLayoutOrderIdResolver qrLayoutOrderIdResolver;
@@ -80,7 +80,7 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
      * 圆形二维码排版模式构建器：
      * - 上下 margin 固定 30mm；
      * - marks 使用 C+B+A 拼接生成的标签条；
-     * - 定位点使用 basetag/circle.svg。
+     * - 定位点使用 basetag/basetag-circle.svg。
      */
     @Override
     public TypesettingLayoutMode supportMode() {
@@ -170,31 +170,31 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
         int topRightX = Math.max(elementOriginX + expandedWidth - TOP_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, topLeftX);
         int bottomLeftX = elementOriginX + BOTTOM_ANCHOR_LEFT_MM + ANCHOR_INNER_SHIFT_MM;
         int bottomRightX = Math.max(elementOriginX + expandedWidth - BOTTOM_ANCHOR_RIGHT_MM - anchorSizeMm - ANCHOR_INNER_SHIFT_MM, bottomLeftX);
-        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/circle.svg";
+        String circleSvgUrl = "https://craftstudio-mes-test.oss-cn-hangzhou.aliyuncs.com/basetag/basetag-circle.svg";
 
         FormeGenerationRequest.AnchorPoint tl = new FormeGenerationRequest.AnchorPoint();
-        tl.setImg("circle.png");
+        tl.setImg("basetag-circle.png");
         tl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tl.setSvg(circleSvgUrl);
         tl.setSize(createSize(anchorSize, anchorSize));
         tl.setPosition(createPosition(topLeftX, topY));
 
         FormeGenerationRequest.AnchorPoint tr = new FormeGenerationRequest.AnchorPoint();
-        tr.setImg("circle.png");
+        tr.setImg("basetag-circle.png");
         tr.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         tr.setSvg(circleSvgUrl);
         tr.setSize(createSize(anchorSize, anchorSize));
         tr.setPosition(createPosition(topRightX, topY));
 
         FormeGenerationRequest.AnchorPoint bl = new FormeGenerationRequest.AnchorPoint();
-        bl.setImg("circle.png");
+        bl.setImg("basetag-circle.png");
         bl.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         bl.setSvg(circleSvgUrl);
         bl.setSize(createSize(anchorSize, anchorSize));
         bl.setPosition(createPosition(bottomLeftX, bottomY));
 
         FormeGenerationRequest.AnchorPoint br = new FormeGenerationRequest.AnchorPoint();
-        br.setImg("circle.png");
+        br.setImg("basetag-circle.png");
         br.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
         br.setSvg(circleSvgUrl);
         br.setSize(createSize(anchorSize, anchorSize));
@@ -207,14 +207,14 @@ public class CircleQrLayoutBuildService extends AbstractLayoutModeBuildService {
                 int pointY = elementOriginY + offsetY - anchorSizeMm / 2;
 
                 FormeGenerationRequest.AnchorPoint leftPoint = new FormeGenerationRequest.AnchorPoint();
-                leftPoint.setImg("circle.png");
+                leftPoint.setImg("basetag-circle.png");
                 leftPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 leftPoint.setSvg(circleSvgUrl);
                 leftPoint.setSize(createSize(anchorSize, anchorSize));
                 leftPoint.setPosition(createPosition(leftExpandCenterX, pointY));
 
                 FormeGenerationRequest.AnchorPoint rightPoint = new FormeGenerationRequest.AnchorPoint();
-                rightPoint.setImg("circle.png");
+                rightPoint.setImg("basetag-circle.png");
                 rightPoint.setType(FormeGenerationElementType.ANCHOR_POINT_CIRCLE.getCode());
                 rightPoint.setSvg(circleSvgUrl);
                 rightPoint.setSize(createSize(anchorSize, anchorSize));
