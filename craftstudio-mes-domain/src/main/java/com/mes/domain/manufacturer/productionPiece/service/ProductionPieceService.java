@@ -547,6 +547,15 @@ public class ProductionPieceService {
         return productionPieceRepository.findByOrderItemIds(orderItemIds);
     }
 
+    public List<ProductionPiece> findPendingPackagingPiecesByOrderItemIds(String manufacturerId,
+            Collection<String> orderItemIds, String materialName) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return productionPieceRepository.findPendingPackagingPiecesByOrderItemIds(
+                manufacturerId, orderItemIds, materialName);
+    }
+
     /**
      * 根据 productionPieceId 更新生产工件
      *

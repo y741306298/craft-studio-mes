@@ -42,6 +42,21 @@ public class MongoIndexConfig {
         mongoTemplate.indexOps("productionPiece")
                 .ensureIndex(new Index()
                         .on("manufacturerId", Sort.Direction.ASC)
+                        .on("orderItemId", Sort.Direction.ASC)
+                        .on("deleteAt", Sort.Direction.ASC)
+                        .on("updateTime", Sort.Direction.DESC)
+                        .named("idx_production_piece_manufacturer_order_item_active_update"));
+        mongoTemplate.indexOps("productionPiece")
+                .ensureIndex(new Index()
+                        .on("manufacturerId", Sort.Direction.ASC)
+                        .on("orderItemId", Sort.Direction.ASC)
+                        .on("deleteAt", Sort.Direction.ASC)
+                        .on("procedureFlow.nodes.nodeName", Sort.Direction.ASC)
+                        .on("procedureFlow.nodes.pieceQuantity", Sort.Direction.ASC)
+                        .named("idx_production_piece_order_item_pending_packaging"));
+        mongoTemplate.indexOps("productionPiece")
+                .ensureIndex(new Index()
+                        .on("manufacturerId", Sort.Direction.ASC)
                         .on("status", Sort.Direction.ASC)
                         .named("idx_production_piece_manufacturer_status"));
         mongoTemplate.indexOps("productionPiece")

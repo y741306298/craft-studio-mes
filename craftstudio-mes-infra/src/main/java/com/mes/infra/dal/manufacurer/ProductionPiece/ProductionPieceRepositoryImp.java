@@ -28,6 +28,9 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
 
+    private static final String PENDING_PACKAGING_NODE_ID = "NODE_PENDING_PACKING";
+    private static final String PENDING_PACKAGING_NODE_NAME = "待打包";
+
     @Override
     public long reservePendingTypesettingQuantities(Map<String, Integer> requiredQuantities) {
         if (requiredQuantities == null || requiredQuantities.isEmpty()) {
@@ -154,6 +157,33 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         }
         Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
         return mongoTemplate.find(query, poClass()).stream().map(ProductionPiecePo::toDO).toList();
+    }
+
+    @Override
+    public List<ProductionPiece> findPendingPackagingPiecesByOrderItemIds(String manufacturerId,
+            Collection<String> orderItemIds, String materialName) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Criteria> criteria = new ArrayList<>();
+        criteria.add(Criteria.where("manufacturerId").is(manufacturerId));
+        criteria.add(Criteria.where("orderItemId").in(orderItemIds));
+        Criteria pendingPackagingNode = new Criteria().andOperator(
+                new Criteria().orOperator(
+                        Criteria.where("nodeId").is(PENDING_PACKAGING_NODE_ID),
+                        Criteria.where("nodeName").is(PENDING_PACKAGING_NODE_NAME)),
+                Criteria.where("pieceQuantity").gt(0));
+        criteria.add(Criteria.where("procedureFlow.nodes").elemMatch(pendingPackagingNode));
+        if (materialName != null && !materialName.isBlank()) {
+            criteria.add(Criteria.where("materialConfig.materialSnapshot.name")
+                    .regex(Pattern.quote(materialName), "i"));
+        }
+        Query query = new SoftDeleteQuery(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
+        long start = System.nanoTime();
+        List<ProductionPiecePo> pos = mongoTemplate.find(query, poClass());
+        log.info("MongoDB query findPendingPackagingPiecesByOrderItemIds completed: manufacturerId={}, orderItemIds={}, results={}, elapsedMs={}",
+                manufacturerId, orderItemIds.size(), pos.size(), (System.nanoTime() - start) / 1_000_000.0);
+        return pos.stream().map(ProductionPiecePo::toDO).toList();
     }
 
     @Override
