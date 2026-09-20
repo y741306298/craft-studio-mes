@@ -24,6 +24,18 @@ import java.util.Objects;
 public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo, TypesettingPo> implements TypesettingRepository {
 
     @Override
+    public List<TypesettingInfo> findByProductionPieceSourceIds(Collection<String> sourceIds) {
+        if (sourceIds == null || sourceIds.isEmpty()) {
+            return List.of();
+        }
+        Criteria sourceCell = Criteria.where("sourceType").is("PRODUCTION_PIECE")
+                .and("sourceId").in(sourceIds);
+        Query query = new SoftDeleteQuery(Criteria.where("typesettingCells").elemMatch(sourceCell));
+        query.fields().include("typesettingId").include("status").include("typesettingCells");
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
+    @Override
     public List<TypesettingInfo> findByStatusAndCreateTime(String status, Date startTime, Date endTime) {
         Criteria criteria = Criteria.where("status").is(status)
                 .and("createTime").gte(startTime).lte(endTime);

@@ -3,6 +3,7 @@ package com.mes.domain.manufacturer.productionPiece.repository;
 import com.mes.domain.base.repository.BaseRepository;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 
 import java.util.Collection;
 import java.util.List;
@@ -43,6 +44,9 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
      * @param isUrgent 加急状态
      */
     void updateUrgentByOrderItemId(String orderItemId, Boolean isUrgent);
+
+    /** Updates only channel metadata, preserving procedure-flow quantities changed concurrently. */
+    long updateChannelByIds(Collection<String> ids, OrderChannelInfo channel);
 
     /**
      * 根据订单项目 ID 删除全部生产工件。

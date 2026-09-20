@@ -474,6 +474,14 @@ public class ProductionPieceService {
         }
     }
 
+    public long updateChannelByIds(Collection<String> ids,
+                                   com.mes.domain.order.orderInfo.vo.OrderChannelInfo channel) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return productionPieceRepository.updateChannelByIds(ids, channel);
+    }
+
     /**
      * 删除生产工件
      */

@@ -7,6 +7,7 @@ import com.mes.infra.base.BaseRepositoryImp;
 import com.mongodb.client.result.UpdateResult;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
+import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -278,6 +279,16 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
                 .set("isUrgent", isUrgent)
                 .set("updateTime", new Date());
         mongoTemplate.updateMulti(query, update, poClass());
+    }
+
+    @Override
+    public long updateChannelByIds(Collection<String> ids, OrderChannelInfo channel) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        Query query = new SoftDeleteQuery(Criteria.where("_id").in(ids));
+        Update update = new Update().set("channel", channel).set("updateTime", new Date());
+        return mongoTemplate.updateMulti(query, update, poClass()).getModifiedCount();
     }
 
     @Override
