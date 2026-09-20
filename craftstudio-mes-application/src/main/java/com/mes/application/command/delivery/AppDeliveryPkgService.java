@@ -1455,27 +1455,16 @@ public class AppDeliveryPkgService {
     private String buildDeliveryPkgRemarks(String orderId, String presetType, String kuaidiNum,
                                            List<DeliveryPkgAddRequest.DeliveryPkgPieceItem> pieces, OrderInfo orderInfo) {
         List<String> remarkParts = new ArrayList<>();
-        if (StringUtils.isNotBlank(orderId)) {
-            remarkParts.add("订单:" + orderId);
-        }
-        addProductionImageFileNames(remarkParts, pieces);
-
-        if (!"CUSTOM".equalsIgnoreCase(presetType)) {
-            if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
-                orderInfo = orderInfoService.findByOrderId(orderId);
-            }
-            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
-                remarkParts.add(orderInfo.getRemark());
-            }
-            return String.join("\n", remarkParts);
-        }
-
         if (orderInfo == null && StringUtils.isNotBlank(orderId)) {
             orderInfo = orderInfoService.findByOrderId(orderId);
+        }
+        if (StringUtils.isNotBlank(orderId)) {
+            remarkParts.add("订单:" + orderId);
         }
         if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getRemark())) {
             remarkParts.add(orderInfo.getRemark());
         }
+        addProductionImageFileNames(remarkParts, pieces);
         return String.join("\n", remarkParts);
     }
 
