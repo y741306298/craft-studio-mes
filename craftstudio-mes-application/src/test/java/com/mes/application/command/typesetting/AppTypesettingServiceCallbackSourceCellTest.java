@@ -1,13 +1,9 @@
 package com.mes.application.command.typesetting;
 
-import com.mes.application.command.typesetting.enums.TypesettingSourceType;
-import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
-import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,52 +11,32 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AppTypesettingServiceCallbackSourceCellTest {
 
     @Test
-    void singleResultUsesCompleteCachedSourcesInsteadOfPartialSvgMatches() {
+    void singleResultNeverReplacesPersistedSourceCells() {
         AppTypesettingService service = new AppTypesettingService();
-        LayoutConfirmRequest request = new LayoutConfirmRequest();
-        request.setTypesettingCells(List.of(
-                requestCell("source-layout-1"),
-                requestCell("source-layout-2")
-        ));
 
-        List<TypesettingSourceCell> result = ReflectionTestUtils.invokeMethod(service,
-                "resolveSingleResultSourceCells", List.of(sourceCell("source-layout-1")), 1, request,
-                Collections.emptyList(), "LAYOUT-NEW");
+        Boolean shouldUpdate = ReflectionTestUtils.invokeMethod(service,
+                "shouldUpdateCallbackSourceCells", 1, List.of(new TypesettingSourceCell()));
 
-        assertThat(result)
-                .extracting(TypesettingSourceCell::getSourceId)
-                .containsExactly("source-layout-1", "source-layout-2");
-        assertThat(result)
-                .extracting(TypesettingSourceCell::getQuantity)
-                .containsExactly(1, 1);
+        assertThat(shouldUpdate).isFalse();
     }
 
     @Test
-    void multipleResultsDoNotGuessSourceDistribution() {
+    void failedSourceResolutionDoesNotReplacePersistedSourceCells() {
         AppTypesettingService service = new AppTypesettingService();
-        LayoutConfirmRequest request = new LayoutConfirmRequest();
-        request.setTypesettingCells(List.of(requestCell("source-layout-1")));
 
-        List<TypesettingSourceCell> result = ReflectionTestUtils.invokeMethod(service,
-                "resolveSingleResultSourceCells", Collections.emptyList(), 2, request,
-                Collections.emptyList(), "LAYOUT-NEW");
+        Boolean shouldUpdate = ReflectionTestUtils.invokeMethod(service,
+                "shouldUpdateCallbackSourceCells", 2, List.of());
 
-        assertThat(result).isEmpty();
+        assertThat(shouldUpdate).isFalse();
     }
 
-    private TypesettingProductionPieceVO requestCell(String sourceId) {
-        TypesettingProductionPieceVO cell = new TypesettingProductionPieceVO();
-        cell.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
-        cell.setSourceId(sourceId);
-        cell.setQuantity(1);
-        return cell;
-    }
+    @Test
+    void successfullyResolvedMultiResultMayReplaceSourceCells() {
+        AppTypesettingService service = new AppTypesettingService();
 
-    private TypesettingSourceCell sourceCell(String sourceId) {
-        TypesettingSourceCell cell = new TypesettingSourceCell();
-        cell.setSourceType(TypesettingSourceType.TYPESETTING.getCode());
-        cell.setSourceId(sourceId);
-        cell.setQuantity(1);
-        return cell;
+        Boolean shouldUpdate = ReflectionTestUtils.invokeMethod(service,
+                "shouldUpdateCallbackSourceCells", 2, List.of(new TypesettingSourceCell()));
+
+        assertThat(shouldUpdate).isTrue();
     }
 }
