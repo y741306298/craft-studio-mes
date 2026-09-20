@@ -4532,7 +4532,17 @@ public class AppTypesettingService {
                 LayoutConfirmRequest cachedRequest = getCachedLayoutConfirmRequest(typesettingId);
                 boolean taskHaveBlood = false;
                 for (NestingResponse.Result callbackResult : results) {
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
+                    // A single result necessarily contains the complete request, and re-nested SVGs
+                    // do not preserve the submitted typesetting IDs. Avoid an unnecessary OSS read
+                    // and use the durable request snapshot directly in that case.
+                    boolean hasSourceSnapshot = (cachedRequest != null
+                            && !CollectionUtils.isEmpty(cachedRequest.getTypesettingCells()))
+                            || !CollectionUtils.isEmpty(baseTypesettingInfo.getTypesettingCells());
+                    List<TypesettingSourceCell> usedCells = total == 1 && hasSourceSnapshot
+                            ? Collections.emptyList()
+                            : extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
+                    usedCells = resolveSingleResultSourceCells(usedCells, total, cachedRequest,
+                            baseTypesettingInfo.getTypesettingCells(), typesettingId);
                     usedCellsByResult.add(usedCells);
                     if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells, cachedRequest))) {
                         taskHaveBlood = true;
@@ -4594,6 +4604,42 @@ public class AppTypesettingService {
             markTypesettingsFailed(typesettingInfos, failureReason);
             throw new RuntimeException(failureReason, e);
         }
+    }
+
+    /**
+     * A nested SVG produced from existing typesetting files may contain only the IDs inside those
+     * source SVGs, rather than the source typesetting IDs sent in the nesting manifest. In that
+     * situation {@link #extractUsedSourceCells(LayoutConfirmRequest, String)} cannot reliably
+     * associate the SVG IDs with the request: it may return no cells, or only an accidental subset
+     * when an internal ID happens to equal another requested source ID.
+     *
+     * <p>When the algorithm returns one result, every requested source belongs to that result, so
+     * the request snapshot (or the cells already stored by {@code toLayout}) is authoritative. Do
+     * not replace that durable source relationship with an SVG-derived result. Multiple-result
+     * callbacks still use the parser because the request alone cannot determine which result
+     * contains each source.</p>
+     */
+    private List<TypesettingSourceCell> resolveSingleResultSourceCells(
+            List<TypesettingSourceCell> extractedCells,
+            int resultCount,
+            LayoutConfirmRequest cachedRequest,
+            List<TypesettingSourceCell> persistedCells,
+            String typesettingId) {
+        if (resultCount != 1) {
+            return extractedCells == null ? Collections.emptyList() : extractedCells;
+        }
+        List<TypesettingSourceCell> cachedCells = cachedRequest == null
+                ? Collections.emptyList()
+                : toSourceCells(cachedRequest.getTypesettingCells());
+        List<TypesettingSourceCell> fallbackCells = CollectionUtils.isEmpty(cachedCells)
+                ? persistedCells
+                : cachedCells;
+        if (!CollectionUtils.isEmpty(fallbackCells)) {
+            log.info("单结果排版回调使用toLayout来源快照, typesettingId={}, sourceCellCount={}",
+                    typesettingId, fallbackCells.size());
+            return fallbackCells;
+        }
+        return extractedCells == null ? Collections.emptyList() : extractedCells;
     }
 
     private boolean isNestingCallbackAlreadyHandled(Collection<TypesettingInfo> typesettingInfos) {
