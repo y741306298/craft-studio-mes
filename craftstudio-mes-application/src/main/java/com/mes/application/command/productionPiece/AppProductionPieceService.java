@@ -12,14 +12,21 @@ import com.mes.domain.manufacturer.procedureFlow.enums.NodeStatus;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageOperationRecordService;
 import com.mes.domain.manufacturer.transBox.storageTank.service.StorageTankService;
 import com.mes.infra.oss.ImageToImageSearchService;
+import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
+import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
+import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.BeanUtils;
+import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
@@ -28,6 +35,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class AppProductionPieceService {
@@ -39,6 +48,12 @@ public class AppProductionPieceService {
 
     @Autowired
     private ImageToImageSearchService imageToImageSearchService;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private OssTagUploadService ossTagUploadService;
 
     public long normalizeInProgressStatuses(String manufacturerMetaId) {
         return domainProductionPieceService.normalizeInProgressStatuses(
@@ -207,7 +222,76 @@ public class AppProductionPieceService {
         redoPiece.setIsRedo(true);
         redoPiece.setIsUrgent(true);
 
+        rewriteMarkedSvgForRedo(piece, redoPiece);
+
         return domainProductionPieceService.addProductionPiece(redoPiece);
+    }
+
+    /**
+     * 带 marks 的零件在排版时会把 mask/route SVG 同时作为 img 和 svg 提交。此类 SVG 内部的
+     * 主分组 id 是生产零件 Mongo ID，重做时不能继续引用源零件 ID。
+     */
+    private void rewriteMarkedSvgForRedo(ProductionPiece source, ProductionPiece redo) {
+        if (source.getMarks() == null || StringUtils.isBlank(source.getId())) {
+            return;
+        }
+        String svgLocation = source.getMaskImageFile() == null
+                ? null : source.getMaskImageFile().getRawFile();
+        boolean usesMaskImage = StringUtils.isNotBlank(svgLocation);
+        if (!usesMaskImage) {
+            svgLocation = source.getRouteSvg();
+        }
+        if (StringUtils.isBlank(svgLocation)) {
+            throw new IllegalStateException("带 marks 的重做零件缺少 SVG 地址：" + source.getProductionPieceId());
+        }
+
+        redo.setId(new ObjectId().toHexString());
+        redo.setProductionPieceId(IdGenerator.generateId("PP"));
+        String svg = svgLocation.trim().startsWith("<svg")
+                ? svgLocation : restTemplate.getForObject(svgLocation, String.class);
+        String rewrittenSvg = rewriteSvgPieceId(svg, source.getId(), redo.getId());
+        String uploadPath = "mask/" + defaultPathPart(redo.getManufacturerId()) + "/"
+                + defaultPathPart(redo.getOrderItemId()) + "/redo/";
+        String rewrittenUrl = ossTagUploadService.uploadTagSvg(
+                redo.getProductionPieceId(), rewrittenSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
+        if (usesMaskImage) {
+            redo.setMaskImageFile(copyImageFileWithRaw(source.getMaskImageFile(), rewrittenUrl));
+        } else {
+            redo.setRouteSvg(rewrittenUrl);
+        }
+    }
+
+    static String rewriteSvgPieceId(String svg, String oldId, String newId) {
+        if (StringUtils.isBlank(svg)) {
+            throw new IllegalStateException("重做零件 SVG 内容为空");
+        }
+        Pattern idPattern = Pattern.compile("(?i)(\\bid\\s*=\\s*)([\\\"'])"
+                + Pattern.quote(oldId) + "\\2");
+        Matcher matcher = idPattern.matcher(svg);
+        if (!matcher.find()) {
+            throw new IllegalStateException("重做零件 SVG 中未找到源零件 ID：" + oldId);
+        }
+        return matcher.replaceFirst(Matcher.quoteReplacement(matcher.group(1) + matcher.group(2)
+                + newId + matcher.group(2)));
+    }
+
+    private ImageFile copyImageFileWithRaw(ImageFile source, String raw) {
+        ImageFile copy = new ImageFile();
+        BeanUtils.copyProperties(source, copy, "filePreview", "rawFile");
+        copy.setRawFile(raw);
+        FilePreview preview = new FilePreview();
+        if (source.getFilePreview() != null) {
+            BeanUtils.copyProperties(source.getFilePreview(), preview);
+        }
+        preview.setRaw(raw);
+        preview.setPreview(raw);
+        preview.setThumbnail(raw);
+        copy.setFilePreview(preview);
+        return copy;
+    }
+
+    private String defaultPathPart(String value) {
+        return StringUtils.isBlank(value) ? "default" : value;
     }
 
     private ProductionPiece copyForRedo(ProductionPiece source) {
