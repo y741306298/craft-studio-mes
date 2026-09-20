@@ -33,4 +33,7 @@ public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
 
     /** 查询指定状态印版的材料字段。实现层仅投影材料 ID 和名称。 */
     List<TypesettingInfo> findMaterialsByStatuses(String manufacturerMetaId, Collection<String> statuses);
+
+    /** Finds non-deleted layouts that reference any of the supplied production-piece record IDs. */
+    List<TypesettingInfo> findByProductionPieceSourceIds(Collection<String> sourceIds);
 }

@@ -334,6 +334,13 @@ public class TypesettingService {
         return typesettingRepository.fuzzySearch(searchFilters, 1, 1000);
     }
 
+    public List<TypesettingInfo> findByProductionPieceSourceIds(Collection<String> sourceIds) {
+        if (sourceIds == null || sourceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return typesettingRepository.findByProductionPieceSourceIds(sourceIds);
+    }
+
     /**
      * 根据材质查询排版信息（支持分页）
      * @param material 材质

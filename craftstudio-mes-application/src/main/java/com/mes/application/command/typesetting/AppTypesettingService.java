@@ -1256,6 +1256,7 @@ public class AppTypesettingService {
 
     private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
         List<ProductionPiece> productionPieces = new ArrayList<>();
+        Map<String, Integer> productionPieceTotalQuantities = new LinkedHashMap<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
         List<TypesettingProductionPieceVO> typesettingCells = request.getTypesettingCells();
         if (typesettingCells == null) {
@@ -1278,6 +1279,8 @@ public class AppTypesettingService {
                 if (dbPiece == null) {
                     throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
+                productionPieceTotalQuantities.put(dbPiece.getId(),
+                        dbPiece.getQuantity() == null ? 0 : dbPiece.getQuantity());
                 dbPiece.setQuantity(quantity);
                 cell.setQuantity(quantity);
                 cell.setOrderItemId(dbPiece.getOrderItemId());
@@ -1317,6 +1320,12 @@ public class AppTypesettingService {
             if (quantity != null && pendingQuantity < quantity) {
                 return LayoutConfirmResult.failed(productionPiece.getProductionPieceId() + "可排版数量不足");
             }
+        }
+
+        String existingReservationError = validateExistingProductionPieceReservations(
+                productionPieces, productionPieceTotalQuantities);
+        if (existingReservationError != null) {
+            return LayoutConfirmResult.failed(existingReservationError);
         }
 
         String filmConsistencyResult = validateFilmConsistency(productionPieces, typesettingInfos);
@@ -1478,6 +1487,81 @@ public class AppTypesettingService {
         }
         domainTypesettingService.addTypesetting(typesettingInfo);
         return result;
+    }
+
+    /**
+     * Production-piece node quantities are operational state and can be overwritten by legacy
+     * full-document updates.  A non-deleted layout record is the durable reservation ledger, so
+     * include its source-cell quantities when deciding whether another layout may be created.
+     */
+    private String validateExistingProductionPieceReservations(List<ProductionPiece> requestedPieces,
+                                                                Map<String, Integer> totalQuantities) {
+        if (CollectionUtils.isEmpty(requestedPieces)) {
+            return null;
+        }
+        Set<String> sourceIds = requestedPieces.stream().map(ProductionPiece::getId)
+                .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+        Map<String, Integer> reservedQuantities = new HashMap<>();
+        Map<String, Set<String>> reservationLayoutIds = new HashMap<>();
+        for (TypesettingInfo layout : domainTypesettingService.findByProductionPieceSourceIds(sourceIds)) {
+            if (layout == null || CollectionUtils.isEmpty(layout.getTypesettingCells())) {
+                continue;
+            }
+            for (TypesettingSourceCell cell : layout.getTypesettingCells()) {
+                if (cell != null && TypesettingSourceType.PART.getCode().equals(cell.getSourceType())
+                        && sourceIds.contains(cell.getSourceId())) {
+                    int quantity = cell.getQuantity() == null || cell.getQuantity() <= 0 ? 1 : cell.getQuantity();
+                    reservedQuantities.merge(cell.getSourceId(), quantity, Integer::sum);
+                    if (StringUtils.isNotBlank(layout.getTypesettingId())) {
+                        reservationLayoutIds.computeIfAbsent(cell.getSourceId(), ignored -> new LinkedHashSet<>())
+                                .add(layout.getTypesettingId());
+                    }
+                }
+            }
+        }
+        Map<String, Integer> requestedQuantities = requestedPieces.stream()
+                .filter(piece -> piece != null && StringUtils.isNotBlank(piece.getId()))
+                .collect(Collectors.toMap(ProductionPiece::getId,
+                        piece -> piece.getQuantity() == null ? 0 : piece.getQuantity(), Integer::sum));
+        Map<String, String> businessIds = requestedPieces.stream()
+                .filter(piece -> piece != null && StringUtils.isNotBlank(piece.getId()))
+                .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getProductionPieceId,
+                        (left, right) -> left));
+        for (Map.Entry<String, Integer> request : requestedQuantities.entrySet()) {
+            int requested = request.getValue();
+            int total = totalQuantities.getOrDefault(request.getKey(), 0);
+            int reserved = reservedQuantities.getOrDefault(request.getKey(), 0);
+            if (reserved + requested > total) {
+                ProductionPiece piece = requestedPieces.stream()
+                        .filter(candidate -> request.getKey().equals(candidate.getId()))
+                        .findFirst().orElse(null);
+                int pendingNodeQuantity = getProcedureNodeQuantity(piece, "NODE_TYPESETTING", "待排版");
+                int inProgressNodeQuantity = getProcedureNodeQuantity(
+                        piece, "NODE_TYPESETTING_IN_PROGRESS", "排版中");
+                log.warn("检测到生产零件重复排版或节点数量不一致, pieceId={}, productionPieceId={}, "
+                                + "total={}, requested={}, layoutReserved={}, pendingNode={}, inProgressNode={}, layouts={}",
+                        request.getKey(), businessIds.get(request.getKey()), total, requested, reserved,
+                        pendingNodeQuantity, inProgressNodeQuantity,
+                        reservationLayoutIds.getOrDefault(request.getKey(), Collections.emptySet()));
+                return businessIds.get(request.getKey()) + "已被排版文件占用，可用数量="
+                        + Math.max(total - reserved, 0) + "，占用排版="
+                        + reservationLayoutIds.getOrDefault(request.getKey(), Collections.emptySet());
+            }
+        }
+        return null;
+    }
+
+    private int getProcedureNodeQuantity(ProductionPiece piece, String nodeId, String nodeName) {
+        if (piece == null || piece.getProcedureFlow() == null
+                || CollectionUtils.isEmpty(piece.getProcedureFlow().getNodes())) {
+            return 0;
+        }
+        return piece.getProcedureFlow().getNodes().stream()
+                .filter(Objects::nonNull)
+                .filter(node -> nodeId.equals(node.getNodeId()) || nodeName.equals(node.getNodeName()))
+                .map(ProcedureFlowNode::getPieceQuantity)
+                .filter(Objects::nonNull)
+                .findFirst().orElse(0);
     }
 
     /** Prevents layout while any item in one of the selected pieces' orders is still being generated. */

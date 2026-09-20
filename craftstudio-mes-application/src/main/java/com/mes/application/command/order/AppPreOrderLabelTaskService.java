@@ -29,14 +29,17 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -54,6 +57,11 @@ public class AppPreOrderLabelTaskService {
     private static final int MQ_LOGISTICS_ORDER_ID_MAX_LENGTH = 64;
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
     private static final String TEST_KUAIDI100_NUM = "TEST_KUAIDI100_NUM";
+    private static final String TASK_LOCK_PREFIX = "preOrderLabelTask:processing:";
+    private static final long TASK_LOCK_TTL_HOURS = 2L;
+    private static final DefaultRedisScript<Long> RELEASE_TASK_LOCK_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                    + "return redis.call('del', KEYS[1]) else return 0 end", Long.class);
 
     @Autowired
     private PreOrderLabelTaskService preOrderLabelTaskService;
@@ -97,7 +105,42 @@ public class AppPreOrderLabelTaskService {
             return;
         }
         for (PreOrderLabelTask task : tasks) {
+            processTaskWithLock(task);
+        }
+    }
+
+    /** Prevents overlapping scheduler runs or multiple application instances from printing one task twice. */
+    private void processTaskWithLock(PreOrderLabelTask task) {
+        if (task == null || StringUtils.isBlank(task.getId())) {
             processTask(task);
+            return;
+        }
+        String lockKey = TASK_LOCK_PREFIX + task.getId();
+        String token = UUID.randomUUID().toString();
+        Boolean acquired;
+        try {
+            acquired = redisTemplate.opsForValue().setIfAbsent(
+                    lockKey, token, TASK_LOCK_TTL_HOURS, TimeUnit.HOURS);
+        } catch (Exception exception) {
+            log.error("预下快递单任务加锁失败，为避免重复打单跳过本轮: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId(), exception);
+            return;
+        }
+        if (!Boolean.TRUE.equals(acquired)) {
+            log.info("预下快递单任务正在其他实例处理中，跳过本轮: taskId={}, orderId={}",
+                    task.getId(), task.getOrderId());
+            return;
+        }
+        try {
+            processTask(task);
+        } finally {
+            try {
+                redisTemplate.execute(RELEASE_TASK_LOCK_SCRIPT,
+                        Collections.singletonList(lockKey), token);
+            } catch (Exception exception) {
+                log.warn("预下快递单任务锁释放失败，将等待锁自动过期: taskId={}, orderId={}",
+                        task.getId(), task.getOrderId(), exception);
+            }
         }
     }
 
@@ -492,10 +535,12 @@ public class AppPreOrderLabelTaskService {
             orderInfo.setKuaidiNum(kuaidiNum);
             orderInfoService.updateOrder(orderInfo);
         }
-        for (ProductionPiece productionPiece : productionPieces) {
-            productionPiece.setChannel(orderInfo.getChannel() != null ? orderInfo.getChannel() : task.getChannel());
-            productionPieceService.updateProductionPiece(productionPiece);
-        }
+        // productionPieces 在调用外部打单服务之前读取，打单可能耗时较长。这里不能 save 整个旧对象，
+        // 否则会覆盖期间由 toLayout 原子更新的待排版/排版中数量。
+        productionPieceService.updateChannelByIds(
+                productionPieces.stream().map(ProductionPiece::getId)
+                        .filter(StringUtils::isNotBlank).toList(),
+                orderInfo.getChannel() != null ? orderInfo.getChannel() : task.getChannel());
     }
 
     private static class WdtLabelPrintException extends RuntimeException {
