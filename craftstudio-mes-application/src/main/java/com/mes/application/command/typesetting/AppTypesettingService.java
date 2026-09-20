@@ -4532,7 +4532,11 @@ public class AppTypesettingService {
                 LayoutConfirmRequest cachedRequest = getCachedLayoutConfirmRequest(typesettingId);
                 boolean taskHaveBlood = false;
                 for (NestingResponse.Result callbackResult : results) {
-                    List<TypesettingSourceCell> usedCells = extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
+                    // 单结果不会发生来源拆分，toLayout 初次落库的 cells 已经是最终关系。
+                    // 不再从 nestedSvg 反解析并回写，避免解析失败或内部 ID 误匹配时修改原 cells。
+                    List<TypesettingSourceCell> usedCells = total == 1
+                            ? baseTypesettingInfo.getTypesettingCells()
+                            : extractUsedSourceCells(cachedRequest, callbackResult.getNestedSvg());
                     usedCellsByResult.add(usedCells);
                     if (Boolean.TRUE.equals(resolveCallbackResultHaveBlood(callbackResult, usedCells, cachedRequest))) {
                         taskHaveBlood = true;
@@ -4568,7 +4572,9 @@ public class AppTypesettingService {
                     if (i == 0) {
                         baseTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
                         baseTypesettingInfo.setElement(mergeElementKeepingSize(baseTypesettingInfo.getElement(), element));
-                        baseTypesettingInfo.setTypesettingCells(usedCells);
+                        if (shouldUpdateCallbackSourceCells(total, usedCells)) {
+                            baseTypesettingInfo.setTypesettingCells(usedCells);
+                        }
                         baseTypesettingInfo.setHaveBlood(taskHaveBlood);
                         baseTypesettingInfo.setTemplateCode(templateCode);
                         domainTypesettingService.updateTypesetting(baseTypesettingInfo);
@@ -4578,7 +4584,9 @@ public class AppTypesettingService {
                     newTypesettingInfo.setId(null);
                     newTypesettingInfo.setManufacturerMetaId(baseTypesettingInfo.getManufacturerMetaId());
                     newTypesettingInfo.setElement(element);
-                    newTypesettingInfo.setTypesettingCells(usedCells);
+                    if (shouldUpdateCallbackSourceCells(total, usedCells)) {
+                        newTypesettingInfo.setTypesettingCells(usedCells);
+                    }
                     newTypesettingInfo.setHaveBlood(taskHaveBlood);
                     newTypesettingInfo.setTemplateCode(templateCode);
                     newTypesettingInfo.setStatus(TypesettingStatus.CONFIRMING.getCode());
@@ -4594,6 +4602,11 @@ public class AppTypesettingService {
             markTypesettingsFailed(typesettingInfos, failureReason);
             throw new RuntimeException(failureReason, e);
         }
+    }
+
+    /** 只有多结果回调成功解析出来源时才允许重分配 cells；失败时保留原值。 */
+    private boolean shouldUpdateCallbackSourceCells(int resultCount, List<TypesettingSourceCell> resolvedCells) {
+        return resultCount > 1 && !CollectionUtils.isEmpty(resolvedCells);
     }
 
     private boolean isNestingCallbackAlreadyHandled(Collection<TypesettingInfo> typesettingInfos) {
