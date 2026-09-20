@@ -14,6 +14,9 @@ public interface ProductionPieceRepository extends BaseRepository<ProductionPiec
 
     List<ProductionPiece> findByOrderItemIds(Collection<String> orderItemIds);
 
+    List<ProductionPiece> findPendingPackagingPiecesByOrderItemIds(String manufacturerId,
+            Collection<String> orderItemIds, String materialName);
+
     List<ProductionPiece> findPendingTypesettingPiecesByOrderItemIds(String manufacturerId,
             Collection<String> orderItemIds, String materialName, List<ProcessingFlowCondition> processNames,
             String routeId, java.util.Date startTime, java.util.Date endTime);

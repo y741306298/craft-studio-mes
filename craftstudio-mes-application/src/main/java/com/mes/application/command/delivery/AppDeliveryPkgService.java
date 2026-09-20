@@ -64,6 +64,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -83,7 +84,6 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class AppDeliveryPkgService {
 
-    private static final int SCOPED_FULL_LIST_SIZE = 999;
     private static final String ADD_PKG_WORKSPACE_PREFIX = "delivery:add-pkg:";
     private static final long ADD_PKG_WORKSPACE_TTL_MINUTES = 30;
 
@@ -196,6 +196,7 @@ public class AppDeliveryPkgService {
 
         List<ProductionPiece> productionPieces = new ArrayList<>();
         if (StringUtils.isNotBlank(request.getOrderId())) {
+            LinkedHashSet<String> orderItemIds = new LinkedHashSet<>();
             int current = 1;
             while (true) {
                 List<OrderItem> orderItems = orderItemService.findByOrderId(request.getOrderId().trim(), request.getManufacturerMetaId(), current, 100);
@@ -205,15 +206,16 @@ public class AppDeliveryPkgService {
                 orderItems.stream()
                         .map(OrderItem::getOrderItemId)
                         .filter(StringUtils::isNotBlank)
-                        .map(orderItemId -> listPendingPackagingPiecesByOrderItemId(request, orderItemId))
-                        .forEach(productionPieces::addAll);
+                        .forEach(orderItemIds::add);
                 if (orderItems.size() < 100) {
                     break;
                 }
                 current++;
             }
+            productionPieces.addAll(listPendingPackagingPiecesByOrderItemIds(request, orderItemIds));
         } else {
-            productionPieces.addAll(listPendingPackagingPiecesByOrderItemId(request, request.getOrderItemId()));
+            productionPieces.addAll(listPendingPackagingPiecesByOrderItemIds(
+                    request, Collections.singleton(request.getOrderItemId())));
         }
 
         List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(productionPieces);
@@ -250,18 +252,12 @@ public class AppDeliveryPkgService {
         }
     }
 
-    private List<ProductionPiece> listPendingPackagingPiecesByOrderItemId(DeliveryPkgScopedRequest request, String orderItemId) {
-        return productionPieceService.findProductionPiecesByConditions(
+    private List<ProductionPiece> listPendingPackagingPiecesByOrderItemIds(DeliveryPkgScopedRequest request,
+            Collection<String> orderItemIds) {
+        return productionPieceService.findPendingPackagingPiecesByOrderItemIds(
                 request.getManufacturerMetaId(),
-                null,
-                request.getMaterialName(),
-                null,
-                orderItemId,
-                null,
-                null,
-                1,
-                SCOPED_FULL_LIST_SIZE
-        );
+                orderItemIds,
+                request.getMaterialName());
     }
 
     private boolean matchesDeliveryScopedRequest(DeliveryPkgPieceVO item, DeliveryPkgScopedRequest request) {
