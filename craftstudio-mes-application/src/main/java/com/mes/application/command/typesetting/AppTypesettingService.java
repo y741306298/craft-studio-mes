@@ -1409,26 +1409,6 @@ public class AppTypesettingService {
             domainTypesettingService.updateTypesetting(info);
         }
 
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
-        NestingResponse nestingResponse;
-        switch (layoutMode.getLayoutCategory()) {
-            case "grid_typesetting":
-                nestingResponse = algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
-                break;
-            case "vertical_typesetting":
-                nestingResponse = algorithmCoreApiService.generateVerticalNestedFilesAsync(nestingRequest);
-                break;
-            case "rect_typesetting":
-                nestingResponse = algorithmCoreApiService.generateRectNestedFilesAsync(nestingRequest);
-                break;
-            default:
-                nestingResponse = algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
-                break;
-        }
-//        if (nestingResponse == null || StringUtils.isBlank(nestingResponse.getStatus())) {
-//            return LayoutConfirmResult.failed("排版算法调用失败：返回为空");
-//        }
-
         // 6. 构建返回结果
         LayoutConfirmResult result = new LayoutConfirmResult();
         result.setSuccess(true);
@@ -1485,8 +1465,32 @@ public class AppTypesettingService {
         if (!mergedMarks.isEmpty()) {
             typesettingInfo.setMarks(mergedMarks);
         }
-        domainTypesettingService.addTypesetting(typesettingInfo);
+        // 必须在提交异步任务前落库：大请求的 HTTP 提交本身也可能超时或失败，并且算法服务可能在
+        // 本次调用返回前完成回调。先保存任务既能为已占用的零件留下持久化凭据，也能确保回调
+        // 始终可以通过 typesettingId 找到对应记录。
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        persistAndSubmitTypesetting(typesettingInfo, nestingRequest, layoutMode);
         return result;
+    }
+
+    void persistAndSubmitTypesetting(TypesettingInfo typesettingInfo,
+                                     NestingRequest nestingRequest,
+                                     TypesettingLayoutMode layoutMode) {
+        domainTypesettingService.addTypesetting(typesettingInfo);
+        switch (layoutMode.getLayoutCategory()) {
+            case "grid_typesetting":
+                algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
+                break;
+            case "vertical_typesetting":
+                algorithmCoreApiService.generateVerticalNestedFilesAsync(nestingRequest);
+                break;
+            case "rect_typesetting":
+                algorithmCoreApiService.generateRectNestedFilesAsync(nestingRequest);
+                break;
+            default:
+                algorithmCoreApiService.generateNestedFilesAsync(nestingRequest);
+                break;
+        }
     }
 
     /**
