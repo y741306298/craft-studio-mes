@@ -356,6 +356,14 @@ public class ProductionPieceService {
         return productionPieceRepository.deleteByOrderItemIds(orderItemIds);
     }
 
+    /** 批量将订单项下的生产工件重置到待排版节点。 */
+    public long resetToPendingTypesettingByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return 0;
+        }
+        return productionPieceRepository.resetToPendingTypesettingByOrderItemIds(orderItemIds);
+    }
+
     /**
      * 根据工艺路线 ID 查询生产工件（支持分页）
      */
