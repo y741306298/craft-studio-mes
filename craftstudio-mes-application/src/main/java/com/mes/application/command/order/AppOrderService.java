@@ -65,6 +65,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -791,6 +792,8 @@ public class AppOrderService {
                     orderInfo.getOrderId(), manufacturerMetaId, existingOrder.getStatus());
             return existingOrder;
         }
+        // 新增订单的审计时间由服务端统一生成，不能信任上游传入的时间。
+        applyCurrentBeijingTimestamps(orderInfo, orderItems);
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
         productionPieceGenerationTaskService.create(orderInfo.getOrderId(), orderItemsResult.stream()
@@ -805,6 +808,21 @@ public class AppOrderService {
         orderPreprocessTaskQueue.submit(orderItemsResult);
         log.info("addOrderWithItems 已提交订单预处理任务: orderId={}", orderInfo.getOrderId());
         return orderInfo;
+    }
+
+    static void applyCurrentBeijingTimestamps(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        Date now = Date.from(ZonedDateTime.now(BEIJING_ZONE).toInstant());
+        orderInfo.setCreateTime(now);
+        orderInfo.setUpdateTime(now);
+        if (orderItems == null) {
+            return;
+        }
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem != null) {
+                orderItem.setCreateTime(now);
+                orderItem.setUpdateTime(now);
+            }
+        }
     }
 
     /**
@@ -1131,6 +1149,26 @@ public class AppOrderService {
         // 仓储层使用一次 updateMulti 按全部 orderItemId 批量软删除，避免逐订单项查询或删除产生 N+1。
         long deletedCount = productionPieceService.deleteProductionPiecesByOrderItemIds(orderItemIds);
         return new OrderProductionPieceDeletionResult(normalizedOrderId, orderItemIds, deletedCount);
+    }
+
+    /** 将指定订单下的全部生产工件重置为待排版状态。 */
+    public long resetProductionPiecesToPendingTypesetting(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        String normalizedOrderId = orderId.trim();
+        List<String> orderItemIds = domainOrderItemService.findAllByOrderId(normalizedOrderId).stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        if (orderItemIds.isEmpty()) {
+            throw new IllegalArgumentException("订单项不存在，orderId：" + normalizedOrderId);
+        }
+
+        // 一次查询取得订单项 ID，再由仓储发出一次 updateMulti，避免逐订单项/逐工件更新。
+        return productionPieceService.resetToPendingTypesettingByOrderItemIds(orderItemIds);
     }
 
     /**

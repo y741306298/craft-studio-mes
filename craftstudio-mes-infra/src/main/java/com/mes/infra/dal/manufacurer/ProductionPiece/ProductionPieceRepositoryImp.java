@@ -11,6 +11,8 @@ import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.aggregation.AggregationExpression;
+import org.springframework.data.mongodb.core.aggregation.AggregationUpdate;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
@@ -316,6 +318,31 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         Update update = new Update()
                 .set(SoftDeleteQuery.DELETED_AT, now)
                 .set("updateTime", now);
+        return mongoTemplate.updateMulti(query, update, poClass()).getModifiedCount();
+    }
+
+    @Override
+    public long resetToPendingTypesettingByOrderItemIds(Collection<String> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) {
+            return 0;
+        }
+
+        Query query = new SoftDeleteQuery(Criteria.where("orderItemId").in(orderItemIds));
+        AggregationExpression resetNodeQuantities = context -> new org.bson.Document("$map",
+                new org.bson.Document("input", "$procedureFlow.nodes")
+                        .append("as", "node")
+                        .append("in", new org.bson.Document("$mergeObjects", List.of(
+                                "$$node",
+                                new org.bson.Document("pieceQuantity",
+                                        new org.bson.Document("$cond", List.of(
+                                                new org.bson.Document("$eq", List.of("$$node.nodeName", "待排版")),
+                                                1,
+                                                0)))))));
+        AggregationUpdate update = AggregationUpdate.update()
+                .set("status").toValue(
+                        com.mes.domain.manufacturer.productionPiece.enums.ProductionPieceStatus.PROCESSING.getCode())
+                .set("procedureFlow.nodes").toValue(resetNodeQuantities)
+                .set("updateTime").toValue(new Date());
         return mongoTemplate.updateMulti(query, update, poClass()).getModifiedCount();
     }
 
