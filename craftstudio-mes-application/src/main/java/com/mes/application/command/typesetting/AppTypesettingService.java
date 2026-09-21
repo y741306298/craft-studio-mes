@@ -1454,6 +1454,7 @@ public class AppTypesettingService {
             typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
         }
         typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         // 生产工件只要携带 marks，就会按特殊 element 参与排版；这里同步把来源 marks 汇总到新建的 typesettingInfo。
         LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
         mergeSourceProductionPieceMarks(productionPieces, mergedMarks);
@@ -1468,7 +1469,6 @@ public class AppTypesettingService {
         // 必须在提交异步任务前落库：大请求的 HTTP 提交本身也可能超时或失败，并且算法服务可能在
         // 本次调用返回前完成回调。先保存任务既能为已占用的零件留下持久化凭据，也能确保回调
         // 始终可以通过 typesettingId 找到对应记录。
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         persistAndSubmitTypesetting(typesettingInfo, nestingRequest, layoutMode);
         return result;
     }
