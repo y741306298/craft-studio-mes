@@ -65,6 +65,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -791,6 +792,8 @@ public class AppOrderService {
                     orderInfo.getOrderId(), manufacturerMetaId, existingOrder.getStatus());
             return existingOrder;
         }
+        // 新增订单的审计时间由服务端统一生成，不能信任上游传入的时间。
+        applyCurrentBeijingTimestamps(orderInfo, orderItems);
         //先入库
         List<OrderItem> orderItemsResult = domainOrderInfoService.addOrderWithItems(orderInfo, orderItems);
         productionPieceGenerationTaskService.create(orderInfo.getOrderId(), orderItemsResult.stream()
@@ -805,6 +808,21 @@ public class AppOrderService {
         orderPreprocessTaskQueue.submit(orderItemsResult);
         log.info("addOrderWithItems 已提交订单预处理任务: orderId={}", orderInfo.getOrderId());
         return orderInfo;
+    }
+
+    static void applyCurrentBeijingTimestamps(OrderInfo orderInfo, List<OrderItem> orderItems) {
+        Date now = Date.from(ZonedDateTime.now(BEIJING_ZONE).toInstant());
+        orderInfo.setCreateTime(now);
+        orderInfo.setUpdateTime(now);
+        if (orderItems == null) {
+            return;
+        }
+        for (OrderItem orderItem : orderItems) {
+            if (orderItem != null) {
+                orderItem.setCreateTime(now);
+                orderItem.setUpdateTime(now);
+            }
+        }
     }
 
     /**
