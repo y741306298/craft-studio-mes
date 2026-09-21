@@ -1151,6 +1151,26 @@ public class AppOrderService {
         return new OrderProductionPieceDeletionResult(normalizedOrderId, orderItemIds, deletedCount);
     }
 
+    /** 将指定订单下的全部生产工件重置为待排版状态。 */
+    public long resetProductionPiecesToPendingTypesetting(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单 ID 不能为空");
+        }
+
+        String normalizedOrderId = orderId.trim();
+        List<String> orderItemIds = domainOrderItemService.findAllByOrderId(normalizedOrderId).stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
+        if (orderItemIds.isEmpty()) {
+            throw new IllegalArgumentException("订单项不存在，orderId：" + normalizedOrderId);
+        }
+
+        // 一次查询取得订单项 ID，再由仓储发出一次 updateMulti，避免逐订单项/逐工件更新。
+        return productionPieceService.resetToPendingTypesettingByOrderItemIds(orderItemIds);
+    }
+
     /**
      * 重新处理订单下所有待处理或处理失败的订单项。
      *

@@ -283,6 +283,14 @@ public class OrderController {
     }
 
     /**
+     * 将订单下全部生产工件重置为待排版：状态设为 PROCESSING，待排版节点数量设为 1，其他节点设为 0。
+     */
+    @PostMapping("/{orderId}/productionPieces/resetToPendingTypesetting")
+    public ApiResponse<Long> resetProductionPiecesToPendingTypesetting(@PathVariable String orderId) {
+        return ApiResponse.success(appOrderService.resetProductionPiecesToPendingTypesetting(orderId));
+    }
+
+    /**
      * 重新处理指定订单下所有状态为待处理或处理失败的订单项。
      *
      * @param orderId 订单 ID
