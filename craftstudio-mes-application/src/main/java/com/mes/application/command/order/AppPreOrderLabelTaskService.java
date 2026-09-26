@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class AppPreOrderLabelTaskService {
+    private static final int ORDER_QUERY_PAGE_SIZE = 100;
     @Autowired
     LogisticsOrderProducer producer;
 
@@ -106,6 +108,82 @@ public class AppPreOrderLabelTaskService {
         }
         for (PreOrderLabelTask task : tasks) {
             processTaskWithLock(task);
+        }
+    }
+
+    /**
+     * 重新发送指定创建时间范围内、已经预打单成功的订单物流信息。
+     *
+     * <p>是否需要通知以 {@link OrderInfo#getKuaidiNum()} 为准：预打单成功后运单号会先
+     * 持久化到订单，再发送 MQ。因此该接口不会再次请求打单服务，也不会产生新面单。</p>
+     */
+    public LogisticsMqRetryResult retryLogisticsMqNotifications(Date startTime, Date endTime) {
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("开始时间和结束时间不能为空");
+        }
+        if (startTime.after(endTime)) {
+            throw new IllegalArgumentException("开始时间不能晚于结束时间");
+        }
+
+        LogisticsMqRetryResult result = new LogisticsMqRetryResult();
+        int current = 1;
+        while (true) {
+            List<OrderInfo> orders = orderInfoService.findOrdersByConditions(
+                    null, null, startTime, endTime, null, current, ORDER_QUERY_PAGE_SIZE);
+            if (orders == null || orders.isEmpty()) {
+                break;
+            }
+            result.scannedCount += orders.size();
+            for (OrderInfo orderInfo : orders) {
+                if (!requiresLogisticsMqNotification(orderInfo)) {
+                    result.skippedCount++;
+                    continue;
+                }
+                String failureReason = notifyLogisticsOrderInfo(orderInfo, orderInfo.getKuaidiNum());
+                if (StringUtils.isBlank(failureReason)) {
+                    result.successCount++;
+                } else {
+                    result.failureReasons.put(orderInfo.getOrderId(), failureReason);
+                }
+            }
+            if (orders.size() < ORDER_QUERY_PAGE_SIZE) {
+                break;
+            }
+            current++;
+        }
+        return result;
+    }
+
+    private boolean requiresLogisticsMqNotification(OrderInfo orderInfo) {
+        return orderInfo != null
+                && !OrderStatus.RETURNED.equals(orderInfo.getStatus())
+                && StringUtils.isNotBlank(orderInfo.getKuaidiNum());
+    }
+
+    public static class LogisticsMqRetryResult {
+        private int scannedCount;
+        private int skippedCount;
+        private int successCount;
+        private final Map<String, String> failureReasons = new LinkedHashMap<>();
+
+        public int getScannedCount() {
+            return scannedCount;
+        }
+
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+
+        public int getSuccessCount() {
+            return successCount;
+        }
+
+        public int getFailureCount() {
+            return failureReasons.size();
+        }
+
+        public Map<String, String> getFailureReasons() {
+            return failureReasons;
         }
     }
 
@@ -426,12 +504,11 @@ public class AppPreOrderLabelTaskService {
             return "MQ通知失败：RocketMQTemplate未配置";
         }
 
-        LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
-        logisticsOrderInfo.setOrderId(Long.valueOf(orderInfo.getOrderId()));
-        logisticsOrderInfo.setLogisticsOrderId(truncateLogisticsOrderId(kuaidiNum));
-
 //        Map<String, Object> message = buildBaseMessage(LOGISTICS_MQ_TOPIC, orderInfo.getPlatformCode(), logisticsOrderInfo);
         try {
+            LogisticsOrderInfo logisticsOrderInfo = new LogisticsOrderInfo();
+            logisticsOrderInfo.setOrderId(Long.valueOf(orderInfo.getOrderId()));
+            logisticsOrderInfo.setLogisticsOrderId(truncateLogisticsOrderId(kuaidiNum));
             producer.send(new Message<>(
                     LOGISTICS_MQ_TOPIC,orderInfo.getPlatformCode(), logisticsOrderInfo
             ));
