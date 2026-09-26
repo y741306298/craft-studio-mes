@@ -7,6 +7,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
+import com.mes.application.command.order.AppPreOrderLabelTaskService;
 import com.mes.application.command.order.vo.OrderItemVO;
 import com.mes.application.command.order.vo.OrderItemDeduplicationResult;
 import com.mes.application.command.order.vo.OrderPackagingSyncResult;
@@ -39,13 +40,14 @@ import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,9 @@ public class OrderController {
 
     @Autowired
     private AppOrderService appOrderService;
+
+    @Autowired
+    private AppPreOrderLabelTaskService appPreOrderLabelTaskService;
 
     @Autowired
     private AppOrderPreprocessingService appOrderPreprocessingService;
@@ -77,6 +82,19 @@ public class OrderController {
             @Valid @RequestBody OrderPriceStatisticsRequest request) {
         return ApiResponse.success(appOrderService.findOrderPriceStatistics(
                 request.getManufacturerId(), request.getStartTime(), request.getEndTime()));
+    }
+
+    /**
+     * 重新发送指定日期内已成功预打单订单的物流 MQ 通知。
+     */
+    @PostMapping("/logistics-mq/retry")
+    public ApiResponse<AppPreOrderLabelTaskService.LogisticsMqRetryResult> retryLogisticsMqNotifications(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(LocalTime.MAX);
+        return ApiResponse.success(appPreOrderLabelTaskService.retryLogisticsMqNotifications(
+                java.util.Date.from(start.atZone(BEIJING_ZONE).toInstant()),
+                java.util.Date.from(end.atZone(BEIJING_ZONE).toInstant())));
     }
 
     /**
