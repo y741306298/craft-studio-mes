@@ -56,6 +56,9 @@ public class SuperWidthSpliceProcessService {
     private static final String INKJET_SPLICE_NODE_NAME = "喷绘拼接";
     private static final String SEAMLESS_SPLICE_NODE_NAME = "无痕拼接";
     private static final String PANEL_SPLICE_NODE_NAME = "板材拼接";
+    private static final String MARK_EXCLUDED_MANUFACTURER_META_ID = "6a26a93758a9abfcdc66d93c";
+    private static final Set<String> MARK_EXCLUDED_MATERIAL_NAMES = Set.of(
+            "超透PVC膜", "静电膜(透明uv)", "磨砂膜(uv)", "透明膜(uv)");
     private static final Pattern SVG_OPEN_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_CLOSE_PATTERN = Pattern.compile("</svg\\s*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_GROUP_PATTERN = Pattern.compile("<g\\b", Pattern.CASE_INSENSITIVE);
@@ -95,6 +98,9 @@ public class SuperWidthSpliceProcessService {
     private final OssTagUploadService ossTagUploadService;
 
     public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
+        if (shouldSkipMarks(orderItem)) {
+            return;
+        }
         SpliceProcessConfig processConfig = resolveSpliceProcessConfig(procedureFlow, piece);
         if (orderItem == null || processConfig == null) {
             return;
@@ -136,6 +142,14 @@ public class SuperWidthSpliceProcessService {
         updateMaskImageFile(piece, newMaskUrl);
         updateMarks(piece, assets);
         log.info("{}预处理完成: productionPieceId={}, mask={}", processConfig.nodeName, piece.getProductionPieceId(), newMaskUrl);
+    }
+
+    static boolean shouldSkipMarks(OrderItem orderItem) {
+        if (orderItem == null || !MARK_EXCLUDED_MANUFACTURER_META_ID.equals(orderItem.getManufacturerId())
+                || orderItem.getMaterial() == null || orderItem.getMaterial().getMaterialSnapshot() == null) {
+            return false;
+        }
+        return MARK_EXCLUDED_MATERIAL_NAMES.contains(orderItem.getMaterial().getMaterialSnapshot().getName());
     }
 
 
