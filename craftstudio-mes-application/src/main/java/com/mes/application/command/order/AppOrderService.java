@@ -60,6 +60,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -69,12 +74,17 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class AppOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderService.class);
     private static final long TRANSFER_LOCK_EXPIRATION_MS = 24 * 60 * 60 * 1000L;
+    /** Must match AppTypesettingService's per-source lock key. */
+    private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
+    private static final String PRODUCTION_PIECE_SOURCE_TYPE = "PRODUCTION_PIECE";
+    private static final long CANCEL_ORDER_LOCK_EXPIRE_MINUTES = 10;
 
     @Autowired
     private OrderInfoService domainOrderInfoService;
@@ -87,6 +97,9 @@ public class AppOrderService {
 
     @Autowired
     private ProductionPieceService productionPieceService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private ManufacturerMetaRepository manufacturerMetaRepository;
@@ -1848,6 +1861,7 @@ public class AppOrderService {
      * @param orderId 订单号
      * @return 操作结果
      */
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<String> cancelOrder(String platformCode, String orderId) {
         if (StringUtils.isBlank(orderId)) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
@@ -1857,52 +1871,108 @@ public class AppOrderService {
         if (orderInfo == null) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单不存在：" + orderId);
         }
-        if (orderInfo.getStatus() == OrderStatus.RETURNED) {
-            return ApiResponse.success("success");
-        }
-
-        List<OrderItem> orderItems = domainOrderItemService.findByOrderId(orderId, null, 1, 100);
+        // Do not short-circuit an already returned header: a previous interrupted cancellation
+        // must be able to repair remaining order items and production pieces.
+        boolean firstCancellation = orderInfo.getStatus() != OrderStatus.RETURNED;
+        List<OrderItem> orderItems = domainOrderItemService.findAllByOrderId(orderId);
         if (orderItems == null || orderItems.isEmpty()) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.CANTCANCELORDER, "未找到对应订单项");
         }
 
-        Map<String, List<ProductionPiece>> piecesByOrderItemId = new HashMap<>();
-        for (OrderItem orderItem : orderItems) {
-            List<ProductionPiece> productionPieces = productionPieceService.findProductionPiecesByOrderItemId(
-                    orderItem.getOrderItemId(),
-                    1,
-                    99
-            );
-            List<ProductionPiece> safeProductionPieces = productionPieces != null ? productionPieces : new ArrayList<>();
-            piecesByOrderItemId.put(orderItem.getOrderItemId(), safeProductionPieces);
-            if (safeProductionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
-                return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单已经开始生产，无法取消");
-            }
+        List<String> orderItemIds = orderItems.stream()
+                .map(OrderItem::getOrderItemId)
+                .filter(StringUtils::isNotBlank)
+                .toList();
+        List<ProductionPiece> productionPieces = productionPieceService.findByOrderItemIds(orderItemIds);
+        if (productionPieces.stream().anyMatch(this::hasQuantityAfterPendingTypesettingNode)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单已经开始生产，无法取消");
         }
 
-        orderInfo.setStatus(OrderStatus.RETURNED);
-        domainOrderInfoService.updateOrder(orderInfo);
-
-        for (OrderItem orderItem : orderItems) {
-            orderItem.setStatus(OrderStatus.RETURNED);
-            // 刷新预处理请求 ID，使取消前已发出的异步算法回调在返回时被识别为过期并丢弃。
-            orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
-            domainOrderItemService.updateOrderItem(orderItem);
-            for (ProductionPiece productionPiece : piecesByOrderItemId.getOrDefault(orderItem.getOrderItemId(), new ArrayList<>())) {
-                productionPieceService.deleteProductionPiece(productionPiece.getId());
-            }
+        List<String> pieceLockKeys = productionPieces.stream()
+                .map(ProductionPiece::getId)
+                .filter(StringUtils::isNotBlank)
+                .map(this::buildProductionPieceTypesettingLockKey)
+                .distinct()
+                .sorted()
+                .toList();
+        String lockToken = acquireProductionPieceTypesettingLocks(pieceLockKeys);
+        if (lockToken == null) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "订单零件正在排版，无法取消，请稍后重试");
         }
+        try {
+            orderInfo.setStatus(OrderStatus.RETURNED);
+            domainOrderInfoService.updateOrder(orderInfo);
 
-        String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
-                ? orderInfo.getManufacturerId()
-                : orderItems.stream()
-                        .map(OrderItem::getManufacturerId)
-                        .filter(StringUtils::isNotBlank)
-                        .findFirst()
-                        .orElse(null);
-        adjustOrderDailyStatistics(manufacturerMetaId, orderInfo, orderItems, -1, BigDecimal.valueOf(-1));
+            for (OrderItem orderItem : orderItems) {
+                orderItem.setStatus(OrderStatus.RETURNED);
+                // 刷新预处理请求 ID，使取消前已发出的异步算法回调在返回时被识别为过期并丢弃。
+                orderItem.setPreprocessRequestId(IdGenerator.generateId("OPR"));
+            }
+            domainOrderItemService.batchUpdateOrderItems(orderItems);
+            productionPieceService.deleteProductionPiecesByOrderItemIds(orderItemIds);
+
+            if (firstCancellation) {
+                String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
+                        ? orderInfo.getManufacturerId()
+                        : orderItems.stream()
+                                .map(OrderItem::getManufacturerId)
+                                .filter(StringUtils::isNotBlank)
+                                .findFirst()
+                                .orElse(null);
+                adjustOrderDailyStatistics(manufacturerMetaId, orderInfo, orderItems, -1, BigDecimal.valueOf(-1));
+            }
+        } finally {
+            releaseProductionPieceTypesettingLocksAfterTransaction(pieceLockKeys, lockToken);
+        }
 
         return ApiResponse.success("success");
+    }
+
+    private String buildProductionPieceTypesettingLockKey(String productionPieceId) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "source:" + PRODUCTION_PIECE_SOURCE_TYPE + ":" + productionPieceId;
+    }
+
+    private String acquireProductionPieceTypesettingLocks(List<String> lockKeys) {
+        if (lockKeys.isEmpty()) {
+            return "no-production-piece-lock-required";
+        }
+        String token = UUID.randomUUID().toString();
+        List<String> acquiredKeys = new ArrayList<>();
+        for (String lockKey : lockKeys) {
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                    lockKey, token, CANCEL_ORDER_LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            if (!Boolean.TRUE.equals(acquired)) {
+                releaseProductionPieceTypesettingLocks(acquiredKeys, token);
+                return null;
+            }
+            acquiredKeys.add(lockKey);
+        }
+        return token;
+    }
+
+    private void releaseProductionPieceTypesettingLocksAfterTransaction(List<String> lockKeys, String token) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    releaseProductionPieceTypesettingLocks(lockKeys, token);
+                }
+            });
+            return;
+        }
+        releaseProductionPieceTypesettingLocks(lockKeys, token);
+    }
+
+    private void releaseProductionPieceTypesettingLocks(List<String> lockKeys, String token) {
+        if (lockKeys.isEmpty() || StringUtils.isBlank(token)) {
+            return;
+        }
+        DefaultRedisScript<Long> releaseScript = new DefaultRedisScript<>();
+        releaseScript.setResultType(Long.class);
+        releaseScript.setScriptText("if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end");
+        for (String lockKey : lockKeys) {
+            redisTemplate.execute(releaseScript, Collections.singletonList(lockKey), token);
+        }
     }
 
     BigDecimal calculateStatisticsAmount(OrderInfo orderInfo, List<OrderItem> orderItems) {
