@@ -1503,6 +1503,9 @@ public class AppOrderService {
                 productionPieceService.deleteProductionPiece(productionPiece.getId());
             }
             domainOrderItemService.deleteOrderItem(sourceOrderItem.getId());
+            // 全量转出后旧回调不会再完成，必须同步移除源订单的待生成记录。
+            productionPieceGenerationTaskService.markGenerated(
+                    sourceOrderItem.getOrderId(), sourceOrderItem.getOrderItemId());
             return;
         }
 

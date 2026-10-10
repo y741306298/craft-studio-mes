@@ -1583,10 +1583,28 @@ public class AppTypesettingService {
                 .map(OrderItem::getOrderId)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toSet());
-        for (ProductionPieceGenerationTask task : productionPieceGenerationTaskService.findByOrderIds(orderIds)) {
-            if (task.getOrderItemIdList() != null && !task.getOrderItemIdList().isEmpty()) {
-                throw new IllegalStateException("订单" + task.getOrderId() + "-订单项"
-                        + task.getOrderItemIdList().get(0) + "的生产零件未完全生成，请稍后排版");
+        List<ProductionPieceGenerationTask> tasks = productionPieceGenerationTaskService.findByOrderIds(orderIds);
+        Set<String> pendingItemIds = tasks.stream()
+                .filter(task -> task.getOrderItemIdList() != null)
+                .flatMap(task -> task.getOrderItemIdList().stream())
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        if (pendingItemIds.isEmpty()) {
+            return;
+        }
+        Map<String, OrderItem> pendingItems = orderItemService.findByOrderItemIds(pendingItemIds).stream()
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
+        for (ProductionPieceGenerationTask task : tasks) {
+            if (task.getOrderItemIdList() == null) {
+                continue;
+            }
+            for (String pendingItemId : task.getOrderItemIdList()) {
+                OrderItem pendingItem = pendingItems.get(pendingItemId);
+                // 兼容转单前遗留的任务：已删除或已转出该订单的订单项不再阻塞排版。
+                if (pendingItem != null && Objects.equals(task.getOrderId(), pendingItem.getOrderId())) {
+                    throw new IllegalStateException("订单" + task.getOrderId() + "-订单项"
+                            + pendingItemId + "的生产零件未完全生成，请稍后排版");
+                }
             }
         }
     }
