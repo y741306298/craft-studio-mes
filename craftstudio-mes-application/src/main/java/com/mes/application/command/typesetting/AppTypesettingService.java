@@ -163,6 +163,17 @@ public class AppTypesettingService {
             new TypesettingLayoutSpecVO("1220*1540", 1220, 1540),
             new TypesettingLayoutSpecVO("1520*1500", 1520, 1500)
     );
+
+    private static final List<TypesettingLayoutSpecVO> SPECIAL_DEFAULT_LAYOUT_SPECS = List.of(
+            new TypesettingLayoutSpecVO("900*2440", 900, 2440),
+            new TypesettingLayoutSpecVO("1050*2440", 1050, 2440),
+            new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
+            new TypesettingLayoutSpecVO("920*2440", 920, 2440),
+            new TypesettingLayoutSpecVO("1070*2440", 1070, 2440),
+            new TypesettingLayoutSpecVO("1220*2440", 1220, 2440),
+            new TypesettingLayoutSpecVO("920*2000", 920, 2000),
+            new TypesettingLayoutSpecVO("1070*2000", 1070, 2000)
+    );
     /**
      * layoutMode -> builder 的运行时映射表。
      * 在容器初始化完成后由 initLayoutModeBuilders 填充。
@@ -661,6 +672,11 @@ public class AppTypesettingService {
             layoutSpecs = allParts
                     ? DEFAULT_LAYOUT_SPECS
                     : listLayoutSpecsByMaterialId(materialId, rmfId);
+            if (request.getManufacturerMetaId().equals("6a26a93758a9abfcdc66d93c")){
+                layoutSpecs = allParts
+                        ? SPECIAL_DEFAULT_LAYOUT_SPECS
+                        : listLayoutSpecsByMaterialId(materialId, rmfId);
+            }
         } else {
             layoutSpecs = listLayoutSpecsByMaterialId(materialId, rmfId);
         }
