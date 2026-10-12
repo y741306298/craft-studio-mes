@@ -1960,6 +1960,9 @@ public class AppTypesettingService {
                     if (param.getXs() == null && param.getYs() == null) {
                         continue;
                     }
+                    // 数据库存储 cm，印版生成算法使用 mm；只转换请求副本。
+                    param.setXs(convertSliceCoordinatesToMm(param.getXs()));
+                    param.setYs(convertSliceCoordinatesToMm(param.getYs()));
                     FormeGenerationRequest.PartSliceConfig sliceConfig = new FormeGenerationRequest.PartSliceConfig();
                     sliceConfig.setPartId(piece.getId());
                     sliceConfig.setParam(param);
@@ -1972,6 +1975,12 @@ public class AppTypesettingService {
             }
         }
         return result;
+    }
+
+    private List<BigDecimal> convertSliceCoordinatesToMm(List<BigDecimal> coordinates) {
+        return coordinates == null ? null : coordinates.stream()
+                .map(value -> value == null ? null : value.multiply(BigDecimal.TEN))
+                .collect(Collectors.toList());
     }
 
     private String resolveFormeKnife(TypesettingInfo typesettingInfo) {

@@ -23,7 +23,7 @@ class AppTypesettingServicePartSliceConfigTest {
     private final ProductionPieceService pieces = mock(ProductionPieceService.class);
 
     @Test
-    void collectsDecimalCoordinatesOnceUsingDatabaseIdWithoutMetadata() {
+    void convertsCmToMmOnceUsingDatabaseIdWithoutMetadata() {
         ReflectionTestUtils.setField(service, "productionPieceService", pieces);
         ProductionPiece piece = piece("小块裁切");
         when(pieces.findByIds(Set.of("part-id"))).thenReturn(Map.of("part-id", piece));
@@ -34,10 +34,15 @@ class AppTypesettingServicePartSliceConfigTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getPartId()).isEqualTo("part-id");
-        assertThat(result.get(0).getParam().getXs()).extracting(Object::toString)
-                .containsExactly("12.5", "25", "37.5");
-        assertThat(result.get(0).getParam().getYs()).extracting(Object::toString)
-                .containsExactly("2.5");
+        assertThat(result.get(0).getParam().getXs())
+                .usingComparatorForType(java.math.BigDecimal::compareTo, java.math.BigDecimal.class)
+                .containsExactly(new java.math.BigDecimal("125"), new java.math.BigDecimal("250"),
+                        new java.math.BigDecimal("375"));
+        assertThat(result.get(0).getParam().getYs())
+                .usingComparatorForType(java.math.BigDecimal::compareTo, java.math.BigDecimal.class)
+                .containsExactly(new java.math.BigDecimal("25"));
+        assertThat(JSON.toJSONString(piece.getProcedureFlow())).contains("12.5", "37.5");
+        assertThat(JSON.toJSONString(build(info))).isEqualTo(JSON.toJSONString(result));
         assertThat(JSON.toJSONString(result)).doesNotContain("SLICE", "processParamMetaId", "business-id");
         verify(pieces).findByIds(Set.of("part-id"));
     }
