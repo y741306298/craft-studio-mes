@@ -1897,6 +1897,7 @@ public class AppTypesettingService {
         formeInfo.setMargin(modeResult.getMargin());
         formeInfo.setMarks(modeResult.getMarks());
         formeInfo.setAnchorPoints(modeResult.getAnchorPoints());
+        formeInfo.setPartSliceConfigs(buildPartSliceConfigs(typesettingInfo));
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
@@ -1921,6 +1922,57 @@ public class AppTypesettingService {
         return request;
     }
 
+
+    /** 按零件自身 ID 收集小块裁切参数，同一零件只传一次。 */
+    private List<FormeGenerationRequest.PartSliceConfig> buildPartSliceConfigs(TypesettingInfo typesettingInfo) {
+        List<FormeGenerationRequest.PartSliceConfig> result = new ArrayList<>();
+        if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
+            return result;
+        }
+        Set<String> partIds = typesettingInfo.getTypesettingCells().stream()
+                .filter(Objects::nonNull)
+                .filter(cell -> TypesettingSourceType.PART.getCode().equals(cell.getSourceType()))
+                .map(TypesettingSourceCell::getSourceId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (partIds.isEmpty()) {
+            return result;
+        }
+        Map<String, ProductionPiece> pieces = productionPieceService.findByIds(partIds);
+        for (String partId : partIds) {
+            ProductionPiece piece = pieces.get(partId);
+            if (piece == null || StringUtils.isBlank(piece.getId()) || piece.getProcedureFlow() == null
+                    || CollectionUtils.isEmpty(piece.getProcedureFlow().getNodes())) {
+                continue;
+            }
+            for (ProcedureFlowNode node : piece.getProcedureFlow().getNodes()) {
+                if (node == null || !"小块裁切".equals(node.getNodeName())
+                        || CollectionUtils.isEmpty(node.getParamConfigs())) {
+                    continue;
+                }
+                for (MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
+                    if (config == null || config.getParam() == null) {
+                        continue;
+                    }
+                    // 仅映射 xs/ys，兼容参数 DTO 与 Map，不透传工艺元数据。
+                    FormeGenerationRequest.SliceParam param = JSON.parseObject(
+                            JSON.toJSONString(config.getParam()), FormeGenerationRequest.SliceParam.class);
+                    if (param.getXs() == null && param.getYs() == null) {
+                        continue;
+                    }
+                    FormeGenerationRequest.PartSliceConfig sliceConfig = new FormeGenerationRequest.PartSliceConfig();
+                    sliceConfig.setPartId(piece.getId());
+                    sliceConfig.setParam(param);
+                    result.add(sliceConfig);
+                    break;
+                }
+                if (!result.isEmpty() && piece.getId().equals(result.get(result.size() - 1).getPartId())) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
 
     private String resolveFormeKnife(TypesettingInfo typesettingInfo) {
         return isCoverBoardPartOnlyTypesetting(typesettingInfo)

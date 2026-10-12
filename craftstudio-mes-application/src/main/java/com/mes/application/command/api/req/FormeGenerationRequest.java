@@ -26,6 +26,19 @@ public class FormeGenerationRequest {
         private Margin margin;
         private List<Mark> marks;
         private List<AnchorPoint> anchorPoints;
+        private List<PartSliceConfig> partSliceConfigs;
+    }
+
+    @Data
+    public static class PartSliceConfig {
+        private String partId;
+        private SliceParam param;
+    }
+
+    @Data
+    public static class SliceParam {
+        private List<BigDecimal> xs;
+        private List<BigDecimal> ys;
     }
 
     @Data
