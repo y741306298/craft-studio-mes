@@ -963,12 +963,13 @@ public class AppDeliveryPkgService {
         }
 
         String channelOrderId = orderInfo.getChannel().getOrderId();
-        WdtLabelRecord record = wdtLabelRecordRepository.findForOrder(orderInfo.getOrderId(), channelOrderId,
+        WdtLabelRecord record = wdtLabelRecordRepository.findForPlatform(GatherPlatformResolver.resolve(orderInfo.getChannel()).name(), orderInfo.getOrderId(), channelOrderId,
                 orderInfo.getKuaidiNum());
+        boolean reusedLabel = record != null;
         if (record == null) {
             record = printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType);
             if (record == null) {
-                // Only fall back to the local printable custom flow when no WDT logistics
+                // Only fall back to the local printable custom flow when no matching platform logistics
                 // config exists for this gather-platform order.
                 DeliveryPkg customPkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId,
                         carrierName, "CUSTOM", null);
@@ -978,7 +979,8 @@ public class AppDeliveryPkgService {
             }
         }
 
-        if (resolveCloudPrintPlatform(record) == LogisticsCloudPrintPlatform.DY) {
+        if (reusedLabel && (GatherPlatformResolver.resolve(orderInfo.getChannel()) == GatherPlatformType.JST
+                || resolveCloudPrintPlatform(record) == LogisticsCloudPrintPlatform.DY)) {
             record = reprintGatherPlatformLabel(record);
         }
 
@@ -998,7 +1000,7 @@ public class AppDeliveryPkgService {
     }
 
     /**
-     * 聚单平台复打。抖音面单必须重新向聚单平台取得打印数据；其他平台维持原有的本地复打逻辑。
+     * 聚单平台复打。JST 及 WDT 抖音面单重新获取打印数据，其他 WDT 面单沿用本地数据。
      */
     public DeliveryPkg reprintGatherPlatformLabel(DeliveryPkgActionRequest request) {
         if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
@@ -1010,11 +1012,18 @@ public class AppDeliveryPkgService {
                 || orderInfo.getChannel().getType() != com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "该包裹不是聚单平台订单");
         }
+        GatherPlatformType platformType = GatherPlatformResolver.resolve(orderInfo.getChannel());
+        if (isKuaidi100TestEnvironment()) {
+            return pkg;
+        }
         WdtLabelRecord record = wdtLabelRecordRepository.findByDeliveryPkgId(pkg.getDeliveryPkgId());
         if (record == null) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到聚单平台面单记录");
         }
-        if (resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
+        if (GatherPlatformResolver.resolveCode(record.getPlatformType()) != platformType) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "面单记录与订单聚单平台不一致");
+        }
+        if (platformType != GatherPlatformType.JST && resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
             pkg.setWdtLabelRecord(record);
             return pkg;
         }
@@ -1027,11 +1036,14 @@ public class AppDeliveryPkgService {
 
     private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record) {
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
+            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformResolver.resolveCode(record.getPlatformType()));
             LogisticsLabel label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
                     LogisticsCarrierPresetType.valueOf(record.getPresetType()),record.getLogisticsOrderId());
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
+            }
+            if (!java.util.Objects.equals(record.getLogisticsOrderId(), label.getLogisticsOrderId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打返回不同运单号，禁止替换原面单");
             }
             record.setLogisticsOrderId(label.getLogisticsOrderId());
             record.setConsignee(label.getConsignee());
@@ -1069,23 +1081,38 @@ public class AppDeliveryPkgService {
         }
         String manufacturerMetaId = StringUtils.isNotBlank(orderInfo.getManufacturerId())
                 ? orderInfo.getManufacturerId() : request.getManufacturerMetaId();
-        WdtConfig config = wdtService.findConfig(manufacturerMetaId, presetType);
+        GatherPlatformType platformType = GatherPlatformResolver.resolve(orderInfo.getChannel());
+        WdtConfig config = wdtService.findConfig(platformType.name(), manufacturerMetaId, presetType);
         if (config == null) {
-            log.info("旺店通打包即时打单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
+            log.info("聚单平台打包即时打单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
                     manufacturerMetaId, presetType);
             return null;
         }
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
-            platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            GatherPlatform platform = GatherPlatform.getInstance(platformType);
+            try {
+                platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+            } catch (Exception warehouseException) {
+                Throwable cause = warehouseException;
+                boolean sameWarehouse = false;
+                while (cause != null) {
+                    if (cause.getMessage() != null && cause.getMessage().contains("换仓失败订单仓库和执行仓库相同，不执行换仓")) {
+                        sameWarehouse = true;
+                        break;
+                    }
+                    cause = cause.getCause();
+                }
+                if (!sameWarehouse) throw warehouseException;
+            }
             LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
             if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "旺店通打包即时打单未返回物流单号");
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台打包即时打单未返回物流单号");
             }
             WdtLabelRecord record = new WdtLabelRecord();
             record.setManufacturerMetaId(config.getManufacturerMetaId());
+            record.setPlatformType(platformType.name());
             record.setOrderId(orderInfo.getOrderId());
             record.setChannelOrderId(uniCode);
             record.setConsumeStatus(PreOrderLabelConsumeStatus.PRE_ORDERED);
@@ -1103,7 +1130,7 @@ public class AppDeliveryPkgService {
             throw ex;
         } catch (Exception ex) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
-                    "旺店通快递换仓或面单打印失败: " + uniCode);
+                    "聚单平台快递换仓或面单打印失败: " + uniCode);
         }
     }
 

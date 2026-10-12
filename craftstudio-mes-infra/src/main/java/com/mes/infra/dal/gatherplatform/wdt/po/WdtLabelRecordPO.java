@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
- * 旺店通快递面单记录 MongoDB 持久化对象。
+ * 聚单平台快递（保留 WDT 类型名兼容历史调用）面单记录 MongoDB 持久化对象。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -16,23 +16,24 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class WdtLabelRecordPO extends BasePO<WdtLabelRecord> {
     /** 工厂元数据 ID。 */
     private String manufacturerMetaId;
+    private String platformType;
     private String orderId;
     private String channelOrderId;
     private PreOrderLabelConsumeStatus consumeStatus;
     private String deliveryPkgId;
-    /** 旺店通仓库 ID。 */
+    /** 聚单平台仓库 ID。 */
     private String warehouseId;
-    /** 旺店通物流 ID。 */
+    /** 聚单平台物流 ID。 */
     private String logisticsId;
     /** 物流名称。 */
     private String logisticsName;
     /** MES 订单物流预设类型。 */
     private String presetType;
-    /** 旺店通返回的物流单号。 */
+    /** 聚单平台返回的物流单号。 */
     private String logisticsOrderId;
-    /** 旺店通面单中的收件人数据。 */
+    /** 聚单平台面单中的收件人数据。 */
     private Object consignee;
-    /** 旺店通面单中的云打印数据。 */
+    /** 聚单平台面单中的云打印数据。 */
     private Object logisticsCloudPrintData;
     /** MES 生成的打印备注。 */
     private String remark;
@@ -45,6 +46,7 @@ public class WdtLabelRecordPO extends BasePO<WdtLabelRecord> {
         WdtLabelRecord value = new WdtLabelRecord();
         copyBaseFieldsToDO(value);
         value.setManufacturerMetaId(manufacturerMetaId);
+        value.setPlatformType(platformType);
         value.setOrderId(orderId);
         value.setChannelOrderId(channelOrderId);
         value.setConsumeStatus(consumeStatus);
@@ -66,6 +68,7 @@ public class WdtLabelRecordPO extends BasePO<WdtLabelRecord> {
     @Override
     protected BasePO<WdtLabelRecord> fromDO(WdtLabelRecord value) {
         manufacturerMetaId = value.getManufacturerMetaId();
+        platformType = value.getPlatformType();
         orderId = value.getOrderId();
         channelOrderId = value.getChannelOrderId();
         consumeStatus = value.getConsumeStatus();

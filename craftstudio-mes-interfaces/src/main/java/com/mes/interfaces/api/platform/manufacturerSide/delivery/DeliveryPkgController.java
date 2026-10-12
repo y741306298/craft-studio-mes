@@ -356,10 +356,15 @@ public class DeliveryPkgController {
         if ("CUSTOM".equalsIgnoreCase(deliveryPkg.getPresetType())) {
             return ApiResponse.success(buildAddResult(deliveryPkg));
         }
+        OrderInfo order = orderInfoService.findByOrderId(deliveryPkg.getOrderId());
+        if (order != null && order.getChannel() != null
+                && order.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
+            return ApiResponse.success(buildAddResult(appDeliveryPkgService.reprintGatherPlatformLabel(request)));
+        }
         return ApiResponse.success(appDeliveryPkgService.reprintKuaidi100Label(request));
     }
 
-    /** 聚单平台面单复打，抖音面单会重新获取云打印数据。 */
+    /** 聚单平台面单复打：JST 及 WDT 抖音面单重新获取云打印数据。 */
     @PostMapping("/gather-platform/reprint")
     public ApiResponse<Object> gatherPlatformReprint(@RequestBody DeliveryPkgActionRequest request) {
         DeliveryPkgAddResultVO deliveryPkgAddResultVO = buildAddResult(appDeliveryPkgService.reprintGatherPlatformLabel(request));

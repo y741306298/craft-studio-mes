@@ -26,8 +26,16 @@ public class WdtConfigRepositoryImp extends BaseRepositoryImp<WdtConfig, WdtConf
      */
     @Override
     public WdtConfig findByManufacturerMetaIdAndPresetType(String manufacturerMetaId, String presetType) {
-        Query query = new Query(Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
-                .and("presetType").is(presetType));
+        return findByPlatformType("WDT", manufacturerMetaId, presetType);
+    }
+
+    @Override
+    public WdtConfig findByPlatformType(String platformType, String manufacturerMetaId, String presetType) {
+        Criteria platform = "WDT".equals(platformType)
+                ? new Criteria().orOperator(Criteria.where("platformType").is("WDT"), Criteria.where("platformType").is(null))
+                : Criteria.where("platformType").is(platformType);
+        Query query = new Query(new Criteria().andOperator(platform, Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("presetType").is(presetType), Criteria.where("deleteAt").is(null)));
         WdtConfigPO value = mongoTemplate.findOne(query, poClass());
         return value == null ? null : value.toDO();
     }

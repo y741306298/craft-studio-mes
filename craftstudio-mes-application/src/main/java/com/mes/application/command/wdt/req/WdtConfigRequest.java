@@ -12,6 +12,9 @@ public class WdtConfigRequest {
     /** 更新时使用的配置 ID；新增时为空。 */
     private String id;
 
+    /** WDT/JST，省略时按 WDT 处理。 */
+    private String platformType;
+
     /** 工厂元数据 ID。 */
     @NotBlank(message = "manufacturerMetaId不能为空")
     private String manufacturerMetaId;
@@ -40,6 +43,7 @@ public class WdtConfigRequest {
     public WdtConfig toDomainEntity() {
         WdtConfig config = new WdtConfig();
         config.setId(id);
+        config.setPlatformType(platformType);
         config.setManufacturerMetaId(manufacturerMetaId);
         config.setWarehouseId(warehouseId);
         config.setLogisticsId(logisticsId);

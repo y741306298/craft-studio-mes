@@ -2,6 +2,7 @@ package com.mes.application.command.order;
 
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
+import com.mes.application.command.delivery.GatherPlatformResolver;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
@@ -52,9 +53,10 @@ public class AppPreOrderLabelTaskService {
     LogisticsOrderProducer producer;
 
     private static final long PRE_ORDER_LABEL_TASK_FIXED_RATE_MS = 10 * 60 * 1000L;
-    private static final int WDT_PRINT_MAX_ATTEMPTS = 3;
-    private static final long WDT_PRINT_RETRY_TTL_HOURS = 1L;
-    private static final String WDT_PRINT_RETRY_KEY_PREFIX = "preOrderLabelTask:wdtPrintRetry:";
+    private static final int GATHER_PRINT_MAX_ATTEMPTS = 3;
+    private static final long GATHER_PRINT_RETRY_TTL_HOURS = 1L;
+    // Keep the historical Redis namespace so in-flight WDT retry counts survive upgrades.
+    private static final String GATHER_PRINT_RETRY_KEY_PREFIX = "preOrderLabelTask:wdtPrintRetry:";
     private static final String LOGISTICS_MQ_TOPIC = "mes-logistics";
     private static final int MQ_LOGISTICS_ORDER_ID_MAX_LENGTH = 64;
     private static final String SAME_WAREHOUSE_FAILURE = "换仓失败订单仓库和执行仓库相同，不执行换仓";
@@ -256,7 +258,7 @@ public class AppPreOrderLabelTaskService {
                 // 聚单平台也沿用 kuaidi100 环境开关；测试环境只推进本地流程，禁止真实换仓、打单。
                 printResult = isKuaidi100TestEnvironment()
                         ? new AppDeliveryPkgService.DeliveryPkgPrintResult(null, TEST_KUAIDI100_NUM)
-                        : preOrderWdtLabel(orderInfo, orderItems);
+                        : preOrderGatherPlatformLabel(orderInfo, orderItems);
             } else {
                 try {
                     printResult = appDeliveryPkgService.preOrderKuaidi100Label(orderInfo, orderItems);
@@ -265,7 +267,7 @@ public class AppPreOrderLabelTaskService {
                 }
             }
             if (isGatherPlatform(orderInfo)) {
-                clearWdtPrintRetryCount(task);
+                clearGatherPrintRetryCount(task);
             }
             kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
             syncPreOrderLabelResult(task, orderInfo, productionPieces, kuaidiNum);
@@ -285,8 +287,8 @@ public class AppPreOrderLabelTaskService {
                 preOrderLabelTaskService.markFailed(task, kuaidiNum, mqFailureReason);
             }
         } catch (Exception ex) {
-            if (containsExceptionType(ex, WdtLabelPrintException.class)) {
-                handleWdtPrintFailure(task, orderInfo, resolveExceptionMessage(ex));
+            if (containsExceptionType(ex, GatherLabelPrintException.class)) {
+                handleGatherPrintFailure(task, orderInfo, resolveExceptionMessage(ex));
                 return;
             }
             if (containsExceptionType(ex, Kuaidi100LabelPrintException.class)) {
@@ -308,25 +310,25 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 记录本次 WDT 打印失败。失败次数达到三次前保持任务为 PENDING，由十分钟定时批次再次执行；
+     * 记录本次聚单平台打印失败。失败次数达到三次前保持任务为 PENDING，由十分钟定时批次再次执行；
      * 第三次失败时发送失败原因 MQ，并将任务更新为失败。
      */
-    private void handleWdtPrintFailure(PreOrderLabelTask task, OrderInfo orderInfo, String failureReason) {
-        String retryKey = buildWdtPrintRetryKey(task);
+    private void handleGatherPrintFailure(PreOrderLabelTask task, OrderInfo orderInfo, String failureReason) {
+        String retryKey = buildGatherPrintRetryKey(task);
         Long attempt;
         try {
             attempt = redisTemplate.opsForValue().increment(retryKey);
-            redisTemplate.expire(retryKey, WDT_PRINT_RETRY_TTL_HOURS, TimeUnit.HOURS);
+            redisTemplate.expire(retryKey, GATHER_PRINT_RETRY_TTL_HOURS, TimeUnit.HOURS);
         } catch (Exception redisException) {
-            log.error("Redis记录WDT面单打印重试次数失败，任务保持待处理: taskId={}, orderId={}",
+            log.error("Redis记录聚单平台面单打印重试次数失败，任务保持待处理: taskId={}, orderId={}",
                     task.getId(), task.getOrderId(), redisException);
             return;
         }
 
         long currentAttempt = attempt == null ? 1L : attempt;
-        if (currentAttempt < WDT_PRINT_MAX_ATTEMPTS) {
-            log.warn("WDT面单打印失败，等待下一次定时批次重试: taskId={}, orderId={}, attempt={}/{}, reason={}",
-                    task.getId(), task.getOrderId(), currentAttempt, WDT_PRINT_MAX_ATTEMPTS, failureReason);
+        if (currentAttempt < GATHER_PRINT_MAX_ATTEMPTS) {
+            log.warn("聚单平台面单打印失败，等待下一次定时批次重试: taskId={}, orderId={}, attempt={}/{}, reason={}",
+                    task.getId(), task.getOrderId(), currentAttempt, GATHER_PRINT_MAX_ATTEMPTS, failureReason);
             return;
         }
 
@@ -355,16 +357,16 @@ public class AppPreOrderLabelTaskService {
         markTaskFailed(task, null, failureReason);
     }
 
-    private String buildWdtPrintRetryKey(PreOrderLabelTask task) {
+    private String buildGatherPrintRetryKey(PreOrderLabelTask task) {
         String taskIdentifier = StringUtils.isNotBlank(task.getId()) ? task.getId() : task.getOrderId();
-        return WDT_PRINT_RETRY_KEY_PREFIX + taskIdentifier;
+        return GATHER_PRINT_RETRY_KEY_PREFIX + taskIdentifier;
     }
 
-    private void clearWdtPrintRetryCount(PreOrderLabelTask task) {
+    private void clearGatherPrintRetryCount(PreOrderLabelTask task) {
         try {
-            redisTemplate.delete(buildWdtPrintRetryKey(task));
+            redisTemplate.delete(buildGatherPrintRetryKey(task));
         } catch (Exception redisException) {
-            log.warn("清理WDT面单打印重试次数失败: taskId={}, orderId={}",
+            log.warn("清理聚单平台面单打印重试次数失败: taskId={}, orderId={}",
                     task.getId(), task.getOrderId(), redisException);
         }
     }
@@ -378,13 +380,13 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 为旺店通聚单平台订单执行预下单面单打印。
+     * 为 WDT/JST 聚单平台订单执行预下单面单打印。
      *
      * @param orderInfo 订单信息
      * @param orderItems 订单项列表
      * @return 打印结果；缺少必要数据或未配置快递映射时返回 {@code null}
      */
-    private AppDeliveryPkgService.DeliveryPkgPrintResult preOrderWdtLabel(OrderInfo orderInfo,
+    private AppDeliveryPkgService.DeliveryPkgPrintResult preOrderGatherPlatformLabel(OrderInfo orderInfo,
                                                                            List<OrderItem> orderItems) {
         if (orderInfo == null || orderInfo.getChannel() == null || orderInfo.getLogisticsCarrierInfo() == null
                 || StringUtils.isBlank(orderInfo.getManufacturerId())
@@ -392,54 +394,56 @@ public class AppPreOrderLabelTaskService {
             return null;
         }
         String presetType = orderInfo.getLogisticsCarrierInfo().getPresetType();
-        WdtConfig config = wdtService.findConfig(orderInfo.getManufacturerId(), presetType);
+        GatherPlatformType platformType = GatherPlatformResolver.resolve(orderInfo.getChannel());
+        WdtConfig config = wdtService.findConfig(platformType.name(), orderInfo.getManufacturerId(), presetType);
         if (config == null) {
-            log.info("旺店通预下单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
+            log.info("聚单平台预下单跳过，未找到快递配置: manufacturerMetaId={}, presetType={}",
                     orderInfo.getManufacturerId(), presetType);
             return null;
         }
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformType.WDT);
+            GatherPlatform platform = GatherPlatform.getInstance(platformType);
             try {
                 platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
             } catch (Exception warehouseException) {
                 if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
                     throw warehouseException;
                 }
-                log.info("旺店通订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
+                log.info("聚单平台订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
             }
             LogisticsLabel label;
             try {
-                label = printWdtLabel(platform, uniCode, presetType);
+                label = printGatherPlatformLabel(platform, uniCode, presetType);
                 if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                    throw new IllegalStateException("WDT打印未返回物流单号");
+                    throw new IllegalStateException("聚单平台打印未返回物流单号");
                 }
             } catch (Exception printException) {
-                throw new WdtLabelPrintException(printException);
+                throw new GatherLabelPrintException(printException);
             }
-            String remark = buildPreOrderWdtRemark(orderInfo, orderItems);
-            saveWdtLabelRecord(config, label, remark, orderInfo);
+            String remark = buildPreOrderGatherRemark(orderInfo, orderItems);
+            saveGatherLabelRecord(config, label, remark, orderInfo);
             return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
         } catch (Exception ex) {
-            throw new IllegalStateException("旺店通快递换仓或面单打印失败: " + uniCode, ex);
+            throw new IllegalStateException("聚单平台快递换仓或面单打印失败: " + uniCode, ex);
         }
     }
 
     /**
-     * 使用默认打印机打印旺店通面单。
+     * 使用默认打印机打印聚单平台面单。
      */
-    private LogisticsLabel printWdtLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
+    private LogisticsLabel printGatherPlatformLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
         return platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
     }
 
     /**
      * 保存快递配置、完整面单数据及打印备注快照。
      */
-    private void saveWdtLabelRecord(WdtConfig config, LogisticsLabel label, String remark, OrderInfo orderInfo) {
+    private void saveGatherLabelRecord(WdtConfig config, LogisticsLabel label, String remark, OrderInfo orderInfo) {
         WdtLabelRecord record = new WdtLabelRecord();
         record.setManufacturerMetaId(config.getManufacturerMetaId());
+        record.setPlatformType(GatherPlatformResolver.resolve(orderInfo.getChannel()).name());
         record.setOrderId(orderInfo.getOrderId());
         record.setChannelOrderId(orderInfo.getChannel().getOrderId());
         record.setConsumeStatus(com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus.PRE_ORDERED);
@@ -457,7 +461,7 @@ public class AppPreOrderLabelTaskService {
     /**
      * 按快递100预下单规则生成订单、文件和订单备注信息。
      */
-    private String buildPreOrderWdtRemark(OrderInfo orderInfo, List<OrderItem> orderItems) {
+    private String buildPreOrderGatherRemark(OrderInfo orderInfo, List<OrderItem> orderItems) {
         List<String> parts = new ArrayList<>();
         if (StringUtils.isNotBlank(orderInfo.getOrderId())) parts.add("订单:" + orderInfo.getOrderId());
         if (orderItems != null) {
@@ -483,7 +487,7 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 通知聚单平台物流单号；WDT 打印重试耗尽时，同一消息字段承载打印失败原因。
+     * 通知聚单平台物流单号；聚单平台打印重试耗尽时，同一消息字段承载打印失败原因。
      * 通知失败时返回原因，由任务记录持久化，避免重新下单打印。
      *
      * @return 通知失败原因；通知成功时返回 {@code null}
@@ -620,8 +624,8 @@ public class AppPreOrderLabelTaskService {
                 orderInfo.getChannel() != null ? orderInfo.getChannel() : task.getChannel());
     }
 
-    private static class WdtLabelPrintException extends RuntimeException {
-        private WdtLabelPrintException(Throwable cause) {
+    private static class GatherLabelPrintException extends RuntimeException {
+        private GatherLabelPrintException(Throwable cause) {
             super(cause);
         }
     }

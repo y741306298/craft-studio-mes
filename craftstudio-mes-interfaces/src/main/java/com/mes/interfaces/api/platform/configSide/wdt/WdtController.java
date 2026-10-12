@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Validated
 @RestController
-@RequestMapping("/api/configSide/wdt")
+@RequestMapping({"/api/configSide/wdt", "/api/configSide/gather-platform/logistics-config"})
 public class WdtController {
     @Autowired
     private WdtService wdtService;

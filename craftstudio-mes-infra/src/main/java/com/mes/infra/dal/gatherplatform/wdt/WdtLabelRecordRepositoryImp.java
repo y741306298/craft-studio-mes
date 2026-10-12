@@ -22,11 +22,21 @@ public class WdtLabelRecordRepositoryImp extends BaseRepositoryImp<WdtLabelRecor
     }
     @Override
     public WdtLabelRecord findForOrder(String orderId, String channelOrderId, String logisticsOrderId) {
-        Criteria identity = new Criteria().orOperator(
-                Criteria.where("orderId").is(orderId), Criteria.where("channelOrderId").is(channelOrderId),
-                Criteria.where("logisticsOrderId").is(logisticsOrderId));
-        WdtLabelRecordPO po = mongoTemplate.findOne(new Query(new Criteria().andOperator(identity,
-                Criteria.where("deleteAt").is(null))), WdtLabelRecordPO.class);
+        return findForPlatform("WDT", orderId, channelOrderId, logisticsOrderId);
+    }
+
+    @Override
+    public WdtLabelRecord findForPlatform(String platformType, String orderId, String channelOrderId, String logisticsOrderId) {
+        java.util.List<Criteria> keys = new java.util.ArrayList<>();
+        if (orderId != null && !orderId.isBlank()) keys.add(Criteria.where("orderId").is(orderId));
+        if (channelOrderId != null && !channelOrderId.isBlank()) keys.add(Criteria.where("channelOrderId").is(channelOrderId));
+        if (logisticsOrderId != null && !logisticsOrderId.isBlank()) keys.add(Criteria.where("logisticsOrderId").is(logisticsOrderId));
+        if (keys.isEmpty()) return null;
+        Criteria platform = "WDT".equals(platformType)
+                ? new Criteria().orOperator(Criteria.where("platformType").is("WDT"), Criteria.where("platformType").is(null))
+                : Criteria.where("platformType").is(platformType);
+        WdtLabelRecordPO po = mongoTemplate.findOne(new Query(new Criteria().andOperator(platform,
+                new Criteria().orOperator(keys.toArray(new Criteria[0])), Criteria.where("deleteAt").is(null))), WdtLabelRecordPO.class);
         return po == null ? null : po.toDO();
     }
 

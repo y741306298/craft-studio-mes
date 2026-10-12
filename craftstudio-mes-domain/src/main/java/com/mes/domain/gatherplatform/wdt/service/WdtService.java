@@ -115,6 +115,10 @@ public class WdtService {
      * @param presetType MES 订单物流预设类型
      * @return 匹配的配置；不存在时返回 {@code null}
      */
+    public WdtConfig findConfig(String platformType, String manufacturerMetaId, String presetType) {
+        return configRepository.findByPlatformType(platformType, manufacturerMetaId, presetType);
+    }
+
     public WdtConfig findConfig(String manufacturerMetaId, String presetType) {
         return configRepository.findByManufacturerMetaIdAndPresetType(manufacturerMetaId, presetType);
     }
@@ -138,6 +142,12 @@ public class WdtService {
         if (config == null) {
             throw new IllegalArgumentException("快递配置不能为空");
         }
+        String platform = StringUtils.isBlank(config.getPlatformType()) ? "WDT"
+                : config.getPlatformType().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!"WDT".equals(platform) && !"JST".equals(platform)) {
+            throw new IllegalArgumentException("platformType仅支持WDT/JST");
+        }
+        config.setPlatformType(platform);
         if (StringUtils.isBlank(config.getManufacturerMetaId())) {
             throw new IllegalArgumentException("manufacturerMetaId不能为空");
         }

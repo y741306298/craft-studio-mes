@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
- * 旺店通快递配置 MongoDB 持久化对象。
+ * 聚单平台快递（保留 WDT 类型名兼容历史调用）配置 MongoDB 持久化对象。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -15,9 +15,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class WdtConfigPO extends BasePO<WdtConfig> {
     /** 工厂元数据 ID。 */
     private String manufacturerMetaId;
-    /** 旺店通仓库 ID。 */
+    private String platformType;
+    /** 聚单平台仓库 ID。 */
     private String warehouseId;
-    /** 旺店通物流 ID。 */
+    /** 聚单平台物流 ID。 */
     private String logisticsId;
     /** 物流名称。 */
     private String logisticsName;
@@ -32,6 +33,7 @@ public class WdtConfigPO extends BasePO<WdtConfig> {
         WdtConfig value = new WdtConfig();
         copyBaseFieldsToDO(value);
         value.setManufacturerMetaId(manufacturerMetaId);
+        value.setPlatformType(platformType);
         value.setWarehouseId(warehouseId);
         value.setLogisticsId(logisticsId);
         value.setLogisticsName(logisticsName);
@@ -45,6 +47,7 @@ public class WdtConfigPO extends BasePO<WdtConfig> {
     @Override
     protected BasePO<WdtConfig> fromDO(WdtConfig value) {
         manufacturerMetaId = value.getManufacturerMetaId();
+        platformType = value.getPlatformType();
         warehouseId = value.getWarehouseId();
         logisticsId = value.getLogisticsId();
         logisticsName = value.getLogisticsName();

@@ -14,5 +14,7 @@ public interface WdtConfigRepository extends BaseRepository<WdtConfig> {
      * @param presetType MES 订单物流预设类型
      * @return 匹配的配置；不存在时返回 {@code null}
      */
+    WdtConfig findByPlatformType(String platformType, String manufacturerMetaId, String presetType);
+
     WdtConfig findByManufacturerMetaIdAndPresetType(String manufacturerMetaId, String presetType);
 }

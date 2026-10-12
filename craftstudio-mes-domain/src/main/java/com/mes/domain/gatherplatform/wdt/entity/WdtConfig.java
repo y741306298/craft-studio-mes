@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 /**
- * 旺店通快递配置。
+ * 聚单平台快递（保留 WDT 类型名兼容历史调用）配置。
  *
  * <p>用于建立工厂、MES 物流预设类型与旺店通仓库、物流方式之间的映射。</p>
  */
@@ -15,10 +15,13 @@ public class WdtConfig extends BaseEntity {
     /** 工厂元数据 ID。 */
     private String manufacturerMetaId;
 
-    /** 旺店通仓库 ID。 */
+    /** 聚单平台编码 WDT/JST；历史空值按 WDT 处理。 */
+    private String platformType;
+
+    /** 聚单平台仓库 ID。 */
     private String warehouseId;
 
-    /** 旺店通物流 ID。 */
+    /** 聚单平台物流 ID。 */
     private String logisticsId;
 
     /** 物流名称。 */
