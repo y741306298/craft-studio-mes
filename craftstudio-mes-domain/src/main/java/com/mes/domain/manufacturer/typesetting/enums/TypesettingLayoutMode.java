@@ -237,6 +237,18 @@ public enum TypesettingLayoutMode {
             10,
             false
     ),
+    /** 九段卷材：默认 XY 排版，输出 json/svg，不生成定位点或二维码。 */
+    XY_CUTTING_AUX_LINE_NINE_SEGMENT_ROLL(
+            "xy_cutting_aux_line_nine_segment_roll",
+            "九段：卷材",
+            "vertical_typesetting",
+            true, false, true,
+            "side_aux_line",
+            null,
+            "none",
+            10,
+            true
+    ),
     /**
      * xy切割(切割辅助线-六渡大板模式）：
      * 需要 json/svg，不需要 plt，码位策略为 side_aux_line。
