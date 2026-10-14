@@ -5,8 +5,11 @@ import com.mes.application.command.wdt.req.WdtConfigRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.auth.AuthException;
+import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.imps.jst.modules.simulator.WebSimulator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +23,17 @@ import org.springframework.web.bind.annotation.*;
 public class WdtController {
     @Autowired
     private WdtService wdtService;
+
+    /**
+     * 提交聚水潭短信验证码，完成 SID 授权。
+     */
+    @PostMapping("/smsCodeAuth")
+    public ApiResponse<String> smsCodeAuth(
+            @RequestParam("smsCode") @Pattern(regexp = "[0-9]+", message = "短信验证码必须为数字") String smsCode)
+            throws AuthException {
+        WebSimulator.getLoggedInstance().obtainAuthSid(smsCode);
+        return ApiResponse.success();
+    }
 
     /**
      * 新增旺店通快递配置。
