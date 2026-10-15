@@ -1,12 +1,14 @@
 package com.mes.interfaces.api.platform.configSide.wdt;
 
+import com.mes.application.command.delivery.AppDeliveryPkgService;
+import com.mes.application.command.delivery.JstPrintGuard;
+import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.application.command.wdt.req.WdtConfigListRequest;
 import com.mes.application.command.wdt.req.WdtConfigRequest;
 import com.mes.domain.base.repository.ApiResponse;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.auth.AuthException;
-import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.imps.jst.modules.simulator.WebSimulator;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -24,6 +26,12 @@ public class WdtController {
     @Autowired
     private WdtService wdtService;
 
+    @Autowired
+    private JstPrintGuard jstPrintGuard;
+
+    @Autowired
+    private AppDeliveryPkgService appDeliveryPkgService;
+
     /**
      * 提交聚水潭短信验证码，完成 SID 授权。
      */
@@ -31,8 +39,14 @@ public class WdtController {
     public ApiResponse<String> smsCodeAuth(
             @RequestParam("smsCode") @Pattern(regexp = "[0-9]+", message = "短信验证码必须为数字") String smsCode)
             throws AuthException {
-        WebSimulator.getLoggedInstance().obtainAuthSid(smsCode);
+        jstPrintGuard.authenticate(smsCode);
         return ApiResponse.success();
+    }
+
+    /** 客服重试 JST 打印以获取新的验证码；绕过身份锁，成功也不自动解锁。 */
+    @PostMapping("/retryJstPrintForSmsAuth")
+    public ApiResponse<WdtLabelRecord> retryJstPrintForSmsAuth(@RequestParam("orderId") String orderId) {
+        return ApiResponse.success(appDeliveryPkgService.retryJstPrintForSmsAuth(orderId));
     }
 
     /**

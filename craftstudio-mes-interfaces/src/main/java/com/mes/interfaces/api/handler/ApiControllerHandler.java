@@ -1,6 +1,9 @@
 package com.mes.interfaces.api.handler;
 
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.application.command.delivery.JstPrintGuard;
+import com.mes.application.command.delivery.JstPrintUnavailableException;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.auth.SmsCodeRequiredAuthException;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -19,6 +22,14 @@ public class ApiControllerHandler {
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<String> handleIllegalArgumentException(IllegalArgumentException ex) {
         return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, ex.getMessage());
+    }
+
+    @ExceptionHandler({SmsCodeRequiredAuthException.class, JstPrintUnavailableException.class})
+    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.LOCKED)
+    public ApiResponse<String> handleJstPrintLocked(RuntimeException ex) {
+        String message = ex instanceof SmsCodeRequiredAuthException
+                ? JstPrintGuard.AUTH_REQUIRED_MESSAGE : ex.getMessage();
+        return ApiResponse.fail(423, message);
     }
 
     @ExceptionHandler(Exception.class)
