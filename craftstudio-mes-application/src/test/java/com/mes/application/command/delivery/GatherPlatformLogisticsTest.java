@@ -9,6 +9,7 @@ import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.vo.OrderChannelInfo;
 import com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.exception.LogisticsWarehouseConfigException;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import com.piliofpala.craftstudio.shared.domain.logistics.vo.LogisticsCarrierPresetType;
@@ -91,6 +92,8 @@ class GatherPlatformLogisticsTest {
             assertSame(record, result);
             verify(repository).update(record);
             verify(client, never()).configLogisticsWarehouse(anyString(), anyString(), anyString());
+        } catch (LogisticsWarehouseConfigException e) {
+            throw new RuntimeException(e);
         }
     }
 
