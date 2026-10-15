@@ -3,6 +3,8 @@ package com.mes.application.command.order;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
 import com.mes.application.command.delivery.GatherPlatformResolver;
+import com.mes.application.command.delivery.JstPrintGuard;
+import com.mes.application.command.delivery.JstPrintUnavailableException;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
@@ -84,6 +86,9 @@ public class AppPreOrderLabelTaskService {
 
     @Autowired
     private WdtService wdtService;
+
+    @Autowired
+    private JstPrintGuard jstPrintGuard;
 
     @Autowired
     private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
@@ -287,6 +292,12 @@ public class AppPreOrderLabelTaskService {
                 preOrderLabelTaskService.markFailed(task, kuaidiNum, mqFailureReason);
             }
         } catch (Exception ex) {
+            if (JstPrintGuard.requiresSmsAuth(ex) || containsExceptionType(ex, JstPrintUnavailableException.class)) {
+                // 保持 PENDING，不消耗打印失败重试次数，不把身份异常写成订单运单号。
+                log.warn("聚水潭预打印暂停，等待客服校验身份或当前操作完成: taskId={}, orderId={}",
+                        task.getId(), task.getOrderId());
+                return;
+            }
             if (containsExceptionType(ex, GatherLabelPrintException.class)) {
                 handleGatherPrintFailure(task, orderInfo, resolveExceptionMessage(ex));
                 return;
@@ -404,27 +415,29 @@ public class AppPreOrderLabelTaskService {
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(platformType);
-            try {
-                platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            } catch (Exception warehouseException) {
-                if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
-                    throw warehouseException;
+            return jstPrintGuard.execute(platformType, () -> {
+                GatherPlatform platform = GatherPlatform.getInstance(platformType);
+                try {
+                    platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+                } catch (Exception warehouseException) {
+                    if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
+                        throw warehouseException;
+                    }
+                    log.info("聚单平台订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
                 }
-                log.info("聚单平台订单仓库与执行仓库相同，跳过换仓并直接打印: orderId={}", uniCode);
-            }
-            LogisticsLabel label;
-            try {
-                label = printGatherPlatformLabel(platform, uniCode, presetType);
-                if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                    throw new IllegalStateException("聚单平台打印未返回物流单号");
+                LogisticsLabel label;
+                try {
+                    label = printGatherPlatformLabel(platform, uniCode, presetType);
+                    if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                        throw new IllegalStateException("聚单平台打印未返回物流单号");
+                    }
+                } catch (Exception printException) {
+                    throw new GatherLabelPrintException(printException);
                 }
-            } catch (Exception printException) {
-                throw new GatherLabelPrintException(printException);
-            }
-            String remark = buildPreOrderGatherRemark(orderInfo, orderItems);
-            saveGatherLabelRecord(config, label, remark, orderInfo);
-            return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
+                String remark = buildPreOrderGatherRemark(orderInfo, orderItems);
+                saveGatherLabelRecord(config, label, remark, orderInfo);
+                return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
+            });
         } catch (Exception ex) {
             throw new IllegalStateException("聚单平台快递换仓或面单打印失败: " + uniCode, ex);
         }

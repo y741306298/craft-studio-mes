@@ -34,6 +34,7 @@ class GatherPlatformLogisticsTest {
     @Test
     void preprintsJstUsingOnlyJstConfigurationAndSavesPlatformSnapshot() throws Exception {
         AppPreOrderLabelTaskService service = new AppPreOrderLabelTaskService();
+        installGuard(service);
         WdtService configs = mock(WdtService.class);
         ReflectionTestUtils.setField(service, "wdtService", configs);
         OrderInfo order = order();
@@ -67,6 +68,7 @@ class GatherPlatformLogisticsTest {
     @Test
     void missingJstConfigDoesNotFallBackToWdt() {
         AppPreOrderLabelTaskService service = new AppPreOrderLabelTaskService();
+        installGuard(service);
         WdtService configs = mock(WdtService.class);
         ReflectionTestUtils.setField(service, "wdtService", configs);
         try (MockedStatic<GatherPlatform> factory = mockStatic(GatherPlatform.class)) {
@@ -79,6 +81,7 @@ class GatherPlatformLogisticsTest {
     @Test
     void reprintsJstWithStoredWaybillAndUpdatesRecord() {
         AppDeliveryPkgService service = new AppDeliveryPkgService();
+        installGuard(service);
         WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
         ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
         WdtLabelRecord record = record();
@@ -100,6 +103,7 @@ class GatherPlatformLogisticsTest {
     @Test
     void reprintCannotReplaceStoredWaybillWithAnotherNumber() {
         AppDeliveryPkgService service = new AppDeliveryPkgService();
+        installGuard(service);
         WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
         ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
         WdtLabelRecord record = record();
@@ -134,6 +138,65 @@ class GatherPlatformLogisticsTest {
             assertSame(pkg, service.reprintGatherPlatformLabel(request));
             factory.verifyNoInteractions();
         }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void lockedJstReprintCannotCallPlatformOrUpdateRecord() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        org.springframework.data.redis.core.RedisTemplate<String, Object> redis = mock(org.springframework.data.redis.core.RedisTemplate.class);
+        org.springframework.data.redis.core.ValueOperations<String, Object> values = mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.setIfAbsent(anyString(), any(), anyLong(), any())).thenReturn(true);
+        when(redis.hasKey(JstPrintGuard.AUTH_LOCK_KEY)).thenReturn(true);
+        ReflectionTestUtils.setField(service, "jstPrintGuard", new JstPrintGuard(redis));
+        WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
+        ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
+        try (MockedStatic<GatherPlatform> factory = mockStatic(GatherPlatform.class)) {
+            assertThrows(JstPrintUnavailableException.class,
+                    () -> ReflectionTestUtils.invokeMethod(service, "reprintGatherPlatformLabel", record()));
+            factory.verifyNoInteractions();
+            verifyNoInteractions(repository);
+        }
+    }
+
+    @Test
+    void customerRetryUsesExistingWaybillEvenWhenLocked() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        installGuard(service);
+        WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
+        ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
+        var orders = mock(com.mes.domain.order.orderInfo.service.OrderInfoService.class);
+        ReflectionTestUtils.setField(service, "orderInfoService", orders);
+        OrderInfo order = order();
+        order.getChannel().setType(com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM);
+        when(orders.findByOrderId("10001")).thenReturn(order);
+        WdtLabelRecord record = record();
+        when(repository.findForPlatform("JST", "10001", "542919", null)).thenReturn(record);
+        GatherPlatform client = mock(GatherPlatform.class);
+        LogisticsLabel label = new LogisticsLabel();
+        label.setLogisticsOrderId("ZTO123");
+        when(client.rePrint("542919", "mes-logistics", true, LogisticsCarrierPresetType.ZTO, "ZTO123")).thenReturn(label);
+        JstPrintGuard guard = (JstPrintGuard) ReflectionTestUtils.getField(service, "jstPrintGuard");
+        org.springframework.data.redis.core.RedisTemplate<String, Object> redis =
+                (org.springframework.data.redis.core.RedisTemplate<String, Object>) ReflectionTestUtils.getField(guard, "redisTemplate");
+        when(redis.hasKey(JstPrintGuard.AUTH_LOCK_KEY)).thenReturn(true);
+        try (MockedStatic<GatherPlatform> factory = mockStatic(GatherPlatform.class)) {
+            factory.when(() -> GatherPlatform.getInstance(GatherPlatformType.JST)).thenReturn(client);
+            assertSame(record, service.retryJstPrintForSmsAuth("10001"));
+            verify(client).rePrint("542919", "mes-logistics", true, LogisticsCarrierPresetType.ZTO, "ZTO123");
+            verify(repository).update(record);
+            verify(redis, never()).delete(JstPrintGuard.AUTH_LOCK_KEY);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void installGuard(Object service) {
+        org.springframework.data.redis.core.RedisTemplate<String, Object> redis = mock(org.springframework.data.redis.core.RedisTemplate.class);
+        org.springframework.data.redis.core.ValueOperations<String, Object> values = mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.setIfAbsent(anyString(), any(), anyLong(), any())).thenReturn(true);
+        ReflectionTestUtils.setField(service, "jstPrintGuard", new JstPrintGuard(redis));
     }
 
     private WdtLabelRecord record() {

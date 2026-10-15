@@ -48,6 +48,7 @@ import com.piliofpala.craftstudio.shared.domain.geo.consignee.vo.Address;
 import com.piliofpala.craftstudio.shared.domain.geo.world.repository.WorldRepository;
 import com.piliofpala.craftstudio.shared.domain.geo.world.vo.World;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.auth.SmsCodeRequiredAuthException;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
 import io.micrometer.common.util.StringUtils;
@@ -101,6 +102,9 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private JstPrintGuard jstPrintGuard;
 
     private final static String DELIVERYKEY = "lCnjtXBY2496";
     private final static String DELIVERYCUSTOMER = "DAAB0437EF6D9C03B8B4FC96C165FFB1";
@@ -1035,21 +1039,31 @@ public class AppDeliveryPkgService {
     }
 
     private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record) {
+        return reprintGatherPlatformLabel(record, false);
+    }
+
+    private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record, boolean recovery) {
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformResolver.resolveCode(record.getPlatformType()));
-            LogisticsLabel label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
-                    LogisticsCarrierPresetType.valueOf(record.getPresetType()),record.getLogisticsOrderId());
-            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
-            }
-            if (!java.util.Objects.equals(record.getLogisticsOrderId(), label.getLogisticsOrderId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打返回不同运单号，禁止替换原面单");
-            }
-            record.setLogisticsOrderId(label.getLogisticsOrderId());
-            record.setConsignee(label.getConsignee());
-            record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
-            wdtLabelRecordRepository.update(record);
-            return record;
+            JstPrintGuard.PrintOperation<WdtLabelRecord> operation = () -> {
+                GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformResolver.resolveCode(record.getPlatformType()));
+                LogisticsLabel label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
+                        LogisticsCarrierPresetType.valueOf(record.getPresetType()),record.getLogisticsOrderId());
+                if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
+                }
+                if (!java.util.Objects.equals(record.getLogisticsOrderId(), label.getLogisticsOrderId())) {
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打返回不同运单号，禁止替换原面单");
+                }
+                record.setLogisticsOrderId(label.getLogisticsOrderId());
+                record.setConsignee(label.getConsignee());
+                record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
+                wdtLabelRecordRepository.update(record);
+                return record;
+            };
+            return recovery ? jstPrintGuard.retryForSmsAuth(operation)
+                    : jstPrintGuard.execute(GatherPlatformResolver.resolveCode(record.getPlatformType()), operation);
+        } catch (SmsCodeRequiredAuthException | JstPrintUnavailableException ex) {
+            throw ex;
         } catch (BusinessNotAllowException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -1074,8 +1088,46 @@ public class AppDeliveryPkgService {
         }
     }
 
+    /** 客服按 MES 订单号再次请求 JST 打印，触发上游身份校验流程，不创建包裹。 */
+    public WdtLabelRecord retryJstPrintForSmsAuth(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            throw new IllegalArgumentException("订单ID不能为空");
+        }
+        OrderInfo order = orderInfoService.findByOrderId(orderId);
+        if (order == null || order.getChannel() == null
+                || order.getChannel().getType() != com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM
+                || GatherPlatformResolver.resolve(order.getChannel()) != GatherPlatformType.JST) {
+            throw new IllegalArgumentException("仅支持聚水潭订单");
+        }
+        if (isKuaidi100TestEnvironment()) {
+            throw new IllegalArgumentException("测试环境禁止调用真实聚水潭打印");
+        }
+        if (order.getLogisticsCarrierInfo() == null || StringUtils.isBlank(order.getManufacturerId())) {
+            throw new IllegalArgumentException("订单缺少工厂或快递信息");
+        }
+        WdtLabelRecord existing = wdtLabelRecordRepository.findForPlatform("JST", order.getOrderId(),
+                order.getChannel().getOrderId(), order.getKuaidiNum());
+        if (existing != null) {
+            return reprintGatherPlatformLabel(existing, true);
+        }
+        DeliveryPkgAddRequest request = new DeliveryPkgAddRequest();
+        request.setManufacturerMetaId(order.getManufacturerId());
+        request.setPieces(java.util.List.of());
+        WdtLabelRecord record = printAndSaveWdtLabelRecordForAddPkg(
+                request, order, order.getLogisticsCarrierInfo().getPresetType(), true);
+        if (record == null) {
+            throw new IllegalArgumentException("订单缺少聚水潭渠道订单号或快递配置");
+        }
+        return record;
+    }
+
     private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
                                                                String presetType) {
+        return printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType, false);
+    }
+
+    private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                                               String presetType, boolean recovery) {
         if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
             return null;
         }
@@ -1091,41 +1143,47 @@ public class AppDeliveryPkgService {
 
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
-            GatherPlatform platform = GatherPlatform.getInstance(platformType);
-            try {
-                platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
-            } catch (Exception warehouseException) {
-                Throwable cause = warehouseException;
-                boolean sameWarehouse = false;
-                while (cause != null) {
-                    if (cause.getMessage() != null && cause.getMessage().contains("换仓失败订单仓库和执行仓库相同，不执行换仓")) {
-                        sameWarehouse = true;
-                        break;
+            JstPrintGuard.PrintOperation<WdtLabelRecord> operation = () -> {
+                GatherPlatform platform = GatherPlatform.getInstance(platformType);
+                try {
+                    platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+                } catch (Exception warehouseException) {
+                    Throwable cause = warehouseException;
+                    boolean sameWarehouse = false;
+                    while (cause != null) {
+                        if (cause.getMessage() != null && cause.getMessage().contains("换仓失败订单仓库和执行仓库相同，不执行换仓")) {
+                            sameWarehouse = true;
+                            break;
+                        }
+                        cause = cause.getCause();
                     }
-                    cause = cause.getCause();
+                    if (!sameWarehouse) throw warehouseException;
                 }
-                if (!sameWarehouse) throw warehouseException;
-            }
-            LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
-            if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
-                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台打包即时打单未返回物流单号");
-            }
-            WdtLabelRecord record = new WdtLabelRecord();
-            record.setManufacturerMetaId(config.getManufacturerMetaId());
-            record.setPlatformType(platformType.name());
-            record.setOrderId(orderInfo.getOrderId());
-            record.setChannelOrderId(uniCode);
-            record.setConsumeStatus(PreOrderLabelConsumeStatus.PRE_ORDERED);
-            record.setWarehouseId(config.getWarehouseId());
-            record.setLogisticsId(config.getLogisticsId());
-            record.setLogisticsName(config.getLogisticsName());
-            record.setPresetType(config.getPresetType());
-            record.setLogisticsOrderId(label.getLogisticsOrderId());
-            record.setConsignee(label.getConsignee());
-            record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
-            record.setRemark(buildDeliveryPkgRemarks(orderInfo.getOrderId(), presetType, label.getLogisticsOrderId(),
-                    request.getPieces(), orderInfo));
-            return wdtLabelRecordRepository.add(record);
+                LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
+                if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台打包即时打单未返回物流单号");
+                }
+                WdtLabelRecord record = new WdtLabelRecord();
+                record.setManufacturerMetaId(config.getManufacturerMetaId());
+                record.setPlatformType(platformType.name());
+                record.setOrderId(orderInfo.getOrderId());
+                record.setChannelOrderId(uniCode);
+                record.setConsumeStatus(PreOrderLabelConsumeStatus.PRE_ORDERED);
+                record.setWarehouseId(config.getWarehouseId());
+                record.setLogisticsId(config.getLogisticsId());
+                record.setLogisticsName(config.getLogisticsName());
+                record.setPresetType(config.getPresetType());
+                record.setLogisticsOrderId(label.getLogisticsOrderId());
+                record.setConsignee(label.getConsignee());
+                record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
+                record.setRemark(buildDeliveryPkgRemarks(orderInfo.getOrderId(), presetType, label.getLogisticsOrderId(),
+                        request.getPieces(), orderInfo));
+                return wdtLabelRecordRepository.add(record);
+            };
+            return recovery ? jstPrintGuard.retryForSmsAuth(operation)
+                    : jstPrintGuard.execute(platformType, operation);
+        } catch (SmsCodeRequiredAuthException | JstPrintUnavailableException ex) {
+            throw ex;
         } catch (BusinessNotAllowException ex) {
             throw ex;
         } catch (Exception ex) {
