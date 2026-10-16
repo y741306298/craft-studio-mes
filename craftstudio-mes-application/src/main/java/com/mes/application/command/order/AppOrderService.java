@@ -1858,7 +1858,8 @@ public class AppOrderService {
 
     /**
      * 取消订单。
-     * 根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
+     * 已参与转单的订单不允许取消。根据订单号查询订单；平台号有值时，按订单号和平台号共同查询。
+     * 若生产工件在“待排版”之后的任意节点已有数量，则不允许取消。
      *
      * @param platformCode 平台号（可为空）
      * @param orderId 订单号
@@ -1868,6 +1869,11 @@ public class AppOrderService {
     public ApiResponse<String> cancelOrder(String platformCode, String orderId) {
         if (StringUtils.isBlank(orderId)) {
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, "订单号不能为空");
+        }
+
+        // 全部转出时源订单会被删除，因此必须先于订单查询检查转单记录。
+        if (orderTransferRecordService.hasTransferRecord(orderId)) {
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "该订单已经生产，无法退单");
         }
 
         OrderInfo orderInfo = domainOrderInfoService.findByOrderIdAndPlatformCode(orderId, platformCode);

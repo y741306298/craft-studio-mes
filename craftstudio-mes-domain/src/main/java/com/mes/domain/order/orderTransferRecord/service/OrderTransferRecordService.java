@@ -42,6 +42,15 @@ public class OrderTransferRecordService {
         return orderTransferRecordRepository.list(1, Math.toIntExact(total));
     }
 
+    /** 转出原订单和转入新订单均不允许退单，包括已全部转出并删除的原订单。 */
+    public boolean hasTransferRecord(String orderId) {
+        if (StringUtils.isBlank(orderId)) {
+            return false;
+        }
+        return orderTransferRecordRepository.filterTotal(Map.of("orderId", orderId)) > 0
+                || orderTransferRecordRepository.filterTotal(Map.of("targetOrderId", orderId)) > 0;
+    }
+
     public List<OrderTransferRecord> findTransferInRecords(String targetId, int current, int size) {
         return findByManufacturerField("targetId", targetId, current, size);
     }
