@@ -7,6 +7,8 @@ import com.mes.application.command.delivery.JstPrintGuard;
 import com.mes.application.command.delivery.JstPrintUnavailableException;
 import com.mes.domain.gatherplatform.wdt.entity.WdtConfig;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
+import com.mes.domain.gatherplatform.wdt.repository.WdtLabelRecordRepository;
+import com.mes.domain.order.preOrderLabelTask.enums.PreOrderLabelTaskStatus;
 import com.mes.domain.gatherplatform.wdt.service.WdtService;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
@@ -91,6 +93,9 @@ public class AppPreOrderLabelTaskService {
     private JstPrintGuard jstPrintGuard;
 
     @Autowired
+    private WdtLabelRecordRepository wdtLabelRecordRepository;
+
+    @Autowired
     private ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
 
     @Autowired
@@ -109,13 +114,64 @@ public class AppPreOrderLabelTaskService {
         if (!batchEnabled) {
             return;
         }
-        List<PreOrderLabelTask> tasks = preOrderLabelTaskService.findPendingTasks();
-        if (tasks == null || tasks.isEmpty()) {
-            return;
+        // 先分页读取待处理快照，再执行，避免锁住的 JST 占满首页而饿死后续 WDT；
+        // 也避免边处理边翻页时状态变化导致 offset 跳过任务。
+        List<PreOrderLabelTask> tasks = new ArrayList<>();
+        for (long page = 1; ; page++) {
+            List<PreOrderLabelTask> batch = preOrderLabelTaskService.findPendingTasks(page, ORDER_QUERY_PAGE_SIZE);
+            if (batch == null || batch.isEmpty()) break;
+            tasks.addAll(batch);
+            if (batch.size() < ORDER_QUERY_PAGE_SIZE) break;
         }
         for (PreOrderLabelTask task : tasks) {
             processTaskWithLock(task);
         }
+    }
+
+    /** 客服无须指定订单；从待预打印任务中选择一个尚无面单的 JST 订单。 */
+    public WdtLabelRecord retryJstPrintForSmsAuth() {
+        if (isKuaidi100TestEnvironment()) {
+            throw new IllegalArgumentException("测试环境禁止调用真实聚水潭打印");
+        }
+        for (long page = 1; ; page++) {
+            List<PreOrderLabelTask> tasks = preOrderLabelTaskService.findPendingTasks(page, ORDER_QUERY_PAGE_SIZE);
+            if (tasks == null || tasks.isEmpty()) break;
+            for (PreOrderLabelTask candidate : tasks) {
+                if (candidate == null || StringUtils.isBlank(candidate.getId())) continue;
+                String key = TASK_LOCK_PREFIX + candidate.getId();
+                String token = UUID.randomUUID().toString();
+                if (!Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
+                        key, token, TASK_LOCK_TTL_HOURS, TimeUnit.HOURS))) continue;
+                try {
+                    // 取得与定时任务相同的任务锁后重新读取，防止选中刚完成或正在打印的任务。
+                    PreOrderLabelTask task = preOrderLabelTaskService.findById(candidate.getId());
+                    if (task == null || task.getStatus() != PreOrderLabelTaskStatus.PENDING
+                            || StringUtils.isBlank(task.getOrderId()) || StringUtils.isNotBlank(task.getKuaidiNum())) continue;
+                    OrderInfo order = orderInfoService.findByOrderId(task.getOrderId());
+                    if (!isJstOrder(order) || OrderStatus.RETURNED.equals(order.getStatus())
+                            || StringUtils.isNotBlank(order.getKuaidiNum())
+                            || StringUtils.isBlank(order.getChannel().getOrderId())
+                            || StringUtils.isBlank(order.getManufacturerId()) || order.getLogisticsCarrierInfo() == null) continue;
+                    if (wdtLabelRecordRepository.findForPlatform("JST", order.getOrderId(),
+                            order.getChannel().getOrderId(), null) != null) continue;
+                    String presetType = order.getLogisticsCarrierInfo().getPresetType();
+                    if (StringUtils.isBlank(presetType)
+                            || wdtService.findConfig("JST", order.getManufacturerId(), presetType) == null) continue;
+                    // 只尝试一个订单；上游验证码异常原样交由接口处理，不轮询发送多次短信。
+                    return appDeliveryPkgService.retryJstPrintForSmsAuth(order.getOrderId());
+                } finally {
+                    redisTemplate.execute(RELEASE_TASK_LOCK_SCRIPT, Collections.singletonList(key), token);
+                }
+            }
+            if (tasks.size() < ORDER_QUERY_PAGE_SIZE) break;
+        }
+        throw new IllegalArgumentException("没有可用于身份校验的待预打印聚水潭订单");
+    }
+
+    private boolean isJstOrder(OrderInfo order) {
+        return order != null && isGatherPlatform(order)
+                && "JST".equalsIgnoreCase(order.getChannel().getCode() == null
+                        ? "" : order.getChannel().getCode().trim());
     }
 
     /**
@@ -251,6 +307,10 @@ public class AppPreOrderLabelTaskService {
                 return;
             }
 
+            if (isJstOrder(orderInfo) && !isKuaidi100TestEnvironment()) {
+                // 尽早跳过锁定订单，避免查询工件、调用上游或消耗失败次数。
+                jstPrintGuard.assertPrintingAllowed(GatherPlatformType.JST);
+            }
             List<OrderItem> orderItems = orderItemService.findByOrderId(task.getOrderId(), null, 1, 100);
             List<ProductionPiece> productionPieces = findProductionPieces(orderItems);
             if (productionPieces.isEmpty()) {
@@ -321,7 +381,7 @@ public class AppPreOrderLabelTaskService {
     }
 
     /**
-     * 记录本次聚单平台打印失败。失败次数达到三次前保持任务为 PENDING，由十分钟定时批次再次执行；
+     * 记录 JST/WDT 普通打印失败。失败次数达到三次前保持 PENDING；
      * 第三次失败时发送失败原因 MQ，并将任务更新为失败。
      */
     private void handleGatherPrintFailure(PreOrderLabelTask task, OrderInfo orderInfo, String failureReason) {
@@ -416,6 +476,14 @@ public class AppPreOrderLabelTaskService {
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
             return jstPrintGuard.execute(platformType, () -> {
+                if (platformType == GatherPlatformType.JST) {
+                    WdtLabelRecord existing = wdtLabelRecordRepository.findForPlatform("JST", orderInfo.getOrderId(),
+                            orderInfo.getChannel().getOrderId(), null);
+                    if (existing != null && StringUtils.isNotBlank(existing.getLogisticsOrderId())) {
+                        // 客服恢复操作可能已成功生成面单，继续原预打印结果同步，不再请求上游打印。
+                        return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, existing.getLogisticsOrderId());
+                    }
+                }
                 GatherPlatform platform = GatherPlatform.getInstance(platformType);
                 try {
                     platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);

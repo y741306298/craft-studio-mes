@@ -32,6 +32,12 @@ public class JstPrintGuard {
         T run() throws Exception;
     }
 
+    public void assertPrintingAllowed(GatherPlatformType platform) {
+        if (platform == GatherPlatformType.JST && Boolean.TRUE.equals(redisTemplate.hasKey(AUTH_LOCK_KEY))) {
+            throw new JstPrintUnavailableException(AUTH_REQUIRED_MESSAGE);
+        }
+    }
+
     public <T> T execute(GatherPlatformType platform, PrintOperation<T> operation) throws Exception {
         if (platform != GatherPlatformType.JST) {
             return operation.run();
@@ -47,8 +53,8 @@ public class JstPrintGuard {
     private <T> T executeJst(boolean recovery, PrintOperation<T> operation) throws Exception {
         String token = acquireOperation();
         try {
-            if (!recovery && Boolean.TRUE.equals(redisTemplate.hasKey(AUTH_LOCK_KEY))) {
-                throw new JstPrintUnavailableException(AUTH_REQUIRED_MESSAGE);
+            if (!recovery) {
+                assertPrintingAllowed(GatherPlatformType.JST);
             }
             try {
                 return operation.run();

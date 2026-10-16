@@ -190,6 +190,28 @@ class GatherPlatformLogisticsTest {
         }
     }
 
+    @Test
+    void preprintReusesSuccessfulCustomerRecoveryLabelWithoutPrintingAgain() {
+        AppPreOrderLabelTaskService service = new AppPreOrderLabelTaskService();
+        installGuard(service);
+        WdtService configs = mock(WdtService.class);
+        WdtConfig config = new WdtConfig();
+        when(configs.findConfig("JST", "factory", "ZTO")).thenReturn(config);
+        ReflectionTestUtils.setField(service, "wdtService", configs);
+        WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
+        ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
+        WdtLabelRecord saved = record();
+        when(repository.findForPlatform("JST", "10001", "542919", null)).thenReturn(saved);
+        try (MockedStatic<GatherPlatform> factory = mockStatic(GatherPlatform.class)) {
+            AppDeliveryPkgService.DeliveryPkgPrintResult result = ReflectionTestUtils.invokeMethod(
+                    service, "preOrderGatherPlatformLabel", order(), List.of());
+            assertNotNull(result);
+            assertEquals("ZTO123", result.getKuaidiNum());
+            factory.verifyNoInteractions();
+            verify(configs, never()).saveLabelRecord(any());
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private void installGuard(Object service) {
         org.springframework.data.redis.core.RedisTemplate<String, Object> redis = mock(org.springframework.data.redis.core.RedisTemplate.class);
@@ -197,6 +219,9 @@ class GatherPlatformLogisticsTest {
         when(redis.opsForValue()).thenReturn(values);
         when(values.setIfAbsent(anyString(), any(), anyLong(), any())).thenReturn(true);
         ReflectionTestUtils.setField(service, "jstPrintGuard", new JstPrintGuard(redis));
+        if (service instanceof AppPreOrderLabelTaskService) {
+            ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", mock(WdtLabelRecordRepository.class));
+        }
     }
 
     private WdtLabelRecord record() {

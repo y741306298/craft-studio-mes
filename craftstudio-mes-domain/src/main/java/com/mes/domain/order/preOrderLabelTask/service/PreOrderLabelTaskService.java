@@ -31,9 +31,17 @@ public class PreOrderLabelTaskService {
     }
 
     public List<PreOrderLabelTask> findPendingTasks() {
+        return findPendingTasks(1, DEFAULT_PENDING_PAGE_SIZE);
+    }
+
+    public PreOrderLabelTask findById(String id) {
+        return preOrderLabelTaskRepository.findById(id);
+    }
+
+    public List<PreOrderLabelTask> findPendingTasks(long current, int size) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("status", PreOrderLabelTaskStatus.PENDING.getCode());
-        return preOrderLabelTaskRepository.filterList(1, DEFAULT_PENDING_PAGE_SIZE, filters);
+        return preOrderLabelTaskRepository.filterList(current, size, filters);
     }
 
     public void delete(PreOrderLabelTask task) {

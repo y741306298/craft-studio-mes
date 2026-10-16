@@ -1,6 +1,6 @@
 package com.mes.interfaces.api.platform.configSide.wdt;
 
-import com.mes.application.command.delivery.AppDeliveryPkgService;
+import com.mes.application.command.order.AppPreOrderLabelTaskService;
 import com.mes.application.command.delivery.JstPrintGuard;
 import com.mes.domain.gatherplatform.wdt.entity.WdtLabelRecord;
 import com.mes.application.command.wdt.req.WdtConfigListRequest;
@@ -30,7 +30,7 @@ public class WdtController {
     private JstPrintGuard jstPrintGuard;
 
     @Autowired
-    private AppDeliveryPkgService appDeliveryPkgService;
+    private AppPreOrderLabelTaskService appPreOrderLabelTaskService;
 
     /**
      * 提交聚水潭短信验证码，完成 SID 授权。
@@ -43,10 +43,10 @@ public class WdtController {
         return ApiResponse.success();
     }
 
-    /** 客服重试 JST 打印以获取新的验证码；绕过身份锁，成功也不自动解锁。 */
+    /** 客服自动选择待预打印 JST 订单以获取新的验证码；绕过身份锁，成功也不自动解锁。 */
     @PostMapping("/retryJstPrintForSmsAuth")
-    public ApiResponse<WdtLabelRecord> retryJstPrintForSmsAuth(@RequestParam("orderId") String orderId) {
-        return ApiResponse.success(appDeliveryPkgService.retryJstPrintForSmsAuth(orderId));
+    public ApiResponse<WdtLabelRecord> retryJstPrintForSmsAuth() {
+        return ApiResponse.success(appPreOrderLabelTaskService.retryJstPrintForSmsAuth());
     }
 
     /**
