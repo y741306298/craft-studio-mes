@@ -23,6 +23,8 @@ GET /api/algorithmCoreApiCallRecord?type=generateMaskFilesAsync&sourceId=ORDER_I
 | `generateMaskFilesSync` | 同步图片遮罩抠图 | `callbackCustomValue.orderItemId` |
 | `convertGrayImgToSvgAsync` | 异步灰度图转 SVG | `callbackCustomValue.orderItemId` |
 | `convertGrayImgToSvg` | 同步灰度图转 SVG | `callbackCustomValue.orderItemId` |
+| `convertColorWhiteColorAsync` | 异步彩白彩图像转换 | `callbackCustomValue.id` |
+| `convertColorWhiteColor` | 同步彩白彩图像转换 | `callbackCustomValue.id` |
 | `generateNestedFilesAsync` | 异步通用排版 | `callbackCustomValue.id` |
 | `generateNestedFilesSync` | 同步通用排版 | `callbackCustomValue.id` |
 | `generateGridNestedFilesAsync` | 异步网格排版 | `callbackCustomValue.id` |
@@ -55,6 +57,7 @@ GET /api/algorithmCoreApiCallRecord?type=generateMaskFilesAsync&sourceId=ORDER_I
 |---|---|---|---|---|
 | `generateMaskFilesAsync(ImageMaskRequest)` | `generateMaskFilesAsync` | 是 | `callbackCustomValue.orderItemId` | 订单项 ID |
 | `convertGrayImgToSvgAsync(GrayImgToSvgRequest)` | `convertGrayImgToSvgAsync` | 是 | `callbackCustomValue.orderItemId` | 订单项 ID；当前业务代码未调用该异步方法 |
+| `convertColorWhiteColorAsync(ColorWhiteColorRequest)` | `convertColorWhiteColorAsync` | 是 | `callbackCustomValue.id` | 调用方指定的业务 ID |
 | `generateNestedFilesAsync(NestingRequest)` | `generateNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
 | `generateGridNestedFilesAsync(NestingRequest)` | `generateGridNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |
 | `generateRectNestedFilesAsync(NestingRequest)` | `generateRectNestedFilesAsync` | 是 | `callbackCustomValue.id` | 本次排版的 `cacheKey` / typesettingId |

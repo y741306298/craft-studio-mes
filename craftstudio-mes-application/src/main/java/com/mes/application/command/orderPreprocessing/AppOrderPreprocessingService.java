@@ -3,6 +3,8 @@ package com.mes.application.command.orderPreprocessing;
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.GrayImgToSvgRequest;
+import com.mes.application.command.api.req.ColorWhiteColorRequest;
+import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
@@ -200,6 +202,9 @@ public class AppOrderPreprocessingService {
     @Value("${external.callbackApi.generate_mask_files}")
     private String generateMaskFilesApiUrl;
 
+    @Value("${external.callbackApi.convert_color_white_color:}")
+    private String convertColorWhiteColorCallbackUrl;
+
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}}")
     private String ossEndpoint;
 
@@ -357,6 +362,107 @@ public class AppOrderPreprocessingService {
         imageMaskRequest.setCallbackConfig(callbackConfig);
         // 步骤5：异步调用 generateMaskFilesAsync。
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+    }
+
+    /** 返回 true 表示可继续预处理；false 表示等待彩白彩算法回调。 */
+    public boolean convertColorWhiteColorIfNecessary(OrderItem orderItem) {
+        if (!hasColorWhiteColorProcess(orderItem)) {
+            return true;
+        }
+        ImageFile image = orderItem.getProductionImgFile();
+        if (image == null || StringUtils.isBlank(image.getRawFile())) {
+            throw new RuntimeException("彩白彩转换原始图片URL不能为空");
+        }
+        if (Objects.equals(image.getRawFile(), orderItem.getColorWhiteColorDownloadUrl())) {
+            return true;
+        }
+        String callbackUrl = convertColorWhiteColorCallbackUrl;
+        if (StringUtils.isBlank(callbackUrl)) {
+            if (StringUtils.isBlank(generateMaskFilesApiUrl)
+                    || !generateMaskFilesApiUrl.endsWith("/callback/generate_mask_files")) {
+                throw new RuntimeException("彩白彩转换回调地址未配置");
+            }
+            callbackUrl = generateMaskFilesApiUrl.replace("/callback/generate_mask_files",
+                    "/callback/convert_color_white_color");
+        }
+        ColorWhiteColorRequest request = new ColorWhiteColorRequest();
+        request.setImageUrl(image.getRawFile());
+        UploadConfig uploadConfig = new UploadConfig();
+        uploadConfig.setOssConfig(aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId()));
+        uploadConfig.setUploadPath(StringUtils.isBlank(orderItem.getManufacturerId())
+                ? "pieceImg/" : "pieceImg/" + orderItem.getManufacturerId() + "/");
+        request.setUploadConfig(uploadConfig);
+        CallbackCustomValue customValue = new CallbackCustomValue();
+        customValue.setId(orderItem.getOrderItemId());
+        customValue.setOrderItemId(orderItem.getOrderItemId());
+        customValue.setPreprocessRequestId(ensurePreprocessRequestId(orderItem));
+        CallbackConfig callbackConfig = new CallbackConfig();
+        callbackConfig.setCallbackUrl(callbackUrl);
+        callbackConfig.setCallbackCustomValue(customValue);
+        request.setCallbackConfig(callbackConfig);
+        ColorWhiteColorResponse accepted = algorithmCoreApiService.convertColorWhiteColorAsync(request);
+        if (accepted != null && accepted.getCode() != null
+                && accepted.getCode() != 200 && accepted.getCode() != 202) {
+            throw new RuntimeException("彩白彩转换任务提交失败：" + accepted.getMessage());
+        }
+        return false;
+    }
+
+    static boolean hasColorWhiteColorProcess(OrderItem orderItem) {
+        return orderItem != null && orderItem.getProcedureFlow() != null
+                && orderItem.getProcedureFlow().getNodes() != null
+                && orderItem.getProcedureFlow().getNodes().stream().filter(Objects::nonNull)
+                .anyMatch(node -> "弱溶剂彩白彩".equals(node.getNodeName()));
+    }
+
+    /** 在图片更新和后续任务入队均成功后记录完成，重复回调不会再次生成生产零件。 */
+    public void handleConvertColorWhiteColorCallback(ColorWhiteColorResponse response,
+                                                     java.util.function.Consumer<OrderItem> continuation) {
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())
+                || response.getData() == null || response.getData().getCallbackCustomValue() == null
+                || StringUtils.isBlank(response.getData().getCallbackCustomValue().getId())
+                || StringUtils.isBlank(response.getData().getDownloadUrl())) {
+            throw new RuntimeException("彩白彩转换回调失败或缺少订单项ID/下载地址");
+        }
+        CallbackCustomValue customValue = response.getData().getCallbackCustomValue();
+        String orderItemId = customValue.getId();
+        String key = "orderPreprocessing:colorWhiteColorCallback:" + orderItemId + ":"
+                + customValue.getPreprocessRequestId();
+        String token = UUID.randomUUID().toString();
+        if (!Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key + ":lock", token, 10, TimeUnit.MINUTES))) {
+            throw new RuntimeException("彩白彩转换回调正在处理中，请重试");
+        }
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key + ":completed"))) {
+                return;
+            }
+            OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+            if (orderItem == null) {
+                throw new RuntimeException("订单项不存在：" + orderItemId);
+            }
+            if (isOrderItemCancelled(orderItemId) || isReturnedOrderItem(orderItem)
+                    || isReturnedOrder(orderItem.getOrderId())
+                    || !isCurrentPreprocessCallback(orderItem, customValue.getPreprocessRequestId())) {
+                log.warn("忽略已取消或过期彩白彩转换回调: orderItemId={}", orderItemId);
+                return;
+            }
+            ImageFile image = orderItem.getProductionImgFile();
+            if (image == null) {
+                image = new ImageFile();
+                orderItem.setProductionImgFile(image);
+            }
+            image.setRawFile(response.getData().getDownloadUrl());
+            if (image.getFilePreview() == null) {
+                image.setFilePreview(new FilePreview());
+            }
+            image.getFilePreview().setRaw(response.getData().getDownloadUrl());
+            orderItem.setColorWhiteColorDownloadUrl(response.getData().getDownloadUrl());
+            orderItemService.updateOrderItem(orderItem);
+            continuation.accept(orderItem);
+            redisTemplate.opsForValue().set(key + ":completed", true, 7, TimeUnit.DAYS);
+        } finally {
+            releaseMaskCallbackLock(key + ":lock", token);
+        }
     }
 
     public void convertMaskGrayImgToSvgIfNecessary(OrderItem orderItem) {

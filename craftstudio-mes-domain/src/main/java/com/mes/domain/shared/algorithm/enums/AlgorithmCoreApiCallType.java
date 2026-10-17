@@ -11,6 +11,8 @@ public enum AlgorithmCoreApiCallType {
     GENERATE_MASK_FILES_SYNC("generateMaskFilesSync", "同步图片遮罩抠图", "orderItemId"),
     CONVERT_GRAY_IMG_TO_SVG_ASYNC("convertGrayImgToSvgAsync", "异步灰度图转 SVG", "orderItemId"),
     CONVERT_GRAY_IMG_TO_SVG("convertGrayImgToSvg", "同步灰度图转 SVG", "orderItemId"),
+    CONVERT_COLOR_WHITE_COLOR_ASYNC("convertColorWhiteColorAsync", "异步彩白彩图像转换", "id"),
+    CONVERT_COLOR_WHITE_COLOR("convertColorWhiteColor", "同步彩白彩图像转换", "id"),
     GENERATE_NESTED_FILES_ASYNC("generateNestedFilesAsync", "异步通用排版", "id"),
     GENERATE_NESTED_FILES_SYNC("generateNestedFilesSync", "同步通用排版", "id"),
     GENERATE_GRID_NESTED_FILES_ASYNC("generateGridNestedFilesAsync", "异步网格排版", "id"),

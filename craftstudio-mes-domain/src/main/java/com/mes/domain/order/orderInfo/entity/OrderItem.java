@@ -42,6 +42,8 @@ public class OrderItem extends BaseEntity {
      * 当前订单项正在等待的预处理请求 ID，用于区分重做前后的异步算法回调。
      */
     private String preprocessRequestId;
+    /** 最近一次彩白彩转换结果，用于在队列重试时避免重复转换。 */
+    private String colorWhiteColorDownloadUrl;
     private String kuaidiWay;
     private String kuaidiNum;
     private OrderChannelInfo channel;

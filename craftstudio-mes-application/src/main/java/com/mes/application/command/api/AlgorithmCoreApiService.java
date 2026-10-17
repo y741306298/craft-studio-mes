@@ -5,11 +5,13 @@ import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.api.req.ColorWhiteColorRequest;
 import com.mes.application.command.api.req.GrayImgToSvgRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.req.SvgToPltRequest;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
+import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.resp.NestingResponse;
@@ -58,6 +60,60 @@ public class AlgorithmCoreApiService {
 
     @Value("${external.api.generateMaskFilesUrl}")
     private String generateMaskFilesUrl;
+
+    @Value("${external.api.convertColorWhiteColorUrl:}")
+    private String convertColorWhiteColorUrl;
+
+    /**
+     * 彩白彩图像转换 - 同步模式。
+     *
+     * @param request 图像及 OSS 上传配置
+     * @return 转换后的图像下载地址及回调透传数据
+     */
+    public ColorWhiteColorResponse convertColorWhiteColor(ColorWhiteColorRequest request) {
+        validateColorWhiteColorRequest(request);
+        return callAlgorithmSync(convertColorWhiteColorUrl, "", request,
+                "convertColorWhiteColor", ColorWhiteColorResponse.class);
+    }
+
+    /**
+     * 彩白彩图像转换 - 异步模式，结果通过请求指定的回调地址返回。
+     *
+     * @param request 图像、OSS 上传配置及回调配置
+     * @return 任务接受响应，HTTP 202 无响应体时为 null
+     */
+    public ColorWhiteColorResponse convertColorWhiteColorAsync(ColorWhiteColorRequest request) {
+        validateColorWhiteColorRequest(request);
+        if (request.getCallbackConfig() == null
+                || isBlank(request.getCallbackConfig().getCallbackUrl())) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
+        }
+        return callAlgorithmAsync(convertColorWhiteColorUrl, "", request,
+                request.getCallbackConfig().getCallbackUrl(),
+                "convertColorWhiteColorAsync", ColorWhiteColorResponse.class);
+    }
+
+    private void validateColorWhiteColorRequest(ColorWhiteColorRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (isBlank(request.getImageUrl())) {
+            throw new RuntimeException("原始图片URL不能为空");
+        }
+        if (request.getUploadConfig() == null) {
+            throw new RuntimeException("上传配置不能为空");
+        }
+        if (request.getUploadConfig().getOssConfig() == null) {
+            throw new RuntimeException("OSS上传配置不能为空");
+        }
+        if (isBlank(request.getUploadConfig().getUploadPath())) {
+            throw new RuntimeException("图像上传路径不能为空");
+        }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
 
     /**
      * 同步调用算法服务

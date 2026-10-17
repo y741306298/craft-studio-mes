@@ -109,6 +109,16 @@ public class OrderPreprocessTaskQueue {
         }
     }
 
+    /** 回调可能早于原提交任务退出，续处理任务必须入队，不能被 queuedOrderItemIds 吞掉。 */
+    public void submitConvertedOrderItem(OrderItem orderItem) {
+        if (queue == null) {
+            throw new IllegalStateException("订单预处理任务队列尚未初始化");
+        }
+        if (!queue.offer(new OrderPreprocessTask(List.of(orderItem), 0))) {
+            throw new IllegalStateException("订单预处理任务队列已满，请重试回调");
+        }
+    }
+
     /**
      * 取消尚未处理或正在处理的订单项。预处理服务还会在生产工件入库前再次检查取消标记。
      */
@@ -202,9 +212,35 @@ public class OrderPreprocessTaskQueue {
                     .filter(item -> item != null
                             && !appOrderPreprocessingService.isOrderItemCancelled(item.getOrderItemId()))
                     .toList();
-            List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(activeOrderItems);
+            List<OrderItem> conversionReady = new ArrayList<>();
+            List<String> failedIds = new ArrayList<>();
+            List<String> failures = new ArrayList<>();
+            for (OrderItem queuedItem : activeOrderItems) {
+                // 重试或回调恢复时读取最新图片，避免使用转换前的队列快照。
+                OrderItem item = orderItemService.findByOrderItemId(queuedItem.getOrderItemId());
+                if (item == null) {
+                    continue;
+                }
+                try {
+                    if (appOrderPreprocessingService.convertColorWhiteColorIfNecessary(item)) {
+                        conversionReady.add(item);
+                    }
+                } catch (Exception failure) {
+                    failedIds.add(item.getOrderItemId());
+                    failures.add(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
+                }
+            }
+            List<OrderItem> readyOrderItems = appOrderPreprocessingService.convertMaskGrayImgToSvgIfNecessary(conversionReady);
             log.info("订单预处理任务灰度图转换完成: originalItemCount={}, readyItemCount={}", task.getOrderItems().size(), readyOrderItems == null ? 0 : readyOrderItems.size());
-            appOrderPreprocessingService.preprocessOrder(readyOrderItems);
+            try {
+                appOrderPreprocessingService.preprocessOrder(readyOrderItems);
+            } catch (OrderPreprocessBatchException failure) {
+                failedIds.addAll(failure.getFailedOrderItemIds());
+                failures.add(failure.getMessage());
+            }
+            if (!failedIds.isEmpty()) {
+                throw new OrderPreprocessBatchException(failedIds, failures);
+            }
             log.info("订单预处理任务处理完成: itemCount={}", readyOrderItems == null ? 0 : readyOrderItems.size());
             return true;
         } catch (Exception ex) {
