@@ -470,17 +470,18 @@ public class OrderController {
     }
 
     /**
-     * 灰度图转 SVG 回调接口。
+     * 彩白彩图像转换回调接口，兼容 JSON 和表单报文。
      *
-     * @param response 算法服务返回的 SVG 对象名与订单项 ID
+     * @param payload 算法服务返回的原始报文
      * @return 操作结果
      */
     @PostMapping("/callback/convert_color_white_color")
-    public ApiResponse<String> handleConvertColorWhiteColorCallback(@RequestBody ColorWhiteColorResponse response) {
-        logger.info("========== handleConvertColorWhiteColorCallback 入参开始 ==========");
-        logger.info("request: " + JsonLogUtil.toJSONString(response));
-        logger.info("========== handleConvertColorWhiteColorCallback 入参结束 ==========");
+    public ApiResponse<String> handleConvertColorWhiteColorCallback(@RequestBody String payload) {
         try {
+            ColorWhiteColorResponse response = ColorWhiteColorCallbackParser.parse(payload);
+            logger.info("========== handleConvertColorWhiteColorCallback 入参开始 ==========");
+            logger.info("request: " + JsonLogUtil.toJSONString(response));
+            logger.info("========== handleConvertColorWhiteColorCallback 入参结束 ==========");
             appOrderPreprocessingService.handleConvertColorWhiteColorCallback(
                     response, orderPreprocessTaskQueue::submitConvertedOrderItem);
             return ApiResponse.success("回调处理成功");

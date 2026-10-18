@@ -70,3 +70,17 @@ external.api.convertColorWhiteColorUrl=https://test-cr-palette-thgxsboxut.cn-han
 调用记录类型为 `convertColorWhiteColor` / `convertColorWhiteColorAsync`，`sourceId` 来自 `callbackCustomValue.id`。HTTP 成功与业务成功分开判断：调用方应检查返回的 `code` 是否为 `200`。
 
 异步机制沿用已有算法约定，仍需使用有效临时授权及可访问的回调地址完成实际联调。
+
+## 回调 Content-Type 兼容（2026-10-18）
+
+订单回调接口同时支持：
+
+- `application/json`：直接发送完整 JSON 对象，推荐算法侧使用 `requests.post(callback_url, json=callback_data)`。
+- `application/x-www-form-urlencoded;charset=UTF-8`：发送 `code`、`message` 和 `data` 三个表单字段，其中 `data` 是包含 `downloadUrl`、`callbackCustomValue` 的 JSON 字符串。兼容 Python 表单提交中使用单引号的嵌套对象文本。
+- 原始 JSON 报文误标为表单 Content-Type 时也可解析。
+
+表单值按 UTF-8 解码一次，保留下载地址中原有的百分号编码；重复字段、空报文或缺少 `data` 的表单返回业务失败。解析后沿用原有成功码、订单项 ID、下载地址、预处理请求版本和重复回调校验。
+
+完整回调 URL 应为 `http://121.40.134.45:8081/api/manufacturerSide/order/callback/convert_color_white_color`（该部署使用 HTTP 时）。请在实际配置中核对完整路径，算法侧应完整透传 `callbackCustomValue`，包括 `preprocessRequestId`。
+
+此前 `Content-Type 'application/x-www-form-urlencoded;charset=UTF-8' is not supported` 表示请求在进入业务方法前被拒绝，图片未通过该次回调更新。部署兼容修复后可重新发送原始有效回调。
