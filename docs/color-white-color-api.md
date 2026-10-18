@@ -61,7 +61,7 @@ external.api.convertColorWhiteColorUrl=https://test-cr-palette-thgxsboxut.cn-han
 订单回调接口：`POST /api/manufacturerSide/order/callback/convert_color_white_color`。
 可通过 `external.callbackApi.convert_color_white_color` 配置完整回调地址；未配置时，沿用抠图回调的域名，将 `/callback/generate_mask_files` 替换为上述新路径。
 
-`addOrderWithItems` 入库后沿用后台队列。订单项工艺节点的 `nodeName` 为“弱溶剂彩白彩”时，先提交彩白彩异步转换，本轮不继续灰度图转换或抠图。上传配置沿用其他算法的 STS 获取方式和 `pieceImg/{manufacturerId}/` 路径，`callbackCustomValue.id` 为 `orderItemId`，同时透传 `preprocessRequestId` 以过滤旧回调。
+`addOrderWithItems` 入库后沿用后台队列。订单项工艺节点的 `nodeName` 为“弱溶剂彩白彩正喷”时，先提交彩白彩异步转换，本轮不继续灰度图转换或抠图。上传配置沿用其他算法的 STS 获取方式和 `pieceImg/{manufacturerId}/` 路径，`callbackCustomValue.id` 为 `orderItemId`，同时透传 `preprocessRequestId` 以过滤旧回调。
 
 成功回调根据 `data.callbackCustomValue.id` 查找订单项，将 `data.downloadUrl` 同时更新到 `productionImgFile.rawFile` 和 `productionImgFile.filePreview.raw`，并持久化 `colorWhiteColorDownloadUrl`。更新成功后续处理任务入队，继续原有灰度图转 SVG、抠图等逻辑；生产图片已等于转换结果时跳过再次转换。
 

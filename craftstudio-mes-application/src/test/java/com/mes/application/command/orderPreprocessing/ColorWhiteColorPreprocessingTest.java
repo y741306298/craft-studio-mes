@@ -55,7 +55,7 @@ class ColorWhiteColorPreprocessingTest {
         image.setRawFile("https://images.example/input.tif");
         item.setProductionImgFile(image);
         ProcedureFlowNode node = new ProcedureFlowNode();
-        node.setNodeName("弱溶剂彩白彩");
+        node.setNodeName("弱溶剂彩白彩正喷");
         ProcedureFlow flow = new ProcedureFlow();
         flow.setNodes(List.of(node));
         item.setProcedureFlow(flow);
@@ -75,6 +75,13 @@ class ColorWhiteColorPreprocessingTest {
         assertEquals("request-1", request.getValue().getCallbackConfig().getCallbackCustomValue().getPreprocessRequestId());
         assertEquals("https://mes.example/api/manufacturerSide/order/callback/convert_color_white_color",
                 request.getValue().getCallbackConfig().getCallbackUrl());
+    }
+
+    @Test
+    void previousProcessNameDoesNotTriggerConversion() {
+        item.getProcedureFlow().getNodes().get(0).setNodeName("弱溶剂彩白彩");
+        assertTrue(service.convertColorWhiteColorIfNecessary(item));
+        verifyNoInteractions(algorithm);
     }
 
     @Test

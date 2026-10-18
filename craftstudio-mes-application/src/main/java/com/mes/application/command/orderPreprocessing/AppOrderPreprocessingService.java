@@ -412,7 +412,7 @@ public class AppOrderPreprocessingService {
         return orderItem != null && orderItem.getProcedureFlow() != null
                 && orderItem.getProcedureFlow().getNodes() != null
                 && orderItem.getProcedureFlow().getNodes().stream().filter(Objects::nonNull)
-                .anyMatch(node -> "弱溶剂彩白彩".equals(node.getNodeName()));
+                .anyMatch(node -> "弱溶剂彩白彩正喷".equals(node.getNodeName()));
     }
 
     /** 在图片更新和后续任务入队均成功后记录完成，重复回调不会再次生成生产零件。 */
