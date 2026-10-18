@@ -477,6 +477,9 @@ public class OrderController {
      */
     @PostMapping("/callback/convert_color_white_color")
     public ApiResponse<String> handleConvertColorWhiteColorCallback(@RequestBody ColorWhiteColorResponse response) {
+        logger.info("========== handleConvertColorWhiteColorCallback 入参开始 ==========");
+        logger.info("request: " + JsonLogUtil.toJSONString(response));
+        logger.info("========== handleConvertColorWhiteColorCallback 入参结束 ==========");
         try {
             appOrderPreprocessingService.handleConvertColorWhiteColorCallback(
                     response, orderPreprocessTaskQueue::submitConvertedOrderItem);

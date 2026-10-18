@@ -353,7 +353,7 @@ public class DeliveryPkgController {
     @PostMapping("/reprint")
     public ApiResponse<Object> reprint(@RequestBody DeliveryPkgActionRequest request) {
         DeliveryPkg deliveryPkg = appDeliveryPkgService.findByDeliveryPkgId(request.getDeliveryPkgId());
-        if ("CUSTOM".equalsIgnoreCase(deliveryPkg.getPresetType())) {
+        if ("CUSTOM".equalsIgnoreCase(deliveryPkg.getPresetType()) || "DOOR_2_DOOR".equalsIgnoreCase(deliveryPkg.getPresetType())) {
             return ApiResponse.success(buildAddResult(deliveryPkg));
         }
         OrderInfo order = orderInfoService.findByOrderId(deliveryPkg.getOrderId());
