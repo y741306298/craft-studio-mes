@@ -815,7 +815,7 @@ public class AppOrderService {
                 .toList());
         saveOrderDailyStatistics(orderInfo, orderItemsResult);
         preOrderLabelTaskService.createFromOrderInfo(orderInfo);
-        // 后台队列先处理“弱溶剂彩白彩正喷”，等待转换回调后再继续灰度图转 SVG、抠图等预处理。
+        // 后台队列先处理“弱溶剂彩白彩正喷 / 弱溶剂白彩正喷 / 弱溶剂彩白正喷”，等待转换回调后再继续灰度图转 SVG、抠图等预处理。
         log.info("addOrderWithItems 准备提交订单预处理任务: orderId={}, itemCount={}",
                 orderInfo.getOrderId(), orderItemsResult == null ? 0 : orderItemsResult.size());
         orderPreprocessTaskQueue.submit(orderItemsResult);

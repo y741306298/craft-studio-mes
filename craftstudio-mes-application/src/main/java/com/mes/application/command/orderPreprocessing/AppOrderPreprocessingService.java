@@ -408,11 +408,15 @@ public class AppOrderPreprocessingService {
         return false;
     }
 
+    private static final Set<String> COLOR_WHITE_COLOR_PROCESS_NAMES = Set.of(
+            "弱溶剂彩白彩正喷", "弱溶剂白彩正喷", "弱溶剂彩白正喷");
+
     static boolean hasColorWhiteColorProcess(OrderItem orderItem) {
         return orderItem != null && orderItem.getProcedureFlow() != null
                 && orderItem.getProcedureFlow().getNodes() != null
                 && orderItem.getProcedureFlow().getNodes().stream().filter(Objects::nonNull)
-                .anyMatch(node -> "弱溶剂彩白彩正喷".equals(node.getNodeName()));
+                .anyMatch(node -> node.getNodeName() != null
+                        && COLOR_WHITE_COLOR_PROCESS_NAMES.contains(node.getNodeName()));
     }
 
     /** 在图片更新和后续任务入队均成功后记录完成，重复回调不会再次生成生产零件。 */

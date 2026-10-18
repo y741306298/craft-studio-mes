@@ -13,6 +13,8 @@ import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -64,8 +66,10 @@ class ColorWhiteColorPreprocessingTest {
                 .thenReturn(true);
     }
 
-    @Test
-    void submitsConversionAndWaitsBeforeContinuing() {
+    @ParameterizedTest
+    @ValueSource(strings = {"弱溶剂彩白彩正喷", "弱溶剂白彩正喷", "弱溶剂彩白正喷"})
+    void submitsConversionAndWaitsBeforeContinuing(String processName) {
+        item.getProcedureFlow().getNodes().get(0).setNodeName(processName);
         assertFalse(service.convertColorWhiteColorIfNecessary(item));
         ArgumentCaptor<ColorWhiteColorRequest> request = ArgumentCaptor.forClass(ColorWhiteColorRequest.class);
         verify(algorithm).convertColorWhiteColorAsync(request.capture());
@@ -77,9 +81,10 @@ class ColorWhiteColorPreprocessingTest {
                 request.getValue().getCallbackConfig().getCallbackUrl());
     }
 
-    @Test
-    void previousProcessNameDoesNotTriggerConversion() {
-        item.getProcedureFlow().getNodes().get(0).setNodeName("弱溶剂彩白彩");
+    @ParameterizedTest
+    @ValueSource(strings = {"弱溶剂彩白彩", "弱溶剂白彩反喷", "弱溶剂彩白反喷", "其他工艺"})
+    void unrelatedProcessNameDoesNotTriggerConversion(String processName) {
+        item.getProcedureFlow().getNodes().get(0).setNodeName(processName);
         assertTrue(service.convertColorWhiteColorIfNecessary(item));
         verifyNoInteractions(algorithm);
     }
