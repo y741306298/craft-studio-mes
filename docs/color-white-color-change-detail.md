@@ -2,7 +2,7 @@
 
 版本依据：`f65fe6241f0087cb744f4dd7908dd94ae0934ba4`，已推送到 `main`。
 
-文档更新日期：2026-10-18（北京时间）。主体变更依据上述提交；本次修订将触发工艺名称更正为“弱溶剂彩白彩正喷”“弱溶剂白彩正喷”“弱溶剂彩白正喷”中的任一种，并增加旧名称不触发转换的测试。下文文件统计及原有 7 项测试清单对应原始提交。
+文档更新日期：2026-10-19（北京时间）。主体变更依据上述提交；本次修订将触发工艺名称更正为“弱溶剂彩白彩正喷”“弱溶剂白彩正喷”“弱溶剂彩白正喷”中的任一种，并增加旧名称不触发转换的测试。下文文件统计及原有 7 项测试清单对应原始提交。
 
 ## 1. 业务目标与完成范围
 
@@ -139,7 +139,7 @@ node.getNodeName() != null && COLOR_WHITE_COLOR_PROCESS_NAMES.contains(node.getN
 | --- | --- |
 | `imageUrl` | `orderItem.productionImgFile.rawFile` |
 | `uploadConfig.ossConfig` | `aliCloudAuthService.getObjectStorageTempAuthConfig(orderItemId)` |
-| `uploadConfig.uploadPath` | 有厂家 ID 时 `pieceImg/{manufacturerId}/`，否则 `pieceImg/` |
+| `uploadConfig.uploadPath` | `orderItem/cwc/{manufacturerId}/{orderItemId}/{_id}.tif`；`_id` 使用 `orderItem.getId()`，三个 ID 均须存在 |
 | `callbackConfig.callbackUrl` | 新回调配置或按抠图回调地址推导 |
 | `callbackCustomValue.id` | `orderItem.orderItemId` |
 | `callbackCustomValue.orderItemId` | `orderItem.orderItemId` |
@@ -163,7 +163,7 @@ node.getNodeName() != null && COLOR_WHITE_COLOR_PROCESS_NAMES.contains(node.getN
       "bucket": "<授权对应的bucket>",
       "region": "oss-cn-hangzhou"
     },
-    "uploadPath": "pieceImg/factory-1/"
+    "uploadPath": "orderItem/cwc/factory-1/item-1/69f956c00ff1ad90a9611464.tif"
   },
   "callbackConfig": {
     "callbackUrl": "https://mes.example/api/manufacturerSide/order/callback/convert_color_white_color",

@@ -61,7 +61,7 @@ external.api.convertColorWhiteColorUrl=https://test-cr-palette-thgxsboxut.cn-han
 订单回调接口：`POST /api/manufacturerSide/order/callback/convert_color_white_color`。
 可通过 `external.callbackApi.convert_color_white_color` 配置完整回调地址；未配置时，沿用抠图回调的域名，将 `/callback/generate_mask_files` 替换为上述新路径。
 
-`addOrderWithItems` 入库后沿用后台队列。订单项工艺节点的 `nodeName` 为“弱溶剂彩白彩正喷”“弱溶剂白彩正喷”“弱溶剂彩白正喷”中的任一种时，先提交彩白彩异步转换，本轮不继续灰度图转换或抠图。上传配置沿用其他算法的 STS 获取方式和 `pieceImg/{manufacturerId}/` 路径，`callbackCustomValue.id` 为 `orderItemId`，同时透传 `preprocessRequestId` 以过滤旧回调。
+`addOrderWithItems` 入库后沿用后台队列。订单项工艺节点的 `nodeName` 为“弱溶剂彩白彩正喷”“弱溶剂白彩正喷”“弱溶剂彩白正喷”中的任一种时，先提交彩白彩异步转换，本轮不继续灰度图转换或抠图。上传配置沿用其他算法的 STS 获取方式，上传对象路径为 `orderItem/cwc/{manufacturerId}/{orderItemId}/{_id}.tif`，其中 `_id` 来自订单项数据库 ID（`orderItem.getId()`），不是随机生成的 UUID，`callbackCustomValue.id` 为 `orderItemId`，同时透传 `preprocessRequestId` 以过滤旧回调。
 
 成功回调根据 `data.callbackCustomValue.id` 查找订单项，将 `data.downloadUrl` 同时更新到 `productionImgFile.rawFile` 和 `productionImgFile.filePreview.raw`，并持久化 `colorWhiteColorDownloadUrl`。更新成功后续处理任务入队，继续原有灰度图转 SVG、抠图等逻辑；生产图片已等于转换结果时跳过再次转换。
 
@@ -84,3 +84,7 @@ external.api.convertColorWhiteColorUrl=https://test-cr-palette-thgxsboxut.cn-han
 完整回调 URL 应为 `http://121.40.134.45:8081/api/manufacturerSide/order/callback/convert_color_white_color`（该部署使用 HTTP 时）。请在实际配置中核对完整路径，算法侧应完整透传 `callbackCustomValue`，包括 `preprocessRequestId`。
 
 此前 `Content-Type 'application/x-www-form-urlencoded;charset=UTF-8' is not supported` 表示请求在进入业务方法前被拒绝，图片未通过该次回调更新。部署兼容修复后可重新发送原始有效回调。
+
+## 上传对象路径更新（2026-10-19）
+
+彩白彩转换的 `uploadConfig.uploadPath` 现在传递完整 TIFF 对象路径（包含文件名），例如 `orderItem/cwc/factory-1/item-1/69f956c00ff1ad90a9611464.tif`。工厂 ID、订单项业务 ID 和数据库 `_id` 均须存在；缺失时提交失败，不回退到公共目录。此修改仅影响彩白彩转换，其他算法的上传路径保持原逻辑。算法服务需按完整对象路径保存结果，不能再追加 `cwc.tif`。

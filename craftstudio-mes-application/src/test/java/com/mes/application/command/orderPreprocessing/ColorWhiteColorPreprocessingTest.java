@@ -49,6 +49,7 @@ class ColorWhiteColorPreprocessingTest {
         ReflectionTestUtils.setField(service, "generateMaskFilesApiUrl",
                 "https://mes.example/api/manufacturerSide/order/callback/generate_mask_files");
         item = new OrderItem();
+        item.setId("69f956c00ff1ad90a9611464");
         item.setOrderItemId("item-1");
         item.setOrderId("order-1");
         item.setManufacturerId("factory-1");
@@ -74,7 +75,7 @@ class ColorWhiteColorPreprocessingTest {
         ArgumentCaptor<ColorWhiteColorRequest> request = ArgumentCaptor.forClass(ColorWhiteColorRequest.class);
         verify(algorithm).convertColorWhiteColorAsync(request.capture());
         assertEquals(item.getProductionImgFile().getRawFile(), request.getValue().getImageUrl());
-        assertEquals("pieceImg/factory-1/", request.getValue().getUploadConfig().getUploadPath());
+        assertEquals("orderItem/cwc/factory-1/item-1/69f956c00ff1ad90a9611464.tif", request.getValue().getUploadConfig().getUploadPath());
         assertEquals("item-1", request.getValue().getCallbackConfig().getCallbackCustomValue().getId());
         assertEquals("request-1", request.getValue().getCallbackConfig().getCallbackCustomValue().getPreprocessRequestId());
         assertEquals("https://mes.example/api/manufacturerSide/order/callback/convert_color_white_color",
@@ -86,6 +87,14 @@ class ColorWhiteColorPreprocessingTest {
     void unrelatedProcessNameDoesNotTriggerConversion(String processName) {
         item.getProcedureFlow().getNodes().get(0).setNodeName(processName);
         assertTrue(service.convertColorWhiteColorIfNecessary(item));
+        verifyNoInteractions(algorithm);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"manufacturerId", "orderItemId", "id"})
+    void missingUploadPathIdentityDoesNotSubmitConversion(String field) {
+        ReflectionTestUtils.setField(item, field, null);
+        assertThrows(RuntimeException.class, () -> service.convertColorWhiteColorIfNecessary(item));
         verifyNoInteractions(algorithm);
     }
 

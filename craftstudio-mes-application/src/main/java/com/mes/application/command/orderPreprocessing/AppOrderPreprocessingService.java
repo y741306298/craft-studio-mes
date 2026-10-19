@@ -385,12 +385,16 @@ public class AppOrderPreprocessingService {
             callbackUrl = generateMaskFilesApiUrl.replace("/callback/generate_mask_files",
                     "/callback/convert_color_white_color");
         }
+        if (StringUtils.isBlank(orderItem.getManufacturerId())
+                || StringUtils.isBlank(orderItem.getOrderItemId()) || StringUtils.isBlank(orderItem.getId())) {
+            throw new RuntimeException("彩白彩转换上传路径缺少工厂ID、订单项ID或数据库_id");
+        }
         ColorWhiteColorRequest request = new ColorWhiteColorRequest();
         request.setImageUrl(image.getRawFile());
         UploadConfig uploadConfig = new UploadConfig();
         uploadConfig.setOssConfig(aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId()));
-        uploadConfig.setUploadPath(StringUtils.isBlank(orderItem.getManufacturerId())
-                ? "pieceImg/" : "pieceImg/" + orderItem.getManufacturerId() + "/");
+        uploadConfig.setUploadPath("orderItem/cwc/" + orderItem.getManufacturerId() + "/"
+                + orderItem.getOrderItemId() + "/" + orderItem.getId() + ".tif");
         request.setUploadConfig(uploadConfig);
         CallbackCustomValue customValue = new CallbackCustomValue();
         customValue.setId(orderItem.getOrderItemId());
