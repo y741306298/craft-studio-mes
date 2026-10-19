@@ -1046,8 +1046,14 @@ public class AppDeliveryPkgService {
         try {
             JstPrintGuard.PrintOperation<WdtLabelRecord> operation = () -> {
                 GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformResolver.resolveCode(record.getPlatformType()));
-                LogisticsLabel label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
-                        LogisticsCarrierPresetType.valueOf(record.getPresetType()),record.getLogisticsOrderId());
+                LogisticsLabel label;
+                try {
+                    label = platform.rePrint(record.getChannelOrderId(), "mes-logistics", true,
+                            LogisticsCarrierPresetType.valueOf(record.getPresetType()), record.getLogisticsOrderId());
+                } catch (Exception printException) {
+                    log.error("聚单平台面单复打异常: channelOrderId={}", record.getChannelOrderId(), printException);
+                    throw printException;
+                }
                 if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                     throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台复打未返回物流单号");
                 }
@@ -1068,8 +1074,9 @@ public class AppDeliveryPkgService {
             throw ex;
         } catch (Exception ex) {
             log.error("聚单平台面单复打失败: channelOrderId={}", record.getChannelOrderId(), ex);
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
-                    "聚单平台面单复打失败: " + record.getChannelOrderId());
+            BusinessNotAllowException failure = new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, ex.getMessage());
+            failure.initCause(ex);
+            throw failure;
         }
     }
 
@@ -1148,6 +1155,7 @@ public class AppDeliveryPkgService {
                 try {
                     platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
                 } catch (Exception warehouseException) {
+                    log.error("聚单平台换仓异常: orderId={}", uniCode, warehouseException);
                     Throwable cause = warehouseException;
                     boolean sameWarehouse = false;
                     while (cause != null) {
@@ -1159,7 +1167,13 @@ public class AppDeliveryPkgService {
                     }
                     if (!sameWarehouse) throw warehouseException;
                 }
-                LogisticsLabel label = platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
+                LogisticsLabel label;
+                try {
+                    label = platform.printLogisticsLabel(uniCode, "default", true, LogisticsCarrierPresetType.valueOf(presetType));
+                } catch (Exception printException) {
+                    log.error("聚单平台面单打印异常: orderId={}", uniCode, printException);
+                    throw printException;
+                }
                 if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                     throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "聚单平台打包即时打单未返回物流单号");
                 }
@@ -1187,8 +1201,10 @@ public class AppDeliveryPkgService {
         } catch (BusinessNotAllowException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
-                    "聚单平台快递换仓或面单打印失败: " + uniCode);
+            log.error("聚单平台快递换仓或面单打印失败: orderId={}", uniCode, ex);
+            BusinessNotAllowException failure = new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, ex.getMessage());
+            failure.initCause(ex);
+            throw failure;
         }
     }
 

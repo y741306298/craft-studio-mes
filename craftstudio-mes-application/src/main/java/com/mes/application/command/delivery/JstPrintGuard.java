@@ -58,14 +58,9 @@ public class JstPrintGuard {
             }
             try {
                 return operation.run();
-            } catch (Exception exception) {
-                if (requiresSmsAuth(exception)) {
-                    // 不设过期时间；必须通过真实验证码校验才能解除。
-                    redisTemplate.opsForValue().set(AUTH_LOCK_KEY, "required");
-                    if (!(exception instanceof SmsCodeRequiredAuthException)) {
-                        throw new SmsCodeRequiredAuthException("需要验证码校验身份", exception);
-                    }
-                }
+            } catch (SmsCodeRequiredAuthException exception) {
+                // 仅直接捕获验证码异常时加锁，其他异常原样传播。
+                redisTemplate.opsForValue().set(AUTH_LOCK_KEY, "required");
                 throw exception;
             }
         } finally {
@@ -78,6 +73,16 @@ public class JstPrintGuard {
         String token = acquireOperation();
         try {
             WebSimulator.getLoggedInstance().obtainAuthSid(smsCode);
+            redisTemplate.delete(AUTH_LOCK_KEY);
+        } finally {
+            releaseOperation(token);
+        }
+    }
+
+    /** 配置端手动解除身份锁；与打印及验证码校验串行执行。 */
+    public void unlockSmsAuth() {
+        String token = acquireOperation();
+        try {
             redisTemplate.delete(AUTH_LOCK_KEY);
         } finally {
             releaseOperation(token);

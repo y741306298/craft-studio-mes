@@ -51,11 +51,12 @@ class JstPrintGuardTest {
     }
 
     @Test
-    void wrappedSmsExceptionAlsoLocksAndRemainsRecognizable() {
-        assertThrows(SmsCodeRequiredAuthException.class, () -> guard.execute(GatherPlatformType.JST, () -> {
+    void wrappedSmsExceptionDoesNotLock() {
+        assertThrows(IllegalStateException.class, () -> guard.execute(GatherPlatformType.JST, () -> {
             throw new IllegalStateException("包装异常", new SmsCodeRequiredAuthException("需要验证码校验身份"));
         }));
-        assertTrue(locked.get());
+        assertFalse(locked.get());
+        verify(values, never()).set(JstPrintGuard.AUTH_LOCK_KEY, "required");
     }
 
     @Test
@@ -103,12 +104,23 @@ class JstPrintGuardTest {
     }
 
     @Test
+    void manualUnlockDeletesOnlyAuthLockAndCanBeRepeated() {
+        locked.set(true);
+        guard.unlockSmsAuth();
+        guard.unlockSmsAuth();
+        verify(redis, times(2)).delete(JstPrintGuard.AUTH_LOCK_KEY);
+        verify(redis, never()).delete(JstPrintGuard.OPERATION_KEY);
+    }
+
+    @Test
     void concurrentOperationCannotReachUpstream() {
         when(values.setIfAbsent(eq(JstPrintGuard.OPERATION_KEY), anyString(), anyLong(), any())).thenReturn(false);
         assertThrows(JstPrintUnavailableException.class,
                 () -> guard.execute(GatherPlatformType.JST, () -> fail("不得调用上游")));
         assertThrows(JstPrintUnavailableException.class,
                 () -> guard.retryForSmsAuth(() -> fail("客服操作也不能与授权操作并发")));
+        assertThrows(JstPrintUnavailableException.class, guard::unlockSmsAuth);
+        verify(redis, never()).delete(JstPrintGuard.AUTH_LOCK_KEY);
         try (MockedStatic<WebSimulator> factory = mockStatic(WebSimulator.class)) {
             assertThrows(JstPrintUnavailableException.class, () -> guard.authenticate("8203"));
             factory.verifyNoInteractions();

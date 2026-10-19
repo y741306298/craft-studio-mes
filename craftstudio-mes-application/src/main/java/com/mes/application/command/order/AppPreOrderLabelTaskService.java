@@ -22,6 +22,7 @@ import com.mes.domain.order.preOrderLabelTask.entity.PreOrderLabelTask;
 import com.mes.domain.order.preOrderLabelTask.service.PreOrderLabelTaskService;
 import com.mes.infra.mq.LogisticsOrderInfo;
 import com.mes.infra.mq.LogisticsOrderProducer;
+import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.auth.SmsCodeRequiredAuthException;
 import com.piliofpala.craftstudio.pangolin.domain.gatherplatform.platform.vo.GatherPlatformType;
 import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsLabel;
 import com.piliofpala.craftstudio.pangolin.infra.gatherplatform.GatherPlatform;
@@ -488,6 +489,7 @@ public class AppPreOrderLabelTaskService {
                 try {
                     platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
                 } catch (Exception warehouseException) {
+                    log.error("聚单平台换仓异常: orderId={}", uniCode, warehouseException);
                     if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
                         throw warehouseException;
                     }
@@ -499,7 +501,11 @@ public class AppPreOrderLabelTaskService {
                     if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                         throw new IllegalStateException("聚单平台打印未返回物流单号");
                     }
+                } catch (SmsCodeRequiredAuthException authException) {
+                    log.error("聚单平台面单打印异常: orderId={}", uniCode, authException);
+                    throw authException;
                 } catch (Exception printException) {
+                    log.error("聚单平台面单打印异常: orderId={}", uniCode, printException);
                     throw new GatherLabelPrintException(printException);
                 }
                 String remark = buildPreOrderGatherRemark(orderInfo, orderItems);
@@ -507,7 +513,10 @@ public class AppPreOrderLabelTaskService {
                 return new AppDeliveryPkgService.DeliveryPkgPrintResult(null, label.getLogisticsOrderId());
             });
         } catch (Exception ex) {
-            throw new IllegalStateException("聚单平台快递换仓或面单打印失败: " + uniCode, ex);
+            if (ex instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException(ex.getMessage(), ex);
         }
     }
 
@@ -707,7 +716,7 @@ public class AppPreOrderLabelTaskService {
 
     private static class GatherLabelPrintException extends RuntimeException {
         private GatherLabelPrintException(Throwable cause) {
-            super(cause);
+            super(cause.getMessage(), cause);
         }
     }
 

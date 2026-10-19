@@ -2,7 +2,7 @@
 
 所有使用同一 Redis 的 MES 实例共享 JST 打印身份锁。首次预打印、addPkg 即时打印、复用面单时重新获取打印数据，以及普通复打入口，均经过 JstPrintGuard。
 
-当上游抛出 SmsCodeRequiredAuthException（包括被其他异常包装的情况）时，写入不带过期时间的 `gatherPlatform:JST:smsAuthRequired`。后续普通 JST 打印在请求聚水潭前被拒绝；WDT 不受影响。身份锁不会因重启应用或客服打印成功而自动解除，Redis 数据须由部署环境持久化。
+当上游抛出 SmsCodeRequiredAuthException（仅直接捕获该类型，其他异常及包装异常不加锁）时，写入不带过期时间的 `gatherPlatform:JST:smsAuthRequired`。后续普通 JST 打印在请求聚水潭前被拒绝；WDT 不受影响。身份锁不会因重启应用或客服打印成功而自动解除，Redis 数据须由部署环境持久化。
 
 身份锁与操作互斥锁是两个不同的 Redis key。JST 打印、客服恢复打印及验证码校验通过 `gatherPlatform:JST:printOperation` 串行执行，避免校验解锁与其他打印异常相互覆盖。并发请求立即提示稍后重试；操作互斥租约为 30 分钟，用于进程崩溃后的恢复，正常操作须在租约内完成。Redis 不可用时不会继续请求 JST。
 
@@ -49,9 +49,17 @@
 
 解锁不会自动重放失败的 addPkg 或人工复打请求，调用方需重新提交；待处理预打印任务在后续定时批次恢复。
 
+### 3. 直接解除身份校验锁
+
+`POST /api/configSide/wdt/unlockJstSmsAuth`
+
+无需参数或请求体，沿用 configSide 权限。也可通过 `/api/configSide/gather-platform/logistics-config/unlockJstSmsAuth` 调用。
+
+直接删除身份锁，不调用上游验证码校验；锁不存在时仍返回成功。与 JST 打印、重试及验证码校验共用操作互斥，忙时返回 HTTP 423。成功响应与 smsCodeAuth 相同；待处理预打印任务由后续定时批次恢复。
+
 ## 验证
 
-新增 JstPrintGuardTest，覆盖身份异常全局上锁、包装异常、普通异常不加锁、WDT 不受影响、客服绕过身份锁、校验成功解锁、校验失败保留锁及并发互斥；扩展 GatherPlatformLogisticsTest 验证普通复打被拦截及客服携带原运单号复打。测试均模拟上游，不发送真实短信或打印面单。
+新增 JstPrintGuardTest，覆盖身份异常全局上锁、包装异常不加锁、普通异常不加锁、WDT 不受影响、客服绕过身份锁、校验成功解锁、校验失败保留锁及并发互斥；扩展 GatherPlatformLogisticsTest 验证普通复打被拦截及客服携带原运单号复打。测试均模拟上游，不发送真实短信或打印面单。
 
 当前云环境缺少内部 shared 1.1.5、pangolin 0.1.0 构件，Maven 在依赖解析阶段失败，尚未执行测试与完整编译。
 
