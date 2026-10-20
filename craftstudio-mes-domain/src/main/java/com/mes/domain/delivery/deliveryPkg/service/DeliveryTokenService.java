@@ -19,6 +19,30 @@ public class DeliveryTokenService {
     @Autowired
     private DeliveryTokenRepository deliveryTokenRepository;
 
+    /** 按工厂和承运商新增或覆盖完整配置，保留已有记录 ID 和创建时间。 */
+    public DeliveryToken configureDeliveryToken(DeliveryToken token) {
+        if (token == null || StringUtils.isBlank(token.getCarrierId())
+                || StringUtils.isBlank(token.getManufacturerMetaId())
+                || StringUtils.isBlank(token.getPartnerId())
+                || StringUtils.isBlank(token.getKuaidicom())) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
+                    "承运商ID、工厂ID、月结账号和快递公司编码不能为空");
+        }
+        token.setCarrierId(token.getCarrierId().trim());
+        token.setManufacturerMetaId(token.getManufacturerMetaId().trim());
+        DeliveryToken existing = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(
+                token.getCarrierId(), token.getManufacturerMetaId());
+        if (existing == null) {
+            // 新增不接受调用方指定数据库 ID。
+            token.setId(null);
+            return addDeliveryToken(token);
+        }
+        token.setId(existing.getId());
+        token.setCreateTime(existing.getCreateTime());
+        updateDeliveryToken(token);
+        return token;
+    }
+
     /**
      * 添加电子面单令牌配置
      * @param token 令牌配置
