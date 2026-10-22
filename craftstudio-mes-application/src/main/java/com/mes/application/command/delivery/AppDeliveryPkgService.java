@@ -989,8 +989,7 @@ public class AppDeliveryPkgService {
             }
         }
 
-        if (reusedLabel && (GatherPlatformResolver.resolve(orderInfo.getChannel()) == GatherPlatformType.JST
-                || resolveCloudPrintPlatform(record) == LogisticsCloudPrintPlatform.DY)) {
+        if (reusedLabel && resolveCloudPrintPlatform(record) == LogisticsCloudPrintPlatform.DY) {
             record = reprintGatherPlatformLabel(record);
         }
 
@@ -1010,7 +1009,7 @@ public class AppDeliveryPkgService {
     }
 
     /**
-     * 聚单平台复打。JST 及 WDT 抖音面单重新获取打印数据，其他 WDT 面单沿用本地数据。
+     * 聚单平台复打。抖音面单重新获取打印数据，其他面单沿用本地数据。
      */
     public DeliveryPkg reprintGatherPlatformLabel(DeliveryPkgActionRequest request) {
         if (request == null || StringUtils.isBlank(request.getDeliveryPkgId())) {
@@ -1033,7 +1032,7 @@ public class AppDeliveryPkgService {
         if (GatherPlatformResolver.resolveCode(record.getPlatformType()) != platformType) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "面单记录与订单聚单平台不一致");
         }
-        if (platformType != GatherPlatformType.JST && resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
+        if (resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
             pkg.setWdtLabelRecord(record);
             return pkg;
         }
