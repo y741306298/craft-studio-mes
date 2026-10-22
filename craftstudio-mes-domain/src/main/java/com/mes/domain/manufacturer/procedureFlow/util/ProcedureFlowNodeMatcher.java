@@ -49,7 +49,7 @@ public final class ProcedureFlowNodeMatcher {
                 continue;
             }
             for (String keyword : keywords) {
-                if (keyword != null && !keyword.isBlank() && node.getNodeName().contains(keyword)) {
+                if (keyword != null && !keyword.isBlank() && matchesKeyword(node.getNodeName(), keyword)) {
                     return true;
                 }
             }
@@ -63,7 +63,7 @@ public final class ProcedureFlowNodeMatcher {
         }
         return nodeName.contains(DOUBLE_SIDE_MOUNTING_KEYWORD)
                 || nodeName.contains(COVER_DOUBLE_SIDE_KEYWORD)
-                || nodeName.contains(DOUBLE_SIDE_PRINTING_KEYWORD);
+                || matchesKeyword(nodeName, DOUBLE_SIDE_PRINTING_KEYWORD);
     }
 
     public static boolean containsDoubleSideMountingKeyword(String value) {
@@ -76,7 +76,16 @@ public final class ProcedureFlowNodeMatcher {
         }
         return normalizedValue.contains(DOUBLE_SIDE_MOUNTING_KEYWORD)
                 || normalizedValue.contains(COVER_DOUBLE_SIDE_KEYWORD)
-                || normalizedValue.contains(DOUBLE_SIDE_PRINTING_KEYWORD);
+                || matchesKeyword(normalizedValue, DOUBLE_SIDE_PRINTING_KEYWORD);
+    }
+
+    private static boolean matchesKeyword(String value, String keyword) {
+        if (DOUBLE_SIDE_PRINTING_KEYWORD.equals(keyword)) {
+            // 该名称中的“双面喷”是布料描述，不代表双面喷工艺；仅移除该名称，保留其他独立工艺。
+            value = value.replace("热升华（1.6米双面喷夹黑布）", "")
+                    .replace("热升华(1.6米双面喷夹黑布)", "");
+        }
+        return value.contains(keyword);
     }
 
     private static boolean isExcludedDoubleSideTapeNode(String nodeName) {
