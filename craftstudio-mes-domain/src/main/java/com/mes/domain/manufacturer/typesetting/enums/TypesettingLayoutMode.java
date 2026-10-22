@@ -8,6 +8,18 @@ import io.micrometer.common.util.StringUtils;
  * 决定文件输出要求（json/plt/svg）以及二维码、订单号、临时码与定位点策略。
  */
 public enum TypesettingLayoutMode {
+    /** 大视觉排版：异形排版，间隔 4mm，不添加二维码或定位标记。 */
+    LARGE_VISION_LAYOUT(
+            "large_vision_layout",
+            "大视觉排版",
+            "shaped_typesetting",
+            true, true, true,
+            "plt_qr",
+            null,
+            "none",
+            4,
+            true
+    ),
     /**
      * 异形切割（plt二维码）-圆形定位点：
      * 需要 json/plt/svg，码位策略为 plt_qr，临时码格式 xxx。

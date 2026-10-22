@@ -1325,6 +1325,11 @@ public class AppTypesettingService {
             }
         }
 
+        String sublimationResult = validateSublimationLayout(productionPieces, typesettingInfos, request.getLayoutMode());
+        if (!"PASS".equals(sublimationResult)) {
+            return LayoutConfirmResult.failed(sublimationResult);
+        }
+
         String doubleSideConsistencyResult = validateDoubleSideMountingConsistency(productionPieces, typesettingInfos);
         if (!doubleSideConsistencyResult.equals("PASS")) {
             return LayoutConfirmResult.failed(doubleSideConsistencyResult);
@@ -1901,8 +1906,10 @@ public class AppTypesettingService {
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
-        applySpecialCraftMarkStrategies(typesettingInfo, request);
-        mergeFormeMarkResources(typesettingInfo, request);
+        if (layoutMode != TypesettingLayoutMode.LARGE_VISION_LAYOUT) {
+            applySpecialCraftMarkStrategies(typesettingInfo, request);
+            mergeFormeMarkResources(typesettingInfo, request);
+        }
         syncTypesettingElementSizeAfterFormeExpand(typesettingInfo, request, rawNestedSize);
 
         // 5) 注入上传配置（STS + mode 专属上传路径）
@@ -3244,7 +3251,9 @@ public class AppTypesettingService {
                                                                       TypesettingLayoutMode layoutMode,
                                                                       String businessId) {
         FormeGenerationRequest request = buildFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
-        mergeAnchorPointMarks(typesettingInfo, request);
+        if (layoutMode != TypesettingLayoutMode.LARGE_VISION_LAYOUT) {
+            mergeAnchorPointMarks(typesettingInfo, request);
+        }
         return request;
     }
 
@@ -4436,6 +4445,28 @@ public class AppTypesettingService {
         return name.isEmpty() ? null : name;
     }
 
+    /** 热升华来源不能混排，且只能选择大视觉排版；来源印版同样参与校验。 */
+    String validateSublimationLayout(List<ProductionPiece> productionPieces,
+                                     List<TypesettingInfo> typesettingInfos,
+                                     String layoutMode) {
+        List<ProcedureFlow> flows = new ArrayList<>();
+        productionPieces.forEach(piece -> flows.add(piece.getProcedureFlow()));
+        typesettingInfos.forEach(info -> flows.add(info.getProcedureFlow()));
+        long sublimationCount = flows.stream()
+                .filter(flow -> ProcedureFlowNodeMatcher.hasAnyNodeNameContaining(flow, "热升华"))
+                .count();
+        if (sublimationCount == 0) {
+            return "PASS";
+        }
+        if (sublimationCount != flows.size()) {
+            return "热升华零件不能与其他零件一起排版，所有来源必须拥有热升华工艺";
+        }
+        if (!TypesettingLayoutMode.LARGE_VISION_LAYOUT.getCode().equalsIgnoreCase(layoutMode)) {
+            return "热升华零件只允许使用大视觉排版";
+        }
+        return "PASS";
+    }
+
     /**
      * 首次排版全部由生产工件组成时，双面对裱类工艺不能与普通工件混排。
      *
@@ -5388,7 +5419,8 @@ public class AppTypesettingService {
     }
 
     private boolean isPrintingPlateLayoutMode(TypesettingLayoutMode layoutMode) {
-        return layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
+        return layoutMode == TypesettingLayoutMode.LARGE_VISION_LAYOUT
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS
                 || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CROSS
