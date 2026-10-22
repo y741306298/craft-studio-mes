@@ -34,7 +34,7 @@
 | 文件或组件 | 修改内容 |
 | --- | --- |
 | AppPreOrderLabelTaskService | 按渠道平台读取对应配置，使用对应客户端换仓及预打印，面单保存平台快照；将打印异常和重试方法命名改为聚单平台通用名称 |
-| AppDeliveryPkgService | 按平台查预打印记录；没有记录时调用对应平台即时打单；JST 的已有面单在打包时重新获取打印数据；即时新打出的面单直接使用，避免紧接着重复调用复打 |
+| AppDeliveryPkgService | 按平台查预打印记录；没有记录时调用对应平台即时打单；JST 与 WDT 的已有面单均仅在抖音云打印时重新获取打印数据，其余复用本地数据；即时新打出的面单直接使用，避免紧接着重复调用复打 |
 | AppDeliveryPkgService 复打 | 使用记录中的平台快照选择客户端；检查订单和面单所属平台一致；复打返回不同运单号时报错，不更新原记录和包裹 |
 | DeliveryPkgController | `/reprint` 自动识别聚单平台订单并走聚单平台复打；`/gather-platform/reprint` 继续支持直接调用 |
 | WdtConfig / WdtLabelRecord | 增加 platformType，保留原类名以兼容现有引用 |
@@ -72,7 +72,7 @@
 - JST 使用自己的配置执行换仓和物流设置，再获取面单；成功后保存单号、打印数据和平台快照。
 - 保留订单与工件的单号同步，以及现有物流 MQ 通知格式。
 - 打印阶段异常沿用最多三次尝试机制；换仓异常仍按原有失败路径处理。Redis 重试键保留历史 `preOrderLabelTask:wdtPrintRetry:` 命名，以兼容升级时尚未完成的任务。
-- 打包优先查对应平台的既有面单；JST 既有面单重新获取云打印数据后绑定包裹，记录标记为 `CONSUMED`。
+- 打包优先查对应平台的既有面单；JST 与 WDT 均按云打印平台处理既有面单：抖音重新获取打印数据，其余直接复用本地数据后绑定包裹，记录标记为 `CONSUMED`。
 - 没有预打印记录时走即时打印，成功结果直接用于打包。
 - 缺少对应平台快递配置时不会借用另一平台配置：预打印沿用原有任务失败处理，打包沿用原有 CUSTOM 降级行为。因此上线前必须配置 JST 快递映射。
 
@@ -89,7 +89,7 @@
 {"deliveryPkgId": "实际包裹ID"}
 ```
 
-JST 调用 `rePrint(channelOrderId, "mes-logistics", true, presetType, logisticsOrderId)`；WDT 抖音面单继续调用远端复打，其余 WDT 面单沿用本地打印数据。返回现有包裹打印结果结构，包含 `logisticsCloudPrintData`，无需新增 JST 专属前端数据结构。
+JST 与 WDT 的抖音面单调用 `rePrint(channelOrderId, "mes-logistics", true, presetType, logisticsOrderId)`，其余面单（包括菜鸟）沿用本地打印数据。返回现有包裹打印结果结构，包含 `logisticsCloudPrintData`，无需新增 JST 专属前端数据结构。
 
 **JST 实现限制：** 当前 pangolin 的 `rePrint` 底层仍调用 `LogisticsPrint.print`，未直接使用传入的原运单号。通常会读取既有面单；面单缺失时底层可能触发审核、出库或面单生成。本次在 MES 增加返回运单号一致性检查，防止把不同单号写回原包裹；该检查无法撤销上游已经发生的动作。生产使用需保证 JST 原面单仍有效。
 
