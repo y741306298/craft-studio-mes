@@ -31,6 +31,7 @@
         <maven.compiler.source>22</maven.compiler.source>
         <maven.compiler.target>22</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <batik.version>1.19</batik.version>
     </properties>
     <distributionManagement>
         <repository>
@@ -74,6 +75,18 @@
     </pluginRepositories>
 
     <dependencies>
+        <!-- SVG 相关依赖公开 API 引用的 Batik 类型，需在编译类路径中显式提供。 -->
+        <dependency>
+            <groupId>org.apache.xmlgraphics</groupId>
+            <artifactId>batik-i18n</artifactId>
+            <version>${batik.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.xmlgraphics</groupId>
+            <artifactId>batik-awt-util</artifactId>
+            <version>${batik.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
