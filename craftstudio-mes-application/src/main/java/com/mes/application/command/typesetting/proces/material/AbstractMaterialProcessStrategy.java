@@ -9,8 +9,6 @@ import com.mes.domain.manufacturer.materialLayoutSpec.entity.MaterialLayoutSpecS
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
-import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -163,19 +161,6 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
         }
         int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
         return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
-    }
-
-    private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
-        ImageFile maskFile = piece.getMaskImageFile();
-        maskFile.setRawFile(maskUrl);
-        FilePreview preview = maskFile.getFilePreview();
-        if (preview == null) {
-            preview = new FilePreview();
-            maskFile.setFilePreview(preview);
-        }
-        preview.setRaw(maskUrl);
-        preview.setPreview(maskUrl);
-        preview.setThumbnail(maskUrl);
     }
 
     private String resolveMaterialName(OrderItem orderItem) {
