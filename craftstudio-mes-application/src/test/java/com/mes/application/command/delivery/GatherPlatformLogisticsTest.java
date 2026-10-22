@@ -79,6 +79,37 @@ class GatherPlatformLogisticsTest {
     }
 
     @Test
+    void jstCainiaoReprintReusesLocalDataWithoutCallingPlatform() {
+        AppDeliveryPkgService service = spy(new AppDeliveryPkgService());
+        var pkg = new com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg();
+        pkg.setOrderId("10001");
+        pkg.setDeliveryPkgId("pkg");
+        WdtLabelRecord record = record();
+        var printData = java.util.Map.of("cloudPrintPlatform", "CAINIAO", "printData", "stored-data");
+        record.setLogisticsCloudPrintData(printData);
+        pkg.setLogisticsCloudPrintData(printData);
+        doReturn(pkg).when(service).findByDeliveryPkgId("pkg");
+        var orders = mock(com.mes.domain.order.orderInfo.service.OrderInfoService.class);
+        OrderInfo order = order();
+        order.getChannel().setType(com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM);
+        when(orders.findByOrderId("10001")).thenReturn(order);
+        ReflectionTestUtils.setField(service, "orderInfoService", orders);
+        ReflectionTestUtils.setField(service, "kuaidi100Environment", "prod");
+        WdtLabelRecordRepository repository = mock(WdtLabelRecordRepository.class);
+        when(repository.findByDeliveryPkgId("pkg")).thenReturn(record);
+        ReflectionTestUtils.setField(service, "wdtLabelRecordRepository", repository);
+        var request = new com.mes.application.dto.req.delivery.DeliveryPkgActionRequest();
+        request.setDeliveryPkgId("pkg");
+        try (MockedStatic<GatherPlatform> factory = mockStatic(GatherPlatform.class)) {
+            assertSame(pkg, service.reprintGatherPlatformLabel(request));
+            assertSame(printData, pkg.getLogisticsCloudPrintData());
+            assertSame(record, pkg.getWdtLabelRecord());
+            factory.verifyNoInteractions();
+            verify(repository, never()).update(any());
+        }
+    }
+
+    @Test
     void reprintsJstWithStoredWaybillAndUpdatesRecord() {
         AppDeliveryPkgService service = new AppDeliveryPkgService();
         installGuard(service);
