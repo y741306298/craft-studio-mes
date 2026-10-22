@@ -306,7 +306,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param piece 当前生产工件
      * @return 生产工件业务 ID
      */
-    private String ensureProductionPieceBusinessId(ProductionPiece piece) {
+    protected String ensureProductionPieceBusinessId(ProductionPiece piece) {
         if (StringUtils.isBlank(piece.getProductionPieceId())) {
             piece.setProductionPieceId(IdGenerator.generateId("PP"));
         }
@@ -323,7 +323,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param piece 当前生产工件
      * @return productionPiece 的 MongoDB _id
      */
-    private String ensureProductionPieceMongoId(ProductionPiece piece) {
+    protected String ensureProductionPieceMongoId(ProductionPiece piece) {
         if (StringUtils.isBlank(piece.getId())) {
             piece.setId(new ObjectId().toHexString());
         }
@@ -488,14 +488,18 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * <p>标签与相邻边保持 1cm 间距；横向标签会按上下边可用长度从左往右截取，竖向标签会先按左右边可用长度截取横向文本后再旋转。</p>
      * <p>上边与右边标签朝向最外侧，避免文字方向朝向画面内部。</p>
      */
-    private LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId, double horizontalMaxWidthMm, double verticalMaxHeightMm) {
+    protected LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId, double horizontalMaxWidthMm, double verticalMaxHeightMm) {
+        return uploadLiubaiTagAssets(context, productionPieceId, manufacturerMetaId, horizontalMaxWidthMm, verticalMaxHeightMm, liubaiTagEdgeSizeMm());
+    }
+
+    protected LiubaiTagAssets uploadLiubaiTagAssets(LiubaiProcessContext context, String productionPieceId, String manufacturerMetaId, double horizontalMaxWidthMm, double verticalMaxHeightMm, double edgeSizeMm) {
         String tagText = buildLiubaiTagText(context);
         if (StringUtils.isBlank(tagText)) {
             return null;
         }
         double horizontalAvailableWidthMm = availableLiubaiTagLength(horizontalMaxWidthMm);
         double verticalAvailableHeightMm = availableLiubaiTagLength(verticalMaxHeightMm);
-        LiubaiTagImage horizontal = createHorizontalLiubaiTagPng(tagText);
+        LiubaiTagImage horizontal = createHorizontalLiubaiTagPng(tagText, edgeSizeMm);
         LiubaiTagImage bottom = cropHorizontalLiubaiTagPng(horizontal, horizontalAvailableWidthMm);
         LiubaiTagImage top = rotate180LiubaiTagPng(bottom);
         LiubaiTagImage left = createVerticalLiubaiTagPng(cropHorizontalLiubaiTagPng(horizontal, verticalAvailableHeightMm).image);
@@ -563,8 +567,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return orderItemId.substring(startIndex);
     }
 
-    private LiubaiTagImage createHorizontalLiubaiTagPng(String text) {
-        double edgeSizeMm = liubaiTagEdgeSizeMm();
+    private LiubaiTagImage createHorizontalLiubaiTagPng(String text, double edgeSizeMm) {
         int heightPx = convertMmToPixels(edgeSizeMm, LIUBAI_TAG_PNG_DPI);
         int fontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
         Font font = new Font("SansSerif", Font.BOLD, fontSize);
@@ -1027,7 +1030,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
     }
 
-    private String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
+    protected String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
         String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
         if (StringUtils.isNotBlank(productImg)) {
             return productImg;
@@ -1182,7 +1185,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                 + "</g>\n";
     }
 
-    private String buildLiubaiTagGroups(String pieceMongoId,
+    protected String buildLiubaiTagGroups(String pieceMongoId,
                                          LiubaiTagAssets tagAssets,
                                          double originalWidth,
                                          double originalHeight,
@@ -1244,7 +1247,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                       double heightMm,
                                       double x,
                                       double y) {
-        builder.append("<g id=\"liubai-tag-").append(direction).append("-").append(suffix).append("-").append(escapeAttr(pieceMongoId))
+        builder.append("<g id=\"").append(tagMarkKeyPrefix()).append("-").append(direction).append("-").append(suffix).append("-").append(escapeAttr(pieceMongoId))
                 .append("\" img=\"").append(escapeAttr(imageUrl))
                 .append("\" data-source-name=\"").append(escapeAttr(sourceName(imageUrl)))
                 .append("\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
@@ -1367,7 +1370,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param piece 当前生产工件
      * @param maskUrl 新上传的留白 mask SVG URL
      */
-    private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
+    protected void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
         ImageFile maskFile = piece.getMaskImageFile();
         if (maskFile == null) {
             maskFile = new ImageFile();
@@ -1384,7 +1387,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         preview.setThumbnail(maskUrl);
     }
 
-    private void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets, ExpandMargins margins) {
+    protected void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets, ExpandMargins margins) {
         if (tagAssets == null) {
             return;
         }
@@ -1394,17 +1397,21 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             piece.setMarks(marks);
         }
         if (shouldBuildLiubaiTagGroup(margins.top)) {
-            marks.put("liubai-tag-top", tagAssets.topUrl);
+            marks.put(tagMarkKeyPrefix() + "-top", tagAssets.topUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.right) && shouldBuildLeftRightLiubaiTagGroups()) {
-            marks.put("liubai-tag-right", tagAssets.rightUrl);
+            marks.put(tagMarkKeyPrefix() + "-right", tagAssets.rightUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.bottom)) {
-            marks.put("liubai-tag-bottom", tagAssets.bottomUrl);
+            marks.put(tagMarkKeyPrefix() + "-bottom", tagAssets.bottomUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.left) && shouldBuildLeftRightLiubaiTagGroups()) {
-            marks.put("liubai-tag-left", tagAssets.leftUrl);
+            marks.put(tagMarkKeyPrefix() + "-left", tagAssets.leftUrl);
         }
+    }
+
+    protected String tagMarkKeyPrefix() {
+        return "liubai-tag";
     }
 
     private static class LiubaiTagImage {
@@ -1421,7 +1428,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
     }
 
-    private static class LiubaiTagAssets {
+    protected static class LiubaiTagAssets {
         private final String text;
         private final String topUrl;
         private final String rightUrl;
@@ -1485,7 +1492,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
          * @param top 上边外扩量
          * @param bottom 下边外扩量
          */
-        protected ExpandMargins(double left, double right, double top, double bottom) {
+        public ExpandMargins(double left, double right, double top, double bottom) {
             this.left = left;
             this.right = right;
             this.top = top;

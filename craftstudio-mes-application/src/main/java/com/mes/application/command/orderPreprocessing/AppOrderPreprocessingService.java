@@ -23,6 +23,8 @@ import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContex
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
 import com.mes.application.command.typesetting.proces.material.MaterialProcessContext;
 import com.mes.application.command.typesetting.proces.material.MaterialProcessService;
+import com.mes.application.command.typesetting.proces.reshenghua.ReshenghuaProcessContext;
+import com.mes.application.command.typesetting.proces.reshenghua.ReshenghuaProcessStrategy;
 import com.mes.application.command.typesetting.proces.splice.SuperWidthSpliceProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -184,6 +186,9 @@ public class AppOrderPreprocessingService {
      */
     @Autowired
     private MaterialProcessService materialProcessService;
+
+    @Autowired
+    private ReshenghuaProcessStrategy reshenghuaProcessStrategy;
 
     /**
      * 打扣预处理服务。
@@ -1178,6 +1183,7 @@ public class AppOrderPreprocessingService {
                         // 写真/无痕/板材拼接只保留算法返回的拼接结果，不生成或写入任何 mark。
                         if (isMarklessSpliceFlow(newProcedureFlow)) {
                             piece.setMarks(null);
+                            applyReshenghuaProcessForStrategy(orderItem, newProcedureFlow, piece);
                         } else {
                             // 其他拼接路线先写入拼接 mark，再按工艺执行打扣与留白。
                             applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece,
@@ -1328,15 +1334,28 @@ public class AppOrderPreprocessingService {
      */
     public void applyBuckleAndLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
         if (isMarklessSpliceFlow(procedureFlow)) {
+            applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
             return;
         }
         if (hasNodeWithName(procedureFlow, "画内打扣")) {
             applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
             applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
+            applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
             return;
         }
         applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
         applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
+        applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
+    }
+
+    /** 直接生成和拼接 callback 共用入口，在留白/打扣后独立执行热升华，确保轮廓描边位于最上层。 */
+    public void applyReshenghuaProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece) {
+        if (reshenghuaProcessStrategy == null || orderItem == null || procedureFlow == null || piece == null) return;
+        ReshenghuaProcessContext context = new ReshenghuaProcessContext();
+        context.setOrderItem(orderItem);
+        context.setProcedureFlow(procedureFlow);
+        context.setProductionPiece(piece);
+        reshenghuaProcessStrategy.process(context);
     }
 
     /**

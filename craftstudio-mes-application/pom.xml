@@ -19,6 +19,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.apache.xmlgraphics</groupId>
+            <artifactId>batik-parser</artifactId>
+            <version>1.19</version>
+        </dependency>
+        <dependency>
             <groupId>org.example</groupId>
             <artifactId>craftstudio-mes-infra</artifactId>
             <version>0.0.1-SNAPSHOT</version>
