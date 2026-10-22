@@ -591,17 +591,7 @@ public class AppDeliveryPkgService {
             String result = callPost(url, paramStr, "label.order");
             response = JSON.parseObject(result, AuthOrderResponse.class);
         }
-        boolean isResponseSuccess = response != null
-                && response.getCode() == ApiResponse.RepStatusCode.success
-                && Boolean.TRUE.equals(response.getSuccess())
-                && response.getData() != null;
-        if (!isResponseSuccess) {
-            String errorMsg = response == null || StringUtils.isBlank(response.getMessage())
-                    ? "快递100电子面单下单失败"
-                    : response.getMessage();
-            // 快递100失败时立即抛出，失败分支不新增发货记录、不创建包裹、不更新生产零件。
-            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
-        }
+        validateKuaidi100OrderResponse(response);
 
         //添加打印记录
         DeliveryRecord deliveryRecord = this.createDeliveryRecord(request);
@@ -684,6 +674,22 @@ public class AppDeliveryPkgService {
         }
 
         return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
+    }
+
+    private void validateKuaidi100OrderResponse(AuthOrderResponse response) {
+        boolean isResponseSuccess = response != null
+                && response.getCode() == ApiResponse.RepStatusCode.success
+                && Boolean.TRUE.equals(response.getSuccess())
+                && response.getData() != null
+                && StringUtils.isNotBlank(response.getData().getKuaidinum());
+        if (!isResponseSuccess) {
+            String errorMsg = response == null || StringUtils.isBlank(response.getMessage())
+                    ? (response != null && Boolean.TRUE.equals(response.getSuccess())
+                            ? "快递100打印未返回快递单号" : "快递100电子面单下单失败")
+                    : response.getMessage();
+            // 快递100失败时立即抛出，失败分支不新增发货记录、不创建包裹、不更新生产零件。
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, errorMsg);
+        }
     }
 
     public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
@@ -1708,19 +1714,22 @@ public class AppDeliveryPkgService {
     public DeliveryPkgPrintResult preOrderKuaidi100Label(OrderInfo orderInfo, List<OrderItem> orderItems) {
         if (orderInfo == null || orderInfo.getLogisticsCarrierInfo() == null
                 || StringUtils.isBlank(orderInfo.getManufacturerId())) {
-            return null;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递100预打印订单物流或工厂信息不完整");
         }
         if ("CUSTOM".equalsIgnoreCase(orderInfo.getLogisticsCarrierInfo().getPresetType())) {
-            return null;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "自定义物流不支持快递100预打印");
         }
         String carrierId = orderInfo.getLogisticsCarrierInfo().getCarrierId();
         if (StringUtils.isBlank(carrierId)) {
-            return null;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递100物流方式ID为空");
         }
         DeliveryMan deliveryMan = resolveDefaultDeliveryMan(orderInfo.getManufacturerId());
         DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, orderInfo.getManufacturerId());
-        if (deliveryMan == null || deliveryToken == null) {
-            return null;
+        if (deliveryMan == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100发货人为空");
+        }
+        if (deliveryToken == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100电子面单配置为空");
         }
         DeliveryPkgRequest request = new DeliveryPkgRequest();
         request.setOrderId(orderInfo.getOrderId());
