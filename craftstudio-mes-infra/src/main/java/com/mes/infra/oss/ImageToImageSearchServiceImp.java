@@ -447,12 +447,22 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                 .addHeader("Content-Type", "application/json")
                 .build();
 
+        long started = System.nanoTime();
+        String callId = UUID.randomUUID().toString();
+        log.info("ImageSearchEmbedding callId={} stage=httpExecute started url={} model=multimodal-embedding-v1 imageBase64Length={}",
+                callId, url, imageBase64 == null ? 0 : imageBase64.length());
         try (okhttp3.Response response = httpClient.newCall(request).execute()) {
+            log.info("ImageSearchEmbedding callId={} stage=httpExecute completed status={} elapsedMs={}",
+                    callId, response.code(), (System.nanoTime() - started) / 1_000_000.0);
+            log.info("ImageSearchEmbedding callId={} stage=readResponseBody started", callId);
             if (!response.isSuccessful()) {
                 throw new IOException("DashScope API error: " + response.code() + " - " + response.body().string());
             }
 
             String responseBody = response.body().string();
+            log.info("ImageSearchEmbedding callId={} stage=readResponseBody completed elapsedMs={}",
+                    callId, (System.nanoTime() - started) / 1_000_000.0);
+            log.info("ImageSearchEmbedding callId={} stage=parseEmbedding started", callId);
             JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
             JsonObject output = jsonResponse.getAsJsonObject("output");
             JsonArray embeddingsArray = output.getAsJsonArray("embeddings");
@@ -469,6 +479,8 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                 vector[i] = vectorArray.get(i).getAsFloat();
             }
 
+            log.info("ImageSearchEmbedding callId={} stage=parseEmbedding completed dimension={} elapsedMs={}",
+                    callId, vector.length, (System.nanoTime() - started) / 1_000_000.0);
             return vector;
         }
     }
@@ -526,9 +538,11 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
      * @param filter 过滤表达式，如："manufacturerMetaId = 'xxx' and uploadedAt > '2024-01-01'"
      */
     public List<ImageSearchResult> searchSimilarImages(float[] queryVector, int topK, String filter) {
+        long started = System.nanoTime();
+        String callId = UUID.randomUUID().toString();
         try {
             if (collection == null) {
-                System.err.println("DashVector collection not initialized");
+                log.error("ImageSearchDashVector callId={} collection not initialized", callId);
                 return Collections.emptyList();
             }
 
@@ -551,13 +565,15 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
             }
 
             QueryDocRequest request = requestBuilder.build();
-            logger.info("collection.query-----start:" + JsonLogUtil.toJSONString(request));
+
+            log.info("ImageSearchDashVector callId={} stage=query started endpoint={} collection={} topK={}",
+                    callId, dashvectorEndpoint, collectionName, topK);
             Response<List<Doc>> resp = collection.query(request);
-            logger.info("collection.query-----end:" + JsonLogUtil.toJSONString(resp));
-
-
-
+            log.info("ImageSearchDashVector callId={} stage=query completed success={} code={} resultCount={} elapsedMs={}",
+                    callId, resp.isSuccess(), resp.getCode(), resp.getOutput() == null ? 0 : resp.getOutput().size(),
+                    (System.nanoTime() - started) / 1_000_000.0);
             if (resp.isSuccess() && resp.getOutput() != null) {
+                log.info("ImageSearchDashVector callId={} stage=mapResults started", callId);
                 List<ImageSearchResult> results = new ArrayList<>();
 
                 for (Doc doc : resp.getOutput()) {
@@ -573,15 +589,16 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     results.add(result);
                 }
 
-                System.out.println("Found " + results.size() + " similar images with filter: " + filter);
+                log.info("ImageSearchDashVector callId={} stage=mapResults completed resultCount={} elapsedMs={}",
+                        callId, results.size(), (System.nanoTime() - started) / 1_000_000.0);
                 return results;
             } else {
-                System.err.println("Search failed: " + resp.getMessage());
+                log.error("ImageSearchDashVector callId={} query failed code={} message={}", callId, resp.getCode(), resp.getMessage());
                 return Collections.emptyList();
             }
         } catch (DashVectorException e) {
-            System.err.println("Error searching similar images: " + e.getMessage());
-            e.printStackTrace();
+            log.error("ImageSearchDashVector callId={} failed elapsedMs={}",
+                    callId, (System.nanoTime() - started) / 1_000_000.0, e);
             return Collections.emptyList();
         }
     }

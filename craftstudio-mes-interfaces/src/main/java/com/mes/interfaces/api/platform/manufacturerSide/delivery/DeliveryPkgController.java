@@ -521,56 +521,99 @@ public class DeliveryPkgController {
 
     @PostMapping("/EndToEndImageSearch")
     public ApiResponse<DeliveryPkgPiecesResponse> EndToEndImageSearch(@RequestBody ImageSearchRequest request) {
+        String requestId = java.util.UUID.randomUUID().toString();
+        long requestStarted = System.nanoTime();
+        String stage = "request";
+        log.info("EndToEndImageSearch requestId={} started manufacturerMetaId={} topK={} startTime={} imageBase64Length={}",
+                requestId, request.getManufacturerMetaId(), request.getTopK(), request.getStartTime(),
+                request.getQueryImageBase64() == null ? 0 : request.getQueryImageBase64().length());
         try {
-            System.out.println("Step 1: Generating embedding for query image base64");
+            stage = "embedding";
+            long stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
             float[] queryVector = imageSearch.generateImageEmbeddingByBase64(request.getQueryImageBase64());
-            System.out.println("Query vector generated, dimension: " + queryVector.length);
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={} dimension={}",
+                    requestId, stage, (System.nanoTime() - stepStarted) / 1_000_000.0, queryVector.length);
 
+            stage = "buildFilter";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
             Instant startAt = parseStartTime(request.getStartTime());
-
-            System.out.println("Step 2: Searching for similar images in DashVector...");
             String filter = String.format("manufacturerMetaId = '%s'", request.getManufacturerMetaId());
             if (startAt != null) {
                 filter += String.format(" and uploadedAt > '%s'", startAt.toString());
             }
-
             Integer topK = request.getTopK() != null ? request.getTopK() : 50;
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={}",
+                    requestId, stage, (System.nanoTime() - stepStarted) / 1_000_000.0);
+
+            stage = "dashVectorQuery";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started topK={}", requestId, stage, topK);
             List<ImageToImageSearchServiceImp.ImageSearchResult> results =
                     imageSearch.searchSimilarImages(queryVector, topK, filter);
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={} resultCount={}",
+                    requestId, stage, (System.nanoTime() - stepStarted) / 1_000_000.0, results.size());
 
-            List<DeliveryPkgPieceVO> pieceVOS = results.stream()
-                    .map(result -> {
-                        String productionPieceId = result.getProductionPieceId();
-                        if (StringUtils.isBlank(productionPieceId)) {
-                            return null;
-                        }
-                        DeliveryPkgPieceVO vo = appDeliveryPkgService.findPendingPackagingPieceById(productionPieceId);
-                        if (vo != null) {
-                            vo.setScore(result.getScore());
-                        }
-                        return vo;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+            stage = "loadPackagingPieces";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started count={}", requestId, stage, results.size());
+            List<DeliveryPkgPieceVO> pieceVOS = new ArrayList<>();
+            int index = 0;
+            for (ImageToImageSearchServiceImp.ImageSearchResult result : results) {
+                index++;
+                String productionPieceId = result.getProductionPieceId();
+                if (StringUtils.isBlank(productionPieceId)) {
+                    log.info("EndToEndImageSearch requestId={} pieceIndex={} skipped missing productionPieceId", requestId, index);
+                    continue;
+                }
+                long pieceStarted = System.nanoTime();
+                log.info("EndToEndImageSearch requestId={} pieceIndex={} productionPieceId={} started",
+                        requestId, index, productionPieceId);
+                DeliveryPkgPieceVO vo = appDeliveryPkgService.findPendingPackagingPieceById(productionPieceId);
+                if (vo != null) {
+                    vo.setScore(result.getScore());
+                    pieceVOS.add(vo);
+                }
+                log.info("EndToEndImageSearch requestId={} pieceIndex={} productionPieceId={} completed elapsedMs={} included={}",
+                        requestId, index, productionPieceId, (System.nanoTime() - pieceStarted) / 1_000_000.0, vo != null);
+            }
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={} includedCount={}",
+                    requestId, stage, (System.nanoTime() - stepStarted) / 1_000_000.0, pieceVOS.size());
 
+            stage = "buildMaterialList";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
+            var materials = appDeliveryPkgService.buildMaterialList(pieceVOS);
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={}", requestId, stage,
+                    (System.nanoTime() - stepStarted) / 1_000_000.0);
+            stage = "buildSizeList";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
+            var sizes = appDeliveryPkgService.buildSizeList(pieceVOS);
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={}", requestId, stage,
+                    (System.nanoTime() - stepStarted) / 1_000_000.0);
+            stage = "buildProcessList";
+            stepStarted = System.nanoTime();
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
+            var processes = appDeliveryPkgService.buildProcessList(pieceVOS);
+            log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={}", requestId, stage,
+                    (System.nanoTime() - stepStarted) / 1_000_000.0);
+            stage = "buildResponse";
+            log.info("EndToEndImageSearch requestId={} stage={} started", requestId, stage);
             DeliveryPkgPiecesResponse response = new DeliveryPkgPiecesResponse(
-                    pieceVOS,
-                    (long) pieceVOS.size(),
-                    1L,
-                    appDeliveryPkgService.buildMaterialList(pieceVOS),
-                    appDeliveryPkgService.buildSizeList(pieceVOS),
-                    appDeliveryPkgService.buildProcessList(pieceVOS),
-                    null
-            );
-
-            System.out.println("Search completed, found " + pieceVOS.size() + " packaging-ready pieces");
-            return ApiResponse.success(response);
-
+                    pieceVOS, (long) pieceVOS.size(), 1L, materials, sizes, processes, null);
+            ApiResponse<DeliveryPkgPiecesResponse> apiResponse = ApiResponse.success(response);
+            log.info("EndToEndImageSearch requestId={} stage={} completed totalElapsedMs={} resultCount={}",
+                    requestId, stage, (System.nanoTime() - requestStarted) / 1_000_000.0, pieceVOS.size());
+            return apiResponse;
         } catch (BusinessNotAllowException e) {
+            log.warn("EndToEndImageSearch requestId={} stage={} rejected totalElapsedMs={}",
+                    requestId, stage, (System.nanoTime() - requestStarted) / 1_000_000.0, e);
             return ApiResponse.fail(ApiResponse.RepStatusCode.badParams, e.getMessage());
         } catch (Exception e) {
-            System.err.println("End-to-end test failed: " + e.getMessage());
-            e.printStackTrace();
+            log.error("EndToEndImageSearch requestId={} stage={} failed totalElapsedMs={}",
+                    requestId, stage, (System.nanoTime() - requestStarted) / 1_000_000.0, e);
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "Failed: " + e.getMessage());
         }
     }

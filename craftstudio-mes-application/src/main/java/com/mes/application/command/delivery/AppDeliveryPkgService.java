@@ -344,8 +344,16 @@ public class AppDeliveryPkgService {
         if (StringUtils.isBlank(productionPieceId)) {
             return null;
         }
+        long started = System.nanoTime();
+        log.info("ImageSearchPackaging stage=findProductionPiece started productionPieceId={}", productionPieceId);
         ProductionPiece productionPiece = productionPieceService.findByProductionPieceId(productionPieceId);
-        return buildPendingPackagingPieceVO(productionPiece);
+        log.info("ImageSearchPackaging stage=findProductionPiece completed productionPieceId={} found={} elapsedMs={}",
+                productionPieceId, productionPiece != null, (System.nanoTime() - started) / 1_000_000.0);
+        if (productionPiece == null) {
+            return null;
+        }
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(Collections.singletonList(productionPiece), true);
+        return items.isEmpty() ? null : items.get(0);
     }
 
     private DeliveryPkgPieceVO buildPendingPackagingPieceVO(ProductionPiece productionPiece) {
@@ -357,6 +365,10 @@ public class AppDeliveryPkgService {
     }
 
     private List<DeliveryPkgPieceVO> buildPendingPackagingPieceVOs(List<ProductionPiece> productionPieces) {
+        return buildPendingPackagingPieceVOs(productionPieces, false);
+    }
+
+    private List<DeliveryPkgPieceVO> buildPendingPackagingPieceVOs(List<ProductionPiece> productionPieces, boolean imageSearchDiagnostics) {
         if (productionPieces == null || productionPieces.isEmpty()) {
             return Collections.emptyList();
         }
@@ -365,9 +377,16 @@ public class AppDeliveryPkgService {
                 .map(ProductionPiece::getOrderItemId)
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        long findOrderItemsStarted = System.nanoTime();
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=findOrderItems started");
+        }
         Map<String, OrderItem> orderItems = orderItemService.findByOrderItemIds(orderItemIds).stream()
                 .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
 
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=findOrderItems completed elapsedMs={}", (System.nanoTime() - findOrderItemsStarted) / 1_000_000.0);
+        }
         LinkedHashSet<String> orderIds = productionPieces.stream()
                 .filter(Objects::nonNull)
                 .map(piece -> {
@@ -376,16 +395,34 @@ public class AppDeliveryPkgService {
                 })
                 .filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        long findOrdersStarted = System.nanoTime();
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=findOrders started");
+        }
         Map<String, OrderInfo> orders = orderInfoService.findByOrderIds(orderIds).stream()
                 .collect(Collectors.toMap(OrderInfo::getOrderId, order -> order, (left, right) -> left));
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=findOrders completed elapsedMs={}", (System.nanoTime() - findOrdersStarted) / 1_000_000.0);
+        }
         World world = null;
         if (!orders.isEmpty()) {
             long worldQueryStart = System.nanoTime();
+            if (imageSearchDiagnostics) {
+                log.info("ImageSearchPackaging stage=loadWorld started");
+            }
             world = worldRepository.loadWorld();
+            if (imageSearchDiagnostics) {
+                log.info("ImageSearchPackaging stage=loadWorld completed elapsedMs={}",
+                        (System.nanoTime() - worldQueryStart) / 1_000_000.0);
+            }
             log.info("MongoDB query loadWorld completed: elapsedMs={}",
                     (System.nanoTime() - worldQueryStart) / 1_000_000.0);
         }
 
+        long assembleStarted = System.nanoTime();
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=assemblePieceVO started");
+        }
         List<DeliveryPkgPieceVO> result = new ArrayList<>();
         for (ProductionPiece productionPiece : productionPieces) {
             if (productionPiece == null) {
@@ -396,6 +433,10 @@ public class AppDeliveryPkgService {
             if (vo != null) {
                 result.add(vo);
             }
+        }
+        if (imageSearchDiagnostics) {
+            log.info("ImageSearchPackaging stage=assemblePieceVO completed elapsedMs={} includedCount={}",
+                    (System.nanoTime() - assembleStarted) / 1_000_000.0, result.size());
         }
         return result;
     }
