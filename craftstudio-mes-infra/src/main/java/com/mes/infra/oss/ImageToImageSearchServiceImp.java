@@ -22,7 +22,9 @@ import com.aliyun.oss.model.ObjectListing;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mes.domain.shared.utils.JsonLogUtil;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -30,9 +32,13 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 
+@Slf4j
 @Component
 public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
+
+    Logger logger = Logger.getLogger(ImageToImageSearchServiceImp.class.getName());
 
     @Value("${ali-cloud.dashscope_api_key}")
     private String dashscopeApiKey;
@@ -545,8 +551,11 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
             }
 
             QueryDocRequest request = requestBuilder.build();
-
+            logger.info("collection.query-----start:" + JsonLogUtil.toJSONString(request));
             Response<List<Doc>> resp = collection.query(request);
+            logger.info("collection.query-----end:" + JsonLogUtil.toJSONString(resp));
+
+
 
             if (resp.isSuccess() && resp.getOutput() != null) {
                 List<ImageSearchResult> results = new ArrayList<>();
@@ -652,8 +661,9 @@ public class ImageToImageSearchServiceImp implements ImageToImageSearchService {
                     .topk(topK)
                     .includeVector(false)
                     .build();
-
+            logger.info("collection.query-----start:" + JsonLogUtil.toJSONString(request));
             Response<List<Doc>> resp = collection.query(request);
+            logger.info("collection.query-----end:" + JsonLogUtil.toJSONString(resp));
 
             if (resp.isSuccess() && resp.getOutput() != null) {
                 List<ImageSearchResult> results = new ArrayList<>();

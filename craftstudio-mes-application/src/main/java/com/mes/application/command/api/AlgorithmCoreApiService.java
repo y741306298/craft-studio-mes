@@ -64,6 +64,9 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.convertColorWhiteColorUrl:}")
     private String convertColorWhiteColorUrl;
 
+    @Value("${external.api.generateVerticalNestedFilesUrl:}")
+    private String generateVerticalNestedFilesUrl;
+
     /**
      * 彩白彩图像转换 - 同步模式。
      *
@@ -506,7 +509,7 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("异步模式下回调地址不能为空");
         }
 
-        return callAlgorithmAsync("http://craftstcal-nest-rvhsdyfyip.cn-hangzhou.fcapp.run", "/generate_nest_files", request,
+        return callAlgorithmAsync(generateVerticalNestedFilesUrl, "", request,
                 request.getCallbackConfig().getCallbackUrl(), "generateVerticalNestedFilesAsync", NestingResponse.class);
     }
 
