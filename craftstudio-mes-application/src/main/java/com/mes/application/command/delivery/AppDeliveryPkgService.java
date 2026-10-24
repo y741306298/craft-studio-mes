@@ -356,6 +356,33 @@ public class AppDeliveryPkgService {
         return items.isEmpty() ? null : items.get(0);
     }
 
+    public List<DeliveryPkgPieceVO> findPendingPackagingPiecesByIds(Collection<String> productionPieceIds) {
+        if (productionPieceIds == null || productionPieceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LinkedHashSet<String> ids = productionPieceIds.stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        long queryStart = System.nanoTime();
+        log.info("ImageSearchPackaging stage=findProductionPieces started requestedCount={}", ids.size());
+        List<ProductionPiece> pieces = productionPieceService.findByProductionPieceIds(ids);
+        log.info("ImageSearchPackaging stage=findProductionPieces completed requestedCount={} foundCount={} elapsedMs={}",
+                ids.size(), pieces.size(), (System.nanoTime() - queryStart) / 1_000_000.0);
+
+        long buildStart = System.nanoTime();
+        List<ProductionPiece> pendingPieces = pieces.stream()
+                .filter(Objects::nonNull)
+                .filter(piece -> getNodeQuantity(piece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING) > 0)
+                .collect(Collectors.toList());
+        List<DeliveryPkgPieceVO> items = buildPendingPackagingPieceVOs(pendingPieces, true);
+        log.info("ImageSearchPackaging stage=buildPackagingPieces completed resultCount={} elapsedMs={}",
+                items.size(), (System.nanoTime() - buildStart) / 1_000_000.0);
+        return items;
+    }
+
     private DeliveryPkgPieceVO buildPendingPackagingPieceVO(ProductionPiece productionPiece) {
         if (productionPiece == null) {
             return null;

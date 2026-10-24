@@ -4,6 +4,7 @@ import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
 import com.mes.application.dto.req.delivery.DeliveryPkgScopedRequest;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
+import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
@@ -24,8 +25,56 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class AppDeliveryPkgServiceBatchQueryTest {
+
+    @Test
+    void imageSearchQueriesAllDistinctPieceIdsOnce() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
+        ReflectionTestUtils.setField(service, "productionPieceService", productionPieceService);
+        when(productionPieceService.findByProductionPieceIds(anyCollection()))
+                .thenReturn(Collections.emptyList());
+
+        List<DeliveryPkgPieceVO> result = service.findPendingPackagingPiecesByIds(
+                java.util.Arrays.asList("piece-1", "", null, "piece-2", "piece-1"));
+
+        assertEquals(Collections.emptyList(), result);
+        verify(productionPieceService, times(1)).findByProductionPieceIds(
+                argThat(ids -> ids.equals(new LinkedHashSet<>(List.of("piece-1", "piece-2")))));
+        verifyNoMoreInteractions(productionPieceService);
+    }
+
+    @Test
+    void imageSearchSkipsRelatedQueriesWhenPiecesAreNotPendingPackaging() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
+        OrderItemService orderItemService = mock(OrderItemService.class);
+        OrderInfoService orderInfoService = mock(OrderInfoService.class);
+        ReflectionTestUtils.setField(service, "productionPieceService", productionPieceService);
+        ReflectionTestUtils.setField(service, "orderItemService", orderItemService);
+        ReflectionTestUtils.setField(service, "orderInfoService", orderInfoService);
+        when(productionPieceService.findByProductionPieceIds(anyCollection()))
+                .thenReturn(List.of(new ProductionPiece()));
+
+        assertEquals(Collections.emptyList(), service.findPendingPackagingPiecesByIds(List.of("piece-1")));
+        verifyNoInteractions(orderItemService, orderInfoService);
+    }
+
+    @Test
+    void imageSearchSkipsQueryWhenNoValidIdsRemain() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ProductionPieceService productionPieceService = mock(ProductionPieceService.class);
+        ReflectionTestUtils.setField(service, "productionPieceService", productionPieceService);
+
+        assertEquals(Collections.emptyList(), service.findPendingPackagingPiecesByIds(null));
+        assertEquals(Collections.emptyList(), service.findPendingPackagingPiecesByIds(Collections.emptyList()));
+        assertEquals(Collections.emptyList(), service.findPendingPackagingPiecesByIds(
+                java.util.Arrays.asList(null, "", "  ")));
+        verifyNoInteractions(productionPieceService);
+    }
 
     @Test
     void queriesProductionPiecesOnceForAllOrderItems() {

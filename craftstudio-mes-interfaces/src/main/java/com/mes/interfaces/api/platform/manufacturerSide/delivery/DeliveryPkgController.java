@@ -558,26 +558,35 @@ public class DeliveryPkgController {
             stage = "loadPackagingPieces";
             stepStarted = System.nanoTime();
             log.info("EndToEndImageSearch requestId={} stage={} started count={}", requestId, stage, results.size());
-            List<DeliveryPkgPieceVO> pieceVOS = new ArrayList<>();
-            int index = 0;
-            for (ImageToImageSearchServiceImp.ImageSearchResult result : results) {
-                index++;
-                String productionPieceId = result.getProductionPieceId();
-                if (StringUtils.isBlank(productionPieceId)) {
-                    log.info("EndToEndImageSearch requestId={} pieceIndex={} skipped missing productionPieceId", requestId, index);
-                    continue;
-                }
-                long pieceStarted = System.nanoTime();
-                log.info("EndToEndImageSearch requestId={} pieceIndex={} productionPieceId={} started",
-                        requestId, index, productionPieceId);
-                DeliveryPkgPieceVO vo = appDeliveryPkgService.findPendingPackagingPieceById(productionPieceId);
-                if (vo != null) {
-                    vo.setScore(result.getScore());
-                    pieceVOS.add(vo);
-                }
-                log.info("EndToEndImageSearch requestId={} pieceIndex={} productionPieceId={} completed elapsedMs={} included={}",
-                        requestId, index, productionPieceId, (System.nanoTime() - pieceStarted) / 1_000_000.0, vo != null);
-            }
+
+            List<String> productionPieceIds = results.stream()
+                    .map(ImageToImageSearchServiceImp.ImageSearchResult::getProductionPieceId)
+                    .filter(StringUtils::isNotBlank)
+                    .distinct()
+                    .collect(Collectors.toList());
+            Map<String, DeliveryPkgPieceVO> piecesById = appDeliveryPkgService
+                    .findPendingPackagingPiecesByIds(productionPieceIds).stream()
+                    .collect(Collectors.toMap(DeliveryPkgPieceVO::getProductionPieceId,
+                            piece -> piece, (left, right) -> left));
+
+            List<DeliveryPkgPieceVO> pieceVOS = results.stream()
+                    .map(result -> {
+                        String productionPieceId = result.getProductionPieceId();
+                        if (StringUtils.isBlank(productionPieceId)) {
+                            return null;
+                        }
+                        DeliveryPkgPieceVO piece = piecesById.get(productionPieceId);
+                        if (piece == null) {
+                            return null;
+                        }
+                        DeliveryPkgPieceVO vo = new DeliveryPkgPieceVO();
+                        BeanUtils.copyProperties(piece, vo);
+                        vo.setScore(result.getScore());
+                        return vo;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
             log.info("EndToEndImageSearch requestId={} stage={} completed elapsedMs={} includedCount={}",
                     requestId, stage, (System.nanoTime() - stepStarted) / 1_000_000.0, pieceVOS.size());
 
