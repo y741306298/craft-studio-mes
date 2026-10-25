@@ -1456,6 +1456,7 @@ public class AppTypesettingService {
                         .findFirst()
                         .orElse(null));
         String commonProcessingFlow = resolveProcessingFlowFromOrderItem(productionPieces, typesettingInfos);
+        commonProcessingFlow = appendDoubleSideProcessingFlow(commonProcessingFlow, productionPieces, typesettingInfos, commonProcedureFlow);
         if (materialConfigs.isEmpty() && unifiedMaterialConfig != null && StringUtils.isNotBlank(unifiedMaterialConfig.getMaterialId())) {
             materialConfigs = Collections.singletonList(unifiedMaterialConfig.getMaterialId());
         }
@@ -4922,6 +4923,43 @@ public class AppTypesettingService {
         return null;
     }
 
+    /** 保留来源中的双面工艺完整描述，并确保结构化节点在文本工艺流中也有对应项。 */
+    private String appendDoubleSideProcessingFlow(String processingFlow,
+                                                  List<ProductionPiece> productionPieces,
+                                                  List<TypesettingInfo> typesettingInfos,
+                                                  ProcedureFlow procedureFlow) {
+        List<String> sourceFlows = new ArrayList<>();
+        if (productionPieces != null) {
+            productionPieces.stream().filter(Objects::nonNull).map(ProductionPiece::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank).forEach(sourceFlows::add);
+        }
+        if (typesettingInfos != null) {
+            typesettingInfos.stream().filter(Objects::nonNull).map(TypesettingInfo::getProcessingFlow)
+                    .filter(StringUtils::isNotBlank).forEach(sourceFlows::add);
+        }
+        List<String> segments = new ArrayList<>();
+        if (StringUtils.isNotBlank(processingFlow)) {
+            segments.addAll(Arrays.asList(processingFlow.split("-")));
+        }
+        for (String sourceFlow : sourceFlows) {
+            for (String segment : sourceFlow.split("-")) {
+                if (ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(segment)
+                        && segments.stream().noneMatch(existing -> existing.trim().equals(segment.trim()))) {
+                    segments.add(segment);
+                }
+            }
+        }
+        if (procedureFlow != null && procedureFlow.getNodes() != null) {
+            for (ProcedureFlowNode node : procedureFlow.getNodes()) {
+                if (node != null && ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName())
+                        && segments.stream().noneMatch(segment -> segment.contains(node.getNodeName()))) {
+                    segments.add(node.getNodeName());
+                }
+            }
+        }
+        return segments.isEmpty() ? processingFlow : String.join("-", segments);
+    }
+
     private void validateNoSecondaryTypesettingCells(TypesettingInfo typesettingInfo) {
         if (typesettingInfo == null || typesettingInfo.getTypesettingCells() == null) {
             return;
@@ -4941,7 +4979,8 @@ public class AppTypesettingService {
      * 2) 如果存在“覆膜”，其 paramConfigs 必须一致；
      * 3) 如果存在“覆板”，其 paramConfigs 也必须一致；
      * 4) 校验通过后，按节点顺序提取所有来源工序流的最长公共前缀；
-     * 5) 如果本次所有来源都包含“覆膜”、“不覆膜”或“覆板”工艺，则生成的排版工序流必须保留对应节点。
+     * 5) 如果本次所有来源都包含“覆膜”、“不覆膜”或“覆板”工艺，则生成的排版工序流必须保留对应节点；
+     * 6) 来源中的双面对裱、覆双面、双面喷节点直接保留，避免公共前缀截断后丢失反面生成条件。
      */
     private ProcedureFlow validateAndBuildCommonProcedureFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         List<ProcedureFlow> procedureFlows = new ArrayList<>();
@@ -4987,6 +5026,17 @@ public class AppTypesettingService {
         appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "覆膜");
         appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "不覆膜");
         appendNodeIfAllProcedureFlowsHaveIt(commonNodes, procedureFlows, "覆板");
+        for (ProcedureFlow flow : procedureFlows) {
+            if (flow.getNodes() == null) {
+                continue;
+            }
+            for (ProcedureFlowNode node : flow.getNodes()) {
+                if (node != null && ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName())
+                        && commonNodes.stream().noneMatch(existing -> isSameNode(existing, node))) {
+                    commonNodes.add(node);
+                }
+            }
+        }
         if (commonNodes.isEmpty()) {
             return null;
         }
