@@ -121,7 +121,7 @@ class AppDeliveryPkgServiceBatchQueryTest {
         ImageFile productionImage = new ImageFile();
         productionImage.setName("production.png");
         orderItem.setProductionImgFile(productionImage);
-        when(orderItemService.findByOrderItemId("item-1")).thenReturn(orderItem);
+        when(orderItemService.findByOrderItemIds(List.of("item-1"))).thenReturn(List.of(orderItem));
 
         DeliveryPkgPieceVO piece = new DeliveryPkgPieceVO();
         piece.setOrderItemId("item-1");
@@ -132,6 +132,104 @@ class AppDeliveryPkgServiceBatchQueryTest {
                 "order-1", "CUSTOM", null, List.of(pieceItem), null);
 
         assertEquals("订单:order-1\n原备注\n文件:production.png", remarks);
+    }
+
+    @Test
+    void remarksBatchQueryPreservesRequestOrderAndDeduplicatesItemsAndFileNames() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        OrderItemService items = mock(OrderItemService.class);
+        ReflectionTestUtils.setField(service, "orderItemService", items);
+        OrderItem first = imageOrderItem("item-1", "first.png");
+        OrderItem second = imageOrderItem("item-2", "second.png");
+        OrderItem sameFile = imageOrderItem("item-3", "first.png");
+        when(items.findByOrderItemIds(List.of("item-1", "item-2", "missing", "item-3")))
+                .thenReturn(List.of(sameFile, second, first));
+
+        String remarks = ReflectionTestUtils.invokeMethod(service, "buildDeliveryPkgRemarks",
+                "order-1", "CUSTOM", null,
+                java.util.Arrays.asList(requestPiece("p1", "item-1", 1), null,
+                        requestPiece("p2", "item-2", 1), requestPiece("p3", "item-1", 1),
+                        requestPiece("p4", "missing", 1), requestPiece("p5", "item-3", 1),
+                        requestPiece("p6", " ", 1)), new OrderInfo());
+
+        assertEquals("订单:order-1\n文件:first.png,second.png", remarks);
+        verify(items).findByOrderItemIds(List.of("item-1", "item-2", "missing", "item-3"));
+        verifyNoMoreInteractions(items);
+    }
+
+    @Test
+    void addPkgUsesLocalQuantitiesAndQueriesRemarkItemsOnlyOnce() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ProductionPieceService pieces = mock(ProductionPieceService.class);
+        OrderItemService items = mock(OrderItemService.class);
+        OrderInfoService orders = mock(OrderInfoService.class);
+        var packages = mock(com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService.class);
+        ReflectionTestUtils.setField(service, "productionPieceService", pieces);
+        ReflectionTestUtils.setField(service, "orderItemService", items);
+        ReflectionTestUtils.setField(service, "orderInfoService", orders);
+        ReflectionTestUtils.setField(service, "deliveryPkgService", packages);
+        ProductionPiece first = packingPiece("mongo-1", "piece-1");
+        ProductionPiece second = packingPiece("mongo-2", "piece-2");
+        when(pieces.findByProductionPieceIds(List.of("piece-1", "piece-2")))
+                .thenReturn(List.of(first, second));
+        when(orders.findByOrderId("order-1")).thenReturn(new OrderInfo());
+        when(items.findByOrderItemIds(List.of("item-1", "item-2")))
+                .thenReturn(List.of(imageOrderItem("item-2", "second.png"), imageOrderItem("item-1", "first.png")));
+        when(packages.createDeliveryPkg(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        DeliveryPkgAddRequest request = new DeliveryPkgAddRequest();
+        request.setPieces(List.of(requestPiece("piece-1", "item-1", 2), requestPiece("piece-2", "item-2", 3)));
+
+        var result = service.addPkg(request);
+
+        assertEquals("订单:order-1\n文件:first.png,second.png", result.getRemarks());
+        assertEquals(8, first.getProcedureFlow().getNodes().get(0).getPieceQuantity());
+        assertEquals(2, first.getProcedureFlow().getNodes().get(1).getPieceQuantity());
+        assertEquals(7, second.getProcedureFlow().getNodes().get(0).getPieceQuantity());
+        assertEquals(3, second.getProcedureFlow().getNodes().get(1).getPieceQuantity());
+        verify(pieces).batchUpdatePackagingState(List.of(first, second));
+        verify(items).findByOrderItemIds(List.of("item-1", "item-2"));
+        verifyNoMoreInteractions(items);
+    }
+
+    private ProductionPiece packingPiece(String id, String productionPieceId) {
+        ProductionPiece piece = new ProductionPiece();
+        piece.setId(id);
+        piece.setProductionPieceId(productionPieceId);
+        piece.setQuantity(10);
+        var pending = new com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode();
+        pending.setNodeName("待打包");
+        pending.setPieceQuantity(10);
+        var packed = new com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode();
+        packed.setNodeName("已打包");
+        packed.setPieceQuantity(0);
+        var flow = new com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow();
+        flow.setNodes(List.of(pending, packed));
+        piece.setProcedureFlow(flow);
+        return piece;
+    }
+
+    private DeliveryPkgAddRequest.DeliveryPkgPieceItem requestPiece(String pieceId, String itemId, int quantity) {
+        DeliveryPkgPieceVO piece = new DeliveryPkgPieceVO();
+        piece.setProductionPieceId(pieceId);
+        piece.setOrderItemId(itemId);
+        piece.setOrderId("order-1");
+        var carrier = new com.mes.domain.order.orderInfo.vo.LogisticsCarrierInfo();
+        carrier.setCarrierId("custom-carrier");
+        carrier.setPresetType("CUSTOM");
+        piece.setLogisticsCarrierInfo(carrier);
+        var item = new DeliveryPkgAddRequest.DeliveryPkgPieceItem();
+        item.setPiece(piece);
+        item.setQuantity(quantity);
+        return item;
+    }
+
+    private OrderItem imageOrderItem(String id, String fileName) {
+        OrderItem item = orderItem(id);
+        ImageFile image = new ImageFile();
+        image.setName(fileName);
+        item.setProductionImgFile(image);
+        return item;
     }
 
     private OrderItem orderItem(String id) {

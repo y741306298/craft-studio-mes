@@ -57,14 +57,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -78,15 +76,10 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class AppDeliveryPkgService {
-
-    private static final String ADD_PKG_WORKSPACE_PREFIX = "delivery:add-pkg:";
-    private static final long ADD_PKG_WORKSPACE_TTL_MINUTES = 30;
 
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
@@ -99,9 +92,6 @@ public class AppDeliveryPkgService {
 
     @Autowired
     private WorldRepository worldRepository;
-
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     private JstPrintGuard jstPrintGuard;
@@ -764,15 +754,6 @@ public class AppDeliveryPkgService {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
-        String workspaceKey = ADD_PKG_WORKSPACE_PREFIX + UUID.randomUUID();
-        try {
-            return addPkg(request, workspaceKey);
-        } finally {
-            redisTemplate.delete(workspaceKey);
-        }
-    }
-
-    private DeliveryPkg addPkg(DeliveryPkgAddRequest request, String workspaceKey) {
         List<String> requestedPieceIds = request.getPieces().stream()
                 .filter(Objects::nonNull)
                 .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
@@ -790,7 +771,7 @@ public class AppDeliveryPkgService {
         String carrierName = null;
         String presetType = null;
         List<ProductionPiece> selectedPieces = new ArrayList<>();
-        Map<String, Integer> packageQuantityMap = new RedisQuantityMap(redisTemplate, workspaceKey);
+        Map<String, Integer> packageQuantityMap = new HashMap<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
             if (item == null || item.getPiece() == null || item.getQuantity() == null || item.getQuantity() <= 0) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "零件与打包数量必须填写且数量大于0");
@@ -821,18 +802,18 @@ public class AppDeliveryPkgService {
                         "零件[" + pieceVO.getProductionPieceId() + "]打包数量超过待打包数量");
             }
             selectedPieces.add(sourcePiece);
-            redisTemplate.opsForHash().put(workspaceKey, sourcePiece.getId(), item.getQuantity().toString());
+            packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
-        redisTemplate.expire(workspaceKey, ADD_PKG_WORKSPACE_TTL_MINUTES, TimeUnit.MINUTES);
 
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
         OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
         fillMissingRouteFromOrder(request, orderInfo);
+        String remarks = buildDeliveryPkgRemarks(orderId, presetType, null, request.getPieces(), orderInfo);
         if (orderInfo != null && orderInfo.getChannel() != null
                 && orderInfo.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
             return packGatherPlatformOrder(request, orderInfo, selectedPieces, packageQuantityMap,
-                    carrierId, carrierName, presetType);
+                    carrierId, carrierName, presetType, remarks);
         }
 
         boolean useCustomPackagingFlow = isCustomPackagingPresetType(presetType);
@@ -895,7 +876,7 @@ public class AppDeliveryPkgService {
                         preOrderRecord = claimed;
                     }
                     DeliveryPkg deliveryPkg = findOrCreateConsumedPkg(preOrderRecord, request, orderId, carrierId,
-                            carrierName, actualPresetType, orderInfo.getKuaidiNum());
+                            carrierName, actualPresetType, orderInfo.getKuaidiNum(), remarks);
                     transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName,
                             request.getRouteId(), request.getRouteNodeId(), orderInfo.getKuaidiNum());
                     orderInfo.setKuaidiNum(null);
@@ -906,7 +887,7 @@ public class AppDeliveryPkgService {
         }
 
         if (useCustomPackagingFlow) {
-            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, null);
+            DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, null, null, remarks);
             transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName, request.getRouteId(), request.getRouteNodeId(), null);
             return deliveryPkg;
         }
@@ -928,12 +909,12 @@ public class AppDeliveryPkgService {
         toPkgRequest.setDeliveryManId(request.getDeliveryManId());
         toPkgRequest.setDeliverySiidId(request.getDeliverySiidId());
         toPkgRequest.setManufacturerMetaId(request.getManufacturerMetaId());
-        toPkgRequest.setRemark(buildDeliveryPkgRemarks(orderId, actualPresetType, null, request.getPieces(), null));
+        toPkgRequest.setRemark(remarks);
         // 快递100失败时由 executePkg 直接抛出原始错误，不创建本地 CUSTOM 包裹。
         DeliveryPkgPrintResult printResult = this.executePkg(toPkgRequest);
         String taskId = printResult == null ? null : printResult.getTaskId();
         String kuaidiNum = printResult == null ? null : printResult.getKuaidiNum();
-        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, kuaidiNum);
+        DeliveryPkg deliveryPkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, actualPresetType, kuaidiNum, null, remarks);
         if (StringUtils.isNotBlank(taskId)) {
             deliveryPkg.setDeliveryPkgCode(taskId);
             deliveryPkgService.updateDeliveryPkg(deliveryPkg);
@@ -1028,11 +1009,11 @@ public class AppDeliveryPkgService {
 
     private DeliveryPkg packGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
                                                         List<ProductionPiece> pieces, Map<String, Integer> quantities,
-                                                        String carrierId, String carrierName, String presetType) {
+                                                        String carrierId, String carrierName, String presetType, String remarks) {
         if (isKuaidi100TestEnvironment()) {
             // 测试环境不得调用聚单平台换仓或打印接口，只写入默认单号并完成本地打包流程。
             DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName,
-                    presetType, TEST_KUAIDI100_NUM);
+                    presetType, TEST_KUAIDI100_NUM, null, remarks);
             transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
                     request.getRouteNodeId(), TEST_KUAIDI100_NUM);
             orderInfo.setKuaidiNum(TEST_KUAIDI100_NUM);
@@ -1045,12 +1026,12 @@ public class AppDeliveryPkgService {
                 orderInfo.getKuaidiNum());
         boolean reusedLabel = record != null;
         if (record == null) {
-            record = printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType);
+            record = printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType, false, remarks);
             if (record == null) {
                 // Only fall back to the local printable custom flow when no matching platform logistics
                 // config exists for this gather-platform order.
                 DeliveryPkg customPkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId,
-                        carrierName, "CUSTOM", null);
+                        carrierName, "CUSTOM", null, null, remarks);
                 transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
                         request.getRouteNodeId(), null);
                 return customPkg;
@@ -1062,7 +1043,7 @@ public class AppDeliveryPkgService {
         }
 
         DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderInfo.getOrderId(), carrierId, carrierName, presetType,
-                record.getLogisticsOrderId());
+                record.getLogisticsOrderId(), null, remarks);
         pkg.setLogisticsCloudPrintData(record.getLogisticsCloudPrintData());
         deliveryPkgService.updateDeliveryPkg(pkg);
         transferPiecesToPacked(pieces, quantities, carrierId, carrierName, request.getRouteId(),
@@ -1208,6 +1189,11 @@ public class AppDeliveryPkgService {
 
     private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
                                                                String presetType, boolean recovery) {
+        return printAndSaveWdtLabelRecordForAddPkg(request, orderInfo, presetType, recovery, null);
+    }
+
+    private WdtLabelRecord printAndSaveWdtLabelRecordForAddPkg(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                                               String presetType, boolean recovery, String remarks) {
         if (orderInfo == null || orderInfo.getChannel() == null || StringUtils.isBlank(orderInfo.getChannel().getOrderId())) {
             return null;
         }
@@ -1263,8 +1249,8 @@ public class AppDeliveryPkgService {
                 record.setLogisticsOrderId(label.getLogisticsOrderId());
                 record.setConsignee(label.getConsignee());
                 record.setLogisticsCloudPrintData(label.getLogisticsCloudPrintData());
-                record.setRemark(buildDeliveryPkgRemarks(orderInfo.getOrderId(), presetType, label.getLogisticsOrderId(),
-                        request.getPieces(), orderInfo));
+                record.setRemark(remarks != null ? remarks : buildDeliveryPkgRemarks(orderInfo.getOrderId(), presetType,
+                        label.getLogisticsOrderId(), request.getPieces(), orderInfo));
                 return wdtLabelRecordRepository.add(record);
             };
             return recovery ? jstPrintGuard.retryForSmsAuth(operation)
@@ -1283,13 +1269,13 @@ public class AppDeliveryPkgService {
 
     private DeliveryPkg findOrCreateConsumedPkg(DeliveryRecord record, DeliveryPkgAddRequest request,
                                                      String orderId, String carrierId, String carrierName,
-                                                     String presetType, String kuaidiNum) {
+                                                     String presetType, String kuaidiNum, String remarks) {
         if (StringUtils.isNotBlank(record.getDeliveryPkgId())) {
             List<DeliveryPkg> existing = deliveryPkgService.findByDeliveryPkgId(record.getDeliveryPkgId());
             if (!existing.isEmpty()) return existing.get(0);
         }
         DeliveryPkg pkg = createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType,
-                kuaidiNum, record.getDeliveryPkgId());
+                kuaidiNum, record.getDeliveryPkgId(), remarks);
         pkg.setDeliveryPkgCode(record.getTaskId());
         return deliveryPkgService.updateDeliveryPkg(pkg);
     }
@@ -1416,29 +1402,6 @@ public class AppDeliveryPkgService {
         packedNode.setPieceQuantity(packedQuantity);
         packedNode.setNodeStatus(NodeStatus.ACTIVE);
     }
-
-    /** Request-scoped quantity lookup backed by Redis instead of retaining another in-memory copy. */
-    private static final class RedisQuantityMap extends AbstractMap<String, Integer> {
-        private final RedisTemplate<String, Object> redisTemplate;
-        private final String key;
-
-        private RedisQuantityMap(RedisTemplate<String, Object> redisTemplate, String key) {
-            this.redisTemplate = redisTemplate;
-            this.key = key;
-        }
-
-        @Override
-        public Integer get(Object field) {
-            Object value = redisTemplate.opsForHash().get(key, field);
-            return value == null ? null : Integer.valueOf(value.toString());
-        }
-
-        @Override
-        public Set<Entry<String, Integer>> entrySet() {
-            throw new UnsupportedOperationException("Redis quantity workspace does not support iteration");
-        }
-    }
-
 
     private void refreshPackagingCompletionStatus(java.util.Set<String> touchedOrderItemIds) {
         if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
@@ -1568,6 +1531,12 @@ public class AppDeliveryPkgService {
     }
 
     private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId, String carrierName, String presetType, String kuaidiNum, String stablePkgId) {
+        return createAndSaveDeliveryPkg(request, orderId, carrierId, carrierName, presetType, kuaidiNum, stablePkgId, null);
+    }
+
+    private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId,
+                                                String carrierName, String presetType, String kuaidiNum,
+                                                String stablePkgId, String remarks) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
         String deliveryPkgId = StringUtils.isBlank(stablePkgId) ? IdGenerator.generateId("DP") : stablePkgId;
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
@@ -1588,7 +1557,8 @@ public class AppDeliveryPkgService {
         if (orderInfo != null) {
             deliveryPkg.setOrgInfo(orderInfo.getOrgInfo());
         }
-        deliveryPkg.setRemarks(buildDeliveryPkgRemarks(orderId, presetType, kuaidiNum, request.getPieces(), orderInfo));
+        deliveryPkg.setRemarks(remarks != null ? remarks
+                : buildDeliveryPkgRemarks(orderId, presetType, kuaidiNum, request.getPieces(), orderInfo));
 
         List<com.mes.domain.delivery.deliveryPkg.vo.DeliveryPkgItem> pkgItems = new ArrayList<>();
         for (DeliveryPkgAddRequest.DeliveryPkgPieceItem item : request.getPieces()) {
@@ -1647,20 +1617,29 @@ public class AppDeliveryPkgService {
         if (remarkParts == null || pieces == null || pieces.isEmpty()) {
             return;
         }
-        List<String> imageFileNames = pieces.stream()
+        List<String> orderItemIds = pieces.stream()
                 .filter(Objects::nonNull)
                 .map(DeliveryPkgAddRequest.DeliveryPkgPieceItem::getPiece)
                 .filter(Objects::nonNull)
                 .map(DeliveryPkgPieceVO::getOrderItemId)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
-                .map(orderItemService::findByOrderItemId)
+                .toList();
+        if (orderItemIds.isEmpty()) {
+            return;
+        }
+        Map<String, OrderItem> itemsById = orderItemService.findByOrderItemIds(orderItemIds).stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
+        // Preserve request order even when the database returns items in a different order.
+        List<String> imageFileNames = orderItemIds.stream()
+                .map(itemsById::get)
                 .filter(Objects::nonNull)
                 .map(OrderItem::getProductionImgFile)
                 .map(this::getImageFileName)
                 .filter(StringUtils::isNotBlank)
                 .distinct()
-                .collect(Collectors.toList());
+                .toList();
         if (!imageFileNames.isEmpty()) {
             remarkParts.add("文件:" + String.join(",", imageFileNames));
         }
@@ -1970,8 +1949,19 @@ public class AppDeliveryPkgService {
         param.add("param",paramStr);
         HttpEntity httpEntity = new HttpEntity<>(param,headers);
         RestTemplate restTemplate = new RestTemplate();
-        String result = restTemplate.postForObject(url,httpEntity, String.class);
-        return result;
+        long startedAt = System.nanoTime();
+        log.info("快递100调用开始: method={}, url={}", method, url);
+        try {
+            String result = restTemplate.postForObject(url, httpEntity, String.class);
+            log.info("快递100调用完成: method={}, url={}, elapsedMs={}",
+                    method, url, (System.nanoTime() - startedAt) / 1_000_000.0);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("快递100调用失败: method={}, url={}, elapsedMs={}, exceptionType={}",
+                    method, url, (System.nanoTime() - startedAt) / 1_000_000.0,
+                    ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     private String getSign(String paramStr,long t){
