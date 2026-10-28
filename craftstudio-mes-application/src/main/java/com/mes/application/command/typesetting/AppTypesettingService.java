@@ -28,6 +28,7 @@ import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.enums.FormeGenerationElementType;
+import com.mes.application.command.typesetting.enums.MachiningCompType;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.vo.*;
 import com.mes.application.dto.req.typesetting.GenerateQrCodeRequest;
@@ -1903,7 +1904,7 @@ public class AppTypesettingService {
         formeInfo.setMargin(modeResult.getMargin());
         formeInfo.setMarks(modeResult.getMarks());
         formeInfo.setAnchorPoints(modeResult.getAnchorPoints());
-        formeInfo.setPartSliceConfigs(buildPartSliceConfigs(typesettingInfo));
+        formeInfo.setMachiningConfigs(buildMachiningConfigs(typesettingInfo));
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
@@ -1932,8 +1933,8 @@ public class AppTypesettingService {
 
 
     /** 按零件自身 ID 收集小块裁切参数，同一零件只传一次。 */
-    private List<FormeGenerationRequest.PartSliceConfig> buildPartSliceConfigs(TypesettingInfo typesettingInfo) {
-        List<FormeGenerationRequest.PartSliceConfig> result = new ArrayList<>();
+    private List<FormeGenerationRequest.MachiningConfig> buildMachiningConfigs(TypesettingInfo typesettingInfo) {
+        List<FormeGenerationRequest.MachiningConfig> result = new ArrayList<>();
         if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
             return result;
         }
@@ -1971,13 +1972,18 @@ public class AppTypesettingService {
                     // 数据库存储 cm，印版生成算法使用 mm；只转换请求副本。
                     param.setXs(convertSliceCoordinatesToMm(param.getXs()));
                     param.setYs(convertSliceCoordinatesToMm(param.getYs()));
-                    FormeGenerationRequest.PartSliceConfig sliceConfig = new FormeGenerationRequest.PartSliceConfig();
-                    sliceConfig.setPartId(piece.getId());
-                    sliceConfig.setParam(param);
-                    result.add(sliceConfig);
+                    FormeGenerationRequest.MachiningPath path = new FormeGenerationRequest.MachiningPath();
+                    path.setType("XY");
+                    path.setParam(param);
+                    FormeGenerationRequest.MachiningConfig machiningConfig = new FormeGenerationRequest.MachiningConfig();
+                    machiningConfig.setCompId(piece.getId());
+                    machiningConfig.setCompType(MachiningCompType.FORME_OR_PART.getCode());
+                    machiningConfig.setKnife("SP7");
+                    machiningConfig.setPath(path);
+                    result.add(machiningConfig);
                     break;
                 }
-                if (!result.isEmpty() && piece.getId().equals(result.get(result.size() - 1).getPartId())) {
+                if (!result.isEmpty() && piece.getId().equals(result.get(result.size() - 1).getCompId())) {
                     break;
                 }
             }

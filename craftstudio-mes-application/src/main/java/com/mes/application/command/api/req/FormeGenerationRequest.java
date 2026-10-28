@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -26,12 +27,23 @@ public class FormeGenerationRequest {
         private Margin margin;
         private List<Mark> marks;
         private List<AnchorPoint> anchorPoints;
-        private List<PartSliceConfig> partSliceConfigs;
+        /** 加工路径配置；无额外加工路径时仍输出空数组。 */
+        private List<MachiningConfig> machiningConfigs = new ArrayList<>();
     }
 
     @Data
-    public static class PartSliceConfig {
-        private String partId;
+    public static class MachiningConfig {
+        private String compId;
+        /** 加工对象类型编码，当前固定为 forme|part。 */
+        private String compType;
+        private String knife;
+        private MachiningPath path;
+    }
+
+    @Data
+    public static class MachiningPath {
+        /** 路径类型，例如 XY。 */
+        private String type;
         private SliceParam param;
     }
 
