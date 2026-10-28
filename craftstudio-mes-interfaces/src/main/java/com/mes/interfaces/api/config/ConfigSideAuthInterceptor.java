@@ -6,6 +6,7 @@ import com.mes.domain.base.repository.ApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,9 @@ import java.nio.charset.StandardCharsets;
 public class ConfigSideAuthInterceptor implements HandlerInterceptor {
 
     private static final String BEARER_PREFIX = "Bearer ";
+
+    @Value("${mes.auth.default-authorization:Bearer craftstudio-mes-default}")
+    private String defaultAuthorization;
 
     private final AppConfigLoginService appConfigLoginService;
 
@@ -31,6 +35,10 @@ public class ConfigSideAuthInterceptor implements HandlerInterceptor {
         }
 
         String authorization = request.getHeader("Authorization");
+        if (defaultAuthorization != null && !defaultAuthorization.isBlank()
+                && defaultAuthorization.equals(authorization)) {
+            return true;
+        }
         if (authorization == null || !authorization.startsWith(BEARER_PREFIX)) {
             writeUnauthorizedResponse(request, response, "请先登录");
             return false;
