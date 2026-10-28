@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -110,6 +111,41 @@ class AppProductionPieceServiceTest {
         assertThat(new String(svgCaptor.getValue(), java.nio.charset.StandardCharsets.UTF_8))
                 .contains("id=\"" + redo.getId() + "\"")
                 .doesNotContain("id=\"" + original.getId() + "\"");
+    }
+
+    @Test
+    void redoMarkedPieceWithoutEmbeddedPieceIdKeepsOriginalSvg() {
+        ProductionPiece original = new ProductionPiece();
+        original.setId("64f000000000000000000001");
+        original.setProductionPieceId("piece-1");
+        original.setMarks(new HashMap<>());
+        String svg = "<svg><path d='M0 0H100V100H0Z'/></svg>";
+        ImageFile mask = new ImageFile();
+        mask.setRawFile(svg);
+        original.setMaskImageFile(mask);
+        original.setRouteSvg("original-route.svg");
+        ProcedureFlow flow = new ProcedureFlow();
+        flow.setNodes(List.of(node("NODE_TYPESETTING", "待排版", 0, NodeStatus.PENDING)));
+        original.setProcedureFlow(flow);
+
+        ProductionPieceService domainService = mock(ProductionPieceService.class);
+        when(domainService.findByProductionPieceId("piece-1")).thenReturn(original);
+        when(domainService.addProductionPiece(any(ProductionPiece.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        OssTagUploadService uploadService = mock(OssTagUploadService.class);
+        AppProductionPieceService service = new AppProductionPieceService();
+        ReflectionTestUtils.setField(service, "domainProductionPieceService", domainService);
+        ReflectionTestUtils.setField(service, "ossTagUploadService", uploadService);
+
+        ProductionPiece redo = service.increasePendingTypesettingQuantity("piece-1", 2);
+
+        assertThat(redo.getId()).isNotBlank().isNotEqualTo(original.getId());
+        assertThat(redo.getProductionPieceId()).isNotEqualTo(original.getProductionPieceId());
+        assertThat(redo.getMaskImageFile().getRawFile()).isEqualTo(svg);
+        assertThat(redo.getRouteSvg()).isEqualTo("original-route.svg");
+        assertThat(redo.getQuantity()).isEqualTo(2);
+        verify(domainService).addProductionPiece(redo);
+        verifyNoInteractions(uploadService);
     }
 
     @Test

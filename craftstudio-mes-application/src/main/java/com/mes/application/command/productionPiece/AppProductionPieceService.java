@@ -229,7 +229,7 @@ public class AppProductionPieceService {
 
     /**
      * 带 marks 的零件在排版时会把 mask/route SVG 同时作为 img 和 svg 提交。此类 SVG 内部的
-     * 主分组 id 是生产零件 Mongo ID，重做时不能继续引用源零件 ID。
+     * 若包含源生产零件 Mongo ID，重做时替换为新零件 ID；不含源 ID 的普通轮廓 SVG 可直接复用。
      */
     private void rewriteMarkedSvgForRedo(ProductionPiece source, ProductionPiece redo) {
         if (source.getMarks() == null || StringUtils.isBlank(source.getId())) {
@@ -250,6 +250,10 @@ public class AppProductionPieceService {
         String svg = svgLocation.trim().startsWith("<svg")
                 ? svgLocation : restTemplate.getForObject(svgLocation, String.class);
         String rewrittenSvg = rewriteSvgPieceId(svg, source.getId(), redo.getId());
+        // 未经过抠图等处理的轮廓 SVG 不绑定零件 ID，保留原资源即可。
+        if (Objects.equals(svg, rewrittenSvg)) {
+            return;
+        }
         String uploadPath = "mask/" + defaultPathPart(redo.getManufacturerId()) + "/"
                 + defaultPathPart(redo.getOrderItemId()) + "/redo/";
         String rewrittenUrl = ossTagUploadService.uploadTagSvg(
@@ -269,7 +273,7 @@ public class AppProductionPieceService {
                 + Pattern.quote(oldId) + "\\2");
         Matcher matcher = idPattern.matcher(svg);
         if (!matcher.find()) {
-            throw new IllegalStateException("重做零件 SVG 中未找到源零件 ID：" + oldId);
+            return svg;
         }
         return matcher.replaceFirst(Matcher.quoteReplacement(matcher.group(1) + matcher.group(2)
                 + newId + matcher.group(2)));
