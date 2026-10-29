@@ -1904,7 +1904,9 @@ public class AppTypesettingService {
         formeInfo.setMargin(modeResult.getMargin());
         formeInfo.setMarks(modeResult.getMarks());
         formeInfo.setAnchorPoints(modeResult.getAnchorPoints());
-        formeInfo.setMachiningConfigs(buildMachiningConfigs(typesettingInfo));
+        FormeGenerationRequest.MachiningManifest machiningManifest = new FormeGenerationRequest.MachiningManifest();
+        machiningManifest.setItems(buildMachiningItems(typesettingInfo));
+        formeInfo.setMachiningManifest(machiningManifest);
         request.setForme(formeInfo);
         request.setOutputs(modeResult.getOutputs());
 
@@ -1933,8 +1935,8 @@ public class AppTypesettingService {
 
 
     /** 按零件自身 ID 收集小块裁切参数，同一零件只传一次。 */
-    private List<FormeGenerationRequest.MachiningConfig> buildMachiningConfigs(TypesettingInfo typesettingInfo) {
-        List<FormeGenerationRequest.MachiningConfig> result = new ArrayList<>();
+    private List<FormeGenerationRequest.MachiningItem> buildMachiningItems(TypesettingInfo typesettingInfo) {
+        List<FormeGenerationRequest.MachiningItem> result = new ArrayList<>();
         if (typesettingInfo == null || CollectionUtils.isEmpty(typesettingInfo.getTypesettingCells())) {
             return result;
         }
@@ -1964,22 +1966,21 @@ public class AppTypesettingService {
                         continue;
                     }
                     // 仅映射 xs/ys，兼容参数 DTO 与 Map，不透传工艺元数据。
-                    FormeGenerationRequest.SliceParam param = JSON.parseObject(
-                            JSON.toJSONString(config.getParam()), FormeGenerationRequest.SliceParam.class);
+                    FormeGenerationRequest.MachiningParam param = JSON.parseObject(
+                            JSON.toJSONString(config.getParam()), FormeGenerationRequest.MachiningParam.class);
                     if (param.getXs() == null && param.getYs() == null) {
                         continue;
                     }
                     // 数据库存储 cm，印版生成算法使用 mm；只转换请求副本。
                     param.setXs(convertSliceCoordinatesToMm(param.getXs()));
                     param.setYs(convertSliceCoordinatesToMm(param.getYs()));
-                    FormeGenerationRequest.MachiningPath path = new FormeGenerationRequest.MachiningPath();
-                    path.setType("XY");
-                    path.setParam(param);
-                    FormeGenerationRequest.MachiningConfig machiningConfig = new FormeGenerationRequest.MachiningConfig();
+                    param.setType("GRID");
+                    FormeGenerationRequest.MachiningItem machiningConfig = new FormeGenerationRequest.MachiningItem();
                     machiningConfig.setCompId(piece.getId());
-                    machiningConfig.setCompType(MachiningCompType.FORME_OR_PART.getCode());
+                    machiningConfig.setCompType(MachiningCompType.PART.getCode());
+                    machiningConfig.setMachiningType("CUTTING");
                     machiningConfig.setKnife("SP7");
-                    machiningConfig.setPath(path);
+                    machiningConfig.setParam(param);
                     result.add(machiningConfig);
                     break;
                 }

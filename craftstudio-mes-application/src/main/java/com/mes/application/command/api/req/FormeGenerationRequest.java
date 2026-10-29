@@ -27,28 +27,29 @@ public class FormeGenerationRequest {
         private Margin margin;
         private List<Mark> marks;
         private List<AnchorPoint> anchorPoints;
-        /** 加工路径配置；无额外加工路径时仍输出空数组。 */
-        private List<MachiningConfig> machiningConfigs = new ArrayList<>();
+        /** 加工清单；无小块裁切配置时 items 为空数组。 */
+        private MachiningManifest machiningManifest = new MachiningManifest();
     }
 
     @Data
-    public static class MachiningConfig {
+    public static class MachiningManifest {
+        private List<MachiningItem> items = new ArrayList<>();
+    }
+
+    @Data
+    public static class MachiningItem {
         private String compId;
-        /** 加工对象类型编码，当前固定为 forme|part。 */
+        /** 加工对象类型编码：FORME 或 PART，目前仅支持 PART。 */
         private String compType;
+        /** 加工类型，例如 CUTTING 或 SLOT。 */
+        private String machiningType;
         private String knife;
-        private MachiningPath path;
+        private MachiningParam param;
     }
 
     @Data
-    public static class MachiningPath {
-        /** 路径类型，例如 XY。 */
+    public static class MachiningParam {
         private String type;
-        private SliceParam param;
-    }
-
-    @Data
-    public static class SliceParam {
         private List<BigDecimal> xs;
         private List<BigDecimal> ys;
     }

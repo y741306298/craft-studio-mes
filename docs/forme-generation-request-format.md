@@ -1,53 +1,40 @@
-# 确认排版、确认打印的印版生成请求
+# 印版生成加工清单
 
-`confirmLayout` 和 `confirmPrint` 均通过
-`buildConfirmFormeGenerationRequest` → `buildFormeGenerationRequest`
-组装算法请求，镜像印版和 confirmed 补偿重试也使用该入口。
-
-## 与目标格式的对照
-
-| 字段 | 当前行为及调整 |
-| --- | --- |
-| 顶层 | 已有 `forme`、`outputs`、`uploadConfig`、`callbackConfig` |
-| `forme.knife` | 已有，按业务规则选择刀型，不固定为示例中的 SP3 |
-| `forme.svgUrl` | 已有，使用当前排版 nestedSvg 的完整 OSS URL |
-| `forme.margin/marks/anchorPoints` | 已有，按排版模式生成；定位点已有 img、type、svg、size、position |
-| `forme.partSliceConfigs` | 已移除，原“小块裁切”配置全部迁移到 machiningConfigs |
-| `forme.machiningConfigs` | 从符合条件的零件“小块裁切”工艺生成；compId 为零件 ID，compType 固定为 forme&#124;part，knife 默认 SP7，path.type 默认 XY，path.param 为原 xs/ys 参数；无配置时为空数组 |
-| `outputs.json` | 已有 objectName 和 env.dtp/basePath；实际使用相对 images 目录，不固定为示例中的本地磁盘路径 |
-| `outputs.plt` | 已有 direction=h 和 objectName.normal/reverse |
-| `outputs.formeSvg` | 已有 objectName；各输出项仍按排版模式的文件需求生成 |
-| `uploadConfig` | 使用运行时 OSS 临时授权和当前模式的上传目录，不使用示例凭据 |
-| `callbackConfig` | 使用配置的回调 URL，callbackCustomValue.id 为当前排版 ID |
-
-新增字段在无加工配置时的实际 JSON：
+confirmLayout、confirmPrint、镜像印版和 confirmed 补偿重试共用请求构建入口。
+原 partSliceConfigs 和 machiningConfigs 已由 forme.machiningManifest.items 替代，
+不再发送旧字段或 path 层级。
 
 ```json
 {
-  "machiningConfigs": []
-}
-```
-
-有配置时的单项结构如下；`compType` 按当前协议传完整字面值 `forme|part`，
-由 `MachiningCompType.FORME_OR_PART` 枚举提供编码。
-
-```json
-{
-  "compId": "3232123",
-  "compType": "forme|part",
-  "knife": "SP7",
-  "path": {
-    "type": "XY",
-    "param": {
-      "xs": [100, 200, 300, 400],
-      "ys": [60, 120, 180, 240]
+  "forme": {
+    "machiningManifest": {
+      "items": [
+        {
+          "compId": "6ae05980a36fe728113c40fd",
+          "compType": "PART",
+          "machiningType": "CUTTING",
+          "knife": "SP7",
+          "param": {
+            "type": "GRID",
+            "xs": [100, 200, 300, 400],
+            "ys": [60, 120, 180, 240]
+          }
+        }
+      ]
     }
   }
 }
 ```
 
-沿用原有零件筛选和去重规则：只处理 PART 来源的零件，每个零件取首个有效“小块裁切”参数，
-只映射 xs/ys，并保持原有 cm → mm 转换；只修改请求副本，不修改库存工艺参数。
+- compId：符合条件的生产零件自身 ID。
+- compType：通过 MachiningCompType.PART 枚举生成 PART；FORME 为预留类型。
+- machiningType：小块裁切生成 CUTTING。
+- knife：默认 SP7。
+- param.type：默认 GRID，覆盖工艺参数中的同名字段。
+- param.xs/ys：沿用原“小块裁切”的参数和 cm → mm 转换，不修改数据库原参数。
 
-目标示例中的注释、HTML 空格实体和 Markdown 链接不是 JSON 内容；实际请求由
-`JSON.toJSONString` 序列化，URL 为普通字符串，Windows 路径中的反斜杠会自动转义。
+只读取 PART 来源零件的“小块裁切”工艺节点，每个零件仅取首个有效参数，
+无符合条件的配置时发送 machiningManifest: {"items": []}。
+
+forme 的刀型、SVG、边距、标记、定位点，以及 outputs、uploadConfig、callbackConfig
+继续使用原有业务规则和运行时配置，示例凭据不写入代码。
