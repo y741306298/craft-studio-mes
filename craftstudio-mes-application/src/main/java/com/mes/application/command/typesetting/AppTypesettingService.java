@@ -40,6 +40,7 @@ import com.mes.application.dto.req.typesetting.BatchConfirmPrintRequest;
 import com.mes.application.dto.req.typesetting.LayoutConfirmRequest;
 import com.mes.application.dto.req.typesetting.RetryConfirmedFormeRequest;
 import com.mes.domain.base.repository.ApiResponse;
+import com.mes.domain.manufacturer.device.enums.DeviceType;
 import com.mes.domain.shared.utils.JsonLogUtil;
 import com.mes.domain.manufacturer.manufacturerMeta.entity.ManufacturerDeviceCfg;
 import com.mes.domain.manufacturer.manufacturerMeta.repository.ManufacturerDeviceCfgRepository;
@@ -4035,10 +4036,7 @@ public class AppTypesettingService {
         }
         List<ManufacturerDeviceCfg> cuttingCfgs = new ArrayList<>();
         for (ManufacturerDeviceCfg cfg : cfgList) {
-            if (cfg == null || StringUtils.isBlank(cfg.getDeviceName())) {
-                continue;
-            }
-            if (cfg.getDeviceName().contains("切割")) {
+            if (cfg != null && cfg.getDeviceType() == DeviceType.CUTTING) {
                 cuttingCfgs.add(cfg);
             }
         }
