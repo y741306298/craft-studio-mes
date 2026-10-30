@@ -1,8 +1,8 @@
 package com.mes.interfaces.api.platform.manufacturerSide.delivery;
 
-import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.AppDeliveryPkgService;
+import com.mes.application.command.delivery.DeliveryPkgTrace;
 import com.mes.application.command.delivery.vo.DeliveryPkgPieceVO;
 import com.mes.application.command.delivery.vo.DeliveryPkgAddResultVO;
 import com.mes.application.dto.req.delivery.DeliveryPkgAddRequest;
@@ -335,12 +335,19 @@ public class DeliveryPkgController {
     }
 
     @PostMapping("/add")
-        public ApiResponse<Object> addPkg(@RequestBody DeliveryPkgAddRequest request) {
-        log.info("========== addPkg 入参开始 ==========");
-        log.info("response: " + JsonLogUtil.toJSONString(request));
-        log.info("========== addPkg 入参结束 ==========");
-        DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
-        return ApiResponse.success(buildAddResult(deliveryPkg));
+    public ApiResponse<Object> addPkg(@RequestBody DeliveryPkgAddRequest request) {
+        try (DeliveryPkgTrace trace = DeliveryPkgTrace.open(request)) {
+            try {
+                DeliveryPkg deliveryPkg = appDeliveryPkgService.addPkg(request);
+                ApiResponse<Object> response = DeliveryPkgTrace.stage("构建打印响应",
+                        () -> ApiResponse.success(buildAddResult(deliveryPkg)));
+                trace.success(deliveryPkg.getDeliveryPkgId());
+                return response;
+            } catch (RuntimeException | Error ex) {
+                trace.failure(ex);
+                throw ex;
+            }
+        }
     }
 
     /** 手动注销待打包零件，不触发任何面单下单或打印。 */

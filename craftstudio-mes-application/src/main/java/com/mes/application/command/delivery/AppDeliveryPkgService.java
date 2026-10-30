@@ -619,6 +619,11 @@ public class AppDeliveryPkgService {
     }
 
     private DeliveryPkgPrintResult executePkg(DeliveryPkgRequest request) {
+        return DeliveryPkgTrace.stage("快递100打单与生产件更新",
+                () -> doExecutePkg(request));
+    }
+
+    private DeliveryPkgPrintResult doExecutePkg(DeliveryPkgRequest request) {
         String url = "https://api.kuaidi100.com/label/order";
         String deliveryManId = request.getDeliveryManId();
         String orderId = request.getOrderId();
@@ -728,7 +733,7 @@ public class AppDeliveryPkgService {
                     changedPieces.add(productionPiece);
                 }
             }
-            productionPieceService.batchUpdatePackagingState(changedPieces);
+            DeliveryPkgTrace.run("批量更新生产件", () -> productionPieceService.batchUpdatePackagingState(changedPieces));
         }
 
         return new DeliveryPkgPrintResult(response.getData().getTaskId(), response.getData().getKuaidinum());
@@ -751,6 +756,19 @@ public class AppDeliveryPkgService {
     }
 
     public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
+        try (DeliveryPkgTrace trace = DeliveryPkgTrace.open(request)) {
+            try {
+                DeliveryPkg result = DeliveryPkgTrace.stage("打包业务处理", () -> doAddPkg(request));
+                trace.businessComplete(result.getDeliveryPkgId());
+                return result;
+            } catch (RuntimeException | Error ex) {
+                trace.failure(ex);
+                throw ex;
+            }
+        }
+    }
+
+    private DeliveryPkg doAddPkg(DeliveryPkgAddRequest request) {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "打包零件不能为空");
         }
@@ -762,8 +780,8 @@ public class AppDeliveryPkgService {
                 .filter(StringUtils::isNotBlank)
                 .distinct()
                 .collect(Collectors.toList());
-        Map<String, ProductionPiece> persistedPieces = productionPieceService
-                .findByProductionPieceIds(requestedPieceIds).stream()
+        Map<String, ProductionPiece> persistedPieces = DeliveryPkgTrace.stage("查询生产件",
+                () -> productionPieceService.findByProductionPieceIds(requestedPieceIds)).stream()
                 .collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece,
                         (left, right) -> left));
         String orderId = null;
@@ -807,9 +825,13 @@ public class AppDeliveryPkgService {
 
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
-        OrderInfo orderInfo = orderInfoService.findByOrderId(orderId);
+        String selectedOrderId = orderId;
+        OrderInfo orderInfo = DeliveryPkgTrace.stage("查询订单",
+                () -> orderInfoService.findByOrderId(selectedOrderId));
         fillMissingRouteFromOrder(request, orderInfo);
-        String remarks = buildDeliveryPkgRemarks(orderId, presetType, null, request.getPieces(), orderInfo);
+        String selectedPresetType = presetType;
+        String remarks = DeliveryPkgTrace.stage("生成备注",
+                () -> buildDeliveryPkgRemarks(selectedOrderId, selectedPresetType, null, request.getPieces(), orderInfo));
         if (orderInfo != null && orderInfo.getChannel() != null
                 && orderInfo.getChannel().getType() == com.mes.domain.order.enums.OrderChannelType.GATHER_PLATFORM) {
             return packGatherPlatformOrder(request, orderInfo, selectedPieces, packageQuantityMap,
@@ -1008,6 +1030,13 @@ public class AppDeliveryPkgService {
     }
 
     private DeliveryPkg packGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
+                                                        List<ProductionPiece> pieces, Map<String, Integer> quantities,
+                                                        String carrierId, String carrierName, String presetType, String remarks) {
+        return DeliveryPkgTrace.stage("聚单平台打包",
+                () -> doPackGatherPlatformOrder(request, orderInfo, pieces, quantities, carrierId, carrierName, presetType, remarks));
+    }
+
+    private DeliveryPkg doPackGatherPlatformOrder(DeliveryPkgAddRequest request, OrderInfo orderInfo,
                                                         List<ProductionPiece> pieces, Map<String, Integer> quantities,
                                                         String carrierId, String carrierName, String presetType, String remarks) {
         if (isKuaidi100TestEnvironment()) {
@@ -1282,14 +1311,23 @@ public class AppDeliveryPkgService {
 
     private void transferPiecesToPacked(List<ProductionPiece> productionPieces, Map<String, Integer> packageQuantityMap,
                                         String carrierId, String carrierName, String routeId, String routeNodeId, String kuaidiNum) {
+        DeliveryPkgTrace.run("更新打包状态",
+                () -> doTransferPiecesToPacked(productionPieces, packageQuantityMap, carrierId, carrierName, routeId, routeNodeId, kuaidiNum));
+    }
+
+    private void doTransferPiecesToPacked(List<ProductionPiece> productionPieces, Map<String, Integer> packageQuantityMap,
+                                        String carrierId, String carrierName, String routeId, String routeNodeId, String kuaidiNum) {
         if (productionPieces == null || productionPieces.isEmpty()) {
             return;
         }
+        List<String> orderItemIds = productionPieces.stream().filter(Objects::nonNull)
+                .map(ProductionPiece::getOrderItemId).filter(StringUtils::isNotBlank).distinct().toList();
+        Map<String, OrderItem> orderItemsById = orderItemIds.isEmpty() ? Collections.emptyMap()
+                : DeliveryPkgTrace.stage("查询订单项完成数量", () -> orderItemService.findByOrderItemIds(orderItemIds))
+                        .stream().filter(Objects::nonNull)
+                        .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
         java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
         List<ProductionPiece> changedPieces = new ArrayList<>();
-        if (productionPieces == null) {
-            productionPieces = new ArrayList<>();
-        }
         for (ProductionPiece productionPiece : productionPieces) {
             if (productionPiece == null || productionPiece.getProcedureFlow() == null
                     || productionPiece.getProcedureFlow().getNodes() == null) {
@@ -1353,14 +1391,15 @@ public class AppDeliveryPkgService {
             int alreadyPacked = deliveryPkgInfo.getQuantity() == null ? 0 : deliveryPkgInfo.getQuantity();
             deliveryPkgInfo.setQuantity(alreadyPacked + quantity);
             productionPiece.setDeliveryPkgInfos(pkgInfos);
-            updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds);
+            updatePiecePackagingStateAfterTransfer(productionPiece, touchedOrderItemIds, orderItemsById);
             changedPieces.add(productionPiece);
         }
-        productionPieceService.batchUpdatePackagingState(changedPieces);
+        DeliveryPkgTrace.run("批量更新生产件", () -> productionPieceService.batchUpdatePackagingState(changedPieces));
         refreshPackagingCompletionStatus(touchedOrderItemIds);
     }
 
-    private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece, java.util.Set<String> touchedOrderItemIds) {
+    private void updatePiecePackagingStateAfterTransfer(ProductionPiece piece, java.util.Set<String> touchedOrderItemIds,
+                                                        Map<String, OrderItem> orderItemsById) {
         if (piece == null) {
             return;
         }
@@ -1370,7 +1409,8 @@ public class AppDeliveryPkgService {
                 && StringUtils.isNotBlank(piece.getOrderItemId())) {
             touchedOrderItemIds.add(piece.getOrderItemId());
         }
-        boolean pieceFullyPacked = isPieceFullyPacked(piece);
+        boolean pieceFullyPacked = isPieceFullyPacked(piece,
+                getOrderItemQuantity(orderItemsById.get(piece.getOrderItemId()), piece.getQuantity()));
         boolean flag = !TypesettingStatus.COMPLETED.getCode().equals(piece.getStatus());
         if (pieceFullyPacked && flag) {
             piece.setStatus(TypesettingStatus.COMPLETED.getCode());
@@ -1404,6 +1444,11 @@ public class AppDeliveryPkgService {
     }
 
     private void refreshPackagingCompletionStatus(java.util.Set<String> touchedOrderItemIds) {
+        DeliveryPkgTrace.run("刷新订单项完成状态",
+                () -> doRefreshPackagingCompletionStatus(touchedOrderItemIds));
+    }
+
+    private void doRefreshPackagingCompletionStatus(java.util.Set<String> touchedOrderItemIds) {
         if (touchedOrderItemIds == null || touchedOrderItemIds.isEmpty()) {
             return;
         }
@@ -1469,18 +1514,13 @@ public class AppDeliveryPkgService {
                 }
             }
         }
-        productionPieceService.batchUpdatePackagingState(changedPieces);
-        orderItemService.batchUpdateOrderItems(changedOrderItems);
+        DeliveryPkgTrace.run("批量更新生产件", () -> productionPieceService.batchUpdatePackagingState(changedPieces));
+        DeliveryPkgTrace.run("批量更新订单项", () -> orderItemService.batchUpdateOrderItems(changedOrderItems));
     }
 
     private boolean arePiecesFullyPacked(List<ProductionPiece> pieces, Integer requiredPackedQuantity) {
         return requiredPackedQuantity != null && pieces != null && !pieces.isEmpty()
                 && pieces.stream().allMatch(piece -> isPieceFullyPacked(piece, requiredPackedQuantity));
-    }
-
-    private boolean isPieceFullyPacked(ProductionPiece piece) {
-        Integer requiredPackedQuantity = getPieceRequiredPackedQuantity(piece);
-        return isPieceFullyPacked(piece, requiredPackedQuantity);
     }
 
     private boolean isPieceFullyPacked(ProductionPiece piece, Integer requiredPackedQuantity) {
@@ -1489,13 +1529,6 @@ public class AppDeliveryPkgService {
         }
         int packedQty = getNodeQuantity(piece, NODE_ID_PACKED, NODE_NAME_PACKED);
         return packedQty >= requiredPackedQuantity;
-    }
-
-    private Integer getPieceRequiredPackedQuantity(ProductionPiece piece) {
-        if (piece == null || StringUtils.isBlank(piece.getOrderItemId())) {
-            return piece == null ? null : piece.getQuantity();
-        }
-        return getOrderItemQuantity(orderItemService.findByOrderItemId(piece.getOrderItemId()), piece.getQuantity());
     }
 
     private Integer getOrderItemQuantity(OrderItem orderItem) {
@@ -1535,6 +1568,18 @@ public class AppDeliveryPkgService {
     }
 
     private DeliveryPkg createAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId,
+                                                String carrierName, String presetType, String kuaidiNum,
+                                                String stablePkgId, String remarks) {
+        return DeliveryPkgTrace.stage("创建包裹",
+                () -> {
+                    DeliveryPkg pkg = doCreateAndSaveDeliveryPkg(request, orderId, carrierId, carrierName,
+                            presetType, kuaidiNum, stablePkgId, remarks);
+                    DeliveryPkgTrace.packageSaved(pkg.getDeliveryPkgId());
+                    return pkg;
+                });
+    }
+
+    private DeliveryPkg doCreateAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId,
                                                 String carrierName, String presetType, String kuaidiNum,
                                                 String stablePkgId, String remarks) {
         DeliveryPkg deliveryPkg = new DeliveryPkg();
@@ -1952,7 +1997,8 @@ public class AppDeliveryPkgService {
         long startedAt = System.nanoTime();
         log.info("快递100调用开始: method={}, url={}", method, url);
         try {
-            String result = restTemplate.postForObject(url, httpEntity, String.class);
+            String result = DeliveryPkgTrace.stage("快递100HTTP调用:" + method,
+                    () -> restTemplate.postForObject(url, httpEntity, String.class));
             log.info("快递100调用完成: method={}, url={}, elapsedMs={}",
                     method, url, (System.nanoTime() - startedAt) / 1_000_000.0);
             return result;

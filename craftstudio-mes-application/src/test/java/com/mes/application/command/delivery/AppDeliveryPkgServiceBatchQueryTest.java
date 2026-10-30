@@ -192,6 +192,47 @@ class AppDeliveryPkgServiceBatchQueryTest {
         verifyNoMoreInteractions(items);
     }
 
+    @Test
+    void transferBatchLoadsRequiredQuantitiesAndPreservesRedoAndMissingItemFallback() {
+        AppDeliveryPkgService service = new AppDeliveryPkgService();
+        ProductionPieceService pieces = mock(ProductionPieceService.class);
+        OrderItemService items = mock(OrderItemService.class);
+        ReflectionTestUtils.setField(service, "productionPieceService", pieces);
+        ReflectionTestUtils.setField(service, "orderItemService", items);
+        ProductionPiece normal = packingPiece("mongo-1", "piece-1");
+        normal.setOrderItemId("shared-item");
+        ProductionPiece redo = packingPiece("mongo-2", "piece-2");
+        redo.setOrderItemId("shared-item");
+        redo.setIsRedo(true);
+        ProductionPiece missingItem = packingPiece("mongo-3", "piece-3");
+        missingItem.setOrderItemId("missing-item");
+        ProductionPiece noItem = packingPiece("mongo-4", "piece-4");
+        OrderItem shared = orderItem("shared-item");
+        shared.setQuantity(2);
+        when(items.findByOrderItemIds(anyCollection())).thenReturn(List.of(shared));
+        when(pieces.findByOrderItemIds(anyCollection())).thenReturn(Collections.emptyList());
+
+        ReflectionTestUtils.invokeMethod(service, "transferPiecesToPacked",
+                List.of(normal, redo, missingItem, noItem),
+                java.util.Map.of("mongo-1", 1, "mongo-2", 2, "mongo-3", 10, "mongo-4", 3),
+                "carrier", "送货上门", null, null, null);
+
+        String completed = com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.COMPLETED.getCode();
+        org.junit.jupiter.api.Assertions.assertNotEquals(completed, normal.getStatus());
+        assertEquals(completed, redo.getStatus());
+        assertEquals(completed, missingItem.getStatus());
+        org.junit.jupiter.api.Assertions.assertNotEquals(completed, noItem.getStatus());
+        assertEquals(1, normal.getDeliveryPkgInfos().get(0).getQuantity());
+        assertEquals(2, redo.getDeliveryPkgInfos().get(0).getQuantity());
+        // One batch for per-piece completion and one batch for the aggregate refresh, regardless of piece count.
+        verify(items, times(2)).findByOrderItemIds(argThat(ids -> ids.size() == 2
+                && ids.containsAll(List.of("shared-item", "missing-item"))));
+        verify(items).batchUpdateOrderItems(Collections.emptyList());
+        verifyNoMoreInteractions(items);
+        verify(pieces).findByOrderItemIds(argThat(ids -> ids.size() == 2
+                && ids.containsAll(List.of("shared-item", "missing-item"))));
+    }
+
     private ProductionPiece packingPiece(String id, String productionPieceId) {
         ProductionPiece piece = new ProductionPiece();
         piece.setId(id);
