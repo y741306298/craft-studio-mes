@@ -55,6 +55,25 @@ class PackagingTaskWorkerTest {
     }
 
     @SuppressWarnings("unchecked")
+    @Test void backgroundForSynchronousSuccessOnlyRefreshesAggregatesWithoutRetransferringQuantities() {
+        PackagingTaskStore store = mock(PackagingTaskStore.class);
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        MongoCollection<Document> pieces = mock(MongoCollection.class), items = mock(MongoCollection.class);
+        when(store.mongo()).thenReturn(mongo);
+        when(mongo.getCollection("productionPiece")).thenReturn(pieces);
+        when(mongo.getCollection("orderItem")).thenReturn(items);
+        when(items.find(any(Document.class))).thenReturn(iterable(List.of()));
+        when(pieces.find(any(Document.class))).thenReturn(iterable(List.of()));
+        Document job = new Document("_id", "job").append("manufacturerId", "factory").append("orderId", "order")
+                .append("quantitiesApplied", true).append("items", List.of(new Document("pieceId", "piece").append("orderItemId", "item")));
+        new PackagingTaskWorker(store).apply(job);
+        // Exactly one read for all related normal pieces, no selected-piece read or quantity write.
+        verify(pieces, times(1)).find(argThat((Document q) -> q.containsKey("orderItemId") && !q.containsKey("productionPieceId")));
+        verify(pieces, never()).bulkWrite(anyList(), any(com.mongodb.client.model.BulkWriteOptions.class));
+        verify(store, never()).quantitiesApplied(any());
+    }
+
+    @SuppressWarnings("unchecked")
     private static FindIterable<Document> iterable(List<Document> docs) {
         FindIterable<Document> iterable = mock(FindIterable.class);
         when(iterable.projection(any(Document.class))).thenReturn(iterable);

@@ -38,7 +38,10 @@ class PackagingPatchTest {
         assertEquals(0, patch.get("procedureFlow.nodes.1.pieceQuantity"));
         assertEquals(5, patch.get("procedureFlow.nodes.2.pieceQuantity"));
         assertFalse(patch.containsKey("procedureFlow.nodes.0.pieceQuantity"));
-        assertFalse(PackagingPatch.transfer(piece(), 5, 6, m(), "completed").containsKey("status"));
+        // An individual piece is complete even when its order-item quantity differs.
+        assertEquals("completed", PackagingPatch.transfer(piece(), 5, 6, m(), "completed").get("status"));
+        // Reaching an order-item threshold must not mark an only-partially-packed piece complete.
+        assertFalse(PackagingPatch.transfer(piece(), 2, 2, m(), "completed").containsKey("status"));
     }
     @Test void rejectsOverPackingAndMissingNodesWithoutChangingSnapshot() {
         var piece = piece();
@@ -47,6 +50,49 @@ class PackagingPatchTest {
         assertThrows(IllegalStateException.class, () -> PackagingPatch.transfer(m(), 1, 1, m(), "completed"));
         assertEquals(5, PackagingPatch.nodes(piece).get(1).get("pieceQuantity"));
     }
+    @Test void fullPackingImmediatelyClearsPendingTypesettingAndPackingNodes() {
+        var original = piece();
+        var nodes = PackagingPatch.nodes(original);
+        nodes.get(0).put("nodeName", "待排版");
+        nodes.get(0).put("pieceQuantity", 5); // Legacy/inconsistent pending node must not keep a completed piece visible.
+        var patch = PackagingPatch.transfer(original, 5, 9, m(), "completed");
+        assertEquals("completed", patch.get("status"));
+        assertEquals(0, patch.get("procedureFlow.nodes.0.pieceQuantity"));
+        assertEquals(0, patch.get("procedureFlow.nodes.1.pieceQuantity"));
+        assertEquals(5, patch.get("procedureFlow.nodes.2.pieceQuantity"));
+    }
+    @Test void partialPackingPreservesUnprocessedQuantityAndDoesNotHideWholePiece() {
+        var original = piece();
+        var nodes = PackagingPatch.nodes(original);
+        nodes.get(0).put("nodeName", "待排版");
+        nodes.get(0).put("pieceQuantity", 3);
+        nodes.get(1).put("pieceQuantity", 2);
+        var patch = PackagingPatch.transfer(original, 2, 2, m(), "completed");
+        assertFalse(patch.containsKey("status"));
+        assertFalse(patch.containsKey("procedureFlow.nodes.0.pieceQuantity"));
+        assertEquals(0, patch.get("procedureFlow.nodes.1.pieceQuantity"));
+        assertEquals(2, patch.get("procedureFlow.nodes.2.pieceQuantity"));
+        assertEquals(3, nodes.get(0).get("pieceQuantity"));
+    }
+    @Test void alreadyCompletedStatusStillClearsStalePendingQuantitiesOnFullTransfer() {
+        var original = piece();
+        original.put("status", "completed");
+        var nodes = PackagingPatch.nodes(original);
+        nodes.get(0).put("nodeName", "待排版"); nodes.get(0).put("pieceQuantity", 5);
+        var patch = PackagingPatch.transfer(original, 5, null, m(), "completed");
+        assertEquals(0, patch.get("procedureFlow.nodes.0.pieceQuantity"));
+        assertFalse(patch.containsKey("status")); // Write only changed fields.
+    }
+
+    @Test void backgroundCompletionUsesPhysicalPieceQuantityToo() {
+        var partial = piece();
+        PackagingPatch.nodes(partial).get(2).put("pieceQuantity", 2);
+        assertFalse(PackagingPatch.fullyPacked(partial, 2));
+        PackagingPatch.nodes(partial).get(2).put("pieceQuantity", 5);
+        assertTrue(PackagingPatch.fullyPacked(partial, 5));
+        assertFalse(PackagingPatch.fullyPacked(partial, 9)); // Do not relax the existing order-item completion threshold.
+    }
+
     @Test void mergesExistingCarrierQuantityWithoutChangingOriginalPackageInfo() {
         var piece = piece();
         var existing = m("carrierId", "carrier", "kuaidiNum", "waybill", "quantity", 3);

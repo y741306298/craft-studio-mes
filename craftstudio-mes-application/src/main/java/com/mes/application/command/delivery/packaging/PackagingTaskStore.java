@@ -44,11 +44,24 @@ public class PackagingTaskStore {
         require(mongo.updateFirst(Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING")),
                 new Update().set("sideEffectPossible", true).set("updatedAt", new Date()), TASKS).getMatchedCount());
     }
-    public void publish(String id, DeliveryPkg pkg) {
+    /** Persist the printing result before touching quantities, and hold a lease during synchronous visibility updates. */
+    public Document publish(String id, DeliveryPkg pkg) {
         Document result = new Document(); mongo.getConverter().write(pkg, result);
-        require(mongo.updateFirst(Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING")),
-                new Update().set("result", result).set("pkgId", pkg.getDeliveryPkgId()).set("state", "READY").set("nextAttemptAt", new Date())
-                        .set("updatedAt", new Date()), TASKS).getMatchedCount());
+        Document claimed = mongo.findAndModify(Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING")),
+                new Update().set("result", result).set("pkgId", pkg.getDeliveryPkgId()).set("state", "PROCESSING")
+                        .set("owner", UUID.randomUUID().toString()).set("quantitiesApplied", false)
+                        .set("leaseUntil", new Date(System.currentTimeMillis() + 120_000))
+                        .set("updatedAt", new Date()).inc("attempts", 1),
+                FindAndModifyOptions.options().returnNew(true), Document.class, TASKS);
+        if (claimed == null) throw new IllegalStateException("Packaging task ownership changed");
+        return claimed;
+    }
+    public void ready(Document job) {
+        require(mongo.updateFirst(owned(job), new Update().set("quantitiesApplied", true).set("state", "READY")
+                .set("nextAttemptAt", new Date()).set("updatedAt", new Date()).unset("owner").unset("leaseUntil"), TASKS).getMatchedCount());
+    }
+    public void quantitiesApplied(Document job) {
+        require(mongo.updateFirst(owned(job), new Update().set("quantitiesApplied", true).set("updatedAt", new Date()), TASKS).getMatchedCount());
     }
     public DeliveryPkg result(Document task) {
         return mongo.getConverter().read(DeliveryPkg.class, task.get("result", Document.class));

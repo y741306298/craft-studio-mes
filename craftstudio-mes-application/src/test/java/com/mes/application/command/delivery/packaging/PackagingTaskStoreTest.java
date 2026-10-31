@@ -22,6 +22,20 @@ class PackagingTaskStoreTest {
         verify(mongo).updateFirst(any(Query.class), argThat((Update u) -> "REVIEW".equals(u.getUpdateObject().get("$set", Document.class).get("state"))), eq(PackagingTaskStore.TASKS));
         verify(mongo, never()).remove(any(Query.class), eq(PackagingTaskStore.LOCKS));
     }
+    @Test void requestSuccessTransitionAtomicallyMarksQuantitiesAppliedAndQueuesOnlyAggregation() {
+        MongoTemplate mongo = mock(MongoTemplate.class);
+        PackagingTaskStore store = new PackagingTaskStore(mongo);
+        when(mongo.updateFirst(any(Query.class), any(Update.class), eq(PackagingTaskStore.TASKS)))
+                .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+        store.ready(new Document("_id", "job").append("owner", "sync-owner"));
+        verify(mongo).updateFirst(argThat((Query q) -> "PROCESSING".equals(q.getQueryObject().get("state"))
+                        && "sync-owner".equals(q.getQueryObject().get("owner"))),
+                argThat((Update u) -> {
+                    Document set = u.getUpdateObject().get("$set", Document.class);
+                    return Boolean.TRUE.equals(set.getBoolean("quantitiesApplied")) && "READY".equals(set.getString("state"));
+                }), eq(PackagingTaskStore.TASKS));
+    }
+
     @Test void workerCompletionMustOwnLeaseBeforeReleasingReservation() {
         MongoTemplate mongo = mock(MongoTemplate.class);
         PackagingTaskStore store = new PackagingTaskStore(mongo);

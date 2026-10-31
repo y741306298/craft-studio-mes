@@ -18,8 +18,12 @@ import java.util.function.Supplier;
 public class PackagingOperation {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PackagingOperation.class);
     private final PackagingTaskStore store;
+    private final PackagingTaskWorker worker;
     private static final ThreadLocal<Document> ACTIVE = new ThreadLocal<>();
-    public PackagingOperation(PackagingTaskStore store) { this.store = store; }
+    public PackagingOperation(PackagingTaskStore store, PackagingTaskWorker worker) {
+        this.store = store;
+        this.worker = worker;
+    }
     public static boolean active() { return ACTIVE.get() != null; }
     public static String pkgId() { return ACTIVE.get().getString("pkgId"); }
     public void risk() { if (active()) store.risk(ACTIVE.get().getString("_id")); }
@@ -48,7 +52,8 @@ public class PackagingOperation {
         Document job = store.create(fresh);
         if (!Objects.equals(fingerprint, job.getString("fingerprint"))) throw bad("requestId 已用于不同的打包内容");
         if (!Objects.equals(fresh.getString("pkgId"), job.getString("pkgId"))) {
-            if (job.get("result") != null) {
+            if (job.get("result") != null && (Boolean.TRUE.equals(job.getBoolean("quantitiesApplied"))
+                    || "DONE".equals(job.getString("state")))) {
                 log.info("打包请求幂等重放 taskId={} orderId={} state={}", id, orderId, job.getString("state"));
                 return decorate(store.result(job), job);
             }
@@ -60,8 +65,17 @@ public class PackagingOperation {
         ACTIVE.set(job);
         try {
             DeliveryPkg result = action.get();
-            store.publish(id, result); // Result + executable task are made durable together, before returning success.
+            Document saved = store.publish(id, result); // Durable result + owned lease; a crash can be recovered without reprinting.
+            try {
+                com.mes.application.command.delivery.DeliveryPkgTrace.run("同步更新打包零件",
+                        () -> worker.applyQuantities(saved));
+                store.ready(saved); // Only after every selected piece is updated may this request return success.
+            } catch (RuntimeException | Error ex) {
+                try { store.retry(saved, ex); } catch (RuntimeException failure) { ex.addSuppressed(failure); }
+                throw ex;
+            }
             job.put("state", "READY");
+            job.put("quantitiesApplied", true);
             log.info("打包任务就绪 taskId={} orderId={} pkgId={}", id, orderId, result.getDeliveryPkgId());
             return decorate(result, job);
         } catch (RuntimeException | Error ex) {
@@ -86,7 +100,7 @@ public class PackagingOperation {
             if (piece.getProcedureFlow() == null || piece.getProcedureFlow().getNodes() == null
                     || piece.getProcedureFlow().getNodes().stream().noneMatch(n -> "已打包".equals(n.getNodeName()))) throw bad("生产件缺少已打包节点");
             inputs.add(new Document("pieceId", piece.getProductionPieceId()).append("orderItemId", piece.getOrderItemId())
-                    .append("quantity", quantities.get(piece.getId())));
+                    .append("quantity", quantities.get(piece.getId())).append("requiredPackedQuantity", item.getQuantity()));
         }
         job.put("remarkItems", items); // Request-local projection, never persisted in task document.
         store.validated(job.getString("_id"), inputs);
@@ -115,7 +129,8 @@ public class PackagingOperation {
         Document job = store.find(taskId);
         if (job == null || !Objects.equals(manufacturer, job.getString("manufacturerId"))) throw bad("打包任务不存在");
         return new Document("taskId", taskId).append("state", job.get("state")).append("orderId", job.get("orderId"))
-                .append("pkgId", job.get("pkgId")).append("attempts", job.get("attempts"))
+                .append("pkgId", job.get("pkgId")).append("quantitiesApplied", job.get("quantitiesApplied"))
+                .append("attempts", job.get("attempts"))
                 .append("completedAt", job.get("completedAt")).append("lastErrorType", job.get("lastErrorType")).append("updatedAt", job.get("updatedAt"));
     }
     public boolean reconcile(String taskId, String manufacturer, DeliveryPkg pkg) {

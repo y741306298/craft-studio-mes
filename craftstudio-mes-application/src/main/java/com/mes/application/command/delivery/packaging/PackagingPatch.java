@@ -31,7 +31,9 @@ public final class PackagingPatch {
         int pending = index(nodes, "待打包"), packed = index(nodes, "已打包");
         if (quantity <= 0 || quantity > quantity(nodes.get(pending)))
             throw new IllegalStateException("Packaging quantity no longer available");
-        int total = integer(piece, "quantity", quantity(nodes.get(packed)) + quantity);
+        int fallbackTotal = required != null && required > 0 ? required
+                : quantity(nodes.get(pending)) + quantity(nodes.get(packed));
+        int total = integer(piece, "quantity", fallbackTotal);
         int packedQty = Math.min(quantity(nodes.get(packed)) + quantity, Math.max(total, 0));
         Map<String, Object> changes = new LinkedHashMap<>();
         put(changes, piece, "procedureFlow.nodes." + pending + ".pieceQuantity", quantity(nodes.get(pending)) - quantity);
@@ -39,8 +41,7 @@ public final class PackagingPatch {
             put(changes, piece, "procedureFlow.nodes." + pending + ".nodeStatus", "COMPLETED");
         put(changes, piece, "procedureFlow.nodes." + packed + ".pieceQuantity", packedQty);
         put(changes, piece, "procedureFlow.nodes." + packed + ".nodeStatus", "ACTIVE");
-        int threshold = required == null || required <= 0 ? total : required;
-        if (threshold > 0 && packedQty >= threshold && !completed.equals(piece.get("status"))) {
+        if (total > 0 && packedQty >= total) {
             put(changes, piece, "status", completed);
             for (int i = 0; i < nodes.size(); i++)
                 put(changes, piece, "procedureFlow.nodes." + i + ".pieceQuantity", i == packed ? total : 0);
@@ -66,9 +67,11 @@ public final class PackagingPatch {
         return changes;
     }
     public static boolean fullyPacked(Map<String, Object> piece, int required) {
-        if (required <= 0) return false;
+        // Keep the existing order-item threshold for aggregation, but never complete a partially packed physical piece.
+        int threshold = Math.max(integer(piece, "quantity", required), required);
+        if (threshold <= 0) return false;
         return nodes(piece).stream().filter(d -> "已打包".equals(d.get("nodeName")))
-                .anyMatch(d -> quantity(d) >= required);
+                .anyMatch(d -> quantity(d) >= threshold);
     }
     public static void put(Map<String, Object> changes, Map<String, Object> before, String path, Object value) {
         if (!Objects.equals(valueAt(before, path), value)) changes.put(path, value);
