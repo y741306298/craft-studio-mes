@@ -18,6 +18,8 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ProductionPiece extends BaseEntity {
+    private List<String> packagingAppliedJobIds;
+    private Long packagingRevision;
 
     private String productionPieceId;
     private String orderItemId;

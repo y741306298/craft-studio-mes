@@ -21,6 +21,8 @@ import java.util.Map;
 @Data
 @Document(collection = "productionPiece")
 public class ProductionPiecePo extends BasePO<ProductionPiece> {
+    private List<String> packagingAppliedJobIds;
+    private Long packagingRevision;
 
     private String productionPieceId;
     private String orderItemId;
@@ -68,6 +70,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
     public ProductionPiece toDO() {
         ProductionPiece piece = new ProductionPiece();
         piece.setId(getId());
+        piece.setPackagingAppliedJobIds(this.packagingAppliedJobIds);
+        piece.setPackagingRevision(this.packagingRevision);
         piece.setCreateTime(getCreateTime());
         piece.setUpdateTime(getUpdateTime());
 
@@ -122,6 +126,8 @@ public class ProductionPiecePo extends BasePO<ProductionPiece> {
             return null;
         }
 
+        this.packagingAppliedJobIds = _do.getPackagingAppliedJobIds();
+        this.packagingRevision = _do.getPackagingRevision();
         this.productionPieceId = _do.getProductionPieceId();
         this.orderItemId = _do.getOrderItemId();
         this.channel = _do.getChannel();

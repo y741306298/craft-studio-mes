@@ -17,6 +17,9 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class DeliveryPkg extends BaseEntity {
+    private String packagingTaskId;
+    private String packagingState;
+
 
     private String deliveryPkgId;                 // 包裹 ID
     private String deliveryPkgCode;               // 包裹编码

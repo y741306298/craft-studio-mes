@@ -158,38 +158,16 @@ class AppDeliveryPkgServiceBatchQueryTest {
     }
 
     @Test
-    void addPkgUsesLocalQuantitiesAndQueriesRemarkItemsOnlyOnce() {
+    void addPkgDelegatesToDurableOperationBeforeRunningBusinessLogic() {
         AppDeliveryPkgService service = new AppDeliveryPkgService();
-        ProductionPieceService pieces = mock(ProductionPieceService.class);
-        OrderItemService items = mock(OrderItemService.class);
-        OrderInfoService orders = mock(OrderInfoService.class);
-        var packages = mock(com.mes.domain.delivery.deliveryPkg.service.DeliveryPkgService.class);
-        ReflectionTestUtils.setField(service, "productionPieceService", pieces);
-        ReflectionTestUtils.setField(service, "orderItemService", items);
-        ReflectionTestUtils.setField(service, "orderInfoService", orders);
-        ReflectionTestUtils.setField(service, "deliveryPkgService", packages);
-        ProductionPiece first = packingPiece("mongo-1", "piece-1");
-        ProductionPiece second = packingPiece("mongo-2", "piece-2");
-        when(pieces.findByProductionPieceIds(List.of("piece-1", "piece-2")))
-                .thenReturn(List.of(first, second));
-        when(orders.findByOrderId("order-1")).thenReturn(new OrderInfo());
-        when(items.findByOrderItemIds(List.of("item-1", "item-2")))
-                .thenReturn(List.of(imageOrderItem("item-2", "second.png"), imageOrderItem("item-1", "first.png")));
-        when(packages.createDeliveryPkg(org.mockito.ArgumentMatchers.any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        var operation = mock(com.mes.application.command.delivery.packaging.PackagingOperation.class);
+        ReflectionTestUtils.setField(service, "packagingOperation", operation);
         DeliveryPkgAddRequest request = new DeliveryPkgAddRequest();
-        request.setPieces(List.of(requestPiece("piece-1", "item-1", 2), requestPiece("piece-2", "item-2", 3)));
-
-        var result = service.addPkg(request);
-
-        assertEquals("订单:order-1\n文件:first.png,second.png", result.getRemarks());
-        assertEquals(8, first.getProcedureFlow().getNodes().get(0).getPieceQuantity());
-        assertEquals(2, first.getProcedureFlow().getNodes().get(1).getPieceQuantity());
-        assertEquals(7, second.getProcedureFlow().getNodes().get(0).getPieceQuantity());
-        assertEquals(3, second.getProcedureFlow().getNodes().get(1).getPieceQuantity());
-        verify(pieces).batchUpdatePackagingState(List.of(first, second));
-        verify(items).findByOrderItemIds(List.of("item-1", "item-2"));
-        verifyNoMoreInteractions(items);
+        var expected = new com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg();
+        expected.setDeliveryPkgId("existing-package");
+        when(operation.execute(eq(request), org.mockito.ArgumentMatchers.any())).thenReturn(expected);
+        org.junit.jupiter.api.Assertions.assertSame(expected, service.addPkg(request));
+        verify(operation).execute(eq(request), org.mockito.ArgumentMatchers.any());
     }
 
     @Test

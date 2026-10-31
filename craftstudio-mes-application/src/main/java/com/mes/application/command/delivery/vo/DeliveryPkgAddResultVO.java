@@ -5,6 +5,9 @@ import lombok.Data;
 
 @Data
 public class DeliveryPkgAddResultVO {
+    private String packagingTaskId;
+    private String packagingState;
+
 
     private String pkgId;
     private String carrierId;

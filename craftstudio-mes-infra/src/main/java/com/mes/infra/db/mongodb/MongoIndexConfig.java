@@ -20,12 +20,20 @@ public class MongoIndexConfig {
 
     @PostConstruct
     public void ensureIndexes() {
+        mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("state", Sort.Direction.ASC)
+                .on("nextAttemptAt", Sort.Direction.ASC).named("idx_packaging_task_poll"));
+        mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("state", Sort.Direction.ASC)
+                .on("leaseUntil", Sort.Direction.ASC).named("idx_packaging_task_lease"));
+        mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("state", Sort.Direction.ASC)
+                .on("updatedAt", Sort.Direction.ASC).named("idx_packaging_task_recovery"));
         ensureOrderItemIndexes();
         ensureProductionPieceIndexes();
         ensureTypesettingIndexes();
     }
 
     private void ensureOrderItemIndexes() {
+        mongoTemplate.indexOps("orderItem").ensureIndex(new Index().on("orderItemId", Sort.Direction.ASC)
+                .on("deleteAt", Sort.Direction.ASC).named("idx_order_item_business_id_active"));
         mongoTemplate.indexOps("orderItem")
                 .ensureIndex(new Index()
                         .on("orderId", Sort.Direction.ASC)
@@ -35,6 +43,10 @@ public class MongoIndexConfig {
     }
 
     private void ensureProductionPieceIndexes() {
+        mongoTemplate.indexOps("productionPiece").ensureIndex(new Index().on("productionPieceId", Sort.Direction.ASC)
+                .on("deleteAt", Sort.Direction.ASC).named("idx_piece_business_id_active"));
+        mongoTemplate.indexOps("productionPiece").ensureIndex(new Index().on("orderItemId", Sort.Direction.ASC)
+                .on("deleteAt", Sort.Direction.ASC).named("idx_piece_order_item_active"));
         mongoTemplate.indexOps("productionPiece")
                 .ensureIndex(new Index()
                         .on("manufacturerId", Sort.Direction.ASC)

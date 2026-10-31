@@ -7,6 +7,9 @@ import java.util.List;
 
 @Data
 public class DeliveryPkgAddRequest {
+    /** Stable per-action idempotency key; reuse for network retries, change for a new package. */
+    private String requestId;
+
 
     private List<DeliveryPkgPieceItem> pieces;
     private String deliveryManId;

@@ -31,6 +31,37 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPiece, ProductionPiecePo> implements ProductionPieceRepository {
 
+    /** Reject stale complete-entity writes that would undo an asynchronous packaging transfer or erase its receipt. */
+    @Override
+    public void update(ProductionPiece piece) {
+        Long expected = piece.getPackagingRevision();
+        piece.setPackagingRevision(expected == null ? 1L : expected + 1);
+        piece.setUpdateTime(new Date());
+        ProductionPiecePo replacement = com.mes.infra.base.BasePO.fromDO(piece, poClass());
+        ProductionPiecePo previous = mongoTemplate.findAndReplace(
+                new SoftDeleteQuery(Criteria.where("_id").is(piece.getId()).and("packagingRevision").is(expected)), replacement,
+                org.springframework.data.mongodb.core.FindAndReplaceOptions.options());
+        if (previous == null) {
+            piece.setPackagingRevision(expected);
+            throw new org.springframework.dao.OptimisticLockingFailureException("Production piece changed; reload before saving");
+        }
+    }
+
+    @Override
+    public void batchUpdate(List<ProductionPiece> pieces) {
+        if (pieces == null || pieces.isEmpty()) return;
+        BulkOperations bulk = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, poClass());
+        for (ProductionPiece piece : pieces) {
+            Long expected = piece.getPackagingRevision();
+            piece.setPackagingRevision(expected == null ? 1L : expected + 1);
+            piece.setUpdateTime(new Date());
+            bulk.replaceOne(new SoftDeleteQuery(Criteria.where("_id").is(piece.getId()).and("packagingRevision").is(expected)),
+                    com.mes.infra.base.BasePO.fromDO(piece, poClass()), org.springframework.data.mongodb.core.FindAndReplaceOptions.options());
+        }
+        if (bulk.execute().getMatchedCount() != pieces.size())
+            throw new org.springframework.dao.OptimisticLockingFailureException("Production pieces changed; reload before retrying batch");
+    }
+
     private static final String PENDING_PACKAGING_NODE_ID = "NODE_PENDING_PACKING";
     private static final String PENDING_PACKAGING_NODE_NAME = "待打包";
 

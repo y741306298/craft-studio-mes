@@ -350,6 +350,17 @@ public class DeliveryPkgController {
         }
     }
 
+    @GetMapping("/packaging-task/{taskId}")
+    public ApiResponse<Object> packagingTaskStatus(@PathVariable String taskId, @RequestParam String manufacturerMetaId) {
+        return ApiResponse.success(appDeliveryPkgService.packagingTaskStatus(taskId, manufacturerMetaId));
+    }
+
+    /** Only retries status writes for reviewed tasks with an already persisted package result. Never reprints. */
+    @PostMapping("/packaging-task/{taskId}/retry")
+    public ApiResponse<Object> retryPackagingTask(@PathVariable String taskId, @RequestParam String manufacturerMetaId) {
+        return ApiResponse.success(appDeliveryPkgService.retryPackagingTask(taskId, manufacturerMetaId));
+    }
+
     /** 手动注销待打包零件，不触发任何面单下单或打印。 */
     @PostMapping("/manual-cancel")
     public ApiResponse<Object> manualCancel(@RequestBody DeliveryPkgAddRequest request) {
@@ -393,6 +404,8 @@ public class DeliveryPkgController {
     private DeliveryPkgAddResultVO buildAddResult(DeliveryPkg deliveryPkg) {
         DeliveryPkgAddResultVO result = new DeliveryPkgAddResultVO();
         result.setPkgId(deliveryPkg.getDeliveryPkgId());
+        result.setPackagingTaskId(deliveryPkg.getPackagingTaskId());
+        result.setPackagingState(deliveryPkg.getPackagingState());
         result.setCarrierId(deliveryPkg.getCarrierId());
         result.setCarrierName(deliveryPkg.getCarrierName());
         result.setPresetType(deliveryPkg.getPresetType());

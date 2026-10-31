@@ -1,5 +1,7 @@
 package com.mes.application.command.delivery;
 
+import com.mes.application.command.delivery.packaging.PackagingOperation;
+import org.bson.Document;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.req.AuthOrderRequest;
 import com.mes.application.command.delivery.req.Kuaidi100OrderParam;
@@ -80,6 +82,30 @@ import java.util.Set;
 @Slf4j
 @Service
 public class AppDeliveryPkgService {
+
+    @Autowired
+    private PackagingOperation packagingOperation;
+
+    public Document packagingTaskStatus(String taskId, String manufacturerId) {
+        return packagingOperation.status(taskId, manufacturerId);
+    }
+
+    public boolean retryPackagingTask(String taskId, String manufacturerId) {
+        return packagingOperation.retry(taskId, manufacturerId);
+    }
+
+    public boolean reconcilePackagingTask(String taskId, String manufacturerId, String deliveryPkgId) {
+        return packagingOperation.reconcile(taskId, manufacturerId, findByDeliveryPkgId(deliveryPkgId));
+    }
+
+    public boolean closeReviewedPackagingTask(String taskId, String manufacturerId, String note) {
+        return packagingOperation.closeReviewed(taskId, manufacturerId, note);
+    }
+
+    private void packagingSideEffect() {
+        if (PackagingOperation.active()) packagingOperation.risk();
+    }
+
 
     private static final String NODE_ID_PENDING_PACKING = "NODE_PENDING_PACKING";
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
@@ -634,6 +660,7 @@ public class AppDeliveryPkgService {
         //查询快递方式基本配置，未配置电子面单时按送货上门打包处理
         DeliveryToken deliveryToken = deliveryTokenRepository.findByCarrierIdAndManufacturerMetaId(carrierId, manufacturerMetaId);
         if (deliveryToken == null) {
+            if (PackagingOperation.active()) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "快递100电子面单配置已失效");
             transferPiecesToPacked(productionPieces, null, carrierId, request.getCarrierName(), null, null, null);
             return null;
         }
@@ -651,6 +678,7 @@ public class AppDeliveryPkgService {
         if (isKuaidi100TestEnvironment()) {
             response = buildTestKuaidi100OrderResponse();
         } else {
+            packagingSideEffect();
             String result = callPost(url, paramStr, "label.order");
             response = JSON.parseObject(result, AuthOrderResponse.class);
         }
@@ -668,10 +696,12 @@ public class AppDeliveryPkgService {
         }
         deliveryRecord.setDeliveryTime(new Date());
         deliveryRecord.setIsSuccess(true);
+        packagingSideEffect();
         deliveryRecordRepository.add(deliveryRecord);
 
         // 6. 获取快递单号并更新零件数量
-        if (StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
+        if (!PackagingOperation.active()
+                && StringUtils.isNotBlank(kuaidinum) && productionPieces != null) {
             Map<String, ProductionPiece> persistedPieces = productionPieceService.findByProductionPieceIds(
                             productionPieces.stream().filter(Objects::nonNull).map(ProductionPiece::getId)
                                     .filter(StringUtils::isNotBlank).collect(Collectors.toList()))
@@ -758,7 +788,7 @@ public class AppDeliveryPkgService {
     public DeliveryPkg addPkg(DeliveryPkgAddRequest request) {
         try (DeliveryPkgTrace trace = DeliveryPkgTrace.open(request)) {
             try {
-                DeliveryPkg result = DeliveryPkgTrace.stage("打包业务处理", () -> doAddPkg(request));
+                DeliveryPkg result = DeliveryPkgTrace.stage("打包业务处理", () -> packagingOperation.execute(request, () -> doAddPkg(request)));
                 trace.businessComplete(result.getDeliveryPkgId());
                 return result;
             } catch (RuntimeException | Error ex) {
@@ -781,7 +811,7 @@ public class AppDeliveryPkgService {
                 .distinct()
                 .collect(Collectors.toList());
         Map<String, ProductionPiece> persistedPieces = DeliveryPkgTrace.stage("查询生产件",
-                () -> productionPieceService.findByProductionPieceIds(requestedPieceIds)).stream()
+                () -> packagingOperation.pieces(requestedPieceIds)).stream()
                 .collect(Collectors.toMap(ProductionPiece::getProductionPieceId, piece -> piece,
                         (left, right) -> left));
         String orderId = null;
@@ -814,6 +844,10 @@ public class AppDeliveryPkgService {
             if (sourcePiece == null) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "存在无效的生产零件");
             }
+            if (!Objects.equals(sourcePiece.getOrderItemId(), pieceVO.getOrderItemId())) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产件与订单项不匹配");
+            }
+            pieceVO.setProductionPieceId(sourcePiece.getProductionPieceId());
             int pendingQty = getNodeQuantity(sourcePiece, NODE_ID_PENDING_PACKING, NODE_NAME_PENDING_PACKING);
             if (item.getQuantity() > pendingQty) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
@@ -822,6 +856,8 @@ public class AppDeliveryPkgService {
             selectedPieces.add(sourcePiece);
             packageQuantityMap.put(sourcePiece.getId(), item.getQuantity());
         }
+
+        packagingOperation.validated(selectedPieces, packageQuantityMap);
 
         // Channel is the first routing decision. Gather-platform orders must never fall
         // through to the Kuaidi100 path based on printer/token heuristics.
@@ -869,6 +905,7 @@ public class AppDeliveryPkgService {
                                 "快递100云打印设备为空");
                     }
                     if (preOrderRecord.getConsumeStatus() != PreOrderLabelConsumeStatus.CONSUMED) {
+                        packagingSideEffect();
                         DeliveryRecord claimed = deliveryRecordRepository.claimForPrinting(preOrderRecord.getId(),
                                 preOrderRecord.getConsumeStatus(), reprintSiid);
                         if (claimed == null) {
@@ -960,6 +997,15 @@ public class AppDeliveryPkgService {
      * package and moves every remaining pending quantity of each piece to packed.
      */
     public DeliveryPkg manualCancel(DeliveryPkgAddRequest request) {
+        if (request == null || request.getPieces() == null || request.getPieces().isEmpty()
+                || request.getPieces().getFirst() == null || request.getPieces().getFirst().getPiece() == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "注销零件不能为空");
+        }
+        return packagingOperation.exclusive(request.getManufacturerMetaId(), request.getPieces().getFirst().getPiece().getOrderId(),
+                () -> doManualCancel(request));
+    }
+
+    private DeliveryPkg doManualCancel(DeliveryPkgAddRequest request) {
         if (request == null || request.getPieces() == null || request.getPieces().isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "注销零件不能为空");
         }
@@ -1128,6 +1174,7 @@ public class AppDeliveryPkgService {
     private WdtLabelRecord reprintGatherPlatformLabel(WdtLabelRecord record, boolean recovery) {
         try {
             JstPrintGuard.PrintOperation<WdtLabelRecord> operation = () -> {
+                packagingSideEffect();
                 GatherPlatform platform = GatherPlatform.getInstance(GatherPlatformResolver.resolveCode(record.getPlatformType()));
                 LogisticsLabel label;
                 try {
@@ -1239,6 +1286,7 @@ public class AppDeliveryPkgService {
         String uniCode = orderInfo.getChannel().getOrderId();
         try {
             JstPrintGuard.PrintOperation<WdtLabelRecord> operation = () -> {
+                packagingSideEffect();
                 GatherPlatform platform = GatherPlatform.getInstance(platformType);
                 try {
                     platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
@@ -1311,6 +1359,7 @@ public class AppDeliveryPkgService {
 
     private void transferPiecesToPacked(List<ProductionPiece> productionPieces, Map<String, Integer> packageQuantityMap,
                                         String carrierId, String carrierName, String routeId, String routeNodeId, String kuaidiNum) {
+        if (PackagingOperation.active()) return;
         DeliveryPkgTrace.run("更新打包状态",
                 () -> doTransferPiecesToPacked(productionPieces, packageQuantityMap, carrierId, carrierName, routeId, routeNodeId, kuaidiNum));
     }
@@ -1444,6 +1493,7 @@ public class AppDeliveryPkgService {
     }
 
     private void refreshPackagingCompletionStatus(java.util.Set<String> touchedOrderItemIds) {
+        if (PackagingOperation.active()) return;
         DeliveryPkgTrace.run("刷新订单项完成状态",
                 () -> doRefreshPackagingCompletionStatus(touchedOrderItemIds));
     }
@@ -1582,8 +1632,11 @@ public class AppDeliveryPkgService {
     private DeliveryPkg doCreateAndSaveDeliveryPkg(DeliveryPkgAddRequest request, String orderId, String carrierId,
                                                 String carrierName, String presetType, String kuaidiNum,
                                                 String stablePkgId, String remarks) {
+        packagingSideEffect();
         DeliveryPkg deliveryPkg = new DeliveryPkg();
-        String deliveryPkgId = StringUtils.isBlank(stablePkgId) ? IdGenerator.generateId("DP") : stablePkgId;
+        String deliveryPkgId = StringUtils.isNotBlank(stablePkgId) ? stablePkgId
+                : PackagingOperation.active()
+                ? PackagingOperation.pkgId() : IdGenerator.generateId("DP");
         deliveryPkg.setDeliveryPkgId(deliveryPkgId);
         deliveryPkg.setDeliveryPkgCode(deliveryPkgId);
         deliveryPkg.setOrderId(orderId);
@@ -1673,7 +1726,9 @@ public class AppDeliveryPkgService {
         if (orderItemIds.isEmpty()) {
             return;
         }
-        Map<String, OrderItem> itemsById = orderItemService.findByOrderItemIds(orderItemIds).stream()
+        List<OrderItem> cachedRemarkItems = PackagingOperation.cachedRemarkItems();
+        Map<String, OrderItem> itemsById = (cachedRemarkItems == null
+                ? orderItemService.findByOrderItemIds(orderItemIds) : cachedRemarkItems).stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(OrderItem::getOrderItemId, item -> item, (left, right) -> left));
         // Preserve request order even when the database returns items in a different order.
@@ -1927,6 +1982,14 @@ public class AppDeliveryPkgService {
     }
 
     public void releasePkg(String deliveryPkgId) {
+        DeliveryPkg pkg = findByDeliveryPkgId(deliveryPkgId);
+        packagingOperation.exclusive(pkg.getManufacturerMetaId(), pkg.getOrderId(), () -> {
+            doReleasePkg(deliveryPkgId);
+            return null;
+        });
+    }
+
+    private void doReleasePkg(String deliveryPkgId) {
         DeliveryPkg deliveryPkg = findByDeliveryPkgId(deliveryPkgId);
         java.util.Set<String> touchedOrderItemIds = new java.util.HashSet<>();
         if (deliveryPkg.getDeliveryPkgItems() != null && !deliveryPkg.getDeliveryPkgItems().isEmpty()) {
