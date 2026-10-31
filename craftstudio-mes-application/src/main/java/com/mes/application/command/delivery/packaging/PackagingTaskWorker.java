@@ -39,16 +39,18 @@ public class PackagingTaskWorker {
     }
 
     void apply(Document job) {
-        List<Document> items = job.getList("items", Document.class);
-        if (items == null || items.isEmpty()) throw new IllegalStateException("Task has no validated items");
+        if (!Boolean.TRUE.equals(job.getBoolean("quantitiesApplied"))) {
+            applyQuantities(job);
+            store.quantitiesApplied(job);
+        }
+        refreshCompletion(job);
+    }
+
+    /** Shared by the request path and crash recovery. Only selected pieces are written here. */
+    public void applyQuantities(Document job) {
+        List<Document> items = validatedItems(job);
         Document pkg = job.get("result", Document.class);
         if (pkg == null) throw new IllegalStateException("Task has no persisted package result");
-        List<String> itemIds = items.stream().map(d -> d.getString("orderItemId")).distinct().toList();
-        Map<String, Document> orderItems = new HashMap<>();
-        for (Document item : store.mongo().getCollection("orderItem").find(new Document("orderItemId", new Document("$in", itemIds))
-                .append("deleteAt", null).append("orderId", job.getString("orderId")).append("manufacturerId", job.getString("manufacturerId")))
-                .projection(new Document("orderItemId", 1).append("quantity", 1).append("status", 1).append("isUrgent", 1).append("updateTime", 1)))
-            orderItems.put(item.getString("orderItemId"), item);
         List<String> pieceIds = items.stream().map(d -> d.getString("pieceId")).toList();
         Map<String, Document> selected = new HashMap<>();
         for (Document piece : store.mongo().getCollection("productionPiece").find(new Document("productionPieceId", new Document("$in", pieceIds))
@@ -60,14 +62,29 @@ public class PackagingTaskWorker {
             if (piece == null || !Objects.equals(piece.get("orderItemId"), item.get("orderItemId")))
                 throw new IllegalStateException("Production piece missing/deleted or moved: " + item.getString("pieceId"));
             if (piece.getList("packagingAppliedJobIds", String.class, List.of()).contains(job.getString("_id"))) continue;
-            Document orderItem = orderItems.get(item.getString("orderItemId"));
-            Integer required = orderItem == null ? null : orderItem.getInteger("quantity");
+            Integer required = item.getInteger("requiredPackedQuantity");
             Document patch = new Document(PackagingPatch.transfer(piece, item.getInteger("quantity"), required, pkg, TypesettingStatus.COMPLETED.getCode()));
             Document update = new Document("$set", patch.append("updateTime", new Date()).append("packagingRevision", nextRevision(piece)))
                     .append("$addToSet", new Document("packagingAppliedJobIds", job.getString("_id")));
             transfers.add(new UpdateOneModel<>(snapshot(piece).append("packagingAppliedJobIds", new Document("$ne", job.getString("_id"))), update));
         }
         write(job, "productionPiece", transfers);
+    }
+
+    private List<Document> validatedItems(Document job) {
+        List<Document> items = job.getList("items", Document.class);
+        if (items == null || items.isEmpty()) throw new IllegalStateException("Task has no validated items");
+        return items;
+    }
+
+    private void refreshCompletion(Document job) {
+        List<Document> items = validatedItems(job);
+        List<String> itemIds = items.stream().map(d -> d.getString("orderItemId")).distinct().toList();
+        Map<String, Document> orderItems = new HashMap<>();
+        for (Document item : store.mongo().getCollection("orderItem").find(new Document("orderItemId", new Document("$in", itemIds))
+                .append("deleteAt", null).append("orderId", job.getString("orderId")).append("manufacturerId", job.getString("manufacturerId")))
+                .projection(new Document("orderItemId", 1).append("quantity", 1).append("status", 1).append("isUrgent", 1).append("updateTime", 1)))
+            orderItems.put(item.getString("orderItemId"), item);
         // Always refresh from current data, including after an interrupted/partially successful previous attempt.
         Map<String, List<Document>> groups = new HashMap<>();
         for (Document piece : store.mongo().getCollection("productionPiece").find(new Document("orderItemId", new Document("$in", itemIds))
