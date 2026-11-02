@@ -118,7 +118,7 @@ public class AppOrderPreprocessingService {
     private static final String MASK_CALLBACK_LOCK_PREFIX = "orderPreprocessing:maskCallback:lock:";
     private static final String MASK_CALLBACK_COMPLETED_PREFIX = "orderPreprocessing:maskCallback:completed:";
     private static final long MASK_CALLBACK_LOCK_EXPIRE_MINUTES = 30;
-    private static final long MASK_CALLBACK_COMPLETED_EXPIRE_DAYS = 30;
+    private static final long MASK_CALLBACK_COMPLETED_EXPIRE_DAYS = 1;
 
     private static final Logger log = LoggerFactory.getLogger(AppOrderPreprocessingService.class);
     /** 抠图算法返回的尺寸单位为毫米；任一边小于 2cm 的结果视为噪点。 */
