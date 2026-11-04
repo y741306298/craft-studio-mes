@@ -45,19 +45,31 @@ public class PackagingOperation {
         // Legacy clients get deterministic replay; an intentional identical second package needs a fresh requestId.
         if (requestId == null || requestId.isBlank()) requestId = "legacy-" + fingerprint;
         String id = digest(manufacturer + ":" + requestId), orderKey = digest(manufacturer + ":" + orderId);
-        Document fresh = new Document("_id", id).append("fingerprint", fingerprint).append("requestId", requestId)
-                .append("manufacturerId", manufacturer).append("orderId", orderId).append("orderKey", orderKey)
-                .append("state", "PREPARING").append("pkgId", "DP" + UUID.randomUUID().toString().replace("-", ""))
-                .append("createdAt", new Date()).append("updatedAt", new Date()).append("attempts", 0);
-        Document job = store.create(fresh);
-        if (!Objects.equals(fingerprint, job.getString("fingerprint"))) throw bad("requestId 已用于不同的打包内容");
-        if (!Objects.equals(fresh.getString("pkgId"), job.getString("pkgId"))) {
+        Document job;
+        while (true) {
+            Document fresh = new Document("_id", id).append("fingerprint", fingerprint).append("requestId", requestId)
+                    .append("manufacturerId", manufacturer).append("orderId", orderId).append("orderKey", orderKey)
+                    .append("state", "PREPARING").append("pkgId", "DP" + UUID.randomUUID().toString().replace("-", ""))
+                    .append("createdAt", new Date()).append("updatedAt", new Date()).append("attempts", 0);
+            job = store.create(fresh);
+            if (!Objects.equals(fingerprint, job.getString("fingerprint"))) throw bad("requestId 已用于不同的打包内容");
+            if (Objects.equals(fresh.getString("pkgId"), job.getString("pkgId"))) break;
+            String state = job.getString("state");
+            if (("FAILED".equals(state) && !Boolean.TRUE.equals(job.getBoolean("sideEffectPossible"))
+                    || "CLOSED".equals(state)) && job.get("result") == null) {
+                // Keep failed attempts immutable. Concurrent resubmissions converge on the same successor,
+                // and delayed reservation cleanup can only unlock the old attempt, never the new one.
+                store.unlock(orderKey, id);
+                id = digest(id + ":retry");
+                continue;
+            }
             if (job.get("result") != null && (Boolean.TRUE.equals(job.getBoolean("quantitiesApplied"))
-                    || "DONE".equals(job.getString("state")))) {
-                log.info("打包请求幂等重放 taskId={} orderId={} state={}", id, orderId, job.getString("state"));
+                    || "DONE".equals(state))) {
+                log.info("打包请求幂等重放 taskId={} orderId={} state={}", id, orderId, state);
                 return decorate(store.result(job), job);
             }
-            throw bad("打包请求已受理，当前状态=" + job.getString("state") + "，taskId=" + id + "，请勿重复打单");
+            throw bad("打包任务尚未完成，当前状态=" + state + "，taskId=" + id
+                    + ("REVIEW".equals(state) ? "，请核对已有面单和包裹后恢复任务" : "，请查询任务进度或等待恢复"));
         }
         try { store.lock(orderKey, id); }
         catch (RuntimeException ex) { store.failPreparation(id); throw bad(ex.getMessage()); }
