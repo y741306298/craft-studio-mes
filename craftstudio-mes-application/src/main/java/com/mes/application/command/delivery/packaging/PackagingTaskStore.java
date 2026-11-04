@@ -30,6 +30,17 @@ public class PackagingTaskStore {
         try { mongo.insert(new Document("_id", key).append("taskId", taskId).append("createdAt", new Date()), LOCKS); }
         catch (DuplicateKeyException busy) {
             Document lock = mongo.findOne(id(key), Document.class, LOCKS);
+            Document previous = lock == null ? null : find(lock.getString("taskId"));
+            if (previous != null && List.of("DONE", "FAILED", "CLOSED").contains(previous.getString("state"))) {
+                unlock(key, lock.getString("taskId"));
+                // One atomic insert arbitrates concurrent new batches; never delete another owner's lock.
+                try {
+                    mongo.insert(new Document("_id", key).append("taskId", taskId).append("createdAt", new Date()), LOCKS);
+                    return;
+                } catch (DuplicateKeyException concurrent) {
+                    lock = mongo.findOne(id(key), Document.class, LOCKS);
+                }
+            }
             throw new IllegalStateException("该订单存在未完成打包任务，taskId=" + (lock == null ? "unknown" : lock.getString("taskId")));
         }
     }
