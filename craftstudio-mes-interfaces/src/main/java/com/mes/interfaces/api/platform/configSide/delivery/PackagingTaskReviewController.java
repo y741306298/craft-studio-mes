@@ -1,6 +1,7 @@
 package com.mes.interfaces.api.platform.configSide.delivery;
 
 import com.mes.application.command.delivery.AppDeliveryPkgService;
+import com.mes.application.command.delivery.packaging.PackagingOperation;
 import com.mes.domain.base.repository.ApiResponse;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import org.springframework.web.bind.annotation.*;
@@ -10,7 +11,16 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/configSide/delivery-packaging-tasks")
 public class PackagingTaskReviewController {
     private final AppDeliveryPkgService service;
-    public PackagingTaskReviewController(AppDeliveryPkgService service) { this.service = service; }
+    private final PackagingOperation packaging;
+    public PackagingTaskReviewController(AppDeliveryPkgService service, PackagingOperation packaging) {
+        this.service = service;
+        this.packaging = packaging;
+    }
+
+    @DeleteMapping("/locks")
+    public ApiResponse<Object> clearAllLocks() {
+        return ApiResponse.success(java.util.Map.of("deletedCount", packaging.clearAllLocks()));
+    }
 
     @PostMapping("/{taskId}/reconcile")
     public ApiResponse<Object> reconcile(@PathVariable String taskId, @RequestParam String manufacturerMetaId,
@@ -27,3 +37,4 @@ public class PackagingTaskReviewController {
         return ApiResponse.success(service.closeReviewedPackagingTask(taskId, manufacturerMetaId, note));
     }
 }
+

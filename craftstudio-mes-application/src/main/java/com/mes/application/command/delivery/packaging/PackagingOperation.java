@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.function.Supplier;
 
-/** Durable request identity and conservative order-level quantity reservation. No production state is changed here. */
+/** Durable request identity and order-level execution locking. */
 @Service
 public class PackagingOperation {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PackagingOperation.class);
@@ -71,13 +71,15 @@ public class PackagingOperation {
             throw bad("打包任务尚未完成，当前状态=" + state + "，taskId=" + id
                     + ("REVIEW".equals(state) ? "，请核对已有面单和包裹后恢复任务" : "，请查询任务进度或等待恢复"));
         }
-        try { store.lock(orderKey, id); }
+        String lockOwner;
+        try { lockOwner = store.lock(orderKey, id); }
         catch (RuntimeException ex) { store.failPreparation(id); throw bad(ex.getMessage()); }
         log.info("打包任务受理 taskId={} orderId={} pkgId={}", id, orderId, job.getString("pkgId"));
         ACTIVE.set(job);
         try {
             DeliveryPkg result = action.get();
             Document saved = store.publish(id, result); // Durable result + owned lease; a crash can be recovered without reprinting.
+            saved.put("executionLockOwner", lockOwner);
             try {
                 com.mes.application.command.delivery.DeliveryPkgTrace.run("同步更新打包零件",
                         () -> worker.applyQuantities(saved));
@@ -93,7 +95,10 @@ public class PackagingOperation {
         } catch (RuntimeException | Error ex) {
             try { store.failPreparation(id); } catch (RuntimeException failure) { ex.addSuppressed(failure); }
             throw ex;
-        } finally { ACTIVE.remove(); }
+        } finally {
+            ACTIVE.remove();
+            store.release(orderKey, lockOwner);
+        }
     }
 
     public void validated(List<ProductionPiece> pieces, Map<String, Integer> quantities) {
@@ -126,17 +131,21 @@ public class PackagingOperation {
         String key = digest(manufacturer + ":" + orderId), token = "manual-" + UUID.randomUUID();
         store.create(new Document("_id", token).append("orderKey", key).append("manufacturerId", manufacturer)
                 .append("orderId", orderId).append("state", "PREPARING").append("createdAt", new Date()).append("updatedAt", new Date()));
-        try { store.lock(key, token); }
+        String lockOwner;
+        try { lockOwner = store.lock(key, token); }
         catch (RuntimeException ex) { store.failPreparation(token); throw bad(ex.getMessage()); }
         try {
             T result = action.get();
             store.finishManual(token, key);
             return result;
         } catch (RuntimeException | Error ex) {
-            store.reviewManual(token); // Could be a partially applied manual operation. Do not silently release its reservation.
+            store.reviewManual(token); // Preserve partial-operation history independently of execution locks.
             throw ex;
+        } finally {
+            store.release(key, lockOwner);
         }
     }
+    public long clearAllLocks() { return store.clearAllLocks(); }
     public Document status(String taskId, String manufacturer) {
         Document job = store.find(taskId);
         if (job == null || !Objects.equals(manufacturer, job.getString("manufacturerId"))) throw bad("打包任务不存在");
@@ -189,3 +198,4 @@ public class PackagingOperation {
         catch (Exception ex) { throw new IllegalStateException(ex); }
     }
 }
+

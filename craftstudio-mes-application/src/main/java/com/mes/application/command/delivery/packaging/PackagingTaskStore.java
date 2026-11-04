@@ -13,10 +13,17 @@ import org.springframework.data.mongodb.core.query.*;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.springframework.scheduling.annotation.Scheduled;
+import jakarta.annotation.PreDestroy;
 
 @Repository
 public class PackagingTaskStore {
     public static final String TASKS = "deliveryPackagingTask", LOCKS = "deliveryPackagingOrderLock";
+    private static final long LOCK_LEASE_MS = 120_000;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PackagingTaskStore.class);
+    private final ConcurrentMap<String, String> heldLocks = new ConcurrentHashMap<>();
     private final MongoTemplate mongo;
     public PackagingTaskStore(MongoTemplate mongo) { this.mongo = mongo; }
     private Query id(String id) { return Query.query(Criteria.where("_id").is(id)); }
@@ -26,26 +33,60 @@ public class PackagingTaskStore {
         catch (DuplicateKeyException duplicate) { return find(task.getString("_id")); }
     }
 
-    public void lock(String key, String taskId) {
-        try { mongo.insert(new Document("_id", key).append("taskId", taskId).append("createdAt", new Date()), LOCKS); }
-        catch (DuplicateKeyException busy) {
+    /** An execution owns the lock; task state never extends its lifetime. */
+    public String lock(String key, String taskId) {
+        String owner = UUID.randomUUID().toString();
+        Date now = new Date();
+        // Also remove legacy locks without a lease, including old manual REVIEW reservations.
+        mongo.remove(Query.query(Criteria.where("_id").is(key).orOperator(
+                Criteria.where("leaseUntil").lte(now), Criteria.where("leaseUntil").exists(false))), LOCKS);
+        try {
+            mongo.insert(new Document("_id", key).append("taskId", taskId).append("owner", owner)
+                    .append("createdAt", now).append("leaseUntil", new Date(now.getTime() + LOCK_LEASE_MS)), LOCKS);
+            heldLocks.put(key, owner);
+            return owner;
+        } catch (DuplicateKeyException busy) {
             Document lock = mongo.findOne(id(key), Document.class, LOCKS);
-            Document previous = lock == null ? null : find(lock.getString("taskId"));
-            if (previous != null && List.of("DONE", "FAILED", "CLOSED").contains(previous.getString("state"))) {
-                unlock(key, lock.getString("taskId"));
-                // One atomic insert arbitrates concurrent new batches; never delete another owner's lock.
-                try {
-                    mongo.insert(new Document("_id", key).append("taskId", taskId).append("createdAt", new Date()), LOCKS);
-                    return;
-                } catch (DuplicateKeyException concurrent) {
-                    lock = mongo.findOne(id(key), Document.class, LOCKS);
-                }
-            }
-            throw new IllegalStateException("该订单存在未完成打包任务，taskId=" + (lock == null ? "unknown" : lock.getString("taskId")));
+            throw new IllegalStateException("该订单正在执行打包相关操作，taskId="
+                    + (lock == null ? "unknown" : lock.getString("taskId")) + "，请稍后重试");
         }
     }
+    private Query lockOwner(String key, String owner) {
+        return Query.query(Criteria.where("_id").is(key).and("owner").is(owner));
+    }
+    public void release(String key, String owner) {
+        if (owner == null) return;
+        heldLocks.remove(key, owner);
+        try { mongo.remove(lockOwner(key, owner), LOCKS); }
+        catch (RuntimeException ex) { log.error("释放打包锁失败，等待租约过期 orderKey={}", key, ex); }
+    }
+    /** Existing terminal-task recovery only touches legacy reservations. */
     public void unlock(String key, String taskId) {
-        mongo.remove(Query.query(Criteria.where("_id").is(key).and("taskId").is(taskId)), LOCKS);
+        mongo.remove(Query.query(Criteria.where("_id").is(key).and("taskId").is(taskId)
+                .and("owner").exists(false)), LOCKS);
+    }
+    @Scheduled(fixedDelay = 20_000)
+    public void renewExecutionLocks() {
+        heldLocks.forEach((key, owner) -> {
+            try {
+                if (!renewExecutionLock(key, owner)) heldLocks.remove(key, owner);
+            } catch (RuntimeException ex) { log.error("打包锁续租失败 orderKey={}", key, ex); }
+        });
+    }
+    private boolean renewExecutionLock(String key, String owner) {
+        Query query = lockOwner(key, owner);
+        query.addCriteria(Criteria.where("leaseUntil").gt(new Date()));
+        return mongo.updateFirst(query, new Update().set("leaseUntil",
+                new Date(System.currentTimeMillis() + LOCK_LEASE_MS)), LOCKS).getMatchedCount() == 1;
+    }
+    @PreDestroy
+    public void releaseProcessLocks() { heldLocks.forEach(this::release); }
+
+    /** Config-side emergency operation: delete locks, preserving packages, quantities and task history. */
+    public long clearAllLocks() {
+        long deleted = mongo.remove(new Query(), LOCKS).getDeletedCount();
+        log.warn("管理端清理全部打包锁 count={}", deleted);
+        return deleted;
     }
     public void validated(String id, List<Document> items) {
         require(mongo.updateFirst(Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING")),
@@ -96,6 +137,9 @@ public class PackagingTaskStore {
                 FindAndModifyOptions.options().returnNew(true), Document.class, TASKS);
     }
     public void heartbeat(Document job) {
+        String key = job.getString("orderKey"), owner = job.getString("executionLockOwner");
+        if (owner == null || !Objects.equals(owner, heldLocks.get(key)) || !renewExecutionLock(key, owner))
+            throw new IllegalStateException("Packaging execution lock lost");
         require(mongo.updateFirst(owned(job), new Update().set("leaseUntil", new Date(System.currentTimeMillis() + 120_000)), TASKS)
                 .getMatchedCount());
     }
@@ -105,7 +149,11 @@ public class PackagingTaskStore {
     }
     public void done(Document job) {
         require(mongo.updateFirst(owned(job), new Update().set("state", "DONE").set("completedAt", new Date()).set("updatedAt", new Date()), TASKS).getMatchedCount());
-        unlock(job.getString("orderKey"), job.getString("_id"));
+    }
+    public void deferForBusyOrder(Document job) {
+        require(mongo.updateFirst(owned(job), new Update().set("state", "RETRY").inc("attempts", -1)
+                .set("nextAttemptAt", new Date(System.currentTimeMillis() + 1000)).set("updatedAt", new Date())
+                .unset("owner").unset("leaseUntil"), TASKS).getMatchedCount());
     }
     public void retry(Document job, Throwable ex) {
         int attempts = job.getInteger("attempts", 1);
@@ -114,21 +162,17 @@ public class PackagingTaskStore {
                 .set("nextAttemptAt", new Date(System.currentTimeMillis() + Math.min(300_000L, 1000L << Math.min(attempts, 8)))), TASKS);
     }
     public void recover() {
-        // Never reprint after a crash/ambiguous network result. Retain the order reservation for reconciliation.
+        mongo.remove(Query.query(new Criteria().orOperator(Criteria.where("leaseUntil").lte(new Date()),
+                Criteria.where("leaseUntil").exists(false))), LOCKS);
+        // Preserve ambiguous results for reconciliation; execution locks expire independently.
         mongo.updateMulti(Query.query(Criteria.where("state").is("PREPARING").and("updatedAt")
                         .lt(new Date(System.currentTimeMillis() - 1_800_000))),
                 new Update().set("state", "REVIEW").set("lastErrorType", "InterruptedPreparation"), TASKS);
-        // A crash after DONE but before unlock must not permanently reserve the order.
-        Query completed = Query.query(Criteria.where("state").in("DONE", "FAILED", "CLOSED").and("reservationReleased").ne(true)).limit(100);
-        for (Document task : mongo.find(completed, Document.class, TASKS)) {
-            unlock(task.getString("orderKey"), task.getString("_id"));
-            mongo.updateFirst(id(task.getString("_id")), new Update().set("reservationReleased", true), TASKS);
-        }
+
     }
     public void finishManual(String taskId, String orderKey) {
         require(mongo.updateFirst(Query.query(Criteria.where("_id").is(taskId).and("state").is("PREPARING")),
                 new Update().set("state", "DONE").set("updatedAt", new Date()), TASKS).getMatchedCount());
-        unlock(orderKey, taskId);
     }
     public void reviewManual(String taskId) {
         mongo.updateFirst(id(taskId), new Update().set("state", "REVIEW").set("updatedAt", new Date()), TASKS);
@@ -172,3 +216,4 @@ public class PackagingTaskStore {
     public MongoTemplate mongo() { return mongo; }
     private static void require(long count) { if (count != 1) throw new IllegalStateException("Packaging task ownership changed"); }
 }
+

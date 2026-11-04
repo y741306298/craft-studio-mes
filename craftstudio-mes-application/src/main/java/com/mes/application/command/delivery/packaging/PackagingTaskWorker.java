@@ -25,7 +25,14 @@ public class PackagingTaskWorker {
             Document job = store.claim();
             if (job == null) return;
             long start = System.nanoTime();
+            String lockOwner = null;
             try {
+                try { lockOwner = store.lock(job.getString("orderKey"), job.getString("_id")); }
+                catch (IllegalStateException busy) {
+                    store.deferForBusyOrder(job);
+                    continue;
+                }
+                job.put("executionLockOwner", lockOwner);
                 apply(job);
                 store.done(job);
                 log.info("打包状态任务完成 taskId={} orderId={} attempt={} elapsedMs={}", job.getString("_id"),
@@ -34,6 +41,8 @@ public class PackagingTaskWorker {
                 store.retry(job, ex);
                 log.error("打包状态任务失败 taskId={} orderId={} attempt={}", job.getString("_id"),
                         job.getString("orderId"), job.getInteger("attempts"), ex);
+            } finally {
+                store.release(job.getString("orderKey"), lockOwner);
             }
         }
     }
@@ -139,3 +148,4 @@ public class PackagingTaskWorker {
                 .append("isUrgent", piece.get("isUrgent"));
     }
 }
+
