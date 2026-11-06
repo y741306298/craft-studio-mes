@@ -494,12 +494,19 @@ public class OrderController {
 
     @PostMapping("/callback/rect_blood")
     public ApiResponse<String> handleRectBloodCallback(@RequestBody RectBloodResponse response) {
+        long startedAt = System.nanoTime();
+        logger.info("handleRectBloodCallback 收到回调: response={}", JsonLogUtil.toJSONString(response));
         try {
             appOrderPreprocessingService.handleRectBloodCallback(
                     response, orderPreprocessTaskQueue::submitConvertedOrderItem);
+            logger.info("handleRectBloodCallback 处理完成: callbackCustomValue={}, elapsedMs={}",
+                    response == null || response.getData() == null ? null : response.getData().getCallbackCustomValue(),
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
             return ApiResponse.success("回调处理成功");
         } catch (Exception e) {
-            log.error("处理矩形缝套出血回调失败", e);
+            log.error("handleRectBloodCallback 处理失败: callbackCustomValue={}, elapsedMs={}",
+                    response == null || response.getData() == null ? null : response.getData().getCallbackCustomValue(),
+                    java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), e);
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
         }
     }

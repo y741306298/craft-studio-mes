@@ -37,7 +37,7 @@ public class RectBloodRequest {
             return null;
         }
         for (ProcedureFlowNode node : item.getProcedureFlow().getNodes()) {
-            if (node == null || !"矩形旗缝套筒".equals(node.getNodeName())
+            if (node == null || node.getNodeName() == null || !node.getNodeName().contains("矩形旗缝套筒")
                     || node.getParamConfigs() == null) {
                 continue;
             }
@@ -46,9 +46,11 @@ public class RectBloodRequest {
             for (var config : node.getParamConfigs()) {
                 if (config == null) continue;
                 JSONObject value = JSON.parseObject(JSON.toJSONString(config));
-                String type = value.getString("type");
+                JSONObject param = value.get("param") instanceof java.util.Map<?, ?>
+                        ? value.getJSONObject("param") : null;
+                // 工艺参数类型统一保存在 param.type。
+                String type = param == null ? null : param.getString("type");
                 if (!"RECT_EDGE_SELECTION".equals(type) && !"ACC".equals(type)) continue;
-                JSONObject param = value.getJSONObject("param");
                 if ("RECT_EDGE_SELECTION".equals(type) && !hasEdgeSelection) {
                     hasEdgeSelection = true;
                     if (param == null || param.get("edges") == null) {

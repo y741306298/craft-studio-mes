@@ -381,8 +381,26 @@ public class AppOrderPreprocessingService {
 
     /** 返回 false 时等待矩形缝套回调，禁止提前调用灰度转换、抠图或分切。 */
     public boolean generateRectBloodIfNecessary(OrderItem orderItem) {
-        RectBloodRequest request = RectBloodRequest.fromOrderItem(orderItem);
-        if (request == null || hasCurrentRectBloodResult(orderItem)) {
+        String itemId = orderItem == null ? null : orderItem.getOrderItemId();
+        log.info("矩形缝套出血工艺判断开始: orderItemId={}, nodeNames={}", itemId,
+                orderItem == null || orderItem.getProcedureFlow() == null
+                        || orderItem.getProcedureFlow().getNodes() == null ? null
+                        : orderItem.getProcedureFlow().getNodes().stream().filter(Objects::nonNull)
+                                .map(ProcedureFlowNode::getNodeName).toList());
+        RectBloodRequest request;
+        try {
+            request = RectBloodRequest.fromOrderItem(orderItem);
+        } catch (RuntimeException e) {
+            log.error("矩形缝套出血工艺参数解析失败: orderItemId={}", itemId, e);
+            throw e;
+        }
+        if (request == null) {
+            log.info("矩形缝套出血跳过: orderItemId={}, reason=未找到矩形旗缝套筒节点或其RECT_EDGE_SELECTION配置", itemId);
+            return true;
+        }
+        if (hasCurrentRectBloodResult(orderItem)) {
+            log.info("矩形缝套出血跳过: orderItemId={}, reason=当前生产图已为算法结果, flagUrl={}",
+                    itemId, orderItem.getRectBloodDownloadUrl());
             return true;
         }
         if (StringUtils.isBlank(orderItem.getManufacturerId()) || StringUtils.isBlank(orderItem.getOrderItemId())
@@ -411,12 +429,25 @@ public class AppOrderPreprocessingService {
         callback.setCallbackUrl(callbackUrl);
         callback.setCallbackCustomValue(custom);
         request.setCallbackConfig(callback);
-        RectBloodResponse accepted = algorithmCoreApiService.generateRectBloodAsync(request);
-        if (accepted != null && accepted.getCode() != null
-                && accepted.getCode() != 200 && accepted.getCode() != 202) {
-            throw new RuntimeException("矩形缝套出血提交失败：" + accepted.getMessage());
+        long startedAt = System.nanoTime();
+        log.info("矩形缝套出血算法提交开始: orderItemId={}, preprocessRequestId={}, imageUrl={}, bloodConfig={}, callbackUrl={}, uploadPath={}",
+                itemId, requestId, request.getImageUrl(), JSON.toJSONString(request.getBloodConfig()),
+                callbackUrl, upload.getUploadPath());
+        try {
+            RectBloodResponse accepted = algorithmCoreApiService.generateRectBloodAsync(request);
+            if (accepted != null && accepted.getCode() != null
+                    && accepted.getCode() != 200 && accepted.getCode() != 202) {
+                throw new RuntimeException("矩形缝套出血提交失败：" + accepted.getMessage());
+            }
+            log.info("矩形缝套出血算法已提交，等待回调: orderItemId={}, preprocessRequestId={}, code={}, message={}, elapsedMs={}",
+                    itemId, requestId, accepted == null ? null : accepted.getCode(),
+                    accepted == null ? null : accepted.getMessage(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
+            return false;
+        } catch (RuntimeException e) {
+            log.error("矩形缝套出血算法提交失败: orderItemId={}, preprocessRequestId={}, elapsedMs={}",
+                    itemId, requestId, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), e);
+            throw e;
         }
-        return false;
     }
 
     private boolean hasCurrentRectBloodResult(OrderItem item) {
@@ -441,15 +472,22 @@ public class AppOrderPreprocessingService {
         String key = "orderPreprocessing:rectBloodCallback:" + itemId + ":" + requestId;
         String token = UUID.randomUUID().toString();
         if (!Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key + ":lock", token, 10, TimeUnit.MINUTES))) {
+            log.warn("矩形缝套出血回调未获取处理锁: orderItemId={}, preprocessRequestId={}", itemId, requestId);
             throw new RuntimeException("矩形缝套出血回调正在处理中，请重试");
         }
         try {
-            if (Boolean.TRUE.equals(redisTemplate.hasKey(key + ":completed"))) return;
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key + ":completed"))) {
+                log.info("矩形缝套出血重复回调已跳过: orderItemId={}, preprocessRequestId={}", itemId, requestId);
+                return;
+            }
+            log.info("矩形缝套出血回调处理开始: orderItemId={}, preprocessRequestId={}, flagUrl={}, mirrorFlagUrl={}",
+                    itemId, requestId, response.getData().getFlagUrl(), response.getData().getMirrorFlagUrl());
             OrderItem item = orderItemService.findByOrderItemId(itemId);
             if (item == null) throw new IllegalArgumentException("订单项不存在：" + itemId);
             if (isOrderItemCancelled(itemId) || isReturnedOrderItem(item) || isReturnedOrder(item.getOrderId())
                     || (StringUtils.isNotBlank(requestId) && !isCurrentPreprocessCallback(item, requestId))) {
-                log.warn("忽略已取消或过期矩形缝套出血回调: orderItemId={}", itemId);
+                log.warn("忽略已取消、退回或过期矩形缝套出血回调: orderItemId={}, callbackRequestId={}, currentRequestId={}, status={}",
+                        itemId, requestId, item.getPreprocessRequestId(), item.getStatus());
                 return;
             }
             ImageFile image = item.getProductionImgFile();
@@ -463,7 +501,10 @@ public class AppOrderPreprocessingService {
             item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
             item.setMirrorFlagUrl(response.getData().getMirrorFlagUrl());
             orderItemService.updateOrderItem(item);
+            log.info("矩形缝套出血回调图片已保存: orderItemId={}, preprocessRequestId={}, flagUrl={}, mirrorFlagUrl={}",
+                    itemId, requestId, item.getRectBloodDownloadUrl(), item.getMirrorFlagUrl());
             continuation.accept(item);
+            log.info("矩形缝套出血回调续处理已入队: orderItemId={}, preprocessRequestId={}", itemId, requestId);
             redisTemplate.opsForValue().set(key + ":completed", true, 7, TimeUnit.DAYS);
         } finally {
             releaseMaskCallbackLock(key + ":lock", token);

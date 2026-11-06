@@ -2,7 +2,7 @@
 
 订单新增后沿用 `OrderPreprocessTaskQueue` 后台队列，顺序为：彩白彩转换（如需）→ 矩形旗缝套筒出血（如需）→ 灰度蒙版转 SVG → 原有抠图/拼接或直接生成零件。两个异步转换阶段均等待各自回调后重新入队，读取最新订单项。
 
-仅当 `nodeName` 精确等于“矩形旗缝套筒”，且该节点 `paramConfigs` 含 `type=RECT_EDGE_SELECTION` 时提交矩形出血算法。不依赖“热升华”节点。缺少选边配置时直接继续原流程；选边配置存在但缺少 `param.edges` 时按失败任务重试。
+仅当 `nodeName` 包含“矩形旗缝套筒”，且该节点 `paramConfigs[].param.type=RECT_EDGE_SELECTION` 时提交矩形出血算法。不依赖“热升华”节点。缺少选边配置时直接继续原流程；选边配置存在但缺少 `param.edges` 时按失败任务重试。
 
 请求字段：
 
