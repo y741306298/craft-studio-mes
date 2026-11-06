@@ -35,10 +35,7 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         // 步骤1：校验工艺参数转化完整性。
         verifyProcedureParamsConverted(procedureFlow, orderItem.getOrderItemId());
         // 步骤2：提取生产图地址与材料宽高。
-        String productionImgUrl = orderItem.getProductionImgFile() != null
-                && orderItem.getProductionImgFile().getFilePreview() != null
-                ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                : null;
+        String productionImgUrl = processingService.resolveProductionImageUrlForStrategy(orderItem);
         // 步骤3：生成等幅矩形蒙版。
         String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
         Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));

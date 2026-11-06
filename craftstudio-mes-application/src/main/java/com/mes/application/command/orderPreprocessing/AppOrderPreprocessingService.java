@@ -411,7 +411,7 @@ public class AppOrderPreprocessingService {
         UploadConfig upload = new UploadConfig();
         upload.setOssConfig(aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId()));
         upload.setUploadPath("orderItem/rectBlood/" + orderItem.getManufacturerId() + "/"
-                + orderItem.getOrderItemId() + "/" + requestId + "/flag.tif");
+                + orderItem.getOrderItemId() + "/" + requestId + "/" + UUID.randomUUID() + ".tif");
         request.setUploadConfig(upload);
         CallbackCustomValue custom = new CallbackCustomValue();
         custom.setId(orderItem.getOrderItemId());
@@ -448,6 +448,16 @@ public class AppOrderPreprocessingService {
                     itemId, requestId, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), e);
             throw e;
         }
+    }
+
+    /** 矩形出血只更新生产原图，生成零件时消费该结果，保留原有预览资源。 */
+    public String resolveProductionImageUrlForStrategy(OrderItem item) {
+        if (hasCurrentRectBloodResult(item)) {
+            return item.getProductionImgFile().getRawFile();
+        }
+        return item == null || item.getProductionImgFile() == null
+                || item.getProductionImgFile().getFilePreview() == null
+                ? null : item.getProductionImgFile().getFilePreview().getRaw();
     }
 
     private boolean hasCurrentRectBloodResult(OrderItem item) {
@@ -496,8 +506,6 @@ public class AppOrderPreprocessingService {
                 item.setProductionImgFile(image);
             }
             image.setRawFile(response.getData().getFlagUrl());
-            if (image.getFilePreview() == null) image.setFilePreview(new FilePreview());
-            image.getFilePreview().setRaw(response.getData().getFlagUrl());
             item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
             item.setMirrorFlagUrl(response.getData().getMirrorFlagUrl());
             orderItemService.updateOrderItem(item);
@@ -703,10 +711,6 @@ public class AppOrderPreprocessingService {
             orderItem.setProductionImgFile(image);
         }
         image.setRawFile(data.getFlagUrl());
-        if (image.getFilePreview() == null) {
-            image.setFilePreview(new FilePreview());
-        }
-        image.getFilePreview().setRaw(data.getFlagUrl());
         orderItem.setMirrorFlagUrl(data.getMirrorFlagUrl());
         orderItem.setRectBloodDownloadUrl(data.getFlagUrl());
         orderItemService.updateOrderItem(orderItem);
@@ -839,10 +843,7 @@ public class AppOrderPreprocessingService {
         orderItem.setProcessingFlow(processingFlow);
 
         // 直接使用 orderItem 信息生成 ProductionPiece
-        String productionImgUrl = orderItem.getProductionImgFile() != null
-                && orderItem.getProductionImgFile().getFilePreview() != null
-                ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                : null;
+        String productionImgUrl = resolveProductionImageUrlForStrategy(orderItem);
 
         String generatedMaskImgUrl = generateAndUploadPathMaskSvg(orderItem);
         Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");

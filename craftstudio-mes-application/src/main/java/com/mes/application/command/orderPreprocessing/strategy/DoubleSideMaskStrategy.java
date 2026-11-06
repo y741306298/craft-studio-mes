@@ -61,10 +61,7 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
         processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
 
-        String productionImgUrl = orderItem.getProductionImgFile() != null
-                && orderItem.getProductionImgFile().getFilePreview() != null
-                ? orderItem.getProductionImgFile().getFilePreview().getRaw()
-                : null;
+        String productionImgUrl = processingService.resolveProductionImageUrlForStrategy(orderItem);
         Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
         Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(

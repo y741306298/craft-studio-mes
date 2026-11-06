@@ -45,7 +45,7 @@ RectBloodResponse response = algorithmCoreApiService.generateRectBlood(request);
 回调接收 `RectBloodResponse` JSON，要求 `code=200`、`data.flagUrl` 及
 `data.callbackCustomValue.id` 非空。成功后同步更新订单项：
 
-- `productionImgFile.rawFile` 与 `productionImgFile.filePreview.raw` 均覆盖为 `flagUrl`；
+- `productionImgFile.rawFile` 覆盖为 `flagUrl`，`productionImgFile.filePreview` 保持原值；
 - `mirrorFlagUrl` 保存为订单项独立字段；未返回镜像地址时清空旧值；
 - 数据保存成功后，按灰度图转 SVG 回调的方式将订单项提交至订单预处理队列。
 
