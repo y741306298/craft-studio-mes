@@ -9,22 +9,22 @@
 | 字段 | 来源/默认值 |
 | --- | --- |
 | `imageUrl` | `orderItem.productionImgFile.rawFile` |
-| `bloodConfig.scrollEdge` | 同节点 `RECT_EDGE_SELECTION.param.edges`，保留原结构 |
+| `bloodConfig.scrollEdge` | 同节点 `RECT_EDGE_SELECTION.param.edges`，转换为远端契约的单边枚举；支持边名或单元素列表 |
 | `bloodConfig.scrollColorHex` | 同节点任一 `ACC.param.accessorySnapshot.name` 为“大白边”时为 `#FFFFFF`，否则 `null` |
 | `bloodConfig.scrollWidth` | `20` 毫米（2cm） |
 | `bloodConfig.sewWidth` | `10` 毫米（1cm） |
 | `bloodConfig.mirrorRequired` | `true` |
 | `uploadConfig` | 沿用 STS；目录为 `orderItem/rectBlood/{manufacturerId}/{orderItemId}/{preprocessRequestId}/` |
-| `callbackConfig.callbackCustomValue` | `id=orderItemId#preprocessRequestId`，同时携带独立的 `orderItemId` 和 `preprocessRequestId` |
+| `callbackConfig.callbackCustomValue` | `id=orderItemId`，同时携带 `orderItemId` 和 `preprocessRequestId` |
 
 算法地址读取 `external.api.rectBloodUrl`，由 `AlgorithmCoreApiService.generateRectBloodAsync` 提交。回调地址可配置 `external.callbackApi.rect_blood`，未配置时从抠图回调地址 `/callback/generate_mask_files` 推导为 `/callback/rect_blood`，保留原控制器路径前缀。
 
-`OrderController.handleRectBloodCallback` 接收 JSON，成功报文为 `code=200`、`data.flagUrl`、`data.mirrorFlagUrl`、`data.callbackCustomValue`。算法需原样透传 `callbackCustomValue`，仅透传 `id` 也可通过其中的版本信息校验旧回调。
+`OrderController.handleRectBloodCallback` 接收 JSON，成功报文为 `code=200`、`data.flagUrl`、可选的 `data.mirrorFlagUrl`、`data.callbackCustomValue`。算法需原样透传 `callbackCustomValue`，其中 `preprocessRequestId` 用于校验旧回调；兼容此前仅透传 `id` 的调用。
 
 回调先保存订单项，再提交续处理任务：
 
 - `flagUrl` 写入 `productionImgFile.rawFile`、`productionImgFile.filePreview.raw` 和 `rectBloodDownloadUrl`。
-- `mirrorFlagUrl` 写入 `rectBloodMirrorDownloadUrl`。抠图时传入 `rawImage.mirrorUrl`；直接生成零件时写入零件的 `mirrorConfigs`。
+- `mirrorFlagUrl` 写入 `mirrorFlagUrl`。抠图时传入 `rawImage.mirrorUrl`；直接生成零件时写入零件的 `mirrorConfigs`。
 - 当前生产图等于已保存的矩形出血结果时跳过重复转换，同时避免因图片地址变化再次触发彩白彩转换。
 - 沿用 Redis 回调锁和完成标记；取消、退回或旧版本回调不更新订单项；续处理入队失败可重试回调。
 

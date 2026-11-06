@@ -24,6 +24,7 @@ public class OrderItemResponse {
     private Boolean isUrgent;
     private String processingFlow;
     private Object productionImgFile;
+    private String mirrorFlagUrl;
     private Object maskImgFile;
     private String failureReason;
     private java.util.List<ProductionPiece> productionPieces;
@@ -41,6 +42,7 @@ public class OrderItemResponse {
         response.setIsUrgent(orderItem.getIsUrgent());
         response.setProcessingFlow(orderItem.getProcessingFlow());
         response.setProductionImgFile(orderItem.getProductionImgFile());
+        response.setMirrorFlagUrl(orderItem.getMirrorFlagUrl());
         response.setMaskImgFile(orderItem.getMaskImgFile());
         response.setFailureReason(orderItem.getFailureReason());
         response.setProductionPieces(orderItem.getProductionPieces());

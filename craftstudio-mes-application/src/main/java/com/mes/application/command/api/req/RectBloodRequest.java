@@ -8,26 +8,28 @@ import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import lombok.Data;
 
-/** 矩形旗缝套筒出血请求。 */
+/** 矩形旗出血请求。 */
 @Data
 public class RectBloodRequest {
     private String imageUrl;
     private BloodConfig bloodConfig;
     private UploadConfig uploadConfig;
+    /** 异步调用时必填。 */
     private CallbackConfig callbackConfig;
 
     @Data
     public static class BloodConfig {
-        /** 原样传递 RECT_EDGE_SELECTION.param.edges，保留边的选择参数。 */
-        private Object scrollEdge;
+        private ScrollEdge scrollEdge;
+        /** null 或不传时由算法自动采样边缘主色。 */
         private String scrollColorHex;
-        /** 单位：毫米，2cm = 20mm。 */
-        private double scrollWidth = 20D;
-        /** 单位：毫米，1cm = 10mm。 */
-        private double sewWidth = 10D;
-        private boolean mirrorRequired = true;
+        private Integer scrollWidth = 20;
+        private Integer sewWidth = 10;
+        private Boolean mirrorRequired = true;
     }
 
+    public enum ScrollEdge {
+        LEFT, TOP, BOTTOM, RIGHT
+    }
     /** 只匹配矩形旗缝套筒节点自己的参数；未配置选边类型时无需调用算法。 */
     public static RectBloodRequest fromOrderItem(OrderItem item) {
         if (item == null || item.getProcedureFlow() == null
@@ -52,7 +54,7 @@ public class RectBloodRequest {
                     if (param == null || param.get("edges") == null) {
                         throw new IllegalArgumentException("矩形旗缝套筒的 RECT_EDGE_SELECTION 缺少 param.edges");
                     }
-                    blood.setScrollEdge(param.get("edges"));
+                    blood.setScrollEdge(resolveScrollEdge(param.get("edges")));
                 }
                 if ("ACC".equals(type) && param != null) {
                     JSONObject accessory = param.getJSONObject("accessorySnapshot");
@@ -73,4 +75,19 @@ public class RectBloodRequest {
         }
         return null;
     }
+    private static ScrollEdge resolveScrollEdge(Object edges) {
+        Object edge = edges;
+        if (edges instanceof java.util.Collection<?> selections) {
+            if (selections.size() != 1) {
+                throw new IllegalArgumentException("矩形旗出血算法要求选择一条缝套边");
+            }
+            edge = selections.iterator().next();
+        }
+        try {
+            return ScrollEdge.valueOf(String.valueOf(edge).toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("矩形旗缝套筒选边必须为 LEFT/TOP/BOTTOM/RIGHT", e);
+        }
+    }
+
 }

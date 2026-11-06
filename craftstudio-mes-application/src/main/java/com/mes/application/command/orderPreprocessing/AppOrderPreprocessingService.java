@@ -320,10 +320,10 @@ public class AppOrderPreprocessingService {
                     finalResult = new ArrayList<>();
                 }
                 if (hasCurrentRectBloodResult(orderItem)
-                        && StringUtils.isNotBlank(orderItem.getRectBloodMirrorDownloadUrl())) {
+                        && StringUtils.isNotBlank(orderItem.getMirrorFlagUrl())) {
                     for (ProductionPiece piece : current) {
                         MirrorConfig mirror = new MirrorConfig();
-                        mirror.setImg(orderItem.getRectBloodMirrorDownloadUrl());
+                        mirror.setImg(orderItem.getMirrorFlagUrl());
                         mirror.setSvg(piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
                         piece.setMirrorConfigs(List.of(mirror));
                     }
@@ -396,8 +396,7 @@ public class AppOrderPreprocessingService {
                 + orderItem.getOrderItemId() + "/" + requestId + "/");
         request.setUploadConfig(upload);
         CallbackCustomValue custom = new CallbackCustomValue();
-        // 将版本编码进 id，即使算法仅透传 id 也能过滤重做前的旧回调。
-        custom.setId(buildCallbackId(orderItem.getOrderItemId(), requestId));
+        custom.setId(orderItem.getOrderItemId());
         custom.setOrderItemId(orderItem.getOrderItemId());
         custom.setPreprocessRequestId(requestId);
         CallbackConfig callback = new CallbackConfig();
@@ -431,8 +430,7 @@ public class AppOrderPreprocessingService {
         if (response == null || !Integer.valueOf(200).equals(response.getCode())
                 || response.getData() == null || response.getData().getCallbackCustomValue() == null
                 || StringUtils.isBlank(response.getData().getCallbackCustomValue().getId())
-                || StringUtils.isBlank(response.getData().getFlagUrl())
-                || StringUtils.isBlank(response.getData().getMirrorFlagUrl())) {
+                || StringUtils.isBlank(response.getData().getFlagUrl())) {
             throw new IllegalArgumentException("矩形缝套出血回调失败或缺少订单项ID/正反面图片地址");
         }
         CallbackCustomValue custom = response.getData().getCallbackCustomValue();
@@ -450,7 +448,7 @@ public class AppOrderPreprocessingService {
             OrderItem item = orderItemService.findByOrderItemId(itemId);
             if (item == null) throw new IllegalArgumentException("订单项不存在：" + itemId);
             if (isOrderItemCancelled(itemId) || isReturnedOrderItem(item) || isReturnedOrder(item.getOrderId())
-                    || !isCurrentPreprocessCallback(item, requestId)) {
+                    || (StringUtils.isNotBlank(requestId) && !isCurrentPreprocessCallback(item, requestId))) {
                 log.warn("忽略已取消或过期矩形缝套出血回调: orderItemId={}", itemId);
                 return;
             }
@@ -463,7 +461,7 @@ public class AppOrderPreprocessingService {
             if (image.getFilePreview() == null) image.setFilePreview(new FilePreview());
             image.getFilePreview().setRaw(response.getData().getFlagUrl());
             item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
-            item.setRectBloodMirrorDownloadUrl(response.getData().getMirrorFlagUrl());
+            item.setMirrorFlagUrl(response.getData().getMirrorFlagUrl());
             orderItemService.updateOrderItem(item);
             continuation.accept(item);
             redisTemplate.opsForValue().set(key + ":completed", true, 7, TimeUnit.DAYS);
@@ -639,6 +637,41 @@ public class AppOrderPreprocessingService {
         return generateMaskFilesApiUrl.replace("/callback/generate_mask_files", "/callback/convert_gray_img_to_svg");
     }
 
+    /** 保存矩形旗出血结果，成功落库后由调用方继续订单预处理。 */
+    public OrderItem handleRectBloodCallback(RectBloodResponse response) {
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())
+                || response.getData() == null) {
+            throw new RuntimeException("矩形旗出血回调失败或响应数据为空");
+        }
+        RectBloodResponse.Data data = response.getData();
+        CallbackCustomValue customValue = data.getCallbackCustomValue();
+        String orderItemId = customValue == null ? null : customValue.getId();
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new RuntimeException("订单项ID不能为空");
+        }
+        if (StringUtils.isBlank(data.getFlagUrl())) {
+            throw new RuntimeException("旗帜文件URL不能为空");
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+        if (orderItem == null) {
+            throw new RuntimeException("订单项不存在：" + orderItemId);
+        }
+        ImageFile image = orderItem.getProductionImgFile();
+        if (image == null) {
+            image = new ImageFile();
+            orderItem.setProductionImgFile(image);
+        }
+        image.setRawFile(data.getFlagUrl());
+        if (image.getFilePreview() == null) {
+            image.setFilePreview(new FilePreview());
+        }
+        image.getFilePreview().setRaw(data.getFlagUrl());
+        orderItem.setMirrorFlagUrl(data.getMirrorFlagUrl());
+        orderItem.setRectBloodDownloadUrl(data.getFlagUrl());
+        orderItemService.updateOrderItem(orderItem);
+        return orderItem;
+    }
+
     public OrderItem handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
         if (response == null || response.getData() == null) {
             throw new RuntimeException("灰度图转SVG回调响应不能为空");
@@ -743,8 +776,8 @@ public class AppOrderPreprocessingService {
     }
 
     private void applyRectBloodMirror(OrderItem item, ImageMaskRequest request) {
-        if (hasCurrentRectBloodResult(item) && StringUtils.isNotBlank(item.getRectBloodMirrorDownloadUrl())) {
-            request.getRawImage().setMirrorUrl(item.getRectBloodMirrorDownloadUrl());
+        if (hasCurrentRectBloodResult(item) && StringUtils.isNotBlank(item.getMirrorFlagUrl())) {
+            request.getRawImage().setMirrorUrl(item.getMirrorFlagUrl());
         }
     }
 

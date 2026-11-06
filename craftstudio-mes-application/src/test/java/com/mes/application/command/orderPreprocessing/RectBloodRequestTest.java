@@ -17,18 +17,18 @@ class RectBloodRequestTest {
     void usesSelectedEdgesAndWhiteAccessoryFromSameNode() {
         OrderItem item = item("""
                 {"nodeName":"矩形旗缝套筒","paramConfigs":[
-                  {"type":"RECT_EDGE_SELECTION","param":{"edges":["TOP","BOTTOM"]}},
+                  {"type":"RECT_EDGE_SELECTION","param":{"edges":["TOP"]}},
                   {"type":"ACC","param":{"accessorySnapshot":{"name":"大白边"}}}
                 ]}
                 """);
         RectBloodRequest request = RectBloodRequest.fromOrderItem(item);
         assertNotNull(request);
         assertEquals("input.tif", request.getImageUrl());
-        assertEquals("[\"TOP\",\"BOTTOM\"]", JSON.toJSONString(request.getBloodConfig().getScrollEdge()));
+        assertEquals(RectBloodRequest.ScrollEdge.TOP, request.getBloodConfig().getScrollEdge());
         assertEquals("#FFFFFF", request.getBloodConfig().getScrollColorHex());
-        assertEquals(20D, request.getBloodConfig().getScrollWidth());
-        assertEquals(10D, request.getBloodConfig().getSewWidth());
-        assertTrue(request.getBloodConfig().isMirrorRequired());
+        assertEquals(20, request.getBloodConfig().getScrollWidth());
+        assertEquals(10, request.getBloodConfig().getSewWidth());
+        assertTrue(request.getBloodConfig().getMirrorRequired());
     }
 
     @Test

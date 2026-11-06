@@ -70,14 +70,14 @@ class RectBloodPreprocessingTest {
     }
 
     @Test
-    void submitsAsyncAndWaitsWithVersionedCallbackId() {
+    void submitsAsyncAndWaitsWithCallbackIdentity() {
         assertFalse(service.generateRectBloodIfNecessary(item));
         ArgumentCaptor<RectBloodRequest> request = ArgumentCaptor.forClass(RectBloodRequest.class);
         verify(algorithm).generateRectBloodAsync(request.capture());
         assertEquals("https://images.example/input.tif", request.getValue().getImageUrl());
         assertEquals("https://mes.example/order/callback/rect_blood",
                 request.getValue().getCallbackConfig().getCallbackUrl());
-        assertEquals("item-1#request-1", request.getValue().getCallbackConfig().getCallbackCustomValue().getId());
+        assertEquals("item-1", request.getValue().getCallbackConfig().getCallbackCustomValue().getId());
         assertEquals("orderItem/rectBlood/factory-1/item-1/request-1/", request.getValue().getUploadConfig().getUploadPath());
     }
 
@@ -86,7 +86,7 @@ class RectBloodPreprocessingTest {
         service.handleRectBloodCallback(response(), updated -> {
             assertEquals("flag.tif", updated.getProductionImgFile().getRawFile());
             assertEquals("flag.tif", updated.getProductionImgFile().getFilePreview().getRaw());
-            assertEquals("mirror.tif", updated.getRectBloodMirrorDownloadUrl());
+            assertEquals("mirror.tif", updated.getMirrorFlagUrl());
             verify(items).updateOrderItem(updated);
         });
         assertTrue(service.generateRectBloodIfNecessary(item));

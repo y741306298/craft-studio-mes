@@ -5,13 +5,13 @@ import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
-import com.mes.application.command.api.req.RectBloodRequest;
-import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.req.ColorWhiteColorRequest;
 import com.mes.application.command.api.req.GrayImgToSvgRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.req.NestingRequest;
 import com.mes.application.command.api.req.SvgToPltRequest;
+import com.mes.application.command.api.req.RectBloodRequest;
+import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.resp.FormeGenerationResponse;
 import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
@@ -72,20 +72,63 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.rectBloodUrl:}")
     private String rectBloodUrl;
 
+    /**
+     * 矩形旗出血 - 同步模式，返回旗帜及可选的镜像文件地址。
+     */
+    public RectBloodResponse generateRectBlood(RectBloodRequest request) {
+        validateRectBloodRequest(request);
+        return callAlgorithmSync(rectBloodUrl, "", request,
+                "generateRectBlood", RectBloodResponse.class);
+    }
+
+    /**
+     * 矩形旗出血 - 异步模式，最终结果通过 callbackConfig 指定的地址返回。
+     * HTTP 202 无响应体时返回 null。
+     */
     public RectBloodResponse generateRectBloodAsync(RectBloodRequest request) {
-        if (request == null || isBlank(request.getImageUrl()) || request.getBloodConfig() == null
-                || request.getBloodConfig().getScrollEdge() == null) {
-            throw new IllegalArgumentException("矩形缝套出血缺少原图或选边参数");
-        }
-        if (request.getUploadConfig() == null || request.getUploadConfig().getOssConfig() == null
-                || isBlank(request.getUploadConfig().getUploadPath())) {
-            throw new IllegalArgumentException("矩形缝套出血上传配置不能为空");
-        }
-        if (request.getCallbackConfig() == null || isBlank(request.getCallbackConfig().getCallbackUrl())) {
-            throw new IllegalArgumentException("矩形缝套出血回调地址不能为空");
+        validateRectBloodRequest(request);
+        if (request.getCallbackConfig() == null
+                || isBlank(request.getCallbackConfig().getCallbackUrl())) {
+            throw new RuntimeException("异步模式下回调地址不能为空");
         }
         return callAlgorithmAsync(rectBloodUrl, "", request,
-                request.getCallbackConfig().getCallbackUrl(), "generateRectBloodAsync", RectBloodResponse.class);
+                request.getCallbackConfig().getCallbackUrl(),
+                "generateRectBloodAsync", RectBloodResponse.class);
+    }
+
+    private void validateRectBloodRequest(RectBloodRequest request) {
+        if (request == null) {
+            throw new RuntimeException("请求参数不能为空");
+        }
+        if (isBlank(request.getImageUrl())) {
+            throw new RuntimeException("原始图片URL不能为空");
+        }
+        if (request.getBloodConfig() == null) {
+            throw new RuntimeException("出血配置不能为空");
+        }
+        RectBloodRequest.BloodConfig bloodConfig = request.getBloodConfig();
+        if (bloodConfig.getScrollEdge() == null) {
+            throw new RuntimeException("卷轴边不能为空");
+        }
+        if (bloodConfig.getScrollWidth() == null || bloodConfig.getScrollWidth() < 0) {
+            throw new RuntimeException("卷轴宽度不能为空且不能为负数");
+        }
+        if (bloodConfig.getSewWidth() == null || bloodConfig.getSewWidth() < 0) {
+            throw new RuntimeException("缝边宽度不能为空且不能为负数");
+        }
+        if (!isBlank(bloodConfig.getScrollColorHex())
+                && !bloodConfig.getScrollColorHex().matches("#[0-9a-fA-F]{6}")) {
+            throw new RuntimeException("卷轴颜色必须为 #RRGGBB 格式");
+        }
+        if (request.getUploadConfig() == null) {
+            throw new RuntimeException("上传配置不能为空");
+        }
+        if (request.getUploadConfig().getOssConfig() == null) {
+            throw new RuntimeException("OSS上传配置不能为空");
+        }
+        if (isBlank(request.getUploadConfig().getUploadPath())) {
+            throw new RuntimeException("旗帜上传路径不能为空");
+        }
     }
 
     /**
