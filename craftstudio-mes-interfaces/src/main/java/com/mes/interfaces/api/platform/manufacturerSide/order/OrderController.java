@@ -495,11 +495,11 @@ public class OrderController {
     @PostMapping("/callback/rect_blood")
     public ApiResponse<String> handleRectBloodCallback(@RequestBody RectBloodResponse response) {
         long startedAt = System.nanoTime();
-        logger.info("handleRectBloodCallback 收到回调: response={}", JsonLogUtil.toJSONString(response));
+        log.info("handleRectBloodCallback 收到回调: response={}", JsonLogUtil.toJSONString(response));
         try {
             appOrderPreprocessingService.handleRectBloodCallback(
                     response, orderPreprocessTaskQueue::submitConvertedOrderItem);
-            logger.info("handleRectBloodCallback 处理完成: callbackCustomValue={}, elapsedMs={}",
+            log.info("handleRectBloodCallback 处理完成: callbackCustomValue={}, elapsedMs={}",
                     response == null || response.getData() == null ? null : response.getData().getCallbackCustomValue(),
                     java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
             return ApiResponse.success("回调处理成功");
