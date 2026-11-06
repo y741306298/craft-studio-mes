@@ -411,7 +411,7 @@ public class AppOrderPreprocessingService {
         UploadConfig upload = new UploadConfig();
         upload.setOssConfig(aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId()));
         upload.setUploadPath("orderItem/rectBlood/" + orderItem.getManufacturerId() + "/"
-                + orderItem.getOrderItemId() + "/" + requestId + "/");
+                + orderItem.getOrderItemId() + "/" + requestId + "/flag.tif");
         request.setUploadConfig(upload);
         CallbackCustomValue custom = new CallbackCustomValue();
         custom.setId(orderItem.getOrderItemId());

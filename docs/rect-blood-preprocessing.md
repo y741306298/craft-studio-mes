@@ -14,7 +14,7 @@
 | `bloodConfig.scrollWidth` | `20` 毫米（2cm） |
 | `bloodConfig.sewWidth` | `10` 毫米（1cm） |
 | `bloodConfig.mirrorRequired` | `true` |
-| `uploadConfig` | 沿用 STS；目录为 `orderItem/rectBlood/{manufacturerId}/{orderItemId}/{preprocessRequestId}/` |
+| `uploadConfig` | 沿用 STS；文件路径为 `orderItem/rectBlood/{manufacturerId}/{orderItemId}/{preprocessRequestId}/flag.tif` |
 | `callbackConfig.callbackCustomValue` | `id=orderItemId`，同时携带 `orderItemId` 和 `preprocessRequestId` |
 
 算法地址读取 `external.api.rectBloodUrl`，由 `AlgorithmCoreApiService.generateRectBloodAsync` 提交。回调地址可配置 `external.callbackApi.rect_blood`，未配置时从抠图回调地址 `/callback/generate_mask_files` 推导为 `/callback/rect_blood`，保留原控制器路径前缀。
