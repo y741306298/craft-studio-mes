@@ -309,6 +309,8 @@ public class AppOrderPreprocessingService {
             }
         }
 
+        log.info("订单项预处理策略匹配: orderItemId={}, strategies={}", orderItem.getOrderItemId(),
+                matchedStrategies.stream().map(OrderItemProcessingStrategy::getStrategyType).toList());
         if (matchedStrategies.isEmpty()) {
             return new ArrayList<>();
         }
@@ -953,13 +955,28 @@ public class AppOrderPreprocessingService {
     }
 
     private String generateAndUploadPathMaskSvg(OrderItem orderItem) {
-        ProductionImageSize size = resolveProductionImageSizeForStrategy(orderItem);
-        Double width = size.widthMm();
-        Double height = size.heightMm();
-
-        if (width == null || width <= 0 || height == null || height <= 0) {
+        // 普通订单保留原有整数毫米和四舍五入规则；仅矩形出血使用扩展尺寸。
+        Double widthMm;
+        Double heightMm;
+        boolean rectBlood = hasCurrentRectBloodResult(orderItem);
+        if (rectBlood) {
+            ProductionImageSize size = resolveProductionImageSizeForStrategy(orderItem);
+            widthMm = size.widthMm();
+            heightMm = size.heightMm();
+        } else {
+            widthMm = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
+            heightMm = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+        }
+        if (widthMm == null || !Double.isFinite(widthMm) || widthMm <= 0
+                || heightMm == null || !Double.isFinite(heightMm) || heightMm <= 0) {
             throw new RuntimeException("无法从orderItem.material.usageSize3D获取有效宽高，orderItemId=" + orderItem.getOrderItemId());
         }
+        String width = rectBlood ? java.math.BigDecimal.valueOf(widthMm).stripTrailingZeros().toPlainString()
+                : String.valueOf(Math.round(widthMm));
+        String height = rectBlood ? java.math.BigDecimal.valueOf(heightMm).stripTrailingZeros().toPlainString()
+                : String.valueOf(Math.round(heightMm));
+        log.info("矩形遮罩SVG生成: orderItemId={}, rectBlood={}, widthMm={}, heightMm={}",
+                orderItem.getOrderItemId(), rectBlood, width, height);
 
         String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
                 + "\" viewBox=\"0 0 " + width + " " + height + "\">"

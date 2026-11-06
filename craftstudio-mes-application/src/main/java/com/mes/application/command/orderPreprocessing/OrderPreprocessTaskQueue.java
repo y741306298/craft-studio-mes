@@ -219,6 +219,7 @@ public class OrderPreprocessTaskQueue {
                 // 重试或回调恢复时读取最新图片，避免使用转换前的队列快照。
                 OrderItem item = orderItemService.findByOrderItemId(queuedItem.getOrderItemId());
                 if (item == null) {
+                    log.warn("订单预处理跳过，数据库未找到订单项: orderItemId={}", queuedItem.getOrderItemId());
                     continue;
                 }
                 try {
@@ -227,6 +228,8 @@ public class OrderPreprocessTaskQueue {
                         conversionReady.add(item);
                     }
                 } catch (Exception failure) {
+                    log.error("订单预处理前置算法检查失败: orderItemId={}, preprocessRequestId={}",
+                            item.getOrderItemId(), item.getPreprocessRequestId(), failure);
                     failedIds.add(item.getOrderItemId());
                     failures.add(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
                 }
