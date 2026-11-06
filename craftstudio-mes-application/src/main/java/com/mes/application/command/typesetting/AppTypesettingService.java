@@ -157,6 +157,7 @@ public class AppTypesettingService {
             new TypesettingLayoutSpecVO("1050*2440", 1050, 2440),
             new TypesettingLayoutSpecVO("1200*2400", 1200, 2400),
             new TypesettingLayoutSpecVO("920*2440", 920, 2440),
+            new TypesettingLayoutSpecVO("1020*2440", 1020, 2440),
             new TypesettingLayoutSpecVO("1070*2440", 1070, 2440),
             new TypesettingLayoutSpecVO("1220*2440", 1220, 2440),
             new TypesettingLayoutSpecVO("920*2000", 920, 2000),
