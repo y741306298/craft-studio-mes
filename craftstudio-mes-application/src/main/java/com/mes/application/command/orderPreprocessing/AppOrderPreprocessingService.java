@@ -3,6 +3,8 @@ package com.mes.application.command.orderPreprocessing;
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.GrayImgToSvgRequest;
+import com.mes.application.command.api.req.RectBloodRequest;
+import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.req.ColorWhiteColorRequest;
 import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.req.ImageMaskRequest;
@@ -23,8 +25,6 @@ import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessContex
 import com.mes.application.command.typesetting.proces.liubai.LiubaiProcessService;
 import com.mes.application.command.typesetting.proces.material.MaterialProcessContext;
 import com.mes.application.command.typesetting.proces.material.MaterialProcessService;
-import com.mes.application.command.typesetting.proces.reshenghua.ReshenghuaProcessContext;
-import com.mes.application.command.typesetting.proces.reshenghua.ReshenghuaProcessStrategy;
 import com.mes.application.command.typesetting.proces.splice.SuperWidthSpliceProcessService;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -187,9 +187,6 @@ public class AppOrderPreprocessingService {
     @Autowired
     private MaterialProcessService materialProcessService;
 
-    @Autowired
-    private ReshenghuaProcessStrategy reshenghuaProcessStrategy;
-
     /**
      * 打扣预处理服务。
      *
@@ -209,6 +206,9 @@ public class AppOrderPreprocessingService {
 
     @Value("${external.callbackApi.convert_color_white_color:}")
     private String convertColorWhiteColorCallbackUrl;
+
+    @Value("${external.callbackApi.rect_blood:}")
+    private String rectBloodCallbackUrl;
 
     @Value("${ali-cloud.oss.endpoint:${spring.cloud.alicloud.oss.endpoint:oss-cn-hangzhou.aliyuncs.com}}")
     private String ossEndpoint;
@@ -319,6 +319,15 @@ public class AppOrderPreprocessingService {
                 if (finalResult == null) {
                     finalResult = new ArrayList<>();
                 }
+                if (hasCurrentRectBloodResult(orderItem)
+                        && StringUtils.isNotBlank(orderItem.getRectBloodMirrorDownloadUrl())) {
+                    for (ProductionPiece piece : current) {
+                        MirrorConfig mirror = new MirrorConfig();
+                        mirror.setImg(orderItem.getRectBloodMirrorDownloadUrl());
+                        mirror.setSvg(piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
+                        piece.setMirrorConfigs(List.of(mirror));
+                    }
+                }
                 finalResult.addAll(current);
             }
         }
@@ -354,6 +363,7 @@ public class AppOrderPreprocessingService {
             // 步骤3：双面场景下补充 mirrorUrl。
             imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
         }
+        applyRectBloodMirror(orderItem, imageMaskRequest);
         // 步骤4：设置回调元信息（orderItemId/preprocessRequestId/presetType）。
         String preprocessRequestId = ensurePreprocessRequestId(orderItem);
         CallbackConfig callbackConfig = new CallbackConfig();
@@ -369,9 +379,102 @@ public class AppOrderPreprocessingService {
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
     }
 
+    /** 返回 false 时等待矩形缝套回调，禁止提前调用灰度转换、抠图或分切。 */
+    public boolean generateRectBloodIfNecessary(OrderItem orderItem) {
+        RectBloodRequest request = RectBloodRequest.fromOrderItem(orderItem);
+        if (request == null || hasCurrentRectBloodResult(orderItem)) {
+            return true;
+        }
+        if (StringUtils.isBlank(orderItem.getManufacturerId()) || StringUtils.isBlank(orderItem.getOrderItemId())
+                || StringUtils.isBlank(orderItem.getId())) {
+            throw new IllegalArgumentException("矩形缝套出血上传路径缺少工厂ID、订单项ID或数据库_id");
+        }
+        String requestId = ensurePreprocessRequestId(orderItem);
+        UploadConfig upload = new UploadConfig();
+        upload.setOssConfig(aliCloudAuthService.getObjectStorageTempAuthConfig(orderItem.getOrderItemId()));
+        upload.setUploadPath("orderItem/rectBlood/" + orderItem.getManufacturerId() + "/"
+                + orderItem.getOrderItemId() + "/" + requestId + "/");
+        request.setUploadConfig(upload);
+        CallbackCustomValue custom = new CallbackCustomValue();
+        // 将版本编码进 id，即使算法仅透传 id 也能过滤重做前的旧回调。
+        custom.setId(buildCallbackId(orderItem.getOrderItemId(), requestId));
+        custom.setOrderItemId(orderItem.getOrderItemId());
+        custom.setPreprocessRequestId(requestId);
+        CallbackConfig callback = new CallbackConfig();
+        String callbackUrl = rectBloodCallbackUrl;
+        if (StringUtils.isBlank(callbackUrl)) {
+            if (StringUtils.isBlank(generateMaskFilesApiUrl)
+                    || !generateMaskFilesApiUrl.endsWith("/callback/generate_mask_files")) {
+                throw new IllegalArgumentException("矩形缝套出血回调地址未配置");
+            }
+            callbackUrl = generateMaskFilesApiUrl.replace("/callback/generate_mask_files", "/callback/rect_blood");
+        }
+        callback.setCallbackUrl(callbackUrl);
+        callback.setCallbackCustomValue(custom);
+        request.setCallbackConfig(callback);
+        RectBloodResponse accepted = algorithmCoreApiService.generateRectBloodAsync(request);
+        if (accepted != null && accepted.getCode() != null
+                && accepted.getCode() != 200 && accepted.getCode() != 202) {
+            throw new RuntimeException("矩形缝套出血提交失败：" + accepted.getMessage());
+        }
+        return false;
+    }
+
+    private boolean hasCurrentRectBloodResult(OrderItem item) {
+        return item != null && StringUtils.isNotBlank(item.getRectBloodDownloadUrl())
+                && item.getProductionImgFile() != null
+                && Objects.equals(item.getRectBloodDownloadUrl(), item.getProductionImgFile().getRawFile());
+    }
+
+    public void handleRectBloodCallback(RectBloodResponse response,
+                                       java.util.function.Consumer<OrderItem> continuation) {
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())
+                || response.getData() == null || response.getData().getCallbackCustomValue() == null
+                || StringUtils.isBlank(response.getData().getCallbackCustomValue().getId())
+                || StringUtils.isBlank(response.getData().getFlagUrl())
+                || StringUtils.isBlank(response.getData().getMirrorFlagUrl())) {
+            throw new IllegalArgumentException("矩形缝套出血回调失败或缺少订单项ID/正反面图片地址");
+        }
+        CallbackCustomValue custom = response.getData().getCallbackCustomValue();
+        CallbackIdentity identity = parseCallbackIdentity(null, custom.getId());
+        String itemId = identity.orderItemId();
+        String requestId = StringUtils.isNotBlank(custom.getPreprocessRequestId())
+                ? custom.getPreprocessRequestId() : identity.preprocessRequestId();
+        String key = "orderPreprocessing:rectBloodCallback:" + itemId + ":" + requestId;
+        String token = UUID.randomUUID().toString();
+        if (!Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key + ":lock", token, 10, TimeUnit.MINUTES))) {
+            throw new RuntimeException("矩形缝套出血回调正在处理中，请重试");
+        }
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(key + ":completed"))) return;
+            OrderItem item = orderItemService.findByOrderItemId(itemId);
+            if (item == null) throw new IllegalArgumentException("订单项不存在：" + itemId);
+            if (isOrderItemCancelled(itemId) || isReturnedOrderItem(item) || isReturnedOrder(item.getOrderId())
+                    || !isCurrentPreprocessCallback(item, requestId)) {
+                log.warn("忽略已取消或过期矩形缝套出血回调: orderItemId={}", itemId);
+                return;
+            }
+            ImageFile image = item.getProductionImgFile();
+            if (image == null) {
+                image = new ImageFile();
+                item.setProductionImgFile(image);
+            }
+            image.setRawFile(response.getData().getFlagUrl());
+            if (image.getFilePreview() == null) image.setFilePreview(new FilePreview());
+            image.getFilePreview().setRaw(response.getData().getFlagUrl());
+            item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
+            item.setRectBloodMirrorDownloadUrl(response.getData().getMirrorFlagUrl());
+            orderItemService.updateOrderItem(item);
+            continuation.accept(item);
+            redisTemplate.opsForValue().set(key + ":completed", true, 7, TimeUnit.DAYS);
+        } finally {
+            releaseMaskCallbackLock(key + ":lock", token);
+        }
+    }
+
     /** 返回 true 表示可继续预处理；false 表示等待彩白彩算法回调。 */
     public boolean convertColorWhiteColorIfNecessary(OrderItem orderItem) {
-        if (!hasColorWhiteColorProcess(orderItem)) {
+        if (!hasColorWhiteColorProcess(orderItem) || hasCurrentRectBloodResult(orderItem)) {
             return true;
         }
         ImageFile image = orderItem.getProductionImgFile();
@@ -623,6 +726,8 @@ public class AppOrderPreprocessingService {
             imageMaskRequest.getRawImage().setMirrorUrl(mirrorUrl);
         }
 
+        applyRectBloodMirror(orderItem, imageMaskRequest);
+
         String preprocessRequestId = ensurePreprocessRequestId(orderItem);
         CallbackConfig callbackConfig = new CallbackConfig();
         callbackConfig.setCallbackUrl(generateMaskFilesApiUrl);
@@ -635,6 +740,12 @@ public class AppOrderPreprocessingService {
         imageMaskRequest.setCallbackConfig(callbackConfig);
 
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
+    }
+
+    private void applyRectBloodMirror(OrderItem item, ImageMaskRequest request) {
+        if (hasCurrentRectBloodResult(item) && StringUtils.isNotBlank(item.getRectBloodMirrorDownloadUrl())) {
+            request.getRawImage().setMirrorUrl(item.getRectBloodMirrorDownloadUrl());
+        }
     }
 
     public static boolean hasNodeWithName(ProcedureFlow procedureFlow, String nodeName) {
@@ -1183,7 +1294,6 @@ public class AppOrderPreprocessingService {
                         // 写真/无痕/板材拼接只保留算法返回的拼接结果，不生成或写入任何 mark。
                         if (isMarklessSpliceFlow(newProcedureFlow)) {
                             piece.setMarks(null);
-                            applyReshenghuaProcessForStrategy(orderItem, newProcedureFlow, piece);
                         } else {
                             // 其他拼接路线先写入拼接 mark，再按工艺执行打扣与留白。
                             applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece,
@@ -1334,28 +1444,15 @@ public class AppOrderPreprocessingService {
      */
     public void applyBuckleAndLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
         if (isMarklessSpliceFlow(procedureFlow)) {
-            applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
             return;
         }
         if (hasNodeWithName(procedureFlow, "画内打扣")) {
             applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
             applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
-            applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
             return;
         }
         applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
         applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
-        applyReshenghuaProcessForStrategy(orderItem, procedureFlow, piece);
-    }
-
-    /** 直接生成和拼接 callback 共用入口，在留白/打扣后独立执行热升华，确保轮廓描边位于最上层。 */
-    public void applyReshenghuaProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece) {
-        if (reshenghuaProcessStrategy == null || orderItem == null || procedureFlow == null || piece == null) return;
-        ReshenghuaProcessContext context = new ReshenghuaProcessContext();
-        context.setOrderItem(orderItem);
-        context.setProcedureFlow(procedureFlow);
-        context.setProductionPiece(piece);
-        reshenghuaProcessStrategy.process(context);
     }
 
     /**

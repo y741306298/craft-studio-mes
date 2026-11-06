@@ -26,6 +26,7 @@ class ColorWhiteColorQueueTest {
         when(items.findByOrderItemId("ordinary")).thenReturn(ordinary);
         when(service.convertColorWhiteColorIfNecessary(waiting)).thenReturn(false);
         when(service.convertColorWhiteColorIfNecessary(ordinary)).thenReturn(true);
+        when(service.generateRectBloodIfNecessary(ordinary)).thenReturn(true);
         when(service.convertMaskGrayImgToSvgIfNecessary(anyList()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         Class<?> taskType = Class.forName(OrderPreprocessTaskQueue.class.getName() + "$OrderPreprocessTask");
@@ -37,6 +38,32 @@ class ColorWhiteColorQueueTest {
 
         verify(service).convertMaskGrayImgToSvgIfNecessary(List.of(ordinary));
         verify(service).preprocessOrder(List.of(ordinary));
+        queue.stop();
+    }
+
+    @Test
+    void rectBloodWaitsBeforeGrayConversionAndMaskProcessing() throws Exception {
+        AppOrderPreprocessingService service = mock(AppOrderPreprocessingService.class);
+        OrderItemService items = mock(OrderItemService.class);
+        OrderPreprocessTaskQueue queue = new OrderPreprocessTaskQueue(service);
+        ReflectionTestUtils.setField(queue, "orderItemService", items);
+        OrderItem waiting = item("rect-waiting");
+        when(items.findByOrderItemId("rect-waiting")).thenReturn(waiting);
+        when(service.convertColorWhiteColorIfNecessary(waiting)).thenReturn(true);
+        when(service.generateRectBloodIfNecessary(waiting)).thenReturn(false);
+        when(service.convertMaskGrayImgToSvgIfNecessary(anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        Class<?> taskType = Class.forName(OrderPreprocessTaskQueue.class.getName() + "$OrderPreprocessTask");
+        Constructor<?> constructor = taskType.getDeclaredConstructor(List.class, int.class);
+        constructor.setAccessible(true);
+        Object task = constructor.newInstance(List.of(waiting), 0);
+
+        assertEquals(Boolean.TRUE, ReflectionTestUtils.invokeMethod(queue, "handleTask", task));
+        org.mockito.InOrder order = inOrder(service);
+        order.verify(service).convertColorWhiteColorIfNecessary(waiting);
+        order.verify(service).generateRectBloodIfNecessary(waiting);
+        order.verify(service).convertMaskGrayImgToSvgIfNecessary(List.of());
+        order.verify(service).preprocessOrder(List.of());
         queue.stop();
     }
 

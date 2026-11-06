@@ -5,6 +5,8 @@ import com.mes.domain.shared.utils.JsonLogUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.api.req.RectBloodRequest;
+import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.req.ColorWhiteColorRequest;
 import com.mes.application.command.api.req.GrayImgToSvgRequest;
 import com.mes.application.command.api.req.ImageMaskRequest;
@@ -66,6 +68,25 @@ public class AlgorithmCoreApiService {
 
     @Value("${external.api.generateVerticalNestedFilesUrl:}")
     private String generateVerticalNestedFilesUrl;
+
+    @Value("${external.api.rectBloodUrl:}")
+    private String rectBloodUrl;
+
+    public RectBloodResponse generateRectBloodAsync(RectBloodRequest request) {
+        if (request == null || isBlank(request.getImageUrl()) || request.getBloodConfig() == null
+                || request.getBloodConfig().getScrollEdge() == null) {
+            throw new IllegalArgumentException("矩形缝套出血缺少原图或选边参数");
+        }
+        if (request.getUploadConfig() == null || request.getUploadConfig().getOssConfig() == null
+                || isBlank(request.getUploadConfig().getUploadPath())) {
+            throw new IllegalArgumentException("矩形缝套出血上传配置不能为空");
+        }
+        if (request.getCallbackConfig() == null || isBlank(request.getCallbackConfig().getCallbackUrl())) {
+            throw new IllegalArgumentException("矩形缝套出血回调地址不能为空");
+        }
+        return callAlgorithmAsync(rectBloodUrl, "", request,
+                request.getCallbackConfig().getCallbackUrl(), "generateRectBloodAsync", RectBloodResponse.class);
+    }
 
     /**
      * 彩白彩图像转换 - 同步模式。

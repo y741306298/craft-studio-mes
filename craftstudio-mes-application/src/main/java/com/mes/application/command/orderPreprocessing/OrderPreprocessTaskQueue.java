@@ -222,7 +222,8 @@ public class OrderPreprocessTaskQueue {
                     continue;
                 }
                 try {
-                    if (appOrderPreprocessingService.convertColorWhiteColorIfNecessary(item)) {
+                    if (appOrderPreprocessingService.convertColorWhiteColorIfNecessary(item)
+                            && appOrderPreprocessingService.generateRectBloodIfNecessary(item)) {
                         conversionReady.add(item);
                     }
                 } catch (Exception failure) {

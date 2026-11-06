@@ -44,6 +44,10 @@ public class OrderItem extends BaseEntity {
     private String preprocessRequestId;
     /** 最近一次彩白彩转换结果，用于在队列重试时避免重复转换。 */
     private String colorWhiteColorDownloadUrl;
+    /** 最近一次矩形缝套算法生成的正反面图片。 */
+    private String rectBloodDownloadUrl;
+    private String rectBloodMirrorDownloadUrl;
+
     private String kuaidiWay;
     private String kuaidiNum;
     private OrderChannelInfo channel;

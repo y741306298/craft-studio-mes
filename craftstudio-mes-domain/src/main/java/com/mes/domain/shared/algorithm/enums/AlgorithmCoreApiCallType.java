@@ -7,6 +7,7 @@ import java.util.Optional;
  * 算法核心接口调用类型。
  */
 public enum AlgorithmCoreApiCallType {
+    GENERATE_RECT_BLOOD_ASYNC("generateRectBloodAsync", "异步矩形缝套出血", "orderItemId"),
     GENERATE_MASK_FILES_ASYNC("generateMaskFilesAsync", "异步图片遮罩抠图", "orderItemId"),
     GENERATE_MASK_FILES_SYNC("generateMaskFilesSync", "同步图片遮罩抠图", "orderItemId"),
     CONVERT_GRAY_IMG_TO_SVG_ASYNC("convertGrayImgToSvgAsync", "异步灰度图转 SVG", "orderItemId"),

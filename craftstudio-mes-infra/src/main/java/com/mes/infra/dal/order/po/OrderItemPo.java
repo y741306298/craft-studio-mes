@@ -36,6 +36,10 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String failureReason;
     private String preprocessRequestId;
     private String colorWhiteColorDownloadUrl;
+    /** 最近一次矩形缝套算法生成的正反面图片。 */
+    private String rectBloodDownloadUrl;
+    private String rectBloodMirrorDownloadUrl;
+
     private String kuaidiWay;
     private String kuaidiNum;
     private OrderChannelInfo channel;
@@ -70,6 +74,9 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setFailureReason(this.failureReason);
         orderItem.setPreprocessRequestId(this.preprocessRequestId);
         orderItem.setColorWhiteColorDownloadUrl(this.colorWhiteColorDownloadUrl);
+        orderItem.setRectBloodDownloadUrl(this.rectBloodDownloadUrl);
+        orderItem.setRectBloodMirrorDownloadUrl(this.rectBloodMirrorDownloadUrl);
+
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
         orderItem.setChannel(this.channel);
@@ -99,6 +106,9 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.failureReason = _do.getFailureReason();
         this.preprocessRequestId = _do.getPreprocessRequestId();
         this.colorWhiteColorDownloadUrl = _do.getColorWhiteColorDownloadUrl();
+        this.rectBloodDownloadUrl = _do.getRectBloodDownloadUrl();
+        this.rectBloodMirrorDownloadUrl = _do.getRectBloodMirrorDownloadUrl();
+
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
         this.kuaidiNum = _do.getKuaidiNum();
