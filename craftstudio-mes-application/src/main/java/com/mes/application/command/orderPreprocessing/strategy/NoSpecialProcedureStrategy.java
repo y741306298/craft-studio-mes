@@ -1,6 +1,7 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.vo.ProductionImageSize;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
@@ -38,8 +39,9 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         String productionImgUrl = processingService.resolveProductionImageUrlForStrategy(orderItem);
         // 步骤3：生成等幅矩形蒙版。
         String generatedMaskImgUrl = processingService.generateRectMaskSvgForStrategy(orderItem);
-        Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
-        Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+        ProductionImageSize size = processingService.resolveProductionImageSizeForStrategy(orderItem);
+        Double pieceWidth = size.widthMm();
+        Double pieceHeight = size.heightMm();
         // 步骤4：创建生产零件；由预处理服务汇总整个任务批次后一次性持久化。
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
@@ -55,28 +57,6 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
         return pieces;
-    }
-
-    private Double toMillimeters(Double centimeters) {
-        return centimeters == null ? null : centimeters * 10;
-    }
-
-    private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
-        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
-        if (usageSize3D == null) {
-            return null;
-        }
-        for (String methodName : methodNames) {
-            try {
-                Method method = usageSize3D.getClass().getMethod(methodName);
-                Object value = method.invoke(usageSize3D);
-                if (value instanceof Number number) {
-                    return number.doubleValue();
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
     }
 
     private void verifyProcedureParamsConverted(ProcedureFlow procedureFlow, String orderItemId) {

@@ -15,6 +15,7 @@ import com.mes.application.command.api.vo.CallbackCustomValue;
 import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.application.command.orderPreprocessing.vo.CutResult;
+import com.mes.application.command.orderPreprocessing.vo.ProductionImageSize;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
@@ -460,6 +461,23 @@ public class AppOrderPreprocessingService {
                 ? null : item.getProductionImgFile().getFilePreview().getRaw();
     }
 
+    /** 统一供矩形 SVG 和直接生成工件读取物理尺寸，避免重复外扩材料规格。 */
+    public ProductionImageSize resolveProductionImageSizeForStrategy(OrderItem orderItem) {
+        ProductionImageSize original = new ProductionImageSize(
+                toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX")),
+                toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY")));
+        if (!hasCurrentRectBloodResult(orderItem)) return original;
+        RectBloodRequest request = RectBloodRequest.fromOrderItem(orderItem);
+        if (request == null) return original;
+        RectBloodRequest.BloodConfig blood = request.getBloodConfig();
+        ProductionImageSize expanded = original.withRectBlood(blood.getScrollEdge().name(),
+                blood.getScrollWidth(), blood.getSewWidth());
+        log.info("矩形缝套出血尺寸重算: orderItemId={}, scrollEdge={}, scrollWidthMm={}, sewWidthMm={}, borderMm=2, originalWidthMm={}, originalHeightMm={}, widthMm={}, heightMm={}",
+                orderItem.getOrderItemId(), blood.getScrollEdge(), blood.getScrollWidth(), blood.getSewWidth(),
+                original.widthMm(), original.heightMm(), expanded.widthMm(), expanded.heightMm());
+        return expanded;
+    }
+
     private boolean hasCurrentRectBloodResult(OrderItem item) {
         return item != null && StringUtils.isNotBlank(item.getRectBloodDownloadUrl())
                 && item.getProductionImgFile() != null
@@ -846,15 +864,9 @@ public class AppOrderPreprocessingService {
         String productionImgUrl = resolveProductionImageUrlForStrategy(orderItem);
 
         String generatedMaskImgUrl = generateAndUploadPathMaskSvg(orderItem);
-        Double pieceWidth = extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX");
-        Double pieceHeight = extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY");
-
-        if (pieceWidth != null) {
-            pieceWidth = pieceWidth * 10;
-        }
-        if (pieceHeight != null) {
-            pieceHeight = pieceHeight * 10;
-        }
+        ProductionImageSize size = resolveProductionImageSizeForStrategy(orderItem);
+        Double pieceWidth = size.widthMm();
+        Double pieceHeight = size.heightMm();
         ProductionPiece piece = procedureService.createProductionPiece(
                 orderItem,
                 "ORIGINAL",
@@ -941,19 +953,9 @@ public class AppOrderPreprocessingService {
     }
 
     private String generateAndUploadPathMaskSvg(OrderItem orderItem) {
-        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
-        Integer width = null;
-        Integer height = null;
-        if (usageSize3D != null) {
-            Number rawWidth = invokeNumberGetter(usageSize3D, "getWidth", "getW", "getX");
-            Number rawHeight = invokeNumberGetter(usageSize3D, "getHeight", "getH", "getY");
-            if (rawWidth != null) {
-                width = (int) Math.round(rawWidth.doubleValue() * 10);
-            }
-            if (rawHeight != null) {
-                height = (int) Math.round(rawHeight.doubleValue() * 10);
-            }
-        }
+        ProductionImageSize size = resolveProductionImageSizeForStrategy(orderItem);
+        Double width = size.widthMm();
+        Double height = size.heightMm();
 
         if (width == null || width <= 0 || height == null || height <= 0) {
             throw new RuntimeException("无法从orderItem.material.usageSize3D获取有效宽高，orderItemId=" + orderItem.getOrderItemId());
@@ -1320,12 +1322,10 @@ public class AppOrderPreprocessingService {
 
                     if (rawImageUrl != null && !rawImageUrl.isEmpty()) {
                         Double[] svgSize = resolveSvgWidthHeight(maskedImageUrl);
-                        Double pieceWidth = svgSize[0] != null
-                                ? svgSize[0]
-                                : toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
-                        Double pieceHeight = svgSize[1] != null
-                                ? svgSize[1]
-                                : toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+                        ProductionImageSize fallbackSize = svgSize[0] == null || svgSize[1] == null
+                                ? resolveProductionImageSizeForStrategy(orderItem) : null;
+                        Double pieceWidth = svgSize[0] != null ? svgSize[0] : fallbackSize.widthMm();
+                        Double pieceHeight = svgSize[1] != null ? svgSize[1] : fallbackSize.heightMm();
                         if (shouldIgnoreAlgorithmPiece(orderItem.getProcedureFlow(), pieceWidth, pieceHeight)) {
                             log.info("忽略尺寸过小的抠图算法结果: orderItemId={}, group={}, seq={}, widthMm={}, heightMm={}, minSizeMm={}",
                                     orderItemId, rawGroup, seq, pieceWidth, pieceHeight, MIN_ALGORITHM_PIECE_SIZE_MM);

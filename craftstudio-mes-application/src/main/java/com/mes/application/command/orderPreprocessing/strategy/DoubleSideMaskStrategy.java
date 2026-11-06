@@ -1,6 +1,7 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.vo.ProductionImageSize;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
@@ -13,7 +14,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -62,8 +62,9 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         processingService.saveMaskToOrderItemForStrategy(orderItem, generatedMaskImgUrl);
 
         String productionImgUrl = processingService.resolveProductionImageUrlForStrategy(orderItem);
-        Double pieceWidth = toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX"));
-        Double pieceHeight = toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY"));
+        ProductionImageSize size = processingService.resolveProductionImageSizeForStrategy(orderItem);
+        Double pieceWidth = size.widthMm();
+        Double pieceHeight = size.heightMm();
         ProductionPiece piece = processingService.getProcedureService().createProductionPiece(
                 orderItem, "ORIGINAL", productionImgUrl, procedureFlow, generatedMaskImgUrl, pieceWidth, pieceHeight);
 
@@ -84,28 +85,6 @@ public class DoubleSideMaskStrategy implements OrderItemProcessingStrategy {
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
         return pieces;
-    }
-
-    private Double toMillimeters(Double centimeters) {
-        return centimeters == null ? null : centimeters * 10;
-    }
-
-    private Double extractUsageSizeDimension(OrderItem orderItem, String... methodNames) {
-        Object usageSize3D = orderItem.getMaterial() == null ? null : orderItem.getMaterial().getUsageSize3D();
-        if (usageSize3D == null) {
-            return null;
-        }
-        for (String methodName : methodNames) {
-            try {
-                Method method = usageSize3D.getClass().getMethod(methodName);
-                Object value = method.invoke(usageSize3D);
-                if (value instanceof Number number) {
-                    return number.doubleValue();
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
     }
 
     /**
