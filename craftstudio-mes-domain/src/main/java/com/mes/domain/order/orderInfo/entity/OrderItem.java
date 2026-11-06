@@ -44,6 +44,8 @@ public class OrderItem extends BaseEntity {
     private String preprocessRequestId;
     /** 最近一次彩白彩转换结果，用于在队列重试时避免重复转换。 */
     private String colorWhiteColorDownloadUrl;
+    /** 矩形旗出血算法生成的镜像旗帜文件地址。 */
+    private String mirrorFlagUrl;
     private String kuaidiWay;
     private String kuaidiNum;
     private OrderChannelInfo channel;

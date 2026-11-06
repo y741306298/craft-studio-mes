@@ -36,6 +36,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String failureReason;
     private String preprocessRequestId;
     private String colorWhiteColorDownloadUrl;
+    private String mirrorFlagUrl;
     private String kuaidiWay;
     private String kuaidiNum;
     private OrderChannelInfo channel;
@@ -70,6 +71,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setFailureReason(this.failureReason);
         orderItem.setPreprocessRequestId(this.preprocessRequestId);
         orderItem.setColorWhiteColorDownloadUrl(this.colorWhiteColorDownloadUrl);
+        orderItem.setMirrorFlagUrl(this.mirrorFlagUrl);
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
         orderItem.setChannel(this.channel);
@@ -99,6 +101,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.failureReason = _do.getFailureReason();
         this.preprocessRequestId = _do.getPreprocessRequestId();
         this.colorWhiteColorDownloadUrl = _do.getColorWhiteColorDownloadUrl();
+        this.mirrorFlagUrl = _do.getMirrorFlagUrl();
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
         this.kuaidiNum = _do.getKuaidiNum();

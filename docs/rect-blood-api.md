@@ -35,3 +35,19 @@ RectBloodResponse response = algorithmCoreApiService.generateRectBlood(request);
 `data.flagUrl`、`data.mirrorFlagUrl`、`data.callbackCustomValue`。
 调用沿用已有的日志与调用记录机制，记录类型为 `generateRectBlood` 或
 `generateRectBloodAsync`，来源 ID 取透传数据中的 `id`。
+
+## 订单项异步回调
+
+将异步请求的 `callbackConfig.callbackUrl` 设置为 MES 服务地址加
+`/api/manufacturerSide/order/callback/rect_blood`，
+`callbackConfig.callbackCustomValue.id` 设置为订单项的业务 ID `orderItemId`。
+
+回调接收 `RectBloodResponse` JSON，要求 `code=200`、`data.flagUrl` 及
+`data.callbackCustomValue.id` 非空。成功后同步更新订单项：
+
+- `productionImgFile.rawFile` 与 `productionImgFile.filePreview.raw` 均覆盖为 `flagUrl`；
+- `mirrorFlagUrl` 保存为订单项独立字段；未返回镜像地址时清空旧值；
+- 数据保存成功后，按灰度图转 SVG 回调的方式将订单项提交至订单预处理队列。
+
+订单项不存在、回调失败、保存或入队失败时，返回业务错误码 500，
+保存失败时不会提交后续预处理。镜像地址也会在订单项详情响应中返回。

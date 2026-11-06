@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
+import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.order.AppOrderService;
@@ -487,6 +488,20 @@ public class OrderController {
             return ApiResponse.success("回调处理成功");
         } catch (Exception e) {
             log.error("处理彩白彩图像转换回调失败", e);
+            return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
+        }
+    }
+
+    /** 矩形旗出血异步回调：先保存订单项图片，再提交后续订单预处理。 */
+    @PostMapping("/callback/rect_blood")
+    public ApiResponse<String> handleRectBloodCallback(@RequestBody RectBloodResponse response) {
+        log.info("handleRectBloodCallback response: {}", JsonLogUtil.toJSONString(response));
+        try {
+            OrderItem orderItem = appOrderPreprocessingService.handleRectBloodCallback(response);
+            orderPreprocessTaskQueue.submit(List.of(orderItem));
+            return ApiResponse.success("回调处理成功");
+        } catch (Exception e) {
+            log.error("处理矩形旗出血回调失败", e);
             return ApiResponse.fail(ApiResponse.RepStatusCode.serviceError, "回调处理失败：" + e.getMessage());
         }
     }

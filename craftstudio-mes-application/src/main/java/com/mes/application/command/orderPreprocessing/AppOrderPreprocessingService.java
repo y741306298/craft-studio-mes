@@ -7,6 +7,7 @@ import com.mes.application.command.api.req.ColorWhiteColorRequest;
 import com.mes.application.command.api.resp.ColorWhiteColorResponse;
 import com.mes.application.command.api.req.ImageMaskRequest;
 import com.mes.application.command.api.resp.GrayImgToSvgResponse;
+import com.mes.application.command.api.resp.RectBloodResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.CallbackCustomValue;
@@ -534,6 +535,40 @@ public class AppOrderPreprocessingService {
             return generateMaskFilesApiUrl;
         }
         return generateMaskFilesApiUrl.replace("/callback/generate_mask_files", "/callback/convert_gray_img_to_svg");
+    }
+
+    /** 保存矩形旗出血结果，成功落库后由调用方继续订单预处理。 */
+    public OrderItem handleRectBloodCallback(RectBloodResponse response) {
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())
+                || response.getData() == null) {
+            throw new RuntimeException("矩形旗出血回调失败或响应数据为空");
+        }
+        RectBloodResponse.Data data = response.getData();
+        CallbackCustomValue customValue = data.getCallbackCustomValue();
+        String orderItemId = customValue == null ? null : customValue.getId();
+        if (StringUtils.isBlank(orderItemId)) {
+            throw new RuntimeException("订单项ID不能为空");
+        }
+        if (StringUtils.isBlank(data.getFlagUrl())) {
+            throw new RuntimeException("旗帜文件URL不能为空");
+        }
+        OrderItem orderItem = orderItemService.findByOrderItemId(orderItemId);
+        if (orderItem == null) {
+            throw new RuntimeException("订单项不存在：" + orderItemId);
+        }
+        ImageFile image = orderItem.getProductionImgFile();
+        if (image == null) {
+            image = new ImageFile();
+            orderItem.setProductionImgFile(image);
+        }
+        image.setRawFile(data.getFlagUrl());
+        if (image.getFilePreview() == null) {
+            image.setFilePreview(new FilePreview());
+        }
+        image.getFilePreview().setRaw(data.getFlagUrl());
+        orderItem.setMirrorFlagUrl(data.getMirrorFlagUrl());
+        orderItemService.updateOrderItem(orderItem);
+        return orderItem;
     }
 
     public OrderItem handleConvertGrayImgToSvgCallback(GrayImgToSvgResponse response) {
