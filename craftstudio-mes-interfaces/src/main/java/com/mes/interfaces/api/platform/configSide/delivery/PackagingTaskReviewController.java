@@ -22,6 +22,15 @@ public class PackagingTaskReviewController {
         return ApiResponse.success(java.util.Map.of("deletedCount", packaging.clearAllLocks()));
     }
 
+    public record ClearReviewLocksRequest(String manufacturerMetaId, String orderId, String taskId, String note) {}
+
+    /** Close reconciled tasks without a result; resume persisted results without printing again. */
+    @PostMapping("/review-locks/clear")
+    public ApiResponse<Object> clearReviewLocks(@RequestBody ClearReviewLocksRequest request) {
+        return ApiResponse.success(packaging.clearReviewLocks(request.manufacturerMetaId(), request.orderId(),
+                request.taskId(), request.note()));
+    }
+
     @PostMapping("/{taskId}/reconcile")
     public ApiResponse<Object> reconcile(@PathVariable String taskId, @RequestParam String manufacturerMetaId,
                                         @RequestParam String deliveryPkgId, @RequestParam boolean confirmedUpstreamAndPackage) {

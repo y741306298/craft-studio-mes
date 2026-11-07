@@ -147,6 +147,13 @@ public class PackagingOperation {
         }
     }
     public long clearAllLocks() { return store.clearAllLocks(); }
+    public Document clearReviewLocks(String manufacturer, String orderId, String taskId, String note) {
+        if (manufacturer == null || manufacturer.isBlank()) throw bad("工厂不能为空");
+        if (note == null || note.isBlank()) throw bad("必须填写核对及处理结果");
+        Document result = store.clearReviewLocks(manufacturer, orderId, taskId, note);
+        log.warn("管理端解除打包REVIEW限制 manufacturerId={} orderId={} taskId={} result={}", manufacturer, orderId, taskId, result);
+        return result;
+    }
     public Document status(String taskId, String manufacturer) {
         Document job = store.find(taskId);
         if (job == null || !Objects.equals(manufacturer, job.getString("manufacturerId"))) throw bad("打包任务不存在");

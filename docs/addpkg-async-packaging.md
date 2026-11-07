@@ -60,6 +60,24 @@ worker 批量查询必要字段，使用无 upsert 的 `bulkWrite(UpdateOneModel
 
 ## 人工处理
 
+批量解除 REVIEW 限制（配置端鉴权）：
+
+```http
+POST /api/configSide/delivery-packaging-tasks/review-locks/clear
+Content-Type: application/json
+
+{
+  "manufacturerMetaId": "工厂ID",
+  "orderId": "订单ID",
+  "taskId": "任务ID",
+  "note": "已核对面单、包裹及零件数量，记录处理结果"
+}
+```
+
+`manufacturerMetaId`、非空 `note` 必填。`orderId`、`taskId` 可选，传入时同时匹配；两者都不传则处理该工厂全部 REVIEW 任务。执行前需核对已有面单、包裹及数量，尤其是没有任务 result 但上游可能已成功的情况。
+
+接口仅更新 REVIEW：没有 result 的任务转 CLOSED；有 result 的任务转 RETRY、重置尝试次数，由后台补做数量/状态更新，不再取单或打印。返回 `data.clearedCount`（合计）、`closedCount`（关闭）、`retryCount`（恢复重试），无匹配时均为 0。不删除任务、面单、包裹或数量回执，不修改正在执行的任务或它们的执行锁。恢复仍然失败时，任务可能再次进入 REVIEW，需要排查原始错误。新的打包使用新的 requestId。
+
 已保存包裹结果、状态写入失败达到上限：
 
 ```

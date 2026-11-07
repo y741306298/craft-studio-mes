@@ -183,6 +183,24 @@ public class PackagingTaskStore {
                         .and("state").is("REVIEW").and("result").ne(null)),
                 new Update().set("state", "RETRY").set("attempts", 0).set("nextAttemptAt", new Date()), TASKS).getModifiedCount() == 1;
     }
+    /** Clear review restrictions without deleting history or reprinting persisted packages. */
+    public Document clearReviewLocks(String manufacturer, String orderId, String taskId, String note) {
+        Date now = new Date();
+        long closed = mongo.updateMulti(reviewScope(manufacturer, orderId, taskId, false),
+                new Update().set("state", "CLOSED").set("reviewNote", note).set("updatedAt", now), TASKS).getModifiedCount();
+        long retried = mongo.updateMulti(reviewScope(manufacturer, orderId, taskId, true),
+                new Update().set("state", "RETRY").set("attempts", 0).set("nextAttemptAt", now)
+                        .set("reviewNote", note).set("updatedAt", now), TASKS).getModifiedCount();
+        return new Document("clearedCount", closed + retried).append("closedCount", closed).append("retryCount", retried);
+    }
+    private Query reviewScope(String manufacturer, String orderId, String taskId, boolean hasResult) {
+        Criteria scope = Criteria.where("manufacturerId").is(manufacturer).and("state").is("REVIEW");
+        if (orderId != null && !orderId.isBlank()) scope.and("orderId").is(orderId);
+        if (taskId != null && !taskId.isBlank()) scope.and("_id").is(taskId);
+        if (hasResult) scope.and("result").ne(null);
+        else scope.and("result").is(null);
+        return Query.query(scope);
+    }
     public List<ProductionPiece> pieces(Collection<String> ids, String manufacturer) {
         Query query = Query.query(new Criteria().andOperator(Criteria.where("deleteAt").is(null), Criteria.where("manufacturerId").is(manufacturer),
                 new Criteria().orOperator(Criteria.where("productionPieceId").in(ids), Criteria.where("_id").in(ids))));
