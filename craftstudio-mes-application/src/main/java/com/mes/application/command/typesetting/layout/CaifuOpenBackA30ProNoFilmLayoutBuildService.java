@@ -13,7 +13,8 @@ import java.util.Set;
 /** A30pro 不覆膜：复用 A30H 的 D / 非出血黑线，B 改为双侧 126mm 标记。 */
 @Service
 public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA30HNoFilmLayoutBuildService {
-    private static final int EXPAND_RIGHT_MM = 3;
+    private static final int EXPAND_LEFT_PRO_MM = 6;
+    private static final int EXPAND_RIGHT_MM = 5;
     private static final int ELEMENT_B_OFFSET_Y_MM = 126;
     private static final int ELEMENT_B_LEFT_X_MM = 3;
 
@@ -25,6 +26,11 @@ public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA3
     @Override
     public TypesettingLayoutMode supportMode() {
         return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM;
+    }
+
+    @Override
+    protected int expandLeftMm() {
+        return EXPAND_LEFT_PRO_MM;
     }
 
     @Override
@@ -44,7 +50,8 @@ public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA3
                                     int expandedHeight,
                                     int contentOffsetY,
                                     List<MarkerBand> orderedBands) {
-        int rightX = EXPAND_LEFT_MM + context.getNestedWidth().intValue() + EXPAND_RIGHT_MM;
+        // 相对旧版 W+14 左移 8mm；D/E 随左扩量从 11 改为 6 自动左移 5mm。
+        int rightX = expandLeftMm() + context.getNestedWidth().intValue();
         Set<Integer> placedYs = new LinkedHashSet<>();
         for (MarkerBand band : orderedBands) {
             if (band == null) {

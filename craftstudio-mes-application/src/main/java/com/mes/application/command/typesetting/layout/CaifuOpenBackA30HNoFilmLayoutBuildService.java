@@ -58,14 +58,14 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
         int expandedHeight = originalHeight + EXPAND_TOP_MM;
-        int expandedWidth = originalWidth + EXPAND_LEFT_MM + expandRightMm();
+        int expandedWidth = originalWidth + expandLeftMm() + expandRightMm();
         // 右侧新增区域不改变 D / 非出血黑线相对原版的位置。
         int lineRightEdge = expandedWidth - expandRightMm();
         int contentOffsetY = openBackTagHeightMm();
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
-        margin.setLeft(EXPAND_LEFT_MM);
+        margin.setLeft(expandLeftMm());
         margin.setTop(EXPAND_TOP_MM + contentOffsetY);
         margin.setRight(expandRightMm());
         margin.setBottom(contentOffsetY);
@@ -92,8 +92,8 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
         if (contentOffsetY > 0) {
-            marks.add(createMark(elementF, originalWidth, contentOffsetY, EXPAND_LEFT_MM, 0));
-            marks.add(createMark(elementFRotated, originalWidth, contentOffsetY, EXPAND_LEFT_MM, contentOffsetY + expandedHeight));
+            marks.add(createMark(elementF, originalWidth, contentOffsetY, expandLeftMm(), 0));
+            marks.add(createMark(elementFRotated, originalWidth, contentOffsetY, expandLeftMm(), contentOffsetY + expandedHeight));
         }
         marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, 0, contentOffsetY));
 
@@ -160,6 +160,10 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    protected int expandLeftMm() {
+        return EXPAND_LEFT_MM;
     }
 
     protected int expandRightMm() {
