@@ -14,4 +14,9 @@ public class CaifuOpenBackA30ProNoFilmNestingComposeService extends CaifuOpenBac
     public TypesettingLayoutMode supportMode() {
         return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM;
     }
+
+    @Override
+    protected int markerLineLeftMm() {
+        return 30;
+    }
 }

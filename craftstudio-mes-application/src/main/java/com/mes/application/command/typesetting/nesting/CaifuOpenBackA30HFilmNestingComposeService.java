@@ -74,7 +74,7 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
             graphics.setColor(Color.WHITE);
             graphics.fillRect(0, 0, width, 6);
             graphics.setColor(Color.BLACK);
-            graphics.fillRect(0, 2, Math.max(width - 30, 1), 1);
+            graphics.fillRect(markerLineLeftMm(), 2, markerLineWidthMm(width), 1);
         } finally {
             graphics.dispose();
         }
@@ -90,11 +90,20 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
         }
     }
 
+    protected int markerLineLeftMm() {
+        return 0;
+    }
+
+    private int markerLineWidthMm(int width) {
+        // 保留原有的右侧 30mm 留白，左端内缩时同步缩短黑线。
+        return Math.max(width - 30 - markerLineLeftMm(), 1);
+    }
+
     private String buildMarkerSvg(int width) {
-        int lineWidth = Math.max(width - 30, 1);
+        int lineWidth = markerLineWidthMm(width);
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "mm\" height=\"6mm\" viewBox=\"0 0 " + width + " 6\">"
                 + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"6\" fill=\"#ffffff\"/>"
-                + "<rect x=\"0\" y=\"2.5\" width=\"" + lineWidth + "\" height=\"1\" fill=\"#000000\"/>"
+                + "<rect x=\"" + markerLineLeftMm() + "\" y=\"2.5\" width=\"" + lineWidth + "\" height=\"1\" fill=\"#000000\"/>"
                 + "</svg>";
     }
 
