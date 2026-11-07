@@ -58,7 +58,7 @@ public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA3
         }
         ys.add((double) expandedHeight);
 
-        int rightX = EXPAND_LEFT_MM + context.getNestedWidth().intValue();
+        int rightX = EXPAND_LEFT_MM + context.getNestedWidth().intValue() + EXPAND_RIGHT_MM;
         Set<Integer> placedYs = new LinkedHashSet<>();
         for (Double y : ys) {
             double markY = y - ELEMENT_B_OFFSET_Y_MM;

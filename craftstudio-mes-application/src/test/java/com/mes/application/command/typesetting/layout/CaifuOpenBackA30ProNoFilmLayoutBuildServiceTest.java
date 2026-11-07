@@ -117,7 +117,7 @@ class CaifuOpenBackA30ProNoFilmLayoutBuildServiceTest {
                 List.of(), Arrays.asList(0D, 123D, 200D, 200D, 400D, null, Double.NaN, Double.POSITIVE_INFINITY)));
         FormeLayoutBuildResult result = builder.build(context);
         List<FormeGenerationRequest.Mark> b = marks(context, result, "elementB");
-        assertEquals(List.of("3,0", "1011,0", "3,77", "1011,77", "3,277", "1011,277"), positions(b));
+        assertEquals(List.of("3,0", "1014,0", "3,77", "1014,77", "3,277", "1014,277"), positions(b));
         b.forEach(mark -> assertEquals(BigDecimal.valueOf(8), mark.getSize().getWidth()));
     }
 
@@ -127,15 +127,27 @@ class CaifuOpenBackA30ProNoFilmLayoutBuildServiceTest {
         context.getTypesettingInfo().getElement().setGridLines(new TypesettingElement.GridLines(
                 null, List.of(122D, 423D, 424D, 1000D)));
         FormeLayoutBuildResult result = builder.build(context);
-        assertEquals(List.of("3,300", "1011,300", "3,177", "1011,177"), positions(marks(context, result, "elementB")));
+        assertEquals(List.of("3,300", "1014,300", "3,177", "1014,177"), positions(marks(context, result, "elementB")));
 
         context = context(300);
         result = builder.build(context);
-        assertEquals(List.of("3,177", "1011,177"), positions(marks(context, result, "elementB")));
+        assertEquals(List.of("3,177", "1014,177"), positions(marks(context, result, "elementB")));
 
         context = context(100);
         result = builder.build(context);
         assertTrue(marks(context, result, "elementB").isEmpty());
+    }
+
+    @Test
+    void bOffsetsEveryGridLineBy126EvenWhenLinesAreSixMillimetersApart() {
+        FormeBuildContext context = context(400);
+        context.getTypesettingInfo().getElement().setGridLines(new TypesettingElement.GridLines(
+                null, List.of(194D, 200D)));
+        FormeLayoutBuildResult result = builder.build(context);
+        // 扩展后的参考线为 197 / 203，各自上移 126 后是 71 / 77。
+        // 相对第一条参考线观察，第二组 B 距它 120mm，并非另一个偏移配置。
+        assertEquals(List.of("3,71", "1014,71", "3,77", "1014,77", "3,277", "1014,277"),
+                positions(marks(context, result, "elementB")));
     }
 
     @Test
