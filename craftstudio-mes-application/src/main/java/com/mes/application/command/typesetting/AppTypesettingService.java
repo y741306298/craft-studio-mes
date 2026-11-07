@@ -262,6 +262,7 @@ public class AppTypesettingService {
                 nestingRequestRuleServiceMap.put(ruleService.supportMode(), ruleService);
                 if (ruleService instanceof CaifuOpenBackA30HFilmNestingRuleService) {
                     nestingRequestRuleServiceMap.put(TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM, ruleService);
+                    nestingRequestRuleServiceMap.put(TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM, ruleService);
                 }
             }
         }
@@ -1715,7 +1716,8 @@ public class AppTypesettingService {
 
     private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
         if (layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM
-                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM) {
+                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM
+                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM) {
             return Collections.emptyMap();
         }
         if (nestingRequest == null || nestingRequest.getNestManifest() == null
@@ -2409,6 +2411,7 @@ public class AppTypesettingService {
         return TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A30_LARGE_BOARD == layoutMode
                 || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM == layoutMode
                 || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM == layoutMode
+                || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM == layoutMode
                 || TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_A30_SMALL_GRAPH == layoutMode;
     }
 

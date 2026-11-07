@@ -25,12 +25,12 @@ import java.util.Set;
 
 @Service
 public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildService {
-    private static final int EXPAND_TOP_MM = 3;
-    private static final int EXPAND_LEFT_MM = 11;
+    protected static final int EXPAND_TOP_MM = 3;
+    protected static final int EXPAND_LEFT_MM = 11;
 
     private static final int ELEMENT_A_WIDTH_MM = 3;
-    private static final int ELEMENT_B_WIDTH_MM = 8;
-    private static final int ELEMENT_B_HEIGHT_MM = 3;
+    protected static final int ELEMENT_B_WIDTH_MM = 8;
+    protected static final int ELEMENT_B_HEIGHT_MM = 3;
     private static final int ELEMENT_B_OFFSET_Y_MM = 295;
     private static final int ELEMENT_B_X_MM = 3;
     private static final int ELEMENT_D_WIDTH_TENTH_MM = 3;
@@ -58,23 +58,25 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
         int expandedHeight = originalHeight + EXPAND_TOP_MM;
-        int expandedWidth = originalWidth + EXPAND_LEFT_MM;
-        int contentOffsetY = OPEN_BACK_TAG_HEIGHT_MM;
+        int expandedWidth = originalWidth + EXPAND_LEFT_MM + expandRightMm();
+        // 右侧新增区域不改变 D / 非出血黑线相对原版的位置。
+        int lineRightEdge = expandedWidth - expandRightMm();
+        int contentOffsetY = openBackTagHeightMm();
 
         FormeLayoutBuildResult result = new FormeLayoutBuildResult();
         FormeGenerationRequest.Margin margin = new FormeGenerationRequest.Margin();
         margin.setLeft(EXPAND_LEFT_MM);
-        margin.setTop(EXPAND_TOP_MM + OPEN_BACK_TAG_HEIGHT_MM);
-        margin.setRight(0);
-        margin.setBottom(OPEN_BACK_TAG_HEIGHT_MM);
+        margin.setTop(EXPAND_TOP_MM + contentOffsetY);
+        margin.setRight(expandRightMm());
+        margin.setBottom(contentOffsetY);
         result.setMargin(margin);
 
         String tagUploadSubDir = buildTagUploadSubDir(context);
         String elementA = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_A_WIDTH_MM, expandedHeight), tagUploadSubDir);
         String elementB = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM), tagUploadSubDir);
         String elementD = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, ELEMENT_D_HEIGHT_MM), tagUploadSubDir);
-        String elementF = buildOpenBackTagStrip(context, originalWidth, false);
-        String elementFRotated = buildOpenBackTagStrip(context, originalWidth, true);
+        String elementF = contentOffsetY > 0 ? buildOpenBackTagStrip(context, originalWidth, false) : null;
+        String elementFRotated = contentOffsetY > 0 ? buildOpenBackTagStrip(context, originalWidth, true) : null;
 
         List<MarkerBand> bands = extractMarkerBands(context);
         List<MarkerBand> orderedBands = new ArrayList<>();
@@ -89,21 +91,13 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
 
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
-        marks.add(createMark(elementF, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, EXPAND_LEFT_MM, 0));
-        marks.add(createMark(elementFRotated, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, EXPAND_LEFT_MM, contentOffsetY + expandedHeight));
+        if (contentOffsetY > 0) {
+            marks.add(createMark(elementF, originalWidth, contentOffsetY, EXPAND_LEFT_MM, 0));
+            marks.add(createMark(elementFRotated, originalWidth, contentOffsetY, EXPAND_LEFT_MM, contentOffsetY + expandedHeight));
+        }
         marks.add(createMark(elementA, ELEMENT_A_WIDTH_MM, expandedHeight, 0, contentOffsetY));
 
-        LinkedHashSet<Integer> placedElementBYs = new LinkedHashSet<>();
-        for (MarkerBand band : orderedBands) {
-            if (band == null) {
-                continue;
-            }
-            int elementBY = (int) Math.round(band.centerY - ELEMENT_B_OFFSET_Y_MM);
-            if (elementBY < 0 || elementBY > expandedHeight || !placedElementBYs.add(elementBY)) {
-                continue;
-            }
-            marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, ELEMENT_B_X_MM, elementBY + contentOffsetY));
-        }
+        addElementBMarks(context, marks, elementB, expandedHeight, contentOffsetY, orderedBands);
 
         for (MarkerBand band : orderedBands) {
             if (band == null || "ysBottom".equals(band.id)) {
@@ -127,21 +121,21 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             }
             if (!isBlood) {
                 marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                        expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0), lineY + contentOffsetY));
+                        lineRightEdge - (ELEMENT_D_OFFSET_RIGHT_ZERO_TENTH_MM / 10.0), lineY + contentOffsetY));
             }
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY + contentOffsetY));
+                    lineRightEdge - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), lineY + contentOffsetY));
             marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                    expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
+                    lineRightEdge - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), lineY + contentOffsetY));
             if (isBlood) {
                 // 右下角标记固定距当前 cell 底边 8 mm，不能使用整张版面的底边，
                 // 否则多个出血 cell 的下方标记都会错误地堆叠到版面底部。
                 double bottomLineY = calculateBottomLineY(band.centerY, band.height, lineHeight);
                 if (bottomLineY >= 0 && Math.abs(bottomLineY - lineY) > 0.0001) {
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
+                            lineRightEdge - (ELEMENT_D_OFFSET_RIGHT_ONE_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                     marks.add(createMark(lineImg, ELEMENT_D_WIDTH_TENTH_MM / 10.0, lineHeight,
-                            expandedWidth - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
+                            lineRightEdge - (ELEMENT_D_OFFSET_RIGHT_TWO_TENTH_MM / 10.0), bottomLineY + contentOffsetY));
                 }
             }
         }
@@ -151,8 +145,10 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             markFiles.put("elementA", elementA);
             markFiles.put("elementB", elementB);
             markFiles.put("elementD", elementD);
-            markFiles.put("elementF", elementF);
-            markFiles.put("elementFRotated", elementFRotated);
+            if (contentOffsetY > 0) {
+                markFiles.put("elementF", elementF);
+                markFiles.put("elementFRotated", elementFRotated);
+            }
             if (!elementEByHeight.isEmpty()) {
                 markFiles.put("elementE", elementEByHeight.values().iterator().next());
             }
@@ -164,6 +160,33 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         result.setOutputs(buildDefaultOutputs(supportMode(), context));
         result.setUploadPath("forme/" + context.getBusinessId() + "/");
         return result;
+    }
+
+    protected int expandRightMm() {
+        return 0;
+    }
+
+    protected int openBackTagHeightMm() {
+        return OPEN_BACK_TAG_HEIGHT_MM;
+    }
+
+    protected void addElementBMarks(FormeBuildContext context,
+                                    List<FormeGenerationRequest.Mark> marks,
+                                    String elementB,
+                                    int expandedHeight,
+                                    int contentOffsetY,
+                                    List<MarkerBand> orderedBands) {
+        LinkedHashSet<Integer> placedElementBYs = new LinkedHashSet<>();
+        for (MarkerBand band : orderedBands) {
+            if (band == null) {
+                continue;
+            }
+            int elementBY = (int) Math.round(band.centerY - ELEMENT_B_OFFSET_Y_MM);
+            if (elementBY < 0 || elementBY > expandedHeight || !placedElementBYs.add(elementBY)) {
+                continue;
+            }
+            marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, ELEMENT_B_X_MM, elementBY + contentOffsetY));
+        }
     }
 
     static double calculateBottomLineY(double cellTopY, double cellHeight, double lineHeight) {
@@ -424,7 +447,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         }
     }
 
-    private static class MarkerBand {
+    protected static class MarkerBand {
         private final String id;
         private final double centerY;
         private final double height;

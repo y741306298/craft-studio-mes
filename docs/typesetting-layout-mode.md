@@ -49,12 +49,22 @@
 | `XY_CUTTING_AUX_LINE_CAIFU_A30_LARGE_BOARD` | `xy_cutting_aux_line_caifu_a30_large_board` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋A30大板） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM` | `xy_cutting_aux_line_caifu_open_back_a30h_film` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋开背A30H覆膜） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM` | `xy_cutting_aux_line_caifu_open_back_a30h_no_film` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-裁赋开背A30H不覆膜） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
+| `XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM` | `xy_cutting_aux_line_caifu_open_back_a30pro_no_film` | `vertical_typesetting`（竖直排版） | 裁赋开背A30pro不覆膜 | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_NINE_SEGMENT` | `xy_cutting_aux_line_nine_segment` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-九段） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 | `XY_CUTTING_AUX_LINE_LIUDU` | `xy_cutting_aux_line_liudu` | `grid_typesetting`（网格排版） | xy切割(切割辅助线-六渡） | ✅ | ❌ | ✅ | `side_aux_line` | `null` | `none` |
 
 ---
 
 ## 4. 自动回填机制（服务端）
+
+### 裁赋开背 A30pro 不覆膜标记规则
+
+- 原 SVG 上扩 3mm、左扩 11mm、右扩 3mm，以扩展后的左上角为原点，不添加上下标签条。
+- 元素 A 为宽 3mm、与扩展版面等高的黑色 PNG，放在 `(0, 0)`。
+- 元素 C 的 y 集合取 `element.gridLines.ys + 3mm`，并补充扩展版面的底边 y。
+- 每个 y 向上偏移 126mm，在 `x=3mm` 和 `x=11mm+原版宽度` 各放置一个 8mm × 3mm 的黑色 PNG（元素 B）；纵向超出板面的不放置，重复位置只放一对。
+- 元素 D 和非出血黑线沿用 A30H 不覆膜规则，相对扩展后的右边界额外向左移 3mm；出血印版的底部标记仍按各自 cell 底边计算。
+- 套版间隔、元素排列、辅助标记保存及容器宽度处理沿用 A30H 不覆膜模式。
 
 ### 4.1 触发点
 
