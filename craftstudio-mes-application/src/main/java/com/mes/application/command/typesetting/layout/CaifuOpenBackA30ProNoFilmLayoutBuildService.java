@@ -14,7 +14,7 @@ import java.util.Set;
 @Service
 public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA30HNoFilmLayoutBuildService {
     private static final int EXPAND_LEFT_PRO_MM = 6;
-    private static final int EXPAND_RIGHT_MM = 5;
+    private static final int EXPAND_RIGHT_MM = 8;
     private static final int ELEMENT_B_OFFSET_Y_MM = 126;
     private static final int ELEMENT_B_LEFT_X_MM = 3;
 
