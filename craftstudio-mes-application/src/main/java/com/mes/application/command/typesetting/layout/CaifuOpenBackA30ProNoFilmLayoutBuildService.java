@@ -4,7 +4,6 @@ import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashSet;
@@ -45,23 +44,14 @@ public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA3
                                     int expandedHeight,
                                     int contentOffsetY,
                                     List<MarkerBand> orderedBands) {
-        Set<Double> ys = new LinkedHashSet<>();
-        TypesettingElement element = context.getTypesettingInfo() == null
-                ? null : context.getTypesettingInfo().getElement();
-        if (element != null && element.getGridLines() != null && element.getGridLines().getYs() != null) {
-            for (Double y : element.getGridLines().getYs()) {
-                if (y != null && Double.isFinite(y)) {
-                    // gridLines 使用原 SVG 原点；换算到向上扩 3mm 后的原点。
-                    ys.add(y + EXPAND_TOP_MM);
-                }
-            }
-        }
-        ys.add((double) expandedHeight);
-
         int rightX = EXPAND_LEFT_MM + context.getNestedWidth().intValue() + EXPAND_RIGHT_MM;
         Set<Integer> placedYs = new LinkedHashSet<>();
-        for (Double y : ys) {
-            double markY = y - ELEMENT_B_OFFSET_Y_MM;
+        for (MarkerBand band : orderedBands) {
+            if (band == null) {
+                continue;
+            }
+            // 与 A30H 共用已解析的辅助条中线、顶部和底部参考，不读取 gridLines。
+            double markY = band.getCenterY() - ELEMENT_B_OFFSET_Y_MM;
             int roundedY = (int) Math.round(markY);
             if (markY < 0 || markY + ELEMENT_B_HEIGHT_MM > expandedHeight
                     || roundedY + ELEMENT_B_HEIGHT_MM > expandedHeight || !placedYs.add(roundedY)) {

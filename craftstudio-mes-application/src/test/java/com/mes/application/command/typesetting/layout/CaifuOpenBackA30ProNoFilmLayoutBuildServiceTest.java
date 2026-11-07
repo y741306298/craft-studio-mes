@@ -18,7 +18,6 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -111,21 +110,19 @@ class CaifuOpenBackA30ProNoFilmLayoutBuildServiceTest {
     }
 
     @Test
-    void bUsesTranslatedGridYsAndBottomOnBothSidesWithoutDuplicates() {
-        FormeBuildContext context = context(400);
+    void bUsesA30hMarkerMidpointsAndBottomWithoutDuplicates() throws Exception {
+        FormeBuildContext context = markerContext(400, 123, 200, 200, 400);
         context.getTypesettingInfo().getElement().setGridLines(new TypesettingElement.GridLines(
-                List.of(), Arrays.asList(0D, 123D, 200D, 200D, 400D, null, Double.NaN, Double.POSITIVE_INFINITY)));
+                null, List.of(194D, 200D, 300D)));
         FormeLayoutBuildResult result = builder.build(context);
-        List<FormeGenerationRequest.Mark> b = marks(context, result, "elementB");
-        assertEquals(List.of("3,0", "1014,0", "3,77", "1014,77", "3,277", "1014,277"), positions(b));
-        b.forEach(mark -> assertEquals(BigDecimal.valueOf(8), mark.getSize().getWidth()));
+        // 中线 126 / 203 / 203 / 403；底部也是 403。同一位置只生成一对 B。
+        assertEquals(List.of("3,0", "1014,0", "3,77", "1014,77", "3,277", "1014,277"),
+                positions(marks(context, result, "elementB")));
     }
 
     @Test
-    void bMustFitCompletelyWithinHeightAndStillUsesBottomWithoutGridLines() {
-        FormeBuildContext context = context(300);
-        context.getTypesettingInfo().getElement().setGridLines(new TypesettingElement.GridLines(
-                null, List.of(122D, 423D, 424D, 1000D)));
+    void bMustFitCompletelyWithinHeightAndStillUsesBottomWithoutMarkers() throws Exception {
+        FormeBuildContext context = markerContext(300, 122, 423, 424, 1000);
         FormeLayoutBuildResult result = builder.build(context);
         assertEquals(List.of("3,300", "1014,300", "3,177", "1014,177"), positions(marks(context, result, "elementB")));
 
@@ -139,14 +136,13 @@ class CaifuOpenBackA30ProNoFilmLayoutBuildServiceTest {
     }
 
     @Test
-    void bOffsetsEveryGridLineBy126EvenWhenLinesAreSixMillimetersApart() {
-        FormeBuildContext context = context(400);
+    void sixMillimeterAuxiliaryStripProducesOneMidpointReference() throws Exception {
+        FormeBuildContext context = markerContext(400, 194);
         context.getTypesettingInfo().getElement().setGridLines(new TypesettingElement.GridLines(
                 null, List.of(194D, 200D)));
         FormeLayoutBuildResult result = builder.build(context);
-        // 扩展后的参考线为 197 / 203，各自上移 126 后是 71 / 77。
-        // 相对第一条参考线观察，第二组 B 距它 120mm，并非另一个偏移配置。
-        assertEquals(List.of("3,71", "1014,71", "3,77", "1014,77", "3,277", "1014,277"),
+        // 辅助条中线是 197，B 位于 71；gridLines 的上下边界不再各自产生 B。
+        assertEquals(List.of("3,71", "1014,71", "3,277", "1014,277"),
                 positions(marks(context, result, "elementB")));
     }
 
@@ -210,6 +206,21 @@ class CaifuOpenBackA30ProNoFilmLayoutBuildServiceTest {
         TypesettingInfo info = new TypesettingInfo();
         info.setElement(new TypesettingElement());
         context.setTypesettingInfo(info);
+        return context;
+    }
+
+    private FormeBuildContext markerContext(int height, int... markerTops) throws Exception {
+        FormeBuildContext context = context(height);
+        StringBuilder svg = new StringBuilder("<svg xmlns=\"http://www.w3.org/2000/svg\">");
+        for (int top : markerTops) {
+            svg.append("<g id=\"marker\" data-cell-y=\"").append(top)
+                    .append("\" data-cell-height=\"6\"/>");
+        }
+        svg.append("</svg>");
+        Path file = tempDir.resolve("markers.svg");
+        Files.writeString(file, svg);
+        context.getTypesettingInfo().getElement().setNestedSvg(file.toUri().toString());
+        context.getTypesettingInfo().setMarks(Collections.singletonMap("caifuMarker_1", "mark/marker.png"));
         return context;
     }
 

@@ -453,6 +453,10 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         private final double height;
         private final String relatedTypesettingId;
 
+        protected double getCenterY() {
+            return centerY;
+        }
+
         private MarkerBand(String id, double centerY, double height, String relatedTypesettingId) {
             this.id = id;
             this.centerY = centerY;
