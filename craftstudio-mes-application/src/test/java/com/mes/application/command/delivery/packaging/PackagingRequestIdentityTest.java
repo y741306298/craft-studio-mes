@@ -70,14 +70,30 @@ class PackagingRequestIdentityTest {
         return pkg;
     }
 
-    @Test void missingRequestIdIsRejectedBeforeCreatingTaskLockOrPrinting() {
+    @Test void legacyRequestsWithoutIdsStartIndependentPackages() {
         for (String requestId : Arrays.asList(null, "", " ", "\t\n")) {
-            var error = assertThrows(BusinessNotAllowException.class,
-                    () -> operation.execute(request(requestId, "piece"), () -> fail("Must not print without requestId")));
-            assertTrue(error.getMessage().contains("requestId"));
+            DeliveryPkg first = operation.execute(request(requestId, "piece"), this::newPackage);
+            DeliveryPkg next = operation.execute(request(requestId, "piece"), this::newPackage);
+            assertNotEquals(first.getPackagingTaskId(), next.getPackagingTaskId());
+            assertNotEquals(first.getDeliveryPkgId(), next.getDeliveryPkgId());
+            assertEquals("READY", next.getPackagingState());
         }
-        verifyNoInteractions(store, worker);
+        assertEquals(8, tasks.size());
+        verify(store, times(8)).release(anyString(), eq("execution-owner"));
         assertFalse(PackagingOperation.active());
+    }
+
+    @Test void legacyRequestCanProceedAfterEarlierRequestEnteredReview() {
+        assertThrows(IllegalStateException.class, () -> operation.execute(request(null, "piece"), () -> {
+            operation.risk();
+            throw new IllegalStateException("upstream response lost");
+        }));
+        Document review = tasks.values().iterator().next();
+        DeliveryPkg next = operation.execute(request(null, "piece"), this::newPackage);
+        assertEquals("REVIEW", review.getString("state"));
+        assertEquals("READY", next.getPackagingState());
+        assertNotEquals(review.getString("_id"), next.getPackagingTaskId());
+        verify(store, times(2)).release(anyString(), eq("execution-owner"));
     }
 
     @Test void identicalContentsWithNewRequestIdCreateAnotherPackageForSameOrder() {

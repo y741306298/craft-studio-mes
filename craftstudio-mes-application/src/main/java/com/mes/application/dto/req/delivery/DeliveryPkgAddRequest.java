@@ -7,7 +7,7 @@ import java.util.List;
 
 @Data
 public class DeliveryPkgAddRequest {
-    /** Required per-action idempotency key; reuse for network retries, change for every new package, including redo pieces. */
+    /** Optional per-action idempotency key; reuse for network retries, change for each new package. Omission starts a new operation. */
     private String requestId;
 
 

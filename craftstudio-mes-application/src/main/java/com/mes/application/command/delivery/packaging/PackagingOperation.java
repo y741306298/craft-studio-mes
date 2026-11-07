@@ -41,9 +41,8 @@ public class PackagingOperation {
         for (var item : request.getPieces()) if (item.getPiece().getProductionPieceId() == null
                 || !ids.add(item.getPiece().getProductionPieceId())) throw bad("生产件不能为空或重复");
         String requestId = request.getRequestId();
-        // Request content cannot distinguish a new package from a retry of the previous package.
-        if (requestId == null || requestId.isBlank())
-            throw bad("requestId 不能为空：每次新打包使用独立编号，网络超时重试复用原编号");
+        // Legacy clients omit requestId: each call starts a new operation, never a content-based replay.
+        if (requestId == null || requestId.isBlank()) requestId = "generated-" + UUID.randomUUID();
         String fingerprint = fingerprint(request);
         String id = digest(manufacturer + ":" + requestId), orderKey = digest(manufacturer + ":" + orderId);
         Document job;
