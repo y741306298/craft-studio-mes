@@ -24,6 +24,7 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
+| `requestId` | string | 是 | 本次打包操作的独立编号，建议 UUID。同订单下一包、重做件再次打包使用新编号；同次操作网络超时重试必须复用原编号和原请求内容。缺失或纯空白时拒绝请求。 |
 | `manufacturerMetaId` | string | 是 | 工厂标识；用于查询快递 100 Token 或 WDT 配置，并保存到包裹。 |
 | `carrierId` | string | 否 | 请求对象中保留该字段；实际物流信息由服务端根据生产零件所属订单明细查询。 |
 | `deliveryManId` | string | 条件必填 | 发货人 ID。普通非聚单平台、非 `CUSTOM` 订单缺少该字段时中断打包并返回错误。 |
@@ -41,6 +42,7 @@
 
 ```json
 {
+  "requestId": "c75e9bbd-6016-4578-b94b-c5e3af47b4cb",
   "manufacturerMetaId": "MFR_10001",
   "carrierId": "SF",
   "deliveryManId": "DM_001",
@@ -61,12 +63,13 @@
 
 接口创建包裹前会执行以下校验：
 
-1. `pieces` 不能为空。
-2. 每一项必须同时包含 `productionPieceId` 和大于 `0` 的 `quantity`，且零件编号不能重复。
-3. 服务端批量查询到的生产零件、订单明细和物流信息必须完整。
-4. 同一请求中的零件必须具有相同的 `orderId`、`carrierId` 和 `presetType`。
-5. 每个 `productionPieceId` 必须能查询到有效生产零件。
-6. `quantity` 不能超过对应零件当前“待打包”节点的数量。
+1. `requestId` 必须非空。服务端不再根据打包内容生成固定编号，旧客户端需要同步升级。同一订单允许多次打包，旧任务的 `REVIEW` 不占用订单执行锁；同一个 `requestId` 仍遵循原任务的幂等及恢复规则。
+2. `pieces` 不能为空。
+3. 每一项必须同时包含 `productionPieceId` 和大于 `0` 的 `quantity`，且零件编号不能重复。
+4. 服务端批量查询到的生产零件、订单明细和物流信息必须完整。
+5. 同一请求中的零件必须具有相同的 `orderId`、`carrierId` 和 `presetType`。
+6. 每个 `productionPieceId` 必须能查询到有效生产零件。
+7. `quantity` 不能超过对应零件当前“待打包”节点的数量。
 
 任何一项不满足时，不进入后续打包分支，并返回参数错误。
 

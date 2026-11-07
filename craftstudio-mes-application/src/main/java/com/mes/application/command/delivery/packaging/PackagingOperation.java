@@ -40,10 +40,11 @@ public class PackagingOperation {
         Set<String> ids = new HashSet<>();
         for (var item : request.getPieces()) if (item.getPiece().getProductionPieceId() == null
                 || !ids.add(item.getPiece().getProductionPieceId())) throw bad("生产件不能为空或重复");
-        String fingerprint = fingerprint(request);
         String requestId = request.getRequestId();
-        // Legacy clients get deterministic replay; an intentional identical second package needs a fresh requestId.
-        if (requestId == null || requestId.isBlank()) requestId = "legacy-" + fingerprint;
+        // Request content cannot distinguish a new package from a retry of the previous package.
+        if (requestId == null || requestId.isBlank())
+            throw bad("requestId 不能为空：每次新打包使用独立编号，网络超时重试复用原编号");
+        String fingerprint = fingerprint(request);
         String id = digest(manufacturer + ":" + requestId), orderKey = digest(manufacturer + ":" + orderId);
         Document job;
         while (true) {
