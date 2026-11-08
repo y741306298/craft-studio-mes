@@ -46,6 +46,9 @@ public class OrderItem extends BaseEntity {
     private String colorWhiteColorDownloadUrl;
     /** 矩形旗出血算法生成的镜像旗帜文件地址。 */
     private String mirrorFlagUrl;
+    /** 热升华反面不同画面的独立出血结果与原始来源。 */
+    private String sublimationBackDownloadUrl;
+    private String sublimationBackSourceUrl;
     /** 最近一次矩形缝套算法正面图，用于避免重复出血。 */
     private String rectBloodDownloadUrl;
     private String kuaidiWay;

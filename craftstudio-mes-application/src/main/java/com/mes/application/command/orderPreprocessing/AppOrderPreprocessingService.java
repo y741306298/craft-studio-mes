@@ -16,6 +16,8 @@ import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.application.command.orderPreprocessing.vo.CutResult;
 import com.mes.application.command.orderPreprocessing.vo.ProductionImageSize;
+import com.mes.application.command.orderPreprocessing.sublimation.SublimationPlan;
+import com.mes.application.command.orderPreprocessing.sublimation.SublimationProcessStrategy;
 import com.mes.application.command.orderPreprocessing.vo.MaskResult;
 import com.mes.application.command.orderPreprocessing.vo.PltApiResponse;
 import com.mes.application.command.orderPreprocessing.vo.PltGenerateResult;
@@ -322,7 +324,8 @@ public class AppOrderPreprocessingService {
                 if (finalResult == null) {
                     finalResult = new ArrayList<>();
                 }
-                if (hasCurrentRectBloodResult(orderItem)
+                if (!SublimationProcessStrategy.applies(orderItem.getProcedureFlow())
+                        && hasCurrentRectBloodResult(orderItem)
                         && StringUtils.isNotBlank(orderItem.getMirrorFlagUrl())) {
                     for (ProductionPiece piece : current) {
                         MirrorConfig mirror = new MirrorConfig();
@@ -382,30 +385,40 @@ public class AppOrderPreprocessingService {
         algorithmCoreApiService.generateMaskFilesAsync(imageMaskRequest);
     }
 
-    /** 返回 false 时等待矩形缝套回调，禁止提前调用灰度转换、抠图或分切。 */
+    /** 返回 false 时等待矩形旗出血回调；热升华正反面共用同一异步提交入口。 */
     public boolean generateRectBloodIfNecessary(OrderItem orderItem) {
         String itemId = orderItem == null ? null : orderItem.getOrderItemId();
-        log.info("矩形缝套出血工艺判断开始: orderItemId={}, nodeNames={}", itemId,
-                orderItem == null || orderItem.getProcedureFlow() == null
-                        || orderItem.getProcedureFlow().getNodes() == null ? null
-                        : orderItem.getProcedureFlow().getNodes().stream().filter(Objects::nonNull)
-                                .map(ProcedureFlowNode::getNodeName).toList());
+        log.debug("矩形旗出血工艺判断: orderItemId={}", itemId);
+        SublimationPlan plan;
         RectBloodRequest request;
         try {
-            request = RectBloodRequest.fromOrderItem(orderItem);
+            plan = SublimationProcessStrategy.resolve(orderItem);
+            request = plan == null ? RectBloodRequest.fromOrderItem(orderItem)
+                    : SublimationProcessStrategy.request(orderItem, plan, false);
         } catch (RuntimeException e) {
-            log.error("矩形缝套出血工艺参数解析失败: orderItemId={}", itemId, e);
+            log.error("矩形旗出血工艺参数解析失败: orderItemId={}", itemId, e);
             throw e;
         }
         if (request == null) {
-            log.info("矩形缝套出血跳过: orderItemId={}, reason=未找到矩形旗缝套筒节点或其RECT_EDGE_SELECTION配置", itemId);
+            log.debug("矩形旗出血跳过，未命中工艺: orderItemId={}", itemId);
             return true;
         }
-        if (hasCurrentRectBloodResult(orderItem)) {
-            log.info("矩形缝套出血跳过: orderItemId={}, reason=当前生产图已为算法结果, flagUrl={}",
-                    itemId, orderItem.getRectBloodDownloadUrl());
+        boolean frontReady = hasCurrentRectBloodResult(orderItem);
+        boolean backReady = plan == null || !plan.differentBack() || hasSublimationBackResult(orderItem, plan);
+        if (frontReady && backReady) {
+            log.info("矩形旗出血跳过，使用已完成结果: orderItemId={}", itemId);
             return true;
         }
+        log.info("矩形旗出血工艺命中: orderItemId={}, strategy={}, processes={}, frontReady={}, backReady={}",
+                itemId, plan == null ? "矩形旗缝套筒" : "热升华", plan == null ? null : plan.processNames(), frontReady, backReady);
+        if (!frontReady) submitRectBlood(orderItem, request, plan == null ? null : SublimationProcessStrategy.FRONT_CALLBACK);
+        if (!backReady) submitRectBlood(orderItem, SublimationProcessStrategy.request(orderItem, plan, true),
+                SublimationProcessStrategy.BACK_CALLBACK);
+        return false;
+    }
+
+    private void submitRectBlood(OrderItem orderItem, RectBloodRequest request, String callbackType) {
+        String itemId = orderItem.getOrderItemId();
         if (StringUtils.isBlank(orderItem.getManufacturerId()) || StringUtils.isBlank(orderItem.getOrderItemId())
                 || StringUtils.isBlank(orderItem.getId())) {
             throw new IllegalArgumentException("矩形缝套出血上传路径缺少工厂ID、订单项ID或数据库_id");
@@ -417,9 +430,12 @@ public class AppOrderPreprocessingService {
                 + orderItem.getOrderItemId() + "/" + requestId + "/" + UUID.randomUUID() + ".tif");
         request.setUploadConfig(upload);
         CallbackCustomValue custom = new CallbackCustomValue();
-        custom.setId(orderItem.getOrderItemId());
+        custom.setId(callbackType == null ? orderItem.getOrderItemId()
+                : buildCallbackId(orderItem.getOrderItemId(), requestId)
+                        + (SublimationProcessStrategy.BACK_CALLBACK.equals(callbackType) ? "#" + callbackType : ""));
         custom.setOrderItemId(orderItem.getOrderItemId());
         custom.setPreprocessRequestId(requestId);
+        custom.setPresetType(callbackType);
         CallbackConfig callback = new CallbackConfig();
         String callbackUrl = rectBloodCallbackUrl;
         if (StringUtils.isBlank(callbackUrl)) {
@@ -432,6 +448,14 @@ public class AppOrderPreprocessingService {
         callback.setCallbackUrl(callbackUrl);
         callback.setCallbackCustomValue(custom);
         request.setCallbackConfig(callback);
+        String acceptedKey = callbackType == null ? null
+                : "orderPreprocessing:sublimationSubmitted:" + itemId + ":" + requestId + ":" + callbackType;
+        String submissionToken = UUID.randomUUID().toString();
+        if (acceptedKey != null && !Boolean.TRUE.equals(redisTemplate.opsForValue()
+                .setIfAbsent(acceptedKey, submissionToken, 30, TimeUnit.MINUTES))) {
+            log.info("热升华该面已受理，继续等待回调: orderItemId={}, side={}", itemId, callbackType);
+            return;
+        }
         long startedAt = System.nanoTime();
         log.info("矩形缝套出血算法提交开始: orderItemId={}, preprocessRequestId={}, imageUrl={}, bloodConfig={}, callbackUrl={}, uploadPath={}",
                 itemId, requestId, request.getImageUrl(), JSON.toJSONString(request.getBloodConfig()),
@@ -445,8 +469,9 @@ public class AppOrderPreprocessingService {
             log.info("矩形缝套出血算法已提交，等待回调: orderItemId={}, preprocessRequestId={}, code={}, message={}, elapsedMs={}",
                     itemId, requestId, accepted == null ? null : accepted.getCode(),
                     accepted == null ? null : accepted.getMessage(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
-            return false;
+            return;
         } catch (RuntimeException e) {
+            if (acceptedKey != null) releaseMaskCallbackLock(acceptedKey, submissionToken);
             log.error("矩形缝套出血算法提交失败: orderItemId={}, preprocessRequestId={}, elapsedMs={}",
                     itemId, requestId, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), e);
             throw e;
@@ -469,7 +494,9 @@ public class AppOrderPreprocessingService {
                 toMillimeters(extractUsageSizeDimension(orderItem, "getWidth", "getW", "getX")),
                 toMillimeters(extractUsageSizeDimension(orderItem, "getHeight", "getH", "getY")));
         if (!hasCurrentRectBloodResult(orderItem)) return original;
-        RectBloodRequest request = RectBloodRequest.fromOrderItem(orderItem);
+        SublimationPlan plan = SublimationProcessStrategy.resolve(orderItem);
+        RectBloodRequest request = plan == null ? RectBloodRequest.fromOrderItem(orderItem)
+                : SublimationProcessStrategy.request(orderItem, plan, false);
         if (request == null) return original;
         RectBloodRequest.BloodConfig blood = request.getBloodConfig();
         ProductionImageSize expanded = original.withRectBlood(blood.getScrollEdge().name(),
@@ -486,6 +513,29 @@ public class AppOrderPreprocessingService {
                 && Objects.equals(item.getRectBloodDownloadUrl(), item.getProductionImgFile().getRawFile());
     }
 
+    private boolean hasSublimationBackResult(OrderItem item, SublimationPlan plan) {
+        return StringUtils.isNotBlank(item.getSublimationBackDownloadUrl())
+                && Objects.equals(item.getSublimationBackSourceUrl(), plan.backImageUrl());
+    }
+
+    public boolean isSublimationReadyForStrategy(OrderItem item, SublimationPlan plan) {
+        return hasCurrentRectBloodResult(item) && (!plan.differentBack() || hasSublimationBackResult(item, plan));
+    }
+
+    private boolean acquireRectBloodCallbackLock(String key, String token) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            if (Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, token, 10, TimeUnit.MINUTES))) return true;
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("等待矩形旗出血回调锁被中断", e);
+            }
+        } while (System.nanoTime() < deadline);
+        return false;
+    }
+
     public void handleRectBloodCallback(RectBloodResponse response,
                                        java.util.function.Consumer<OrderItem> continuation) {
         if (response == null || !Integer.valueOf(200).equals(response.getCode())
@@ -495,13 +545,19 @@ public class AppOrderPreprocessingService {
             throw new IllegalArgumentException("矩形缝套出血回调失败或缺少订单项ID/正反面图片地址");
         }
         CallbackCustomValue custom = response.getData().getCallbackCustomValue();
-        CallbackIdentity identity = parseCallbackIdentity(null, custom.getId());
-        String itemId = identity.orderItemId();
+        // 新热升华请求将版本及反面标识编码到 id，仅透传 id 的算法回调也可区分两面。
+        String[] callbackParts = custom.getId().split(CALLBACK_ID_SEPARATOR, 3);
+        String itemId = callbackParts[0];
         String requestId = StringUtils.isNotBlank(custom.getPreprocessRequestId())
-                ? custom.getPreprocessRequestId() : identity.preprocessRequestId();
-        String key = "orderPreprocessing:rectBloodCallback:" + itemId + ":" + requestId;
+                ? custom.getPreprocessRequestId() : callbackParts.length > 1 ? callbackParts[1] : null;
+        boolean backCallback = SublimationProcessStrategy.BACK_CALLBACK.equals(custom.getPresetType())
+                || (callbackParts.length == 3 && SublimationProcessStrategy.BACK_CALLBACK.equals(callbackParts[2]));
+        String key = "orderPreprocessing:rectBloodCallback:" + itemId + ":" + requestId
+                + (backCallback ? ":back" : "");
+        // 两个面的回调共用订单项锁，防止完整对象写回时相互覆盖；完成标记仍按面区分。
+        String lockKey = "orderPreprocessing:rectBloodCallback:" + itemId + ":" + requestId + ":lock";
         String token = UUID.randomUUID().toString();
-        if (!Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key + ":lock", token, 10, TimeUnit.MINUTES))) {
+        if (!acquireRectBloodCallbackLock(lockKey, token)) {
             log.warn("矩形缝套出血回调未获取处理锁: orderItemId={}, preprocessRequestId={}", itemId, requestId);
             throw new RuntimeException("矩形缝套出血回调正在处理中，请重试");
         }
@@ -520,22 +576,41 @@ public class AppOrderPreprocessingService {
                         itemId, requestId, item.getPreprocessRequestId(), item.getStatus());
                 return;
             }
-            ImageFile image = item.getProductionImgFile();
-            if (image == null) {
-                image = new ImageFile();
-                item.setProductionImgFile(image);
+            SublimationPlan plan = SublimationProcessStrategy.resolve(item);
+            if (backCallback) {
+                if (plan == null || !plan.differentBack()) {
+                    throw new IllegalArgumentException("热升华反面回调与当前工艺配置不一致");
+                }
+                item.setSublimationBackDownloadUrl(response.getData().getFlagUrl());
+                item.setSublimationBackSourceUrl(plan.backImageUrl());
+                item.setMirrorFlagUrl(response.getData().getFlagUrl());
+            } else {
+                if (plan != null && plan.doubleSided() && !plan.differentBack()
+                        && StringUtils.isBlank(response.getData().getMirrorFlagUrl())) {
+                    throw new IllegalArgumentException("热升华反面相同画面缺少算法镜像图");
+                }
+                ImageFile image = item.getProductionImgFile();
+                if (image == null) {
+                    image = new ImageFile();
+                    item.setProductionImgFile(image);
+                }
+                image.setRawFile(response.getData().getFlagUrl());
+                item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
+                item.setMirrorFlagUrl(plan != null && plan.differentBack() && hasSublimationBackResult(item, plan)
+                        ? item.getSublimationBackDownloadUrl() : response.getData().getMirrorFlagUrl());
             }
-            image.setRawFile(response.getData().getFlagUrl());
-            item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
-            item.setMirrorFlagUrl(response.getData().getMirrorFlagUrl());
             orderItemService.updateOrderItem(item);
-            log.info("矩形缝套出血回调图片已保存: orderItemId={}, preprocessRequestId={}, flagUrl={}, mirrorFlagUrl={}",
-                    itemId, requestId, item.getRectBloodDownloadUrl(), item.getMirrorFlagUrl());
-            continuation.accept(item);
-            log.info("矩形缝套出血回调续处理已入队: orderItemId={}, preprocessRequestId={}", itemId, requestId);
+            log.info("矩形旗出血回调图片已保存: orderItemId={}, preprocessRequestId={}, side={}, flagUrl={}, mirrorFlagUrl={}",
+                    itemId, requestId, backCallback ? "BACK" : "FRONT", response.getData().getFlagUrl(), item.getMirrorFlagUrl());
+            if (plan == null || isSublimationReadyForStrategy(item, plan)) {
+                continuation.accept(item);
+                log.info("矩形旗出血回调续处理已入队: orderItemId={}, preprocessRequestId={}", itemId, requestId);
+            } else {
+                log.info("热升华出血回调等待另一面完成: orderItemId={}, side={}", itemId, backCallback ? "BACK" : "FRONT");
+            }
             redisTemplate.opsForValue().set(key + ":completed", true, 7, TimeUnit.DAYS);
         } finally {
-            releaseMaskCallbackLock(key + ":lock", token);
+            releaseMaskCallbackLock(lockKey, token);
         }
     }
 

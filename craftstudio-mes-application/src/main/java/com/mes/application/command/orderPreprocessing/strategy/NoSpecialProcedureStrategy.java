@@ -1,6 +1,7 @@
 package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
+import com.mes.application.command.orderPreprocessing.sublimation.SublimationProcessStrategy;
 import com.mes.application.command.orderPreprocessing.vo.ProductionImageSize;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
@@ -25,6 +26,7 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
 
     @Override
     public boolean matches(OrderItem orderItem, ProcedureFlow procedureFlow) {
+        if (SublimationProcessStrategy.applies(procedureFlow)) return false;
         boolean hasSplicingOrSpecialShape = SpliceProcessStrategies.hasSpliceNode(procedureFlow)
                 || AppOrderPreprocessingService.hasNodeWithName(procedureFlow, "异形切割");
         boolean hasDoubleSide = ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(procedureFlow);

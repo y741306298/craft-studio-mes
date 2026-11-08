@@ -37,6 +37,9 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String preprocessRequestId;
     private String colorWhiteColorDownloadUrl;
     private String mirrorFlagUrl;
+    /** 热升华反面不同画面的独立出血结果与原始来源。 */
+    private String sublimationBackDownloadUrl;
+    private String sublimationBackSourceUrl;
     /** 最近一次矩形缝套算法正面图，用于避免重复出血。 */
     private String rectBloodDownloadUrl;
     private String kuaidiWay;
@@ -74,6 +77,8 @@ public class OrderItemPo extends BasePO<OrderItem> {
         orderItem.setPreprocessRequestId(this.preprocessRequestId);
         orderItem.setColorWhiteColorDownloadUrl(this.colorWhiteColorDownloadUrl);
         orderItem.setMirrorFlagUrl(this.mirrorFlagUrl);
+        orderItem.setSublimationBackDownloadUrl(this.sublimationBackDownloadUrl);
+        orderItem.setSublimationBackSourceUrl(this.sublimationBackSourceUrl);
         orderItem.setRectBloodDownloadUrl(this.rectBloodDownloadUrl);
         orderItem.setKuaidiWay(this.kuaidiWay);
         orderItem.setKuaidiNum(this.kuaidiNum);
@@ -105,6 +110,8 @@ public class OrderItemPo extends BasePO<OrderItem> {
         this.preprocessRequestId = _do.getPreprocessRequestId();
         this.colorWhiteColorDownloadUrl = _do.getColorWhiteColorDownloadUrl();
         this.mirrorFlagUrl = _do.getMirrorFlagUrl();
+        this.sublimationBackDownloadUrl = _do.getSublimationBackDownloadUrl();
+        this.sublimationBackSourceUrl = _do.getSublimationBackSourceUrl();
         this.rectBloodDownloadUrl = _do.getRectBloodDownloadUrl();
         this.procedureFlow = _do.getProcedureFlow();
         this.kuaidiWay = _do.getKuaidiWay();
