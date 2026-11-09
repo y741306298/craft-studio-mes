@@ -11,9 +11,9 @@ import java.util.regex.Pattern;
 
 /** 热升华名称模糊匹配，后续工艺名称精确匹配；汇总后只生成一套出血参数。 */
 public final class SublimationRules {
-    private static final Set<String> SPECIAL_NAMES = Set.of("缝管套", "缝布袋管套", "单针锁边", "双针锁边",
+    private static final Set<String> SPECIAL_NAMES = Set.of("缝管套", "缝布带管套", "单针锁边", "双针锁边",
             "三线锁边", "四线锁边", "双面缝", "双面夹黑缝", "旗帜四角打扣", "旗帜打扣", "缝绑带");
-    private static final Pattern DIAMETER = Pattern.compile("(?i)(?<![0-9.])([3456])(?:\\.0+)?\\s*cm");
+    private static final Pattern DIAMETER = Pattern.compile("(?i)(?<![0-9.+-])([0-9]+(?:\\.[0-9]+)?)\\s*cm");
 
     public record Step(String name, Integer order, List<JSONObject> params) {
         public Step { params = List.copyOf(params); }
@@ -59,11 +59,11 @@ public final class SublimationRules {
             if (name == null || !SPECIAL_NAMES.contains(name)) continue;
             names.add(name);
             switch (name) {
-                case "缝管套", "缝布袋管套" -> {
+                case "缝管套", "缝布带管套" -> {
                     Set<SublimationGeometry.Edge> edges = selectedEdges(node);
                     if (edges.size() != 1) throw new IllegalArgumentException(name + "必须指定一条套筒边");
                     SublimationGeometry.Edge edge = edges.iterator().next();
-                    int width = "缝布袋管套".equals(name) ? 10 : sleeveDiameterMm(node);
+                    int width = "缝布带管套".equals(name) ? 10 : sleeveDiameterMm(node);
                     if (sleeve != null && (sleeve != edge || sleeveWidth != width)) {
                         throw new IllegalArgumentException("矩形旗出血算法仅支持一条套筒边及一种直径，缝套工艺参数冲突");
                     }
@@ -86,7 +86,7 @@ public final class SublimationRules {
                 default -> throw new IllegalStateException("未处理的热升华后续工艺：" + name);
             }
         }
-        if (sleeve == null) throw new IllegalArgumentException("热升华组合工艺必须包含缝管套或缝布袋管套");
+        if (sleeve == null) throw new IllegalArgumentException("热升华组合工艺必须包含缝管套或缝布带管套");
         // 当前仅支持矩形旗帜，不静默丢弃异形/拼接工艺。
         if (containsShapeOrSplice) {
             throw new IllegalArgumentException("热升华组合策略暂不支持异形或拼接旗帜");
@@ -114,7 +114,7 @@ public final class SublimationRules {
         return result;
     }
 
-    /** 直径从同节点 ACC 配件快照名称中的3CM/4CM/5CM/6CM读取，颜色按需求固定白色。 */
+    /** 直径从同节点 ACC 配件快照名称中的xCM读取，颜色按需求固定白色。 */
     private static int sleeveDiameterMm(Step node) {
         Integer result = null;
         for (JSONObject param : node.params()) {
@@ -124,12 +124,18 @@ public final class SublimationRules {
             if (name == null) continue;
             var matcher = DIAMETER.matcher(name);
             while (matcher.find()) {
-                int mm = Integer.parseInt(matcher.group(1)) * 10;
+                int mm;
+                try {
+                    mm = new java.math.BigDecimal(matcher.group(1)).multiply(java.math.BigDecimal.TEN).intValueExact();
+                } catch (ArithmeticException e) {
+                    throw new IllegalArgumentException("缝管套直径换算后必须为整数毫米且不能超出范围", e);
+                }
+                if (mm <= 0) throw new IllegalArgumentException("缝管套直径必须大于0");
                 if (result != null && result != mm) throw new IllegalArgumentException("缝管套配置了冲突的直径规格");
                 result = mm;
             }
         }
-        if (result == null) throw new IllegalArgumentException("缝管套 ACC 配件名称中缺少3CM/4CM/5CM/6CM直径规格");
+        if (result == null) throw new IllegalArgumentException("缝管套 ACC 配件名称中缺少有效的xCM直径规格");
         return result;
     }
 

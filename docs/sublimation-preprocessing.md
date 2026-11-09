@@ -8,8 +8,8 @@
 
 | 后续工艺 | 处理 |
 | --- | --- |
-| 缝管套 | 同节点 `paramConfigs[].param.type=ACC` 的 `param.accessorySnapshot.name` 中读取3CM/4CM/5CM/6CM；`scrollWidth` 为30/40/50/60mm |
-| 缝布袋管套 | `scrollWidth=10mm` |
+| 缝管套 | 同节点 `paramConfigs[].param.type=ACC` 的 `param.accessorySnapshot.name` 中提取xCM，`scrollWidth=x×10` 毫米。例如“牛津布白色3CM直径”取30mm，“白色3.5cm”取35mm；无需配件名称只包含数字规格 |
+| 缝布带管套 | `scrollWidth=10mm` |
 | 单针锁边 | `sewWidth=20mm` |
 | 双针锁边、三线锁边、四线锁边 | `sewWidth=30mm` |
 | 双面缝、双面夹黑缝 | 保留正反面独立资源，调用预留拼合入口，当前不合成单张图片 |
