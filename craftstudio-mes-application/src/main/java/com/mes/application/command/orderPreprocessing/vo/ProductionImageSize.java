@@ -12,6 +12,10 @@ public record ProductionImageSize(Double widthMm, Double heightMm) {
         }
         // 黑边位于外扩后矩形的四周，各边再增加 2mm。
         double border = RECT_BLOOD_BORDER_MM * 2;
+        if (scrollEdge == null) {
+            return new ProductionImageSize(widthMm + sewWidthMm * 2 + border,
+                    heightMm + sewWidthMm * 2 + border);
+        }
         return switch (scrollEdge) {
             case "LEFT", "RIGHT" -> new ProductionImageSize(
                     widthMm + scrollWidthMm + sewWidthMm + border,

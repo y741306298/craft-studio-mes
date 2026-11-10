@@ -107,9 +107,6 @@ public class AlgorithmCoreApiService {
             throw new RuntimeException("出血配置不能为空");
         }
         RectBloodRequest.BloodConfig bloodConfig = request.getBloodConfig();
-        if (bloodConfig.getScrollEdge() == null) {
-            throw new RuntimeException("卷轴边不能为空");
-        }
         if (bloodConfig.getScrollWidth() == null || bloodConfig.getScrollWidth() < 0) {
             throw new RuntimeException("卷轴宽度不能为空且不能为负数");
         }

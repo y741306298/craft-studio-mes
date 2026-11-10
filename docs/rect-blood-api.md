@@ -51,3 +51,5 @@ RectBloodResponse response = algorithmCoreApiService.generateRectBlood(request);
 
 订单项不存在、回调失败、保存或入队失败时，返回业务错误码 500，
 保存失败时不会提交后续预处理。镜像地址也会在订单项详情响应中返回。
+
+无缝套时支持 `bloodConfig.scrollEdge=null`、`scrollWidth=0`，`sewWidth` 对四边生效；MES 不再要求套筒边必填。

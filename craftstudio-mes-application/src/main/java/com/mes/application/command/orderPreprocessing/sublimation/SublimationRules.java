@@ -37,7 +37,7 @@ public final class SublimationRules {
         if (flow == null || flow.stream().noneMatch(n -> n != null
                 && n.name() != null && n.name().contains("热升华"))) return false;
         List<Step> following = followingNodes(flow);
-        // 兼容原有矩形旗缝套筒入口；只有热升华而未配置缝套的新流程会报出明确配置错误。
+        // 兼容原有矩形旗缝套筒入口；新热升华流程可以只有锁边，也可以不配置缝套。
         boolean oldRectangle = following.stream().anyMatch(n -> n.name() != null
                 && n.name().contains("矩形旗缝套筒"));
         return !oldRectangle || following.stream().anyMatch(n -> SPECIAL_NAMES.contains(n.name() == null ? "" : n.name()));
@@ -92,7 +92,6 @@ public final class SublimationRules {
                 default -> throw new IllegalStateException("未处理的热升华后续工艺：" + name);
             }
         }
-        if (sleeve == null) throw new IllegalArgumentException("热升华组合工艺必须包含缝管套或缝布带管套");
         // 当前仅支持矩形旗帜，不静默丢弃异形/拼接工艺。
         if (containsShapeOrSplice) {
             throw new IllegalArgumentException("热升华组合策略暂不支持异形或拼接旗帜");

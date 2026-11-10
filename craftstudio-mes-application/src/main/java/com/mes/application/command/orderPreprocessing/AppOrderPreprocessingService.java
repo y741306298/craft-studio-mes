@@ -499,7 +499,7 @@ public class AppOrderPreprocessingService {
                 : SublimationProcessStrategy.request(orderItem, plan, false);
         if (request == null) return original;
         RectBloodRequest.BloodConfig blood = request.getBloodConfig();
-        ProductionImageSize expanded = original.withRectBlood(blood.getScrollEdge().name(),
+        ProductionImageSize expanded = original.withRectBlood(blood.getScrollEdge() == null ? null : blood.getScrollEdge().name(),
                 blood.getScrollWidth(), blood.getSewWidth());
         log.info("矩形缝套出血尺寸重算: orderItemId={}, scrollEdge={}, scrollWidthMm={}, sewWidthMm={}, borderMm=2, originalWidthMm={}, originalHeightMm={}, widthMm={}, heightMm={}",
                 orderItem.getOrderItemId(), blood.getScrollEdge(), blood.getScrollWidth(), blood.getSewWidth(),
