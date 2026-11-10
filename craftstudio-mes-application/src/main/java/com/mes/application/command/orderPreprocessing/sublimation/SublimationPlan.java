@@ -7,7 +7,7 @@ import java.util.Set;
 public record SublimationPlan(SublimationGeometry.Edge sleeveEdge, int sleeveWidthMm, int sewWidthMm,
                               boolean cornerBuckles, Set<SublimationGeometry.Edge> buckleEdges,
                               Set<SublimationGeometry.Edge> tieEdges, SublimationDoubleSideJoin.Mode doubleSideMode,
-                              String backImageUrl, List<String> processNames) {
+                              String backImageUrl, List<String> processNames, String scrollColorHex) {
     public SublimationPlan {
         if (sleeveWidthMm < 0 || sewWidthMm < 0 || (sleeveWidthMm > 0 && sleeveEdge == null)) {
             throw new IllegalArgumentException("热升华缝套/锁边配置无效");

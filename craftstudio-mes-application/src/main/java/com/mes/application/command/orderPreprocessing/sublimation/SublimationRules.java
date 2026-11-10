@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 public final class SublimationRules {
     private static final Set<String> SPECIAL_NAMES = Set.of("缝管套", "缝布带管套", "单针锁边", "双针锁边",
             "三线锁边", "四线锁边", "双面缝", "双面夹黑缝", "旗帜四角打扣", "旗帜打扣", "缝绑带");
-    private static final Pattern DIAMETER = Pattern.compile("(?i)(?<![0-9.+-])([0-9]+(?:\\.[0-9]+)?)\\s*cm");
+    private static final Pattern SLEEVE_SPEC = Pattern.compile("^(白色|彩色)直径([0-9]+(?:\\.[0-9]+)?)\\s*cm$", Pattern.CASE_INSENSITIVE);
 
     public record Step(String name, Integer order, List<JSONObject> params) {
         public Step { params = List.copyOf(params); }
@@ -48,13 +48,15 @@ public final class SublimationRules {
         List<Step> nodes = followingNodes(allNodes);
         SublimationGeometry.Edge sleeve = null;
         int sleeveWidth = 0;
+        String sleeveColor = null;
         int sewWidth = 0;
         boolean corners = false;
         Set<SublimationGeometry.Edge> buckles = EnumSet.noneOf(SublimationGeometry.Edge.class);
         Set<SublimationGeometry.Edge> ties = EnumSet.noneOf(SublimationGeometry.Edge.class);
         SublimationDoubleSideJoin.Mode mode = SublimationDoubleSideJoin.Mode.NONE;
         List<String> names = new ArrayList<>();
-        for (Step node : nodes) {
+        for (int index = 0; index < nodes.size(); index++) {
+            Step node = nodes.get(index);
             String name = node.name();
             if (name == null || !SPECIAL_NAMES.contains(name)) continue;
             names.add(name);
@@ -63,12 +65,16 @@ public final class SublimationRules {
                     Set<SublimationGeometry.Edge> edges = selectedEdges(node);
                     if (edges.size() != 1) throw new IllegalArgumentException(name + "必须指定一条套筒边");
                     SublimationGeometry.Edge edge = edges.iterator().next();
-                    int width = "缝布带管套".equals(name) ? 10 : sleeveDiameterMm(node);
-                    if (sleeve != null && (sleeve != edge || sleeveWidth != width)) {
+                    SleeveSpec spec = "缝布带管套".equals(name) ? new SleeveSpec(10, "#ffffff")
+                            : followingSleeveSpec(nodes, index);
+                    int width = spec.widthMm();
+                    if (sleeve != null && (sleeve != edge || sleeveWidth != width
+                            || !java.util.Objects.equals(sleeveColor, spec.colorHex()))) {
                         throw new IllegalArgumentException("矩形旗出血算法仅支持一条套筒边及一种直径，缝套工艺参数冲突");
                     }
                     sleeve = edge;
                     sleeveWidth = width;
+                    sleeveColor = spec.colorHex();
                 }
                 case "单针锁边" -> sewWidth = Math.max(sewWidth, 20);
                 case "双针锁边", "三线锁边", "四线锁边" -> sewWidth = Math.max(sewWidth, 30);
@@ -92,7 +98,7 @@ public final class SublimationRules {
             throw new IllegalArgumentException("热升华组合策略暂不支持异形或拼接旗帜");
         }
         String backUrl = resolveBackImage(nodes, mode);
-        return new SublimationPlan(sleeve, sleeveWidth, sewWidth, corners, buckles, ties, mode, backUrl, names);
+        return new SublimationPlan(sleeve, sleeveWidth, sewWidth, corners, buckles, ties, mode, backUrl, names, sleeveColor);
     }
 
     /** 与矩形旗缝套筒一致，只读取 param.type=RECT_EDGE_SELECTION 下的 edges。 */
@@ -114,28 +120,31 @@ public final class SublimationRules {
         return result;
     }
 
-    /** 直径从同节点 ACC 配件快照名称中的xCM读取，颜色按需求固定白色。 */
-    private static int sleeveDiameterMm(Step node) {
-        Integer result = null;
-        for (JSONObject param : node.params()) {
-            if (!"ACC".equals(param.getString("type"))) continue;
-            JSONObject accessory = param.getJSONObject("accessorySnapshot");
-            String name = accessory == null ? null : accessory.getString("name");
+    private record SleeveSpec(int widthMm, String colorHex) { }
+
+    /** 规格是缝管套后续的独立工艺节点，不再读取配件名称。下一缝套节点开始新的作用域。 */
+    private static SleeveSpec followingSleeveSpec(List<Step> nodes, int sleeveIndex) {
+        SleeveSpec result = null;
+        for (int i = sleeveIndex + 1; i < nodes.size(); i++) {
+            String name = nodes.get(i).name();
+            if ("缝管套".equals(name) || "缝布带管套".equals(name)) break;
             if (name == null) continue;
-            var matcher = DIAMETER.matcher(name);
-            while (matcher.find()) {
-                int mm;
-                try {
-                    mm = new java.math.BigDecimal(matcher.group(1)).multiply(java.math.BigDecimal.TEN).intValueExact();
-                } catch (ArithmeticException e) {
-                    throw new IllegalArgumentException("缝管套直径换算后必须为整数毫米且不能超出范围", e);
-                }
-                if (mm <= 0) throw new IllegalArgumentException("缝管套直径必须大于0");
-                if (result != null && result != mm) throw new IllegalArgumentException("缝管套配置了冲突的直径规格");
-                result = mm;
+            var matcher = SLEEVE_SPEC.matcher(name);
+            if (!matcher.matches()) continue;
+            int mm;
+            try {
+                mm = new java.math.BigDecimal(matcher.group(2)).multiply(java.math.BigDecimal.TEN).intValueExact();
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException("缝管套直径换算后必须为整数毫米且不能超出范围", e);
             }
+            if (mm <= 0) throw new IllegalArgumentException("缝管套直径必须大于0");
+            SleeveSpec spec = new SleeveSpec(mm, "白色".equals(matcher.group(1)) ? "#ffffff" : null);
+            if (result != null && !result.equals(spec)) {
+                throw new IllegalArgumentException("缝管套后续存在冲突的直径或颜色工艺");
+            }
+            result = spec;
         }
-        if (result == null) throw new IllegalArgumentException("缝管套 ACC 配件名称中缺少有效的xCM直径规格");
+        if (result == null) throw new IllegalArgumentException("缝管套后续缺少白色直径Xcm或彩色直径Xcm工艺");
         return result;
     }
 

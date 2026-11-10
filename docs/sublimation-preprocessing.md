@@ -8,7 +8,7 @@
 
 | 后续工艺 | 处理 |
 | --- | --- |
-| 缝管套 | 同节点 `paramConfigs[].param.type=ACC` 的 `param.accessorySnapshot.name` 中提取xCM，`scrollWidth=x×10` 毫米。例如“牛津布白色3CM直径”取30mm，“白色3.5cm”取35mm；无需配件名称只包含数字规格 |
+| 缝管套 | 从后续独立工艺节点“白色直径Xcm／彩色直径Xcm”读取X；`scrollWidth=X×10` 毫米。白色的 `scrollColorHex=#ffffff`，彩色为 `null`，不再读取缝管套配件 |
 | 缝布带管套 | `scrollWidth=10mm` |
 | 单针锁边 | `sewWidth=20mm` |
 | 双针锁边、三线锁边、四线锁边 | `sewWidth=30mm` |
@@ -18,7 +18,7 @@
 | 旗帜四角打扣 | 四角扣点中心距相邻两边均20mm |
 | 旗帜打扣、缝绑带 | 按对应节点选边生成扣点或绑带点，使用独立标记key |
 
-缝套、打扣和绑带的选边与“矩形旗缝套筒”相同：从各自节点的 `param.type=RECT_EDGE_SELECTION` 读取 `param.edges` 数组，例如 `["TOP"]`。打扣/绑带可以选择多边，缝套必须是一条边。缝套颜色固定为 `#FFFFFF`。没有锁边时 `sewWidth=0`；多种锁边组合取最大的外扩值，不累加。多个缝套节点仅允许相同的边及相同的直径，冲突时报配置错误。
+缝套、打扣和绑带的选边与“矩形旗缝套筒”相同：从各自节点的 `param.type=RECT_EDGE_SELECTION` 读取 `param.edges` 数组，例如 `["TOP"]`。打扣/绑带可以选择多边，缝套必须是一条边。“缝管套”颜色由后续规格节点决定；“缝布带管套”仍固定白色、外扩10mm。没有锁边时 `sewWidth=0`；多种锁边组合取最大的外扩值，不累加。多个缝套节点仅允许相同的边及相同的直径，冲突时报配置错误。
 
 示例（仅展示 `procedureFlow.nodes`）：
 
@@ -26,11 +26,11 @@
 [
   {"nodeName":"热升华（单面布）","nodeOrder":1},
   {"nodeName":"缝管套","nodeOrder":2,"paramConfigs":[
-    {"param":{"type":"ACC","accessorySnapshot":{"name":"白色直径3CM"}}},
     {"param":{"type":"RECT_EDGE_SELECTION","edges":["TOP"]}}
   ]},
-  {"nodeName":"单针锁边","nodeOrder":3},
-  {"nodeName":"旗帜打扣","nodeOrder":4,"paramConfigs":[
+  {"nodeName":"白色直径3cm","nodeOrder":3},
+  {"nodeName":"单针锁边","nodeOrder":4},
+  {"nodeName":"旗帜打扣","nodeOrder":5,"paramConfigs":[
     {"param":{"type":"RECT_EDGE_SELECTION","edges":["LEFT","RIGHT"]}}
   ]}
 ]
@@ -75,3 +75,5 @@
 上传文件仍使用UUID文件名；回调只更新生产图 `rawFile` 和处理结果字段，保留 `filePreview.raw`。反面遮罩与正面尺寸/点位相同，但其原图分组引用反面图片，避免排版时误用正面图。
 
 `SublimationDoubleSideJoin` 是双面缝/双面夹黑缝的拼合扩展入口，当前实现只返回两面图片，`joined=false`。单面/双面材料分支及反面真实缝筒边验证均未实现。
+
+缝管套规格仅关联该节点之后、下一个缝管套/缝布带管套节点之前的规格工艺；前面的规格不生效，缺失或直径/颜色冲突时报错。支持小数厘米，但换算结果必须为算法支持的整数毫米。

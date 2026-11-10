@@ -38,7 +38,7 @@ public final class SublimationProcessStrategy {
         RectBloodRequest.BloodConfig blood = new RectBloodRequest.BloodConfig();
         blood.setScrollEdge(RectBloodRequest.ScrollEdge.valueOf(plan.sleeveEdge().name()));
         blood.setScrollWidth(plan.sleeveWidthMm());
-        blood.setScrollColorHex("#FFFFFF");
+        blood.setScrollColorHex(plan.scrollColorHex());
         blood.setSewWidth(plan.sewWidthMm());
         blood.setMirrorRequired(!back && plan.doubleSided() && !plan.differentBack());
         request.setBloodConfig(blood);
