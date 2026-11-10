@@ -569,7 +569,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
 
     private LiubaiTagImage createHorizontalLiubaiTagPng(String text, double edgeSizeMm) {
         int heightPx = convertMmToPixels(edgeSizeMm, LIUBAI_TAG_PNG_DPI);
-        int fontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
+        int baseFontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
+        int fontSize = Math.max(1, (int) Math.round(baseFontSize * liubaiTagFontScale()));
         Font font = new Font("SansSerif", Font.BOLD, fontSize);
         FontMetrics metrics = fontMetrics(font);
         int paddingPx = Math.max(4, convertMmToPixels(1D, LIUBAI_TAG_PNG_DPI));
@@ -594,6 +595,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         }
         graphics.dispose();
         return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, edgeSizeMm);
+    }
+
+    /** 工艺文字字号缩放比例，默认保持既有留白标签样式。 */
+    protected double liubaiTagFontScale() {
+        return 1D;
     }
 
     protected List<Color> liubaiTagTextColors() {

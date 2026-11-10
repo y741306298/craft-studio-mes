@@ -30,7 +30,9 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
     @Override protected String specName() { return "sublimation"; }
     @Override protected double expandMm() { return 1D; }
     @Override protected String[] matchKeywords() { return new String[0]; }
-    @Override protected List<Color> liubaiTagTextColors() { return List.of(new Color(128, 128, 128)); }
+    @Override protected double liubaiTagFontScale() { return 0.5D; }
+    // 原#808080再向白色调浅50%，得到#C0C0C0。
+    @Override protected List<Color> liubaiTagTextColors() { return List.of(new Color(192, 192, 192)); }
     @Override protected String tagMarkKeyPrefix() { return "sublimation-tag"; }
     @Override protected String buildLiubaiTagText(LiubaiProcessContext context) {
         String text = context.getProductionPiece().getProcessingFlow();
