@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.strategy.policy;
 
 import com.mes.application.command.api.req.NestingRequest;
+import com.mes.application.command.orderPreprocessing.sublimation.SublimationSvg;
 import com.mes.domain.manufacturer.procedureFlow.util.ProcedureFlowNodeMatcher;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
@@ -60,7 +61,11 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
                 NestingRequest.ElementMirrorConfig elementMirrorConfig = new NestingRequest.ElementMirrorConfig();
                 elementMirrorConfig.setImg(mirrorConfig.getImg());
                 Map<String, NestingRequest.ElementMirrorConfig> elementMirrorConfigs = new LinkedHashMap<>();
-                elementMirrorConfigs.put(piece.getId(), elementMirrorConfig);
+                // marked 元素按整体 SVG 解析，算法用 key 查找 SVG 内的具体画面分组，
+                // 不是外层元素 ID，也不是去掉 marked-nesting- 后的数据库 ID。
+                String targetId = sublimationBack && element.getId().startsWith(MARKED_NESTING_ID_PREFIX)
+                        ? SublimationSvg.originalGroupId(piece.getId()) : piece.getId();
+                elementMirrorConfigs.put(targetId, elementMirrorConfig);
                 element.setMirrorConfig(elementMirrorConfigs);
             } else if (sublimationBack) {
                 throw new IllegalArgumentException("热升华零件缺少反面图片地址：" + piece.getId());
@@ -81,7 +86,7 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
     /**
      * 带 marks 的工件在排版请求中会使用 marked-nesting-{pieceId} 作为算法元素 ID，
      * 避免回调解析 nestedSvg 时按外层和内层相同 ID 重复计数。
-     * 双面对裱镜像图仍需要按原始生产工件 ID 回填，因此这里统一还原。
+     * 先还原数据库 ID 定位生产工件；算法 mirrorConfig 的 key 再按 SVG 内画面分组单独设置。
      */
     private String normalizeElementPieceId(String elementId) {
         if (StringUtils.isBlank(elementId)) {
