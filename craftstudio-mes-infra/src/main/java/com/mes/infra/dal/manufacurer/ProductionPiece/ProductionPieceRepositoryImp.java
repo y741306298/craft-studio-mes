@@ -419,10 +419,10 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
 
     @Override
     public List<ProductionPiece> listPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
-            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            List<ProcessingFlowCondition> processNames, String orderItemId, Collection<String> orderItemIds, String routeId, Date startTime, Date endTime,
             boolean urgent, long offset, int size) {
         int pageSize = Math.max(1, size);
-        Query query = pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId, routeId,
+        Query query = pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId, orderItemIds, routeId,
                 startTime, endTime, urgent);
         query.with(Sort.by(Sort.Order.asc("createTime")))
                 .skip(Math.max(0, offset))
@@ -432,14 +432,14 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
 
     @Override
     public long countPendingTypesettingPiecesByConditions(String manufacturerId, String materialName,
-            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            List<ProcessingFlowCondition> processNames, String orderItemId, Collection<String> orderItemIds, String routeId, Date startTime, Date endTime,
             boolean urgent) {
-        return mongoTemplate.count(pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId,
+        return mongoTemplate.count(pendingTypesettingQuery(manufacturerId, materialName, processNames, orderItemId, orderItemIds,
                 routeId, startTime, endTime, urgent), ProductionPiecePo.class);
     }
 
     private Query pendingTypesettingQuery(String manufacturerId, String materialName,
-            List<ProcessingFlowCondition> processNames, String orderItemId, String routeId, Date startTime, Date endTime,
+            List<ProcessingFlowCondition> processNames, String orderItemId, Collection<String> orderItemIds, String routeId, Date startTime, Date endTime,
             boolean urgent) {
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("manufacturerId").is(manufacturerId));
@@ -463,6 +463,9 @@ public class ProductionPieceRepositoryImp extends BaseRepositoryImp<ProductionPi
         }
         if (orderItemId != null && !orderItemId.isBlank()) {
             criteriaList.add(Criteria.where("orderItemId").is(orderItemId));
+        }
+        if (orderItemIds != null) {
+            criteriaList.add(Criteria.where("orderItemId").in(orderItemIds));
         }
         if (routeId != null && !routeId.isBlank()) {
             criteriaList.add(Criteria.where("routeId").is(routeId));

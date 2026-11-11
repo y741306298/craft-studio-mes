@@ -166,9 +166,9 @@ public class ProductionPieceService {
 
     public List<ProductionPiece> findPendingTypesettingPiecesByProcessingConditions(
             String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
-            String orderItemId, String routeId, Date startTime, Date endTime, boolean urgent, long offset, int size) {
+            String orderItemId, Collection<String> orderItemIds, String routeId, Date startTime, Date endTime, boolean urgent, long offset, int size) {
         return productionPieceRepository.listPendingTypesettingPiecesByConditions(
-                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent, offset, size);
+                manufacturerId, materialName, processingName, orderItemId, orderItemIds, routeId, startTime, endTime, urgent, offset, size);
     }
 
     public List<ProductionPiece> findPendingTypesettingPiecesByOrderItemIds(
@@ -180,9 +180,9 @@ public class ProductionPieceService {
 
     public long countPendingTypesettingPiecesByProcessingConditions(
             String manufacturerId, String materialName, List<ProcessingFlowCondition> processingName,
-            String orderItemId, String routeId, Date startTime, Date endTime, boolean urgent) {
+            String orderItemId, Collection<String> orderItemIds, String routeId, Date startTime, Date endTime, boolean urgent) {
         return productionPieceRepository.countPendingTypesettingPiecesByConditions(
-                manufacturerId, materialName, processingName, orderItemId, routeId, startTime, endTime, urgent);
+                manufacturerId, materialName, processingName, orderItemId, orderItemIds, routeId, startTime, endTime, urgent);
     }
 
     public List<ProductionPiece> findCreatedBetween(

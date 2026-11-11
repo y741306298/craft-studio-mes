@@ -17,6 +17,10 @@ public class TypesettingQuery {
     private String queryType;
     private String status;
     private String materialName;
+    /** 所属订单客户名称，按普通文本包含匹配；与 orgName 同时传入时取交集。 */
+    private String customerName;
+    /** 所属订单组织名称，按普通文本包含匹配。 */
+    private String orgName;
     private List<ProcessingFlowCondition> processingName;
     private String typesettingId;
     private String orderId;

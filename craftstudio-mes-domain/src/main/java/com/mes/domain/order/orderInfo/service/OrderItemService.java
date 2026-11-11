@@ -22,6 +22,13 @@ public class OrderItemService {
     @Autowired
     private OrderItemRepository orderItemRepository;
 
+    public List<String> findItemIdsByOrderNames(String manufacturerId, String customerName, String orgName) {
+        if (StringUtils.isBlank(manufacturerId)) {
+            throw new IllegalArgumentException("manufacturerMetaId 不能为空");
+        }
+        return orderItemRepository.findItemIdsByOrderNames(manufacturerId, customerName, orgName);
+    }
+
     /**
      * 根据 ID 获取订单项
      * @param id 订单项 ID

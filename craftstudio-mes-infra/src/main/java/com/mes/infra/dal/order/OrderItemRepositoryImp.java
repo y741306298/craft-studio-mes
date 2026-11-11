@@ -12,6 +12,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import lombok.extern.slf4j.Slf4j;
 
+import org.bson.Document;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import java.util.regex.Pattern;
+import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +29,42 @@ public class OrderItemRepositoryImp extends BaseRepositoryImp<OrderItem, OrderIt
     @Override
     public Class<OrderItemPo> poClass() {
         return OrderItemPo.class;
+    }
+
+    @Override
+    public List<String> findItemIdsByOrderNames(String manufacturerId, String customerName, String orgName) {
+        Document orderMatch = new Document("deleteAt", null)
+                .append("$expr", new Document("$eq", List.of("$orderId", "$$itemOrderId")));
+        if (customerName != null && !customerName.isBlank()) {
+            orderMatch.append("customer.customerName", new Document("$regex", Pattern.quote(customerName.trim())));
+        }
+        if (orgName != null && !orgName.isBlank()) {
+            orderMatch.append("orgInfo.name", new Document("$regex", Pattern.quote(orgName.trim())));
+        }
+        // 先限制工厂，只投影关联键；订单端通过 orderId 关联，名称条件在数据库执行。
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.where("manufacturerId").is(manufacturerId).and("deleteAt").is(null)),
+                Aggregation.project("orderId", "orderItemId"),
+                context -> new Document("$lookup", new Document("from", "orderInfo")
+                        .append("let", new Document("itemOrderId", "$orderId"))
+                        .append("pipeline", List.of(new Document("$match", orderMatch),
+                                new Document("$project", new Document("_id", 1)), new Document("$limit", 1)))
+                        .append("as", "matchedOrders")),
+                Aggregation.match(Criteria.where("matchedOrders.0").exists(true)),
+                Aggregation.project("orderItemId"));
+        List<Document> matches = mongoTemplate.aggregate(aggregation, poClass(), Document.class).getMappedResults();
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (Document match : matches) {
+            Object id = match.get("_id");
+            if (id != null) {
+                ids.add(id.toString());
+            }
+            String businessId = match.getString("orderItemId");
+            if (businessId != null && !businessId.isBlank()) {
+                ids.add(businessId);
+            }
+        }
+        return new ArrayList<>(ids);
     }
 
     @Override

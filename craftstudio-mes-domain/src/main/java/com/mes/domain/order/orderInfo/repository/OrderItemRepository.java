@@ -9,6 +9,9 @@ import java.util.Collection;
 
 public interface OrderItemRepository extends BaseRepository<OrderItem> {
 
+    /** 在指定工厂的有效订单项中，关联有效订单按名称筛选，返回业务 ID 和历史主键引用。 */
+    List<String> findItemIdsByOrderNames(String manufacturerId, String customerName, String orgName);
+
     List<OrderItem> findByOrderItemIds(Collection<String> orderItemIds);
 
     /**

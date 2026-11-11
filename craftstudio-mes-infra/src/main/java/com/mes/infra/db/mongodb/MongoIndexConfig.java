@@ -26,12 +26,16 @@ public class MongoIndexConfig {
                 .on("leaseUntil", Sort.Direction.ASC).named("idx_packaging_task_lease"));
         mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("state", Sort.Direction.ASC)
                 .on("updatedAt", Sort.Direction.ASC).named("idx_packaging_task_recovery"));
+        mongoTemplate.indexOps("orderInfo").ensureIndex(new Index().on("orderId", Sort.Direction.ASC)
+                .on("deleteAt", Sort.Direction.ASC).named("idx_order_info_business_id_active"));
         ensureOrderItemIndexes();
         ensureProductionPieceIndexes();
         ensureTypesettingIndexes();
     }
 
     private void ensureOrderItemIndexes() {
+        mongoTemplate.indexOps("orderItem").ensureIndex(new Index().on("manufacturerId", Sort.Direction.ASC)
+                .on("deleteAt", Sort.Direction.ASC).named("idx_order_item_manufacturer_active"));
         mongoTemplate.indexOps("orderItem").ensureIndex(new Index().on("orderItemId", Sort.Direction.ASC)
                 .on("deleteAt", Sort.Direction.ASC).named("idx_order_item_business_id_active"));
         mongoTemplate.indexOps("orderItem")
