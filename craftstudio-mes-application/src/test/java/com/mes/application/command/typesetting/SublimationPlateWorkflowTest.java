@@ -47,8 +47,8 @@ class SublimationPlateWorkflowTest {
     void commonFlowKeepsSublimationAndBackEvenWhenPrefixDiffers() {
         AppTypesettingService service = new AppTypesettingService();
         List<ProductionPiece> pieces = List.of(
-                SublimationMirrorManifestTest.piece("one", "one.tif", "热升华（单面布）", "反面相同画面"),
-                SublimationMirrorManifestTest.piece("two", "two.tif", "热升华（双面布）", "反面不同画面"));
+                piece("one", "one.tif", "热升华（单面布）", "反面相同画面"),
+                piece("two", "two.tif", "热升华（双面布）", "反面不同画面"));
         ProcedureFlow flow = ReflectionTestUtils.invokeMethod(service, "validateAndBuildCommonProcedureFlow", pieces, List.of());
         assertTrue(ProcedureFlowNodeMatcher.hasSublimationBackImageNode(flow));
     }
@@ -73,7 +73,7 @@ class SublimationPlateWorkflowTest {
     @Test
     void ordinaryDoubleSideStillCannotBeDispatchedDirectly() {
         TypesettingInfo plate = plate("反面相同画面");
-        plate.setProcedureFlow(SublimationMirrorManifestTest.flow("双面对裱"));
+        plate.setProcedureFlow(flow("双面对裱"));
         assertThrows(RuntimeException.class, () -> ReflectionTestUtils.invokeMethod(
                 new AppTypesettingService(), "validateConfirmPrintPreconditions", plate));
     }
@@ -119,7 +119,7 @@ class SublimationPlateWorkflowTest {
         RestTemplate rest = mock(RestTemplate.class);
         when(rest.getForObject(any(URI.class), eq(byte[].class))).thenReturn(
                 "<svg xmlns='http://www.w3.org/2000/svg' width='1000' height='2000'/>".getBytes(StandardCharsets.UTF_8));
-        ProductionPiece piece = SublimationMirrorManifestTest.piece("piece", "back.tif", "热升华", "排版中", "打印中");
+        ProductionPiece piece = piece("piece", "back.tif", "热升华", "排版中", "打印中");
         piece.getProcedureFlow().getNodes().get(1).setPieceQuantity(3);
         piece.setMarks(Map.of("sublimation-border", "front-border.png"));
         when(pieces.findByIds(anyCollection())).thenReturn(Map.of("piece", piece));
@@ -186,7 +186,7 @@ class SublimationPlateWorkflowTest {
         plate.setId("front-db");
         plate.setTypesettingId("job");
         plate.setManufacturerMetaId("factory");
-        plate.setProcedureFlow(SublimationMirrorManifestTest.flow("热升华", back));
+        plate.setProcedureFlow(flow("热升华", back));
         plate.setLayoutMode(TypesettingLayoutMode.LARGE_VISION_LAYOUT.getCode());
         plate.setStatus(TypesettingStatus.CONFIRMING.getCode());
         plate.setMarks(Map.of("sublimation-border", "front-border.png"));
@@ -202,5 +202,25 @@ class SublimationPlateWorkflowTest {
         cell.setQuantity(3);
         plate.setTypesettingCells(List.of(cell));
         return plate;
+    }
+
+    static ProductionPiece piece(String id, String back, String... names) {
+        ProductionPiece piece = new ProductionPiece();
+        piece.setId(id);
+        piece.setProcedureFlow(flow(names));
+        com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig mirror = new com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig();
+        mirror.setImg(back);
+        piece.setMirrorConfigs(List.of(mirror));
+        return piece;
+    }
+
+    static ProcedureFlow flow(String... names) {
+        ProcedureFlow flow = new ProcedureFlow();
+        flow.setNodes(java.util.Arrays.stream(names).map(name -> {
+            com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode node = new com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode();
+            node.setNodeName(name);
+            return node;
+        }).toList());
+        return flow;
     }
 }
