@@ -597,6 +597,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, edgeSizeMm);
     }
 
+    /** 使用同一字体渲染规则测量文字实际长度，供同一外扩边的多个mark排布使用。 */
+    protected double measureLiubaiTagTextWidthMm(String text, double edgeSizeMm) {
+        return createHorizontalLiubaiTagPng(text, edgeSizeMm).widthMm;
+    }
+
     /** 工艺文字字号缩放比例，默认保持既有留白标签样式。 */
     protected double liubaiTagFontScale() {
         return 1D;
@@ -1394,6 +1399,10 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     protected void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets, ExpandMargins margins) {
+        updateTagMarks(piece, tagAssets, margins, tagMarkKeyPrefix());
+    }
+
+    protected void updateTagMarks(ProductionPiece piece, LiubaiTagAssets tagAssets, ExpandMargins margins, String keyPrefix) {
         if (tagAssets == null) {
             return;
         }
@@ -1403,16 +1412,16 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             piece.setMarks(marks);
         }
         if (shouldBuildLiubaiTagGroup(margins.top)) {
-            marks.put(tagMarkKeyPrefix() + "-top", tagAssets.topUrl);
+            marks.put(keyPrefix + "-top", tagAssets.topUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.right) && shouldBuildLeftRightLiubaiTagGroups()) {
-            marks.put(tagMarkKeyPrefix() + "-right", tagAssets.rightUrl);
+            marks.put(keyPrefix + "-right", tagAssets.rightUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.bottom)) {
-            marks.put(tagMarkKeyPrefix() + "-bottom", tagAssets.bottomUrl);
+            marks.put(keyPrefix + "-bottom", tagAssets.bottomUrl);
         }
         if (shouldBuildLiubaiTagGroup(margins.left) && shouldBuildLeftRightLiubaiTagGroups()) {
-            marks.put(tagMarkKeyPrefix() + "-left", tagAssets.leftUrl);
+            marks.put(keyPrefix + "-left", tagAssets.leftUrl);
         }
     }
 

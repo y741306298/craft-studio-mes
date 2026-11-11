@@ -78,3 +78,17 @@
 `SublimationDoubleSideJoin` 是双面缝/双面夹黑缝的拼合扩展入口，当前实现只返回两面图片，`joined=false`。单面/双面材料分支及反面真实缝筒边验证均未实现。
 
 缝管套规格仅关联该节点之后、下一个缝管套/缝布带管套节点之前的规格工艺；前面的规格不生效，缺失或直径/颜色冲突时报错。支持小数厘米，但换算结果必须为算法支持的整数毫米。
+
+## 订单溯源号 mark
+
+热升华组合策略额外生成独立的 `sublimation-trace-*` mark，内容为 `x-y-z`：
+
+- `x`：参考 `confirmLayout` 的PLT名称号码来源，复用 `TypesettingSequencePoolService`，新增独立用途 `sublimation_trace`，每工厂按1～10000循环，不占用PLT文件名号码。相同工厂、相同订单共用一个x，首次分配后持久化，回调重试/重处理复用。
+- `y`：获取该订单、该工厂下全部订单项（包括非热升华项），按数据库的createTime、_id升序从1开始编号。首次顺序冻结保存；新增订单项追加，既有编号不变。
+- `z`：当前orderItem的总quantity，不是每份产品的递增序号。例：x=123、y=2、quantity=3，则三份产品均为`123-2-3`，不拆分生产零件。
+
+x与订单项编号快照保存到独立MongoDB集合 `sublimation_trace_order`，不改写订单状态；按工厂使用Redis锁串行分配，避免多个订单项或多个实例同时分配同一订单身份。记录使用由工厂ID和订单ID生成的固定_id，订单范围不会串到其他工厂。
+
+溯源文字复用现有热升华工艺文字渲染，字号为初始工艺mark的50%，灰度为#C0C0C0。优先放在一条可用外扩边的末端，距相邻边10mm、避开2mm黑边，并为原工艺文字预留5mm间隔。只有黑边而无缝套/锁边外扩区域时，放在下边黑线内侧；不增加零件或遮罩宽高。正反面使用同一溯源号。
+
+mark URL存入 `productionPiece.marks` 的`sublimation-trace-top/right/bottom/left`对应键；SVG分组附带 `data-trace-code`。工艺流原有`sublimation-tag-*` mark仍保留。画面尺寸不足以按现有字号完整显示号码时明确报错，避免生成被截断的溯源号。

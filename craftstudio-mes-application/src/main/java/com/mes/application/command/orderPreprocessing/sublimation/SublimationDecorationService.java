@@ -35,6 +35,7 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
     @Override protected List<Color> liubaiTagTextColors() { return List.of(new Color(192, 192, 192)); }
     @Override protected String tagMarkKeyPrefix() { return "sublimation-tag"; }
     @Override protected String buildLiubaiTagText(LiubaiProcessContext context) {
+        if (context instanceof TraceLabelContext trace) return trace.text;
         String text = context.getProductionPiece().getProcessingFlow();
         if (text != null && !text.isBlank()) return text;
         return context.getProcedureFlow().getNodes().stream().filter(java.util.Objects::nonNull)
@@ -42,7 +43,7 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
                 .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.joining(" → "));
     }
 
-    public String decorate(OrderItem item, ProcedureFlow flow, ProductionPiece piece, SublimationPlan plan, String backUrl) {
+    public String decorate(OrderItem item, ProcedureFlow flow, ProductionPiece piece, SublimationPlan plan, String backUrl, String traceCode) {
         if (piece.getWidth() == null || piece.getHeight() == null) {
             throw new IllegalArgumentException("热升华工件缺少扩展后的宽高");
         }
@@ -54,7 +55,7 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
         if (piece.getMarks() == null) piece.setMarks(new LinkedHashMap<>());
         StringBuilder svg = new StringBuilder(SublimationSvg.open(width, height));
         svg.append(SublimationSvg.original(mongoId, item.getProductionImgFile().getRawFile(), width, height));
-        appendLabels(svg, item, flow, piece, plan, width, height);
+        appendLabels(svg, item, flow, piece, plan, width, height, traceCode);
         List<SublimationGeometry.Point> points = new ArrayList<>();
         if (plan.cornerBuckles()) points.addAll(SublimationGeometry.corners(width, height));
         for (var edge : SublimationGeometry.Edge.values()) {
@@ -81,25 +82,50 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
     }
 
     private void appendLabels(StringBuilder svg, OrderItem item, ProcedureFlow flow, ProductionPiece piece,
-                              SublimationPlan plan, double width, double height) {
+                              SublimationPlan plan, double width, double height, String traceCode) {
         var m = plan.labelMargins();
         double available = Math.max(Math.max(m.left(), m.right()), Math.max(m.top(), m.bottom()));
-        if (available <= 0) return;
-        LiubaiProcessContext context = new LiubaiProcessContext();
+        double thickness = available > 0 ? Math.min(10, available) : Math.min(10, Math.min(width, height) - 4);
+        TraceLabelContext traceContext = new TraceLabelContext(traceCode);
+        configure(traceContext, item, flow, piece);
+        double traceLength = measureLiubaiTagTextWidthMm(traceCode, thickness);
+        var placement = SublimationTracePlacement.create(width, height, m, traceLength, thickness);
+        if (available > 0) {
+            LiubaiProcessContext context = new LiubaiProcessContext();
+            configure(context, item, flow, piece);
+            var assets = uploadLiubaiTagAssets(context, piece.getProductionPieceId(), item.getManufacturerId(),
+                    placement.processMaxWidth(), placement.processMaxHeight(), thickness);
+            var margins = new ExpandMargins(m.left(), m.right(), m.top(), m.bottom());
+            svg.append(labelGroups(piece, assets, width, height, m, 0, 0));
+            updateTagMarks(piece, assets, margins);
+        }
+        var traceAssets = uploadLiubaiTagAssets(traceContext, piece.getProductionPieceId(), item.getManufacturerId(),
+                width - 4, height - 4, thickness);
+        var t = placement.margins();
+        String traceGroups = labelGroups(piece, traceAssets, width, height, t, placement.offsetX(), placement.offsetY())
+                .replace("id=\"sublimation-tag-", "id=\"sublimation-trace-");
+        svg.append("<g id=\"sublimation-trace-code-").append(escapeAttr(piece.getId())).append("-").append(escapeAttr(traceCode))
+                .append("\" data-trace-code=\"").append(escapeAttr(traceCode)).append("\">")
+                .append(traceGroups).append("</g>");
+        updateTagMarks(piece, traceAssets, new ExpandMargins(t.left(), t.right(), t.top(), t.bottom()), "sublimation-trace");
+    }
+
+    private String labelGroups(ProductionPiece piece, LiubaiTagAssets assets, double width, double height,
+                               SublimationGeometry.Margins m, double offsetX, double offsetY) {
+        return "<g transform=\"translate(" + format(m.left() + 2 + offsetX) + " " + format(m.top() + 2 + offsetY) + ")\">"
+                + buildLiubaiTagGroups(piece.getId(), assets, width - 4 - m.left() - m.right(),
+                        height - 4 - m.top() - m.bottom(), new ExpandMargins(m.left(), m.right(), m.top(), m.bottom()))
+                + "</g>";
+    }
+
+    private void configure(LiubaiProcessContext context, OrderItem item, ProcedureFlow flow, ProductionPiece piece) {
         context.setOrderItem(item);
         context.setProcedureFlow(flow);
         context.setProductionPiece(piece);
-        double thickness = Math.min(10, available);
-        var assets = uploadLiubaiTagAssets(context, piece.getProductionPieceId(), item.getManufacturerId(),
-                width - 4, height - 4, thickness);
-        var margins = new ExpandMargins(m.left(), m.right(), m.top(), m.bottom());
-        // 先平移至黑边内侧，标签靠近外扩后矩形的最外侧边，但不覆盖2mm黑线。
-        svg.append("<g transform=\"translate(").append(format(m.left() + 2)).append(" ")
-                .append(format(m.top() + 2)).append(")\">")
-                .append(buildLiubaiTagGroups(piece.getId(), assets,
-                        width - 4 - m.left() - m.right(), height - 4 - m.top() - m.bottom(), margins))
-                .append("</g>");
-        updateTagMarks(piece, assets, margins);
     }
 
+    private static final class TraceLabelContext extends LiubaiProcessContext {
+        private final String text;
+        private TraceLabelContext(String text) { this.text = text; }
+    }
 }

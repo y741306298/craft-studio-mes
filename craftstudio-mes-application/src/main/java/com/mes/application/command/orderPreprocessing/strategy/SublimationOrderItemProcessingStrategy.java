@@ -4,6 +4,7 @@ import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingServi
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationDecorationService;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationDoubleSideJoin;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationPlan;
+import com.mes.application.command.orderPreprocessing.sublimation.SublimationTraceService;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationProcessStrategy;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.productionPiece.entity.MirrorConfig;
@@ -23,11 +24,13 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
     private static final Logger log = LoggerFactory.getLogger(SublimationOrderItemProcessingStrategy.class);
     private final SublimationDecorationService decorations;
     private final OrderInfoService orders;
+    private final SublimationTraceService traces;
     private final SublimationDoubleSideJoin join = SublimationDoubleSideJoin.separateImages();
 
-    public SublimationOrderItemProcessingStrategy(SublimationDecorationService decorations, OrderInfoService orders) {
+    public SublimationOrderItemProcessingStrategy(SublimationDecorationService decorations, OrderInfoService orders, SublimationTraceService traces) {
         this.decorations = decorations;
         this.orders = orders;
+        this.traces = traces;
     }
 
     @Override public boolean matches(OrderItem item, ProcedureFlow flow) {
@@ -49,7 +52,10 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
         if (plan.doubleSided() && (backUrl == null || backUrl.isBlank())) {
             throw new IllegalStateException("热升华双面工件缺少已处理反面图片");
         }
-        String backMask = decorations.decorate(item, flow, piece, plan, backUrl);
+        var trace = traces.resolve(item);
+        String backMask = decorations.decorate(item, flow, piece, plan, backUrl, trace.code());
+        log.info("热升华订单溯源mark已生成: orderId={}, orderItemId={}, traceCode={}, itemCount={}",
+                item.getOrderId(), item.getOrderItemId(), trace.code(), trace.itemCount());
         if (plan.doubleSided()) {
             var result = join.prepare(new SublimationDoubleSideJoin.Input(item.getProductionImgFile().getRawFile(),
                     backUrl, plan.sleeveEdge(), plan.sleeveEdge(), plan.sleeveWidthMm(), plan.doubleSideMode()));
