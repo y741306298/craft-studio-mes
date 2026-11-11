@@ -1,6 +1,7 @@
 package com.mes.application.command.delivery;
 
 import com.mes.application.command.delivery.packaging.PackagingOperation;
+import com.mes.domain.delivery.deliveryRoute.vo.OrgInfo;
 import org.bson.Document;
 import com.alibaba.fastjson.JSON;
 import com.mes.application.command.delivery.req.AuthOrderRequest;
@@ -1674,6 +1675,16 @@ public class AppDeliveryPkgService {
         DeliveryPkgPieceVO firstPiece = request.getPieces().get(0).getPiece();
         OrderCustomer orderCustomer = firstPiece.getOrderCustomer();
         deliveryPkg.setRecipientName(resolveRecipientName(orderCustomer));
+        if (isCustomPackagingPresetType(presetType)
+                && orderInfo != null && "mftrial".equals(orderInfo.getPlatformCode())) {
+            // 自主打印的试用平台包裹使用收件人名称，避免修改订单自身的企业信息。
+            OrgInfo pkgOrgInfo = new OrgInfo();
+            if (orderInfo.getOrgInfo() != null) {
+                pkgOrgInfo.setOriName(orderInfo.getOrgInfo().getOriName());
+            }
+            pkgOrgInfo.setName(deliveryPkg.getRecipientName());
+            deliveryPkg.setOrgInfo(pkgOrgInfo);
+        }
         if (orderCustomer != null) {
             deliveryPkg.setRecipientPhone(orderCustomer.getCustomerPhone());
             if (orderCustomer.getAddress() != null) {
