@@ -68,6 +68,8 @@ import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingDownloadTaskData;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import com.mes.domain.order.orderInfo.service.OrderItemService;
+import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.productionPieceGenerationTask.entity.ProductionPieceGenerationTask;
 import com.mes.domain.order.productionPieceGenerationTask.service.ProductionPieceGenerationTaskService;
 import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
@@ -198,6 +200,8 @@ public class AppTypesettingService {
     private TypesettingSequencePoolService typesettingSequencePoolService;
     @Autowired
     private OrderItemService orderItemService;
+    @Autowired
+    private OrderInfoService orderInfoService;
     @Autowired
     private ProductionPieceGenerationTaskService productionPieceGenerationTaskService;
     @Autowired
@@ -413,11 +417,11 @@ public class AppTypesettingService {
     private List<TypesettingProductionPieceVO> findPendingProductionPieceItems(
             TypesettingQuery query, boolean urgent, long offset, int limit) {
         List<ProductionPiece> pieces = findPendingTypesettingProductionPieces(query, urgent, offset, limit);
-        Map<String, String> orderGroupIdCache = loadOrderGroupIds(pieces, query);
+        Map<String, OrderInfo> orders = loadOrdersForPieces(pieces);
         List<TypesettingProductionPieceVO> items = new ArrayList<>(pieces.size());
         for (ProductionPiece piece : pieces) {
             TypesettingProductionPieceVO item = TypesettingProductionPieceVO.fromProductionPiece(piece);
-            applyECommerceGroupId(item, piece, query, orderGroupIdCache);
+            applyOrderInfo(item, piece, query, orders);
             items.add(item);
         }
         return items;
@@ -519,10 +523,10 @@ public class AppTypesettingService {
                 query.getRouteId(), query.getStartTime(), query.getEndTime());
 
         List<TypesettingProductionPieceVO> items = new ArrayList<>();
-        Map<String, String> orderGroupIdCache = loadOrderGroupIds(matchedPieces, query);
+        Map<String, OrderInfo> orders = loadOrdersForPieces(matchedPieces);
         for (ProductionPiece piece : matchedPieces) {
             TypesettingProductionPieceVO vo = TypesettingProductionPieceVO.fromProductionPiece(piece);
-            applyECommerceGroupId(vo, piece, query, orderGroupIdCache);
+            applyOrderInfo(vo, piece, query, orders);
             items.add(vo);
         }
         return items;
@@ -561,53 +565,66 @@ public class AppTypesettingService {
         return candidate.trim().equals(requestTypesettingId.trim());
     }
 
-    private void applyECommerceGroupId(TypesettingProductionPieceVO vo, ProductionPiece piece, TypesettingQuery query, Map<String, String> orderGroupIdCache) {
-        if (vo == null || piece == null || query == null || !Boolean.TRUE.equals(query.getECommerceMmodel())) {
+    private void applyOrderInfo(TypesettingProductionPieceVO vo, ProductionPiece piece,
+            TypesettingQuery query, Map<String, OrderInfo> orders) {
+        if (StringUtils.isBlank(piece.getOrderItemId())) {
             return;
         }
-        String orderItemId = piece.getOrderItemId();
-        if (StringUtils.isBlank(orderItemId)) {
+        OrderInfo order = orders.get(piece.getOrderItemId().trim());
+        if (order == null) {
             return;
         }
-        String orderId = orderGroupIdCache.get(orderItemId.trim());
-        if (StringUtils.isNotBlank(orderId)) {
-            vo.setGroupId(orderId);
+        vo.setOrgInfo(order.getOrgInfo());
+        vo.setCustomer(order.getCustomer());
+        if (Boolean.TRUE.equals(query.getECommerceMmodel()) && StringUtils.isNotBlank(order.getOrderId())) {
+            vo.setGroupId(order.getOrderId());
         }
     }
 
-    /**
-     * 批量加载电商分组信息，避免为列表中的每一个工件单独查询订单项。
-     */
-    private Map<String, String> loadOrderGroupIds(List<ProductionPiece> pieces, TypesettingQuery query) {
-        if (query == null || !Boolean.TRUE.equals(query.getECommerceMmodel()) || CollectionUtils.isEmpty(pieces)) {
-            return Collections.emptyMap();
-        }
-        Set<String> orderItemIds = pieces.stream()
+    /** 批量加载订单项和订单，同时用于客户信息与电商分组，避免逐件查询。 */
+    private Map<String, OrderInfo> loadOrdersForPieces(List<ProductionPiece> pieces) {
+        Set<String> itemIds = pieces.stream()
                 .filter(Objects::nonNull)
                 .map(ProductionPiece::getOrderItemId)
                 .filter(StringUtils::isNotBlank)
                 .map(String::trim)
                 .collect(Collectors.toSet());
-        if (orderItemIds.isEmpty()) {
+        if (itemIds.isEmpty()) {
             return Collections.emptyMap();
         }
-
-        Map<String, String> orderIdsByItemId = new HashMap<>();
-        List<OrderItem> orderItems = timeMongoQuery("findOrderItemsForECommerceGroups",
-                () -> orderItemService.findByOrderItemIds(orderItemIds));
-        for (OrderItem orderItem : orderItems) {
-            if (orderItem == null) {
-                continue;
-            }
-            if (StringUtils.isNotBlank(orderItem.getOrderItemId())) {
-                orderIdsByItemId.put(orderItem.getOrderItemId().trim(), orderItem.getOrderId());
-            }
-            // 兼容历史数据中 productionPiece.orderItemId 保存 MongoDB 主键的情况。
-            if (StringUtils.isNotBlank(orderItem.getId())) {
-                orderIdsByItemId.put(orderItem.getId().trim(), orderItem.getOrderId());
+        List<OrderItem> orderItems = timeMongoQuery("findOrderItemsForTypesettingPieces",
+                () -> orderItemService.findByOrderItemIds(itemIds));
+        Set<String> orderIds = orderItems.stream().filter(Objects::nonNull)
+                .map(OrderItem::getOrderId).filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+        Map<String, OrderInfo> ordersById = new HashMap<>();
+        if (!orderIds.isEmpty()) {
+            for (OrderInfo order : timeMongoQuery("findOrdersForTypesettingPieces",
+                    () -> orderInfoService.findByOrderIds(orderIds))) {
+                if (order != null) {
+                    ordersById.put(order.getOrderId(), order);
+                }
             }
         }
-        return orderIdsByItemId;
+        Map<String, OrderInfo> result = new HashMap<>();
+        for (OrderItem item : orderItems) {
+            if (item == null) {
+                continue;
+            }
+            OrderInfo order = ordersById.get(item.getOrderId());
+            if (order == null) {
+                // 保留订单文档缺失时已有的电商分组行为。
+                order = new OrderInfo();
+                order.setOrderId(item.getOrderId());
+            }
+            if (StringUtils.isNotBlank(item.getOrderItemId())) {
+                result.put(item.getOrderItemId().trim(), order);
+            }
+            // 兼容历史数据使用 MongoDB 主键引用订单项。
+            if (StringUtils.isNotBlank(item.getId())) {
+                result.put(item.getId().trim(), order);
+            }
+        }
+        return result;
     }
 
     private <T> T timeTypesettingListStep(String stepName, Supplier<T> stepAction) {

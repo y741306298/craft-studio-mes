@@ -24,6 +24,15 @@ public class TypesettingProductionPieceVO {
 
     private String id;
 
+    /** 生产工件业务编号，仅零件来源有值。 */
+    private String productionPieceId;
+
+    /** 零件所属订单的组织信息。 */
+    private com.mes.domain.delivery.deliveryRoute.vo.OrgInfo orgInfo;
+
+    /** 零件所属订单的客户信息。 */
+    private com.mes.domain.order.orderInfo.vo.OrderCustomer customer;
+
     /**
      * 订单项Id
      */
@@ -175,6 +184,7 @@ public class TypesettingProductionPieceVO {
                 }
             }
         }
+        typesettingProductionPieceVO.setProductionPieceId(piece.getProductionPieceId());
         typesettingProductionPieceVO.setOrderItemId(piece.getOrderItemId());
         typesettingProductionPieceVO.setGroupId(piece.getOrderItemId());
         typesettingProductionPieceVO.setMaterialConfig(piece.getMaterialConfig());
