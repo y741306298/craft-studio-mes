@@ -99,7 +99,7 @@ mark URL存入 `productionPiece.marks` 的`sublimation-trace-top/right/bottom/le
 
 ## 排版与直接下发
 
-`toLayout` 保留材料一致性校验；热升华来源只能与热升华来源一起排版，且只能使用大视觉模式。该限制也覆盖来源印版。热升华零件包含“反面相同画面/反面不同画面”时，与双面对裱一样向算法元素写入 `mirrorConfig`，以零件 MongoDB `_id` 为key，读取该零件的独立反面结果；带mark元素的 `marked-nesting-` 前缀会在匹配时还原。缺少反面文件时拒绝提交，避免静默生成单面印版。
+`toLayout` 保留材料一致性校验；热升华来源只能与热升华来源一起排版，且只能使用大视觉模式。该限制也覆盖来源印版。热升华零件包含“反面相同画面/反面不同画面”时，与双面对裱一样向算法元素写入 `mirrorConfig`，读取该零件的独立反面结果。带mark的热升华整体 SVG 元素 ID 为 `marked-nesting-<MongoDB _id>`：还原数据库 ID 查找零件后，`mirrorConfig` 的key必须填写 SVG 中实际画面分组的 `sublimation-original-<MongoDB _id>`，不能填写裸数据库 ID。此规则兼容已生成的热升华 SVG，无需重新生成零件；普通非整体元素及既有双面对裱的key规则保持不变。缺少反面文件时拒绝提交，避免静默生成单面印版。
 
 公共工艺流会保留热升华及反面画面节点，即使不同热升华名称导致最长公共前缀中断，也不会丢失下发限制和反面生成条件。排版回调会清理 `nestedMirrorSvg` 中可能复制自正面的热升华mark，保留图片矩形、尺寸及排版变换。
 

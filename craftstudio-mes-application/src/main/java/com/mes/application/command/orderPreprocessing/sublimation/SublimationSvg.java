@@ -18,8 +18,13 @@ public final class SublimationSvg {
                 + "\" viewBox=\"0 0 " + number(width) + " " + number(height) + "\">";
     }
 
+    /** 整体 SVG 排版时，mirrorConfig 的 key 必须指向这个实际画面分组。 */
+    public static String originalGroupId(String pieceId) {
+        return "sublimation-original-" + pieceId;
+    }
+
     public static String original(String id, String imageUrl, double width, double height) {
-        return "<g id=\"sublimation-original-" + escape(id) + "\" img=\"" + escape(imageUrl) + "\" require-plt=\"true\">"
+        return "<g id=\"" + escape(originalGroupId(id)) + "\" img=\"" + escape(imageUrl) + "\" require-plt=\"true\">"
                 + "<path d=\"M0 0 H" + number(width) + " V" + number(height) + " H0 Z\" fill=\"#000000\"/></g>";
     }
 

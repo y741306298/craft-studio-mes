@@ -34,7 +34,7 @@ public class NestingRequest {
         private String id;
         private String img;
         /**
-         * 双面对裱配置，key 为生产工件的 MongoDB _id。
+         * 反面配置。普通元素使用零件 ID；整体 SVG 元素使用其内部实际画面分组 ID。
          */
         private Map<String, ElementMirrorConfig> mirrorConfig;
         /**

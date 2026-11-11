@@ -11,6 +11,29 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SublimationSvgTest {
     @Test
+    void nestingMirrorKeyFindsExistingSublimationImageGroup() throws Exception {
+        String pieceId = "6af4818cc8b810d8ca646365";
+        String svg = SublimationSvg.open(1044, 2074)
+                + SublimationSvg.original(pieceId, "front.tif", 1044, 2074)
+                + SublimationSvg.border(pieceId, "border.png", 1044, 2074) + "</svg>";
+        Element root = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new ByteArrayInputStream(svg.getBytes(StandardCharsets.UTF_8))).getDocumentElement();
+        var groups = root.getElementsByTagName("g");
+        String key = SublimationSvg.originalGroupId(pieceId);
+        assertEquals("sublimation-original-" + pieceId, key);
+        int targets = 0;
+        for (int i = 0; i < groups.getLength(); i++) {
+            Element group = (Element) groups.item(i);
+            assertNotEquals(pieceId, group.getAttribute("id"), "旧的裸ID不是SVG内部画面分组ID");
+            if (key.equals(group.getAttribute("id"))) {
+                assertEquals("front.tif", group.getAttribute("img"));
+                targets++;
+            }
+        }
+        assertEquals(1, targets);
+    }
+
+    @Test
     void backSvgContainsOnlyExpandedBackImageWithoutMarks() throws Exception {
         String url = "https://example.test/back.tif?a=1&b=2";
         String svg = SublimationSvg.forBack("piece", url, 1044, 2074);
