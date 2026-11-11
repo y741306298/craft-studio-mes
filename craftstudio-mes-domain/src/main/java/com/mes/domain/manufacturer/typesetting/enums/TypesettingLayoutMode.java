@@ -226,7 +226,7 @@ public enum TypesettingLayoutMode {
     /** 裁赋开背 A30pro 不覆膜，沿用开背套版规则，输出 json/svg。 */
     XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM(
             "xy_cutting_aux_line_caifu_open_back_a30pro_no_film",
-            "裁赋开背A30pro不覆膜",
+            "xy切割(切割辅助线-裁赋开背A30pro不覆膜）",
             "vertical_typesetting",
             true, false, true,
             "side_aux_line",
