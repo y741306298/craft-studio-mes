@@ -85,22 +85,31 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
                               SublimationPlan plan, double width, double height, String traceCode) {
         var m = plan.labelMargins();
         double available = Math.max(Math.max(m.left(), m.right()), Math.max(m.top(), m.bottom()));
-        double thickness = available > 0 ? Math.min(10, available) : Math.min(10, Math.min(width, height) - 4);
-        TraceLabelContext traceContext = new TraceLabelContext(traceCode);
-        configure(traceContext, item, flow, piece);
-        double traceLength = measureLiubaiTagTextWidthMm(traceCode, thickness);
-        var placement = SublimationTracePlacement.create(width, height, m, traceLength, thickness);
+        double thickness = Math.min(10, available);
+        SublimationTracePlacement placement = null;
+        TraceLabelContext traceContext = null;
+        double traceThickness = 0;
+        if (plan.sleeveEdge() != null && traceCode != null) {
+            traceThickness = Math.min(10, plan.sleeveWidthMm());
+            traceContext = new TraceLabelContext(traceCode);
+            configure(traceContext, item, flow, piece);
+            double traceLength = measureLiubaiTagTextWidthMm(traceCode, traceThickness);
+            placement = SublimationTracePlacement.create(width, height, plan.sleeveEdge(), traceLength,
+                    traceThickness, plan.sewWidthMm() == 0);
+        }
         if (available > 0) {
             LiubaiProcessContext context = new LiubaiProcessContext();
             configure(context, item, flow, piece);
             var assets = uploadLiubaiTagAssets(context, piece.getProductionPieceId(), item.getManufacturerId(),
-                    placement.processMaxWidth(), placement.processMaxHeight(), thickness);
+                    placement == null ? width - 4 : placement.processMaxWidth(),
+                    placement == null ? height - 4 : placement.processMaxHeight(), thickness);
             var margins = new ExpandMargins(m.left(), m.right(), m.top(), m.bottom());
             svg.append(labelGroups(piece, assets, width, height, m, 0, 0));
             updateTagMarks(piece, assets, margins);
         }
+        if (placement == null) return;
         var traceAssets = uploadLiubaiTagAssets(traceContext, piece.getProductionPieceId(), item.getManufacturerId(),
-                width - 4, height - 4, thickness);
+                width - 4, height - 4, traceThickness);
         var t = placement.margins();
         String traceGroups = labelGroups(piece, traceAssets, width, height, t, placement.offsetX(), placement.offsetY())
                 .replace("id=\"sublimation-tag-", "id=\"sublimation-trace-");

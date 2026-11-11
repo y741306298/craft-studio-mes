@@ -52,10 +52,14 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
         if (plan.doubleSided() && (backUrl == null || backUrl.isBlank())) {
             throw new IllegalStateException("热升华双面工件缺少已处理反面图片");
         }
-        var trace = traces.resolve(item);
-        String backMask = decorations.decorate(item, flow, piece, plan, backUrl, trace.code());
-        log.info("热升华订单溯源mark已生成: orderId={}, orderItemId={}, traceCode={}, itemCount={}",
-                item.getOrderId(), item.getOrderItemId(), trace.code(), trace.itemCount());
+        var trace = plan.sleeveEdge() == null ? null : traces.resolve(item);
+        String backMask = decorations.decorate(item, flow, piece, plan, backUrl, trace == null ? null : trace.code());
+        if (trace != null) {
+            log.info("热升华订单溯源mark已生成: orderId={}, orderItemId={}, traceCode={}, itemCount={}",
+                    item.getOrderId(), item.getOrderItemId(), trace.code(), trace.itemCount());
+        } else {
+            log.info("热升华订单溯源mark跳过，无缝管套/缝布带管套: orderItemId={}", item.getOrderItemId());
+        }
         if (plan.doubleSided()) {
             var result = join.prepare(new SublimationDoubleSideJoin.Input(item.getProductionImgFile().getRawFile(),
                     backUrl, plan.sleeveEdge(), plan.sleeveEdge(), plan.sleeveWidthMm(), plan.doubleSideMode()));
