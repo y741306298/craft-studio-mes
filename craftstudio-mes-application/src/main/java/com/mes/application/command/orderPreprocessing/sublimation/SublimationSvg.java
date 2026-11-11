@@ -23,6 +23,11 @@ public final class SublimationSvg {
                 + "<path d=\"M0 0 H" + number(width) + " V" + number(height) + " H0 Z\" fill=\"#000000\"/></g>";
     }
 
+    /** 反面不带任何 mark，仅包含独立出血图片的完整矩形。 */
+    public static String forBack(String id, String backUrl, double width, double height) {
+        return open(width, height) + original(id, backUrl, width, height) + "</svg>";
+    }
+
     public static String pointKey(SublimationGeometry.Point point) {
         return "sublimation-" + point.kind().name().toLowerCase(java.util.Locale.ROOT) + "-" + point.key();
     }
@@ -40,11 +45,6 @@ public final class SublimationSvg {
                 + "\" require-plt=\"false\" data-forme=\"false\">"
                 + "<path d=\"M0 0 H" + number(width) + " V" + number(height) + " H0 Z M2 2 H"
                 + number(width - 2) + " V" + number(height - 2) + " H2 Z\" fill=\"#000000\" fill-rule=\"evenodd\"/></g>";
-    }
-
-    public static String forBack(String svg, String id, String frontUrl, String backUrl) {
-        String source = "id=\"sublimation-original-" + escape(id) + "\" img=\"";
-        return svg.replace(source + escape(frontUrl) + "\"", source + escape(backUrl) + "\"");
     }
 
     public static byte[] borderPng(double width, double height) {

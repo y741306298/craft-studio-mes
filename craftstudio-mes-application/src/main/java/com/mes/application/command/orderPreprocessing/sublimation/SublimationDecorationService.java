@@ -76,8 +76,8 @@ public class SublimationDecorationService extends AbstractFixedLiubaiProcessStra
         String mask = uploads.uploadTagSvg(pieceId, svg.toString().getBytes(StandardCharsets.UTF_8), dir);
         updateMaskImageFile(piece, mask);
         if (backUrl == null || backUrl.isBlank()) return null;
-        // 反面遮罩复用相同尺寸/点位，但原图分组必须引用真实反面图，不能引用正面图。
-        String backSvg = SublimationSvg.forBack(svg.toString(), mongoId, item.getProductionImgFile().getRawFile(), backUrl);
+        // 反面只保留扩张后的图片矩形，不复制扣点、绑带、工艺文字或黑边等 mark。
+        String backSvg = SublimationSvg.forBack(mongoId, backUrl, width, height);
         return uploads.uploadTagSvg(pieceId, backSvg.getBytes(StandardCharsets.UTF_8), dir);
     }
 

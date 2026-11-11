@@ -14,17 +14,22 @@ import org.springframework.stereotype.Service;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 双面对裱镜像印版策略：
- * 仅当排版元素全部为零件、存在“双面对裱”或“覆双面”节点，且 nestedMirrorSvg 存在时触发。
+ * 双面对裱类首次排版、或带反面画面的热升华排版，使用 nestedMirrorSvg 生成对应反面印版。
  */
 @Service
 public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrategy {
     @Override
     public boolean supports(TypesettingInfo info) {
+        if (info == null || isMirror(info)) return false;
+        if (ProcedureFlowNodeMatcher.hasSublimationNode(info.getProcedureFlow())) {
+            return ProcedureFlowNodeMatcher.hasSublimationBackImageNode(info.getProcedureFlow());
+        }
         return allCellsAreProductionPieces(info) && hasDoubleSideMounting(info);
     }
 
@@ -40,8 +45,16 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
         restoreMissingProcedureFlowNodes(origin, mirror);
         mirror.setId(null);
         mirror.setTypesettingId(buildMirrorTypesettingId(origin));
-        mirror.setLayoutMode(TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT.getCode());
+        boolean sublimation = ProcedureFlowNodeMatcher.hasSublimationNode(origin.getProcedureFlow());
+        mirror.setLayoutMode((sublimation ? TypesettingLayoutMode.LARGE_VISION_LAYOUT
+                : TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT).getCode());
+        mirror.applyLayoutModeConfig();
         mirror.getElement().setNestedSvg(origin.getElement().getNestedMirrorSvg());
+        if (sublimation) {
+            // 反面保留原材料与尺寸，不复制正面工艺 mark，也不采用双面对裱的标签/留边模式。
+            mirror.setMarks(new LinkedHashMap<>());
+            return mirror;
+        }
         preserveOriginalMaterial(mirror, origin.getMaterialConfig());
         MaterialConfig mirrorMaterialConfig = buildMirrorMaterialConfig(origin.getProcedureFlow(), origin.getMaterialConfig());
         if (mirrorMaterialConfig != null) {
@@ -238,5 +251,10 @@ public class DoubleSideMountingMirrorFormeStrategy implements MirrorFormeStrateg
 
     private boolean hasDoubleSideMounting(TypesettingInfo info) {
         return info != null && ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(info.getProcedureFlow());
+    }
+
+    private boolean isMirror(TypesettingInfo info) {
+        return info != null && ((info.getTypesettingId() != null && info.getTypesettingId().endsWith("-Mirror"))
+                || (info.getId() != null && info.getId().endsWith("-Mirror")));
     }
 }

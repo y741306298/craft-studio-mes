@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * “双面对裱”策略：为存在镜像原图的零件拼接算法镜像配置。
+ * 为双面对裱及带反面画面的热升华零件匹配算法反面配置。
  */
 @Component
 public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
@@ -45,7 +45,14 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
                 continue;
             }
             ProductionPiece piece = findPieceById(productionPieces, element.getId());
+            if (piece != null && ProcedureFlowNodeMatcher.hasSublimationNode(piece.getProcedureFlow())
+                    && !ProcedureFlowNodeMatcher.hasSublimationBackImageNode(piece.getProcedureFlow())) {
+                continue;
+            }
+            boolean sublimationBack = piece != null
+                    && ProcedureFlowNodeMatcher.hasSublimationBackImageNode(piece.getProcedureFlow());
             if (piece == null || piece.getMirrorConfigs() == null || piece.getMirrorConfigs().isEmpty()) {
+                if (sublimationBack) throw new IllegalArgumentException("热升华零件缺少反面文件：" + piece.getId());
                 continue;
             }
             MirrorConfig mirrorConfig = piece.getMirrorConfigs().get(0);
@@ -55,6 +62,8 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
                 Map<String, NestingRequest.ElementMirrorConfig> elementMirrorConfigs = new LinkedHashMap<>();
                 elementMirrorConfigs.put(piece.getId(), elementMirrorConfig);
                 element.setMirrorConfig(elementMirrorConfigs);
+            } else if (sublimationBack) {
+                throw new IllegalArgumentException("热升华零件缺少反面图片地址：" + piece.getId());
             }
         }
     }
@@ -87,7 +96,8 @@ public class DoubleSideMountingManifestPolicy implements NestingManifestPolicy {
     private boolean hasDoubleSideMounting(List<ProductionPiece> productionPieces) {
         if (productionPieces != null) {
             for (ProductionPiece piece : productionPieces) {
-                if (piece != null && ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow())) {
+                if (piece != null && (ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(piece.getProcedureFlow())
+                        || ProcedureFlowNodeMatcher.hasSublimationBackImageNode(piece.getProcedureFlow()))) {
                     return true;
                 }
             }

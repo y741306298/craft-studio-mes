@@ -3,11 +3,13 @@ package com.mes.application.command.orderPreprocessing.sublimation;
 import java.util.List;
 import java.util.Set;
 
-/** 将各后续工艺合并为一次矩形出血和一次矩形零件装饰所需的数据。 */
+/** 汇总正反面独立矩形出血和正面零件装饰所需的数据。 */
 public record SublimationPlan(SublimationGeometry.Edge sleeveEdge, int sleeveWidthMm, int sewWidthMm,
                               boolean cornerBuckles, Set<SublimationGeometry.Edge> buckleEdges,
-                              Set<SublimationGeometry.Edge> tieEdges, SublimationDoubleSideJoin.Mode doubleSideMode,
+                              Set<SublimationGeometry.Edge> tieEdges, BackImageMode backImageMode,
                               String backImageUrl, List<String> processNames, String scrollColorHex) {
+    public enum BackImageMode { NONE, SAME, DIFFERENT }
+
     public SublimationPlan {
         if (sleeveWidthMm < 0 || sewWidthMm < 0 || (sleeveWidthMm > 0 && sleeveEdge == null)) {
             throw new IllegalArgumentException("热升华缝套/锁边配置无效");
@@ -32,11 +34,12 @@ public record SublimationPlan(SublimationGeometry.Edge sleeveEdge, int sleeveWid
         return margins();
     }
 
-    public boolean differentBack() {
-        return doubleSided() && backImageUrl != null && !backImageUrl.isBlank();
+    public SublimationPlan withBackImageUrl(String url) {
+        return new SublimationPlan(sleeveEdge, sleeveWidthMm, sewWidthMm, cornerBuckles, buckleEdges,
+                tieEdges, backImageMode, url, processNames, scrollColorHex);
     }
 
     public boolean doubleSided() {
-        return doubleSideMode != SublimationDoubleSideJoin.Mode.NONE;
+        return backImageMode != BackImageMode.NONE;
     }
 }

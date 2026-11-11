@@ -21,6 +21,7 @@ import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
 import com.mes.application.command.typesetting.service.MarkedNestingElementService;
+import com.mes.application.command.typesetting.service.SublimationMirrorSvgCleaner;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -1858,10 +1859,10 @@ public class AppTypesettingService {
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
                 FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
-                        TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                        TypesettingLayoutMode.fromCode(mirrorTypesettingInfo.getLayoutMode()),
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+                // 同步构建器回填的资源；热升华反面保持无 mark。
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
                 String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
@@ -1885,6 +1886,9 @@ public class AppTypesettingService {
 
     private void validateConfirmLayoutPreconditions(TypesettingInfo typesettingInfo) {
         try {
+            if (isSublimationTypesetting(typesettingInfo)) {
+                throw new IllegalArgumentException("热升华印版不允许确认排版，必须直接下发");
+            }
             ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认排版");
             validateNoSecondaryTypesettingCells(typesettingInfo);
         } catch (IllegalArgumentException | IllegalStateException e) {
@@ -3109,6 +3113,9 @@ public class AppTypesettingService {
             TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
                     StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
             );
+            if (isSublimationTypesetting(typesettingInfo) && layoutMode != TypesettingLayoutMode.LARGE_VISION_LAYOUT) {
+                throw new TypesettingPreAlgorithmValidationException("热升华印版只允许使用大视觉排版直接下发");
+            }
             if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
                 throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
             }
@@ -3119,6 +3126,11 @@ public class AppTypesettingService {
             FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:PRINT:" + request.getDeviceCode();
             TypesettingInfo mirrorTypesettingInfo = resolveMirrorTypesettingInfo(typesettingInfo);
+            if (!isMirrorTypesettingInfo(typesettingInfo)
+                    && ProcedureFlowNodeMatcher.hasSublimationBackImageNode(typesettingInfo.getProcedureFlow())
+                    && mirrorTypesettingInfo == null) {
+                throw new TypesettingPreAlgorithmValidationException("热升华反面印版未能生成，无法直接下发");
+            }
             if (mirrorTypesettingInfo != null) {
                 if (mirrorTypesettingInfo.getElement() != null && StringUtils.isNotBlank(mirrorTypesettingInfo.getElement().getNestedMirrorSvg())) {
                     mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
@@ -3131,10 +3143,10 @@ public class AppTypesettingService {
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
                 FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
-                        TypesettingLayoutMode.DOUBLE_SIDE_MOUNTING_LAYOUT,
+                        TypesettingLayoutMode.fromCode(mirrorTypesettingInfo.getLayoutMode()),
                         resolveMirrorFormeBusinessId(mirrorTypesettingInfo, businessId)
                 );
-                // 镜像印版由 DoubleSideMountingLayoutBuildService 回填了 marks，这里同步落库
+                // 同步构建器回填的资源；热升华反面保持无 mark。
                 mergeExistingMarksBeforeUpdate(mirrorTypesettingInfo);
                 domainTypesettingService.updateTypesetting(mirrorTypesettingInfo);
                 String mirrorFormeRequestJson = JSON.toJSONString(mirrorFormeRequest);
@@ -3178,6 +3190,12 @@ public class AppTypesettingService {
         try {
             ensureTypesettingStatus(typesettingInfo, TypesettingStatus.CONFIRMING, "只有待确认的排版记录才能确认打印");
             validateConfirmPrintForDoubleSideMirror(typesettingInfo);
+            if (!isMirrorTypesettingInfo(typesettingInfo)
+                    && ProcedureFlowNodeMatcher.hasSublimationBackImageNode(typesettingInfo.getProcedureFlow())
+                    && (typesettingInfo.getElement() == null
+                    || StringUtils.isBlank(typesettingInfo.getElement().getNestedMirrorSvg()))) {
+                throw new IllegalArgumentException("热升华印版缺少反面排版文件，无法直接下发");
+            }
         } catch (RuntimeException e) {
             throw new TypesettingPreAlgorithmValidationException(e.getMessage(), e);
         }
@@ -3185,6 +3203,9 @@ public class AppTypesettingService {
 
     private void validateConfirmPrintForDoubleSideMirror(TypesettingInfo typesettingInfo) {
         if (typesettingInfo == null) {
+            return;
+        }
+        if (isSublimationTypesetting(typesettingInfo)) {
             return;
         }
         boolean hasDoubleSideMirrorProcedure = ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(typesettingInfo.getProcedureFlow())
@@ -3198,6 +3219,11 @@ public class AppTypesettingService {
     private boolean containsDoubleSideMirrorKeyword(String processingFlow) {
         return StringUtils.isNotBlank(processingFlow)
                 && ProcedureFlowNodeMatcher.containsDoubleSideMountingKeyword(processingFlow);
+    }
+
+    private boolean isSublimationTypesetting(TypesettingInfo info) {
+        return info != null && (ProcedureFlowNodeMatcher.hasSublimationNode(info.getProcedureFlow())
+                || (StringUtils.isNotBlank(info.getProcessingFlow()) && info.getProcessingFlow().contains("热升华")));
     }
 
     private boolean isAllPartCompositionTypesetting(TypesettingInfo typesettingInfo) {
@@ -3690,6 +3716,9 @@ public class AppTypesettingService {
 
     private Map<String, String> collectTypesettingMarks(TypesettingInfo rootTypesettingInfo) {
         LinkedHashMap<String, String> marks = new LinkedHashMap<>();
+        if (isSublimationTypesetting(rootTypesettingInfo) && isMirrorTypesettingInfo(rootTypesettingInfo)) {
+            return marks;
+        }
         collectTypesettingMarksRecursive(rootTypesettingInfo, marks, new HashSet<>());
         return marks;
     }
@@ -3758,6 +3787,9 @@ public class AppTypesettingService {
         // 不能只依赖排版记录上的汇总 marks：历史排版记录或回调前创建的记录可能尚未回填该字段。
         // 打印任务以实际参与排版的零件为准，直接补齐零件自身的 mark 资源，保证下载端拿到完整文件集。
         for (ProductionPiece sourcePiece : sourcePieces) {
+            if (isSublimationTypesetting(rootTypesettingInfo) && isMirrorTypesettingInfo(rootTypesettingInfo)) {
+                break;
+            }
             if (sourcePiece.getMarks() == null || sourcePiece.getMarks().isEmpty()) {
                 continue;
             }
@@ -4501,7 +4533,7 @@ public class AppTypesettingService {
         productionPieces.forEach(piece -> flows.add(piece.getProcedureFlow()));
         typesettingInfos.forEach(info -> flows.add(info.getProcedureFlow()));
         long sublimationCount = flows.stream()
-                .filter(flow -> ProcedureFlowNodeMatcher.hasAnyNodeNameContaining(flow, "热升华"))
+                .filter(ProcedureFlowNodeMatcher::hasSublimationNode)
                 .count();
         if (sublimationCount == 0) {
             return "PASS";
@@ -4607,14 +4639,19 @@ public class AppTypesettingService {
             String completeUrl = buildCompleteOssUrl(nestedMirrorSvg);
             byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
             if (svgBytes == null || svgBytes.length == 0) {
+                if (isSublimationTypesetting(typesettingInfo)) {
+                    throw new IllegalStateException("热升华反面排版 SVG 为空");
+                }
                 return nestedMirrorSvg;
             }
             String svgContent = new String(svgBytes, StandardCharsets.UTF_8);
-            Matcher matcher = SPLICE_MARK_GROUP_PATTERN.matcher(svgContent);
-            if (!matcher.find()) {
+            String sanitizedSvg = SPLICE_MARK_GROUP_PATTERN.matcher(svgContent).replaceAll("");
+            if (isSublimationTypesetting(typesettingInfo)) {
+                sanitizedSvg = SublimationMirrorSvgCleaner.clean(sanitizedSvg);
+            }
+            if (sanitizedSvg.equals(svgContent)) {
                 return nestedMirrorSvg;
             }
-            String sanitizedSvg = matcher.replaceAll("");
             String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
                     ? typesettingInfo.getTypesettingId()
                     : typesettingInfo.getId();
@@ -4625,6 +4662,9 @@ public class AppTypesettingService {
             String uploadPath = "typesetting/" + manufacturerMetaId + "/nested-mirror-clean/" + businessId + "/";
             return ossTagUploadService.uploadTagSvg(businessId, sanitizedSvg.getBytes(StandardCharsets.UTF_8), uploadPath, safeTemplateCode + ".svg");
         } catch (Exception e) {
+            if (isSublimationTypesetting(typesettingInfo)) {
+                throw new IllegalStateException("清理热升华反面排版 mark 失败", e);
+            }
             log.warn("清理 nestedMirrorSvg 拼接 mark 失败，继续使用原始 mirror SVG: typesettingId={}, nestedMirrorSvg={}, error={}",
                     typesettingInfo == null ? null : typesettingInfo.getTypesettingId(), nestedMirrorSvg, e.getMessage());
             return nestedMirrorSvg;
@@ -4970,7 +5010,7 @@ public class AppTypesettingService {
         return null;
     }
 
-    /** 保留来源中的双面工艺完整描述，并确保结构化节点在文本工艺流中也有对应项。 */
+    /** 保留双面及热升华工艺描述，确保结构化节点在文本工艺流中也有对应项。 */
     private String appendDoubleSideProcessingFlow(String processingFlow,
                                                   List<ProductionPiece> productionPieces,
                                                   List<TypesettingInfo> typesettingInfos,
@@ -4998,7 +5038,7 @@ public class AppTypesettingService {
         }
         if (procedureFlow != null && procedureFlow.getNodes() != null) {
             for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-                if (node != null && ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName())
+                if (isRetainedPlateProcedureNode(procedureFlow, node)
                         && segments.stream().noneMatch(segment -> segment.contains(node.getNodeName()))) {
                     segments.add(node.getNodeName());
                 }
@@ -5027,7 +5067,7 @@ public class AppTypesettingService {
      * 3) 如果存在“覆板”，其 paramConfigs 也必须一致；
      * 4) 校验通过后，按节点顺序提取所有来源工序流的最长公共前缀；
      * 5) 如果本次所有来源都包含“覆膜”、“不覆膜”或“覆板”工艺，则生成的排版工序流必须保留对应节点；
-     * 6) 来源中的双面对裱、覆双面、双面喷节点直接保留，避免公共前缀截断后丢失反面生成条件。
+     * 6) 保留双面对裱类节点及热升华/反面画面节点，避免公共前缀截断后丢失下发限制或反面生成条件。
      */
     private ProcedureFlow validateAndBuildCommonProcedureFlow(List<ProductionPiece> productionPieces, List<TypesettingInfo> typesettingInfos) {
         List<ProcedureFlow> procedureFlows = new ArrayList<>();
@@ -5078,7 +5118,7 @@ public class AppTypesettingService {
                 continue;
             }
             for (ProcedureFlowNode node : flow.getNodes()) {
-                if (node != null && ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName())
+                if (isRetainedPlateProcedureNode(flow, node)
                         && commonNodes.stream().noneMatch(existing -> isSameNode(existing, node))) {
                     commonNodes.add(node);
                 }
@@ -5091,6 +5131,14 @@ public class AppTypesettingService {
         result.setNodes(new ArrayList<>(commonNodes));
         result.setTotalNodes(commonNodes.size());
         return result;
+    }
+
+    private boolean isRetainedPlateProcedureNode(ProcedureFlow flow, ProcedureFlowNode node) {
+        if (node == null || node.getNodeName() == null) return false;
+        return ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(node.getNodeName())
+                || (ProcedureFlowNodeMatcher.hasSublimationNode(flow)
+                && (node.getNodeName().contains("热升华")
+                || ProcedureFlowNodeMatcher.isSublimationBackImageNodeName(node.getNodeName())));
     }
 
     /**
@@ -5556,6 +5604,10 @@ public class AppTypesettingService {
      * 说明：仅用于落库数据合并；不会改写 formeRequest 的 marks 拼接来源。
      */
     private void mergeExistingMarksBeforeUpdate(TypesettingInfo target) {
+        if (isSublimationTypesetting(target) && isMirrorTypesettingInfo(target)) {
+            target.setMarks(new LinkedHashMap<>());
+            return;
+        }
         if (target == null || StringUtils.isBlank(target.getId())) {
             return;
         }

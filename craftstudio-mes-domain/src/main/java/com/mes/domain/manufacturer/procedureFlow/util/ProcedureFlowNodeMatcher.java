@@ -26,6 +26,20 @@ public final class ProcedureFlowNodeMatcher {
     private ProcedureFlowNodeMatcher() {
     }
 
+    public static boolean hasSublimationNode(ProcedureFlow flow) {
+        return hasAnyNodeNameContaining(flow, "热升华");
+    }
+
+    public static boolean isSublimationBackImageNodeName(String name) {
+        return "反面相同画面".equals(name) || "反面不同画面".equals(name);
+    }
+
+    /** 排版反面资源由画面节点触发，不改变既有双面对裱工艺的识别语义。 */
+    public static boolean hasSublimationBackImageNode(ProcedureFlow flow) {
+        return hasSublimationNode(flow) && flow.getNodes().stream()
+                .anyMatch(node -> node != null && isSublimationBackImageNodeName(node.getNodeName()));
+    }
+
     public static boolean hasDoubleSideMountingNode(ProcedureFlow procedureFlow) {
         return hasAnyNodeNameContaining(procedureFlow,
                 DOUBLE_SIDE_MOUNTING_KEYWORD,

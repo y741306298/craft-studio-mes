@@ -37,7 +37,7 @@ public class OrderItemPo extends BasePO<OrderItem> {
     private String preprocessRequestId;
     private String colorWhiteColorDownloadUrl;
     private String mirrorFlagUrl;
-    /** 热升华反面不同画面的独立出血结果与原始来源。 */
+    /** 热升华反面画面的独立出血结果与原始来源（相同画面也独立出血）。 */
     private String sublimationBackDownloadUrl;
     private String sublimationBackSourceUrl;
     /** 最近一次矩形缝套算法正面图，用于避免重复出血。 */

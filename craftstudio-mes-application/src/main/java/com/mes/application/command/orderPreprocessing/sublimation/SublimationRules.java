@@ -9,10 +9,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** 热升华名称模糊匹配，后续工艺名称精确匹配；汇总后只生成一套出血参数。 */
+/** 热升华名称模糊匹配，后续工艺名称精确匹配；正反面共用一套出血参数。 */
 public final class SublimationRules {
     private static final Set<String> SPECIAL_NAMES = Set.of("缝管套", "缝布带管套", "单针锁边", "双针锁边",
-            "三线锁边", "四线锁边", "双面缝", "双面夹黑缝", "旗帜四角打扣", "旗帜打扣", "缝绑带");
+            "三线锁边", "四线锁边", "双面缝", "双面夹黑缝", "反面相同画面", "反面不同画面",
+            "旗帜四角打扣", "旗帜打扣", "缝绑带");
     private static final Pattern SLEEVE_SPEC = Pattern.compile("^(白色|彩色)直径([0-9]+(?:\\.[0-9]+)?)\\s*cm$", Pattern.CASE_INSENSITIVE);
 
     public record Step(String name, Integer order, List<JSONObject> params) {
@@ -53,7 +54,6 @@ public final class SublimationRules {
         boolean corners = false;
         Set<SublimationGeometry.Edge> buckles = EnumSet.noneOf(SublimationGeometry.Edge.class);
         Set<SublimationGeometry.Edge> ties = EnumSet.noneOf(SublimationGeometry.Edge.class);
-        SublimationDoubleSideJoin.Mode mode = SublimationDoubleSideJoin.Mode.NONE;
         List<String> names = new ArrayList<>();
         for (int index = 0; index < nodes.size(); index++) {
             Step node = nodes.get(index);
@@ -81,14 +81,8 @@ public final class SublimationRules {
                 case "旗帜四角打扣" -> corners = true;
                 case "旗帜打扣" -> buckles.addAll(selectedEdges(node));
                 case "缝绑带" -> ties.addAll(selectedEdges(node));
-                case "双面缝", "双面夹黑缝" -> {
-                    var next = "双面缝".equals(name) ? SublimationDoubleSideJoin.Mode.DOUBLE_SEWN
-                            : SublimationDoubleSideJoin.Mode.BLACK_INTERLAYER;
-                    if (mode != SublimationDoubleSideJoin.Mode.NONE && mode != next) {
-                        throw new IllegalArgumentException("双面缝和双面夹黑缝不能同时指定");
-                    }
-                    mode = next;
-                }
+                // 反面仅由画面节点决定，不依赖双面缝/双面夹黑缝。
+                case "双面缝", "双面夹黑缝", "反面相同画面", "反面不同画面" -> { }
                 default -> throw new IllegalStateException("未处理的热升华后续工艺：" + name);
             }
         }
@@ -96,8 +90,9 @@ public final class SublimationRules {
         if (containsShapeOrSplice) {
             throw new IllegalArgumentException("热升华组合策略暂不支持异形或拼接旗帜");
         }
-        String backUrl = resolveBackImage(nodes, mode);
-        return new SublimationPlan(sleeve, sleeveWidth, sewWidth, corners, buckles, ties, mode, backUrl, names, sleeveColor);
+        BackImage back = resolveBackImage(nodes);
+        return new SublimationPlan(sleeve, sleeveWidth, sewWidth, corners, buckles, ties,
+                back.mode(), back.url(), names, sleeveColor);
     }
 
     /** 与矩形旗缝套筒一致，只读取 param.type=RECT_EDGE_SELECTION 下的 edges。 */
@@ -147,8 +142,9 @@ public final class SublimationRules {
         return result;
     }
 
-    private static String resolveBackImage(List<Step> nodes, SublimationDoubleSideJoin.Mode mode) {
-        if (mode == SublimationDoubleSideJoin.Mode.NONE) return null;
+    private record BackImage(SublimationPlan.BackImageMode mode, String url) { }
+
+    private static BackImage resolveBackImage(List<Step> nodes) {
         String back = null;
         boolean same = false;
         boolean different = false;
@@ -169,9 +165,8 @@ public final class SublimationRules {
         }
         if (same && different) throw new IllegalArgumentException("反面相同画面和反面不同画面不能同时指定");
         if (different && back == null) throw new IllegalArgumentException("反面不同画面缺少图片URL");
-        if (!same && !different) throw new IllegalArgumentException("双面缝/双面夹黑缝必须指定反面相同画面或反面不同画面");
-        // null 代表复用正面，由矩形出血算法的 mirrorRequired 输出镜像面。
-        return back;
+        return new BackImage(same ? SublimationPlan.BackImageMode.SAME
+                : different ? SublimationPlan.BackImageMode.DIFFERENT : SublimationPlan.BackImageMode.NONE, back);
     }
 
 }

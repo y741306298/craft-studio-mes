@@ -27,7 +27,25 @@ public final class SublimationProcessStrategy {
         ProcedureFlow flow = item.getProcedureFlow();
         boolean unsupported = flow.getNodes().stream().anyMatch(n -> n != null && "异形切割".equals(n.getNodeName()))
                 || SpliceProcessStrategies.hasSpliceNode(flow);
-        return SublimationRules.resolve(steps(flow, true), unsupported);
+        SublimationPlan plan = SublimationRules.resolve(steps(flow, true), unsupported);
+        return plan.backImageMode() == SublimationPlan.BackImageMode.SAME
+                ? plan.withBackImageUrl(sameBackSourceUrl(item)) : plan;
+    }
+
+    /** 正面回调会覆盖 rawFile；同画面反面重试必须使用提交前保存的来源，避免重复外扩。 */
+    private static String sameBackSourceUrl(OrderItem item) {
+        var image = item.getProductionImgFile();
+        if (image == null) return null;
+        if (item.getRectBloodDownloadUrl() == null
+                || !item.getRectBloodDownloadUrl().equals(image.getRawFile())) return image.getRawFile();
+        if (item.getSublimationBackSourceUrl() != null && !item.getSublimationBackSourceUrl().isBlank()) {
+            return item.getSublimationBackSourceUrl();
+        }
+        // 兼容已有正面出血结果、尚未保存反面来源的订单。
+        if (item.getColorWhiteColorDownloadUrl() != null && !item.getColorWhiteColorDownloadUrl().isBlank()) {
+            return item.getColorWhiteColorDownloadUrl();
+        }
+        return image.getFilePreview() == null ? null : image.getFilePreview().getRaw();
     }
 
     public static RectBloodRequest request(OrderItem item, SublimationPlan plan, boolean back) {
@@ -40,7 +58,7 @@ public final class SublimationProcessStrategy {
         blood.setScrollWidth(plan.sleeveWidthMm());
         blood.setScrollColorHex(plan.scrollColorHex());
         blood.setSewWidth(plan.sewWidthMm());
-        blood.setMirrorRequired(!back && plan.doubleSided() && !plan.differentBack());
+        blood.setMirrorRequired(false);
         request.setBloodConfig(blood);
         return request;
     }

@@ -31,6 +31,17 @@ class ProcedureFlowNodeMatcherTest {
     }
 
     @Test
+    void sublimationBackImagesAreRecognizedWithoutDoubleSideMounting() {
+        for (String back : List.of("反面相同画面", "反面不同画面")) {
+            assertTrue(ProcedureFlowNodeMatcher.hasSublimationBackImageNode(flow("热升华", back)));
+            assertFalse(ProcedureFlowNodeMatcher.hasDoubleSideMountingNode(flow("热升华", back)));
+            assertFalse(ProcedureFlowNodeMatcher.hasSublimationBackImageNode(flow("打印", back)));
+        }
+        assertFalse(ProcedureFlowNodeMatcher.hasSublimationBackImageNode(flow("热升华")));
+        assertFalse(ProcedureFlowNodeMatcher.hasSublimationBackImageNode(flow("热升华", "反面相同画面（备注）")));
+    }
+
+    @Test
     void doubleSideTapeRemainsExcluded() {
         for (String name : List.of("反面覆双面胶", "覆超薄海绵双面胶", "覆双面胶")) {
             assertFalse(ProcedureFlowNodeMatcher.isDoubleSideMountingNodeName(name));

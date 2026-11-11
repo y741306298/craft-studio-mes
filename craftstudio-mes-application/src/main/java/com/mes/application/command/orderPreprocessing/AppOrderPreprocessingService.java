@@ -404,16 +404,22 @@ public class AppOrderPreprocessingService {
             return true;
         }
         boolean frontReady = hasCurrentRectBloodResult(orderItem);
-        boolean backReady = plan == null || !plan.differentBack() || hasSublimationBackResult(orderItem, plan);
+        boolean backReady = plan == null || !plan.doubleSided() || hasSublimationBackResult(orderItem, plan);
         if (frontReady && backReady) {
             log.info("矩形旗出血跳过，使用已完成结果: orderItemId={}", itemId);
             return true;
         }
         log.info("矩形旗出血工艺命中: orderItemId={}, strategy={}, processes={}, frontReady={}, backReady={}",
                 itemId, plan == null ? "矩形旗缝套筒" : "热升华", plan == null ? null : plan.processNames(), frontReady, backReady);
+        RectBloodRequest backRequest = backReady ? null : SublimationProcessStrategy.request(orderItem, plan, true);
+        if (backRequest != null && !Objects.equals(orderItem.getSublimationBackSourceUrl(), plan.backImageUrl())) {
+            // 在任一面提交前保存反面来源；同画面时正面回调会覆盖生产图 rawFile。
+            orderItem.setSublimationBackSourceUrl(plan.backImageUrl());
+            orderItem.setSublimationBackDownloadUrl(null);
+            orderItemService.updateOrderItem(orderItem);
+        }
         if (!frontReady) submitRectBlood(orderItem, request, plan == null ? null : SublimationProcessStrategy.FRONT_CALLBACK);
-        if (!backReady) submitRectBlood(orderItem, SublimationProcessStrategy.request(orderItem, plan, true),
-                SublimationProcessStrategy.BACK_CALLBACK);
+        if (backRequest != null) submitRectBlood(orderItem, backRequest, SublimationProcessStrategy.BACK_CALLBACK);
         return false;
     }
 
@@ -519,7 +525,7 @@ public class AppOrderPreprocessingService {
     }
 
     public boolean isSublimationReadyForStrategy(OrderItem item, SublimationPlan plan) {
-        return hasCurrentRectBloodResult(item) && (!plan.differentBack() || hasSublimationBackResult(item, plan));
+        return hasCurrentRectBloodResult(item) && (!plan.doubleSided() || hasSublimationBackResult(item, plan));
     }
 
     private boolean acquireRectBloodCallbackLock(String key, String token) {
@@ -578,17 +584,13 @@ public class AppOrderPreprocessingService {
             }
             SublimationPlan plan = SublimationProcessStrategy.resolve(item);
             if (backCallback) {
-                if (plan == null || !plan.differentBack()) {
+                if (plan == null || !plan.doubleSided()) {
                     throw new IllegalArgumentException("热升华反面回调与当前工艺配置不一致");
                 }
                 item.setSublimationBackDownloadUrl(response.getData().getFlagUrl());
                 item.setSublimationBackSourceUrl(plan.backImageUrl());
                 item.setMirrorFlagUrl(response.getData().getFlagUrl());
             } else {
-                if (plan != null && plan.doubleSided() && !plan.differentBack()
-                        && StringUtils.isBlank(response.getData().getMirrorFlagUrl())) {
-                    throw new IllegalArgumentException("热升华反面相同画面缺少算法镜像图");
-                }
                 ImageFile image = item.getProductionImgFile();
                 if (image == null) {
                     image = new ImageFile();
@@ -596,8 +598,8 @@ public class AppOrderPreprocessingService {
                 }
                 image.setRawFile(response.getData().getFlagUrl());
                 item.setRectBloodDownloadUrl(response.getData().getFlagUrl());
-                item.setMirrorFlagUrl(plan != null && plan.differentBack() && hasSublimationBackResult(item, plan)
-                        ? item.getSublimationBackDownloadUrl() : response.getData().getMirrorFlagUrl());
+                item.setMirrorFlagUrl(plan == null ? response.getData().getMirrorFlagUrl()
+                        : plan.doubleSided() && hasSublimationBackResult(item, plan) ? item.getSublimationBackDownloadUrl() : null);
             }
             orderItemService.updateOrderItem(item);
             log.info("矩形旗出血回调图片已保存: orderItemId={}, preprocessRequestId={}, side={}, flagUrl={}, mirrorFlagUrl={}",

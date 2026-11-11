@@ -2,7 +2,6 @@ package com.mes.application.command.orderPreprocessing.strategy;
 
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationDecorationService;
-import com.mes.application.command.orderPreprocessing.sublimation.SublimationDoubleSideJoin;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationPlan;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationTraceService;
 import com.mes.application.command.orderPreprocessing.sublimation.SublimationProcessStrategy;
@@ -25,7 +24,6 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
     private final SublimationDecorationService decorations;
     private final OrderInfoService orders;
     private final SublimationTraceService traces;
-    private final SublimationDoubleSideJoin join = SublimationDoubleSideJoin.separateImages();
 
     public SublimationOrderItemProcessingStrategy(SublimationDecorationService decorations, OrderInfoService orders, SublimationTraceService traces) {
         this.decorations = decorations;
@@ -48,7 +46,7 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
                 service.resolveProductionImageUrlForStrategy(item), flow, mask, size.widthMm(), size.heightMm());
         OrderInfo order = orders.findByOrderId(item.getOrderId());
         if (order != null && order.getRemark() != null && !order.getRemark().isBlank()) piece.setRemark(order.getRemark());
-        String backUrl = plan.doubleSided() ? plan.differentBack() ? item.getSublimationBackDownloadUrl() : item.getMirrorFlagUrl() : null;
+        String backUrl = plan.doubleSided() ? item.getSublimationBackDownloadUrl() : null;
         if (plan.doubleSided() && (backUrl == null || backUrl.isBlank())) {
             throw new IllegalStateException("热升华双面工件缺少已处理反面图片");
         }
@@ -61,14 +59,10 @@ public class SublimationOrderItemProcessingStrategy implements OrderItemProcessi
             log.info("热升华订单溯源mark跳过，无缝管套/缝布带管套: orderItemId={}", item.getOrderItemId());
         }
         if (plan.doubleSided()) {
-            var result = join.prepare(new SublimationDoubleSideJoin.Input(item.getProductionImgFile().getRawFile(),
-                    backUrl, plan.sleeveEdge(), plan.sleeveEdge(), plan.sleeveWidthMm(), plan.doubleSideMode()));
-            // 当前只保留双面资源；拼合以及双面材料的反面真实缝筒边验证由后续实现。
             MirrorConfig mirror = new MirrorConfig();
-            mirror.setImg(result.backUrl());
+            mirror.setImg(backUrl);
             mirror.setSvg(backMask);
             piece.setMirrorConfigs(List.of(mirror));
-            log.info("热升华双面拼合入口: orderItemId={}, mode={}, joined={}", item.getOrderItemId(), plan.doubleSideMode(), result.joined());
         }
         log.info("热升华组合工艺处理完成: orderItemId={}, processes={}, widthMm={}, heightMm={}",
                 item.getOrderItemId(), plan.processNames(), size.widthMm(), size.heightMm());
