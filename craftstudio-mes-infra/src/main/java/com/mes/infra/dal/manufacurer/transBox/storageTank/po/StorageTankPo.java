@@ -15,6 +15,7 @@ import java.util.List;
 @Document(collection = "storageTank")
 public class StorageTankPo extends BasePO<StorageTank> {
     
+    private String manufacturerId;
     private String storageTankId;
     private String storageTankName;
     private String storageTankCode;
@@ -42,6 +43,7 @@ public class StorageTankPo extends BasePO<StorageTank> {
         storageTank.setCreateTime(getCreateTime());
         storageTank.setUpdateTime(getUpdateTime());
         
+        storageTank.setManufacturerId(this.manufacturerId);
         storageTank.setStorageTankId(this.storageTankId);
         storageTank.setStorageTankName(this.storageTankName);
         storageTank.setStorageTankCode(this.storageTankCode);
@@ -77,6 +79,7 @@ public class StorageTankPo extends BasePO<StorageTank> {
             return null;
         }
         
+        this.manufacturerId = _do.getManufacturerId();
         this.storageTankId = _do.getStorageTankId();
         this.storageTankName = _do.getStorageTankName();
         this.storageTankCode = _do.getStorageTankCode();
