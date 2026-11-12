@@ -145,6 +145,14 @@ Controller：`craftstudio-mes-interfaces/src/main/java/com/mes/interfaces/api/pl
 - 旧 AppTransBoxService/StorageSlotService 的出入库写入路径尚未统一：部分只写柜内或只写独立储位，且旧 AppTransBoxService 某些流程把 quantity 累加到 currentCapacity。此次管理接口不重写这些既有流程；需要后续统一容量计量口径和储位写入路径。两个集合已冲突的数据应先核对。
 - 不自动修改 StorageInventory 或历史 StorageOperationRecord；库存初始化/调整仍通过出入库/盘点流程处理。
 
+## 可重试写入兼容处理
+
+新增接口会执行储位插入和储存柜插入，MongoDB 驱动默认启用 retryable writes。若部署不支持该协议，会返回 `This MongoDB deployment does not support retryable writes`。该错误与 totalSlots 参数无关，也不能仅凭此错误判断事务是否受支持。
+
+应用通过 `MongoWriteCompatibilityCustomizer` 在 Spring Boot 标准连接设置之后执行 `retryWrites(false)`，无需修改数据库部署、连接串或配置文件。此设置作用于 Spring Boot 自动配置的 MongoDB 客户端，因此同客户端的其他写入也不再使用驱动自动重试；地址、认证、读重试、写确认和事务逻辑不变。修改后需重新构建并重启应用生效。
+
+此处理针对可重试写入协议，不会给数据库增加事务能力。现有多集合事务要求仍然适用，未对目标数据库执行真实新增验证。
+
 ## 验证
 
 新增 AppStorageTankServiceTest：覆盖按数量自动生成默认储位、null/0/负数处理、扩容/缩容同步、库存与历史容量保留、制造商范围、分页条件、占用保护和集合冲突保护。
