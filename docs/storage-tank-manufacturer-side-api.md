@@ -108,7 +108,7 @@ StorageTank 还提供 `getUsedSlotCount()`、`getRemainingSlotCount()`、`hasAva
 Controller：`craftstudio-mes-interfaces/src/main/java/com/mes/interfaces/api/platform/manufacturerSide/storageTank/StorageTankController.java`。
 配套应用服务：`AppStorageTankService`，请求对象：`StorageTankRequest` / `StorageTankListRequest`。
 
-所有接口使用 `Authorization: Bearer <实际登录 token>`；制造商范围由 `AppLoginService.getManufacturerMetaIdByToken()` 解析。默认通用 Authorization 值无法建立制造商身份，本接口不接受其代替实际登录。请求体不需要 manufacturerId。跨制造商或不存在的主键均返回业务 404。
+所有接口支持两种 Authorization：实际登录 token 的制造商由 `AppLoginService.getManufacturerMetaIdByToken()` 解析；默认 `Bearer craftstudio-mes-default` 暂时映射到制造商 `69f956c00ff1ad90a9611464`，不再查询登录记录。默认值与拦截器共用 `mes.auth.default-authorization`，制造商映射可通过 `mes.auth.default-manufacturer-id` 覆盖，无需新增配置即可使用上述默认值。请求体不需要 manufacturerId。两种方式均按解析后的制造商隔离数据，跨制造商或不存在的主键均返回业务 404。
 
 | 方法 | 路径 | 参数和行为 |
 | --- | --- | --- |

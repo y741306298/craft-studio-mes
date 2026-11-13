@@ -10,6 +10,7 @@ import com.mes.domain.manufacturer.transBox.storageTank.entity.StorageTank;
 import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Value;
 
 @RestController
 @RequestMapping("/api/manufacturerSide/storageTank")
@@ -17,6 +18,12 @@ import org.springframework.web.bind.annotation.*;
 public class StorageTankController {
     private final AppStorageTankService service;
     private final AppLoginService loginService;
+
+    @Value("${mes.auth.default-authorization:Bearer craftstudio-mes-default}")
+    private String defaultAuthorization;
+
+    @Value("${mes.auth.default-manufacturer-id:69f956c00ff1ad90a9611464}")
+    private String defaultManufacturerId;
 
     @PostMapping("/list")
     public PagedApiResponse<StorageTank> list(@RequestHeader("Authorization") String authorization,
@@ -48,6 +55,13 @@ public class StorageTankController {
     }
 
     private String manufacturer(String authorization) {
+        if (defaultAuthorization != null && !defaultAuthorization.isBlank()
+                && defaultAuthorization.equals(authorization)) {
+            if (defaultManufacturerId == null || defaultManufacturerId.isBlank()) {
+                throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "默认制造商未配置");
+            }
+            return defaultManufacturerId;
+        }
         if (authorization == null || !authorization.startsWith("Bearer ") || authorization.substring(7).isBlank()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.unauthorized, "请先登录");
         }
