@@ -13,16 +13,11 @@ import io.micrometer.common.util.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.web.client.RestTemplate;
 
-import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -364,89 +359,21 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
      * @param margins 四边外扩量
      * @return PNG 文件字节数组
      */
-    private byte[] createBorderPng(double originalWidth, double originalHeight, ExpandMargins margins) {
-        double widthMm = originalWidth + margins.left + margins.right;
-        double heightMm = originalHeight + margins.top + margins.bottom;
-        int imageWidth = convertMmToPixels(widthMm);
-        int imageHeight = convertMmToPixels(heightMm);
-        try {
-            BufferedImage image = new BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D graphics = image.createGraphics();
-            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-            graphics.setStroke(new BasicStroke(borderStrokeWidthPx()));
-            graphics.setColor(outerBorderColor());
-            graphics.drawRect(0, 0, imageWidth - 1, imageHeight - 1);
-            drawDashedInsetBorderIfNecessary(graphics, imageWidth, imageHeight, widthMm, heightMm, margins);
-            drawInnerOriginalBorderIfNecessary(graphics, imageWidth, imageHeight, originalWidth, originalHeight, margins);
-            graphics.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成留白外框 PNG 失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng createBorderPng(double originalWidth, double originalHeight, ExpandMargins margins) {
+        return com.mes.application.command.graphics.RemoteGraphics.image("LIUBAI_BORDER", com.mes.application.command.graphics.RemoteGraphics.params("width", originalWidth, "height", originalHeight,
+            "left", margins.left, "right", margins.right, "top", margins.top, "bottom", margins.bottom,
+            "strokeScale", borderStrokeWidthScale(), "borderColor", outerBorderColor().getRGB(), "innerBorder", shouldDrawInnerOriginalBorder(), "dashedInset", dashedInsetFromOuterBorderMm()));
     }
 
-    private void drawInnerOriginalBorderIfNecessary(Graphics2D graphics,
-                                                    int imageWidth,
-                                                    int imageHeight,
-                                                    double originalWidth,
-                                                    double originalHeight,
-                                                    ExpandMargins margins) {
-        if (!shouldDrawInnerOriginalBorder()) {
-            return;
-        }
-        drawPhysicalBorder(graphics, imageWidth, imageHeight, margins.left, margins.top, originalWidth, originalHeight, Color.BLACK, false);
-    }
 
-    private void drawDashedInsetBorderIfNecessary(Graphics2D graphics,
-                                                   int imageWidth,
-                                                   int imageHeight,
-                                                   double widthMm,
-                                                   double heightMm,
-                                                   ExpandMargins margins) {
-        double insetMm = dashedInsetFromOuterBorderMm();
-        if (insetMm <= 0D) {
-            return;
-        }
-        double leftInsetMm = dashedInsetForMargin(margins.left, insetMm);
-        double topInsetMm = dashedInsetForMargin(margins.top, insetMm);
-        double rightInsetMm = dashedInsetForMargin(margins.right, insetMm);
-        double bottomInsetMm = dashedInsetForMargin(margins.bottom, insetMm);
-        double innerWidthMm = widthMm - leftInsetMm - rightInsetMm;
-        double innerHeightMm = heightMm - topInsetMm - bottomInsetMm;
-        if (innerWidthMm <= 0D || innerHeightMm <= 0D) {
-            return;
-        }
-        drawPhysicalBorder(graphics, imageWidth, imageHeight, leftInsetMm, topInsetMm, innerWidthMm, innerHeightMm, Color.BLACK, true);
-    }
+
+
 
     private double dashedInsetForMargin(double marginMm, double insetMm) {
         return marginMm <= 0D ? 0D : insetMm;
     }
 
-    private void drawPhysicalBorder(Graphics2D graphics,
-                                    int imageWidth,
-                                    int imageHeight,
-                                    double leftMm,
-                                    double topMm,
-                                    double widthMm,
-                                    double heightMm,
-                                    Color color,
-                                    boolean dashed) {
-        int left = Math.min(imageWidth - 1, convertMmToPixels(leftMm));
-        int top = Math.min(imageHeight - 1, convertMmToPixels(topMm));
-        int right = Math.min(imageWidth - 1, convertMmToPixels(leftMm + widthMm) - 1);
-        int bottom = Math.min(imageHeight - 1, convertMmToPixels(topMm + heightMm) - 1);
-        if (right < left || bottom < top) {
-            return;
-        }
-        graphics.setColor(color);
-        graphics.setStroke(dashed
-                ? new BasicStroke(borderStrokeWidthPx(), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10F, new float[]{6F, 4F}, 0F)
-                : new BasicStroke(borderStrokeWidthPx()));
-        graphics.drawRect(left, top, right - left, bottom - top);
-    }
+
 
     /**
      * 将毫米尺寸按照 36dpi 换算为像素。
@@ -568,33 +495,8 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private LiubaiTagImage createHorizontalLiubaiTagPng(String text, double edgeSizeMm) {
-        int heightPx = convertMmToPixels(edgeSizeMm, LIUBAI_TAG_PNG_DPI);
-        int baseFontSize = Math.max(12, (int) Math.floor(heightPx * 0.72D));
-        int fontSize = Math.max(1, (int) Math.round(baseFontSize * liubaiTagFontScale()));
-        Font font = new Font("SansSerif", Font.BOLD, fontSize);
-        FontMetrics metrics = fontMetrics(font);
-        int paddingPx = Math.max(4, convertMmToPixels(1D, LIUBAI_TAG_PNG_DPI));
-        List<Color> colors = liubaiTagTextColors();
-        if (colors == null || colors.isEmpty()) {
-            colors = List.of(Color.BLACK);
-        }
-        int segmentGapPx = Math.max(paddingPx, convertMmToPixels(2D, LIUBAI_TAG_PNG_DPI));
-        int textWidthPx = metrics.stringWidth(text);
-        int widthPx = Math.max(1, textWidthPx * colors.size() + segmentGapPx * Math.max(0, colors.size() - 1) + paddingPx * 2);
-        BufferedImage image = new BufferedImage(widthPx, heightPx, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = image.createGraphics();
-        clearAndConfigureTextGraphics(graphics, widthPx, heightPx);
-        graphics.setFont(font);
-        FontMetrics imageMetrics = graphics.getFontMetrics();
-        int x = paddingPx;
-        int y = Math.max(imageMetrics.getAscent(), Math.min(heightPx - 1, (heightPx + imageMetrics.getAscent() - imageMetrics.getDescent()) / 2));
-        for (Color color : colors) {
-            graphics.setColor(color == null ? Color.BLACK : color);
-            graphics.drawString(text, x, y);
-            x += textWidthPx + segmentGapPx;
-        }
-        graphics.dispose();
-        return new LiubaiTagImage(toPng(image), image, widthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, edgeSizeMm);
+        com.mes.application.command.graphics.RemoteImage image = com.mes.application.command.graphics.RemoteGraphics.image("LIUBAI_TAG", com.mes.application.command.graphics.RemoteGraphics.params("text", text, "edgeSize", edgeSizeMm, "fontScale", liubaiTagFontScale(), "colors", liubaiTagTextColors().stream().map(Color::getRGB).toList()));
+        return new LiubaiTagImage(image, image, image.getWidth() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, edgeSizeMm);
     }
 
     /** 使用同一字体渲染规则测量文字实际长度，供同一外扩边的多个mark排布使用。 */
@@ -621,88 +523,45 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private LiubaiTagImage cropHorizontalLiubaiTagPng(LiubaiTagImage image, double maxWidthMm) {
-        if (image == null || maxWidthMm <= 0D || image.widthMm <= maxWidthMm) {
-            return image;
-        }
-        int cropWidthPx = Math.max(1, Math.min(image.image.getWidth(), convertMmToPixels(maxWidthMm, LIUBAI_TAG_PNG_DPI)));
-        BufferedImage cropped = new BufferedImage(cropWidthPx, image.image.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = cropped.createGraphics();
-        clearAndConfigureTextGraphics(graphics, cropWidthPx, image.image.getHeight());
-        graphics.drawImage(image.image, 0, 0, cropWidthPx, image.image.getHeight(), 0, 0, cropWidthPx, image.image.getHeight(), null);
-        graphics.dispose();
-        return new LiubaiTagImage(toPng(cropped), cropped, cropWidthPx / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, image.heightMm);
+        if (image == null || maxWidthMm <= 0 || image.widthMm <= maxWidthMm) return image;
+        int width = Math.max(1, Math.min(image.image.getWidth(), convertMmToPixels(maxWidthMm, LIUBAI_TAG_PNG_DPI)));
+        com.mes.application.command.graphics.RemoteImage cropped = com.mes.application.command.graphics.RemoteGraphics.transform(image.image, 0, width);
+        return new LiubaiTagImage(cropped, cropped, width / LIUBAI_TAG_PNG_DPI * MM_PER_INCH, image.heightMm);
     }
 
     private LiubaiTagImage rotate180LiubaiTagPng(LiubaiTagImage image) {
-        BufferedImage rotated = rotate180(image.image);
+        com.mes.application.command.graphics.RemoteImage rotated = rotate180(image.image);
         return new LiubaiTagImage(toPng(rotated), rotated, image.widthMm, image.heightMm);
     }
 
-    private LiubaiTagImage createVerticalLiubaiTagPng(BufferedImage horizontalImage) {
-        BufferedImage rotated = rotateClockwise90(horizontalImage);
+    private LiubaiTagImage createVerticalLiubaiTagPng(com.mes.application.command.graphics.RemoteImage horizontalImage) {
+        com.mes.application.command.graphics.RemoteImage rotated = rotateClockwise90(horizontalImage);
         return new LiubaiTagImage(toPng(rotated), rotated, liubaiTagEdgeSizeMm(), rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
 
-    private LiubaiTagImage createOutwardRightLiubaiTagPng(BufferedImage horizontalImage) {
-        BufferedImage rotated = rotateCounterClockwise90(horizontalImage);
+    private LiubaiTagImage createOutwardRightLiubaiTagPng(com.mes.application.command.graphics.RemoteImage horizontalImage) {
+        com.mes.application.command.graphics.RemoteImage rotated = rotateCounterClockwise90(horizontalImage);
         return new LiubaiTagImage(toPng(rotated), rotated, liubaiTagEdgeSizeMm(), rotated.getHeight() / LIUBAI_TAG_PNG_DPI * MM_PER_INCH);
     }
 
-    private FontMetrics fontMetrics(Font font) {
-        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = image.createGraphics();
-        graphics.setFont(font);
-        FontMetrics metrics = graphics.getFontMetrics();
-        graphics.dispose();
-        return metrics;
+
+
+
+
+    private com.mes.application.command.graphics.RemoteImage rotateClockwise90(com.mes.application.command.graphics.RemoteImage src) {
+        return com.mes.application.command.graphics.RemoteGraphics.transform(src, 90, 0);
     }
 
-    private void clearAndConfigureTextGraphics(Graphics2D graphics, int width, int height) {
-        graphics.setComposite(AlphaComposite.Clear);
-        graphics.fillRect(0, 0, width, height);
-        graphics.setComposite(AlphaComposite.SrcOver);
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    private com.mes.application.command.graphics.RemoteImage rotateCounterClockwise90(com.mes.application.command.graphics.RemoteImage src) {
+        return com.mes.application.command.graphics.RemoteGraphics.transform(src, -90, 0);
     }
 
-    private BufferedImage rotateClockwise90(BufferedImage src) {
-        BufferedImage dst = new BufferedImage(src.getHeight(), src.getWidth(), BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < src.getHeight(); y++) {
-            for (int x = 0; x < src.getWidth(); x++) {
-                dst.setRGB(src.getHeight() - 1 - y, x, src.getRGB(x, y));
-            }
-        }
-        return dst;
+    private com.mes.application.command.graphics.RemoteImage rotate180(com.mes.application.command.graphics.RemoteImage src) {
+        return com.mes.application.command.graphics.RemoteGraphics.transform(src, 180, 0);
     }
 
-    private BufferedImage rotateCounterClockwise90(BufferedImage src) {
-        BufferedImage dst = new BufferedImage(src.getHeight(), src.getWidth(), BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < src.getHeight(); y++) {
-            for (int x = 0; x < src.getWidth(); x++) {
-                dst.setRGB(y, src.getWidth() - 1 - x, src.getRGB(x, y));
-            }
-        }
-        return dst;
-    }
-
-    private BufferedImage rotate180(BufferedImage src) {
-        BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < src.getHeight(); y++) {
-            for (int x = 0; x < src.getWidth(); x++) {
-                dst.setRGB(src.getWidth() - 1 - x, src.getHeight() - 1 - y, src.getRGB(x, y));
-            }
-        }
-        return dst;
-    }
-
-    private byte[] toPng(BufferedImage image) {
-        try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("PNG 编码失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng toPng(com.mes.application.command.graphics.RemoteImage image) {
+        return image;
     }
 
     /**
@@ -847,7 +706,7 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         if (trimmed.startsWith("<svg") || trimmed.startsWith("<?xml")) {
             return trimmed;
         }
-        return restTemplate.getForObject(trimmed, String.class);
+        return com.mes.application.command.graphics.SvgResourceReader.text(trimmed);
     }
 
     /**
@@ -897,149 +756,28 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
                                     double originalWidth,
                                     double originalHeight,
                                     ExpandMargins margins) {
-        double newWidth = originalWidth + margins.left + margins.right;
-        double newHeight = originalHeight + margins.top + margins.bottom;
-        String updatedSvg = updateRootSvgAttributes(originalSvg, newWidth, newHeight, margins);
-        String liubaiGroup = shouldBuildLiubaiMarkGroup()
-                ? buildLiubaiGroup(pieceMongoId, markPngUrl, sourceName(markPngUrl), originalWidth, originalHeight, margins)
-                : "";
-        String tagGroups = buildLiubaiTagGroups(pieceMongoId, tagAssets, originalWidth, originalHeight, margins);
-        String markGroups = liubaiGroup + tagGroups;
-        if (!containsGroup(originalSvg)) {
-            return rebuildSvgWithLiubaiGroups(updatedSvg, pieceMongoId, originalContentImg, markGroups);
-        }
-        return shouldInsertMarkGroupsBeforeOriginalContent()
-                ? insertAfterRootOpenTag(updatedSvg, markGroups)
-                : insertBeforeRootCloseTag(updatedSvg, markGroups);
+        return com.mes.application.command.graphics.RemoteGraphics.svg("LIUBAI_EXPAND", com.mes.application.command.graphics.RemoteGraphics.with(graphicsPolicy(), "originalSvg", originalSvg, "pieceMongoId", pieceMongoId, "markPngUrl", markPngUrl, "tagAssets", com.mes.application.command.graphics.RemoteGraphics.fields(tagAssets), "originalContentImg", originalContentImg, "originalWidth", originalWidth, "originalHeight", originalHeight, "margins", com.mes.application.command.graphics.RemoteGraphics.fields(margins)));
     }
 
-    private boolean containsGroup(String svg) {
-        return StringUtils.isNotBlank(svg) && SVG_GROUP_PATTERN.matcher(svg).find();
-    }
 
-    private String insertAfterRootOpenTag(String svg, String groupSvg) {
-        Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
-        if (!matcher.find()) {
-            return svg;
-        }
-        return svg.substring(0, matcher.end()) + groupSvg + svg.substring(matcher.end());
-    }
 
-    private String insertBeforeRootCloseTag(String svg, String groupSvg) {
-        int closeIndex = lastSvgCloseIndex(svg);
-        if (closeIndex < 0) {
-            return svg;
-        }
-        return svg.substring(0, closeIndex) + groupSvg + svg.substring(closeIndex);
-    }
 
-    private String rebuildSvgWithLiubaiGroups(String updatedSvg, String pieceMongoId, String originalContentImg, String liubaiGroup) {
-        Matcher openMatcher = SVG_OPEN_PATTERN.matcher(updatedSvg);
-        if (!openMatcher.find()) {
-            return updatedSvg;
-        }
-        int closeIndex = lastSvgCloseIndex(updatedSvg);
-        if (closeIndex < 0 || closeIndex < openMatcher.end()) {
-            return updatedSvg;
-        }
-        String prefix = updatedSvg.substring(0, openMatcher.end());
-        String innerSvg = updatedSvg.substring(openMatcher.end(), closeIndex).trim();
-        String suffix = updatedSvg.substring(closeIndex);
-        String originalContentGroup = buildOriginalContentGroup(pieceMongoId, originalContentImg, innerSvg);
-        return shouldInsertMarkGroupsBeforeOriginalContent()
-                ? prefix + liubaiGroup + originalContentGroup + suffix
-                : prefix + originalContentGroup + liubaiGroup + suffix;
-    }
 
-    private String buildOriginalContentGroup(String pieceMongoId, String originalContentImg, String innerSvg) {
-        String groupId = StringUtils.isBlank(pieceMongoId) ? "original-mask" : pieceMongoId;
-        return "<g id=\"" + escapeAttr(groupId)
-                + "\" img=\"" + escapeAttr(originalContentImg)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-rotation=\"0\">\n"
-                + normalizeRectsToPaths(innerSvg) + "\n"
-                + "</g>\n";
-    }
 
-    private String normalizeRectsToPaths(String svgContent) {
-        if (StringUtils.isBlank(svgContent)) {
-            return svgContent;
-        }
-        Matcher matcher = SVG_RECT_PATTERN.matcher(svgContent);
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            String rectAttributes = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
-            String path = convertRectToPath(matcher.group(), rectAttributes);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(path));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
-    }
 
-    private String convertRectToPath(String originalRect, String rectAttributes) {
-        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
-        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
-        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
-        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
-        if (x == null || y == null || width == null || height == null) {
-            return originalRect;
-        }
-        StringBuilder path = new StringBuilder("<path d=\"M")
-                .append(format(x)).append(" ").append(format(y))
-                .append(" H").append(format(x + width))
-                .append(" V").append(format(y + height))
-                .append(" H").append(format(x))
-                .append(" Z\"");
-        appendRectAttributesAsPathAttributes(path, rectAttributes);
-        path.append("/>");
-        return path.toString();
-    }
 
-    private void appendRectAttributesAsPathAttributes(StringBuilder path, String rectAttributes) {
-        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(rectAttributes);
-        while (matcher.find()) {
-            String attributeName = matcher.group(1);
-            if ("x".equalsIgnoreCase(attributeName) || "y".equalsIgnoreCase(attributeName)
-                    || "width".equalsIgnoreCase(attributeName) || "height".equalsIgnoreCase(attributeName)) {
-                continue;
-            }
-            path.append(matcher.group());
-        }
-    }
 
-    private String attributeValue(String attributes, String name) {
-        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(attributes);
-        while (matcher.find()) {
-            if (name.equalsIgnoreCase(matcher.group(1))) {
-                String attribute = matcher.group();
-                int equalsIndex = attribute.indexOf('=');
-                if (equalsIndex < 0) {
-                    return null;
-                }
-                String value = attribute.substring(equalsIndex + 1).trim();
-                if (value.length() >= 2 && (value.startsWith("\"") || value.startsWith("'"))) {
-                    return value.substring(1, value.length() - 1);
-                }
-                return value;
-            }
-        }
-        return null;
-    }
 
-    private Double parseSvgNumber(String value, Double fallback) {
-        if (StringUtils.isBlank(value)) {
-            return fallback;
-        }
-        Matcher matcher = Pattern.compile("[-+]?[0-9]+(?:\\.[0-9]+)?").matcher(value.trim());
-        if (!matcher.find()) {
-            return fallback;
-        }
-        try {
-            return Double.parseDouble(matcher.group());
-        } catch (Exception ignored) {
-            return fallback;
-        }
-    }
+
+
+
+
+
+
+
+
+
+
 
     protected String resolveOriginalContentImg(ProductionPiece piece, String originalMaskUrl) {
         String productImg = resolveImageFileRaw(piece == null ? null : piece.getProductImageFile());
@@ -1071,40 +809,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return trimmed.startsWith("<svg") || trimmed.startsWith("<?xml");
     }
 
-    private int lastSvgCloseIndex(String svg) {
-        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
-        int closeIndex = -1;
-        while (matcher.find()) {
-            closeIndex = matcher.start();
-        }
-        return closeIndex;
-    }
 
-    private String updateRootSvgAttributes(String svg, double newWidth, double newHeight, ExpandMargins margins) {
-        Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
-        if (!matcher.find()) {
-            return svg;
-        }
-        String openTag = matcher.group();
-        String updatedOpenTag = upsertSvgAttribute(openTag, "width", format(newWidth));
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "height", format(newHeight));
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "viewBox",
-                format(-margins.left) + " " + format(-margins.top) + " " + format(newWidth) + " " + format(newHeight));
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "version", "1.1");
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "require-plt", String.valueOf(rootRequirePlt()));
-        return svg.substring(0, matcher.start()) + updatedOpenTag + svg.substring(matcher.end());
-    }
 
-    private String upsertSvgAttribute(String tag, String name, String value) {
-        Pattern attributePattern = Pattern.compile("\\s" + Pattern.quote(name) + "\\s*=\\s*([\"']).*?\\1", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = attributePattern.matcher(tag);
-        String attribute = " " + name + "=\"" + escapeAttr(value) + "\"";
-        if (matcher.find()) {
-            return matcher.replaceFirst(Matcher.quoteReplacement(attribute));
-        }
-        int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
-        return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
-    }
+
+
+
 
     /**
      * 根 SVG 是否需要参与 PLT 输出。
@@ -1176,56 +885,14 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
         return Color.BLACK;
     }
 
-    private String buildLiubaiGroup(String pieceMongoId,
-                                    String markPngUrl,
-                                    String markSourceName,
-                                    double originalWidth,
-                                    double originalHeight,
-                                    ExpandMargins margins) {
-        double left = -margins.left;
-        double top = -margins.top;
-        double right = originalWidth + margins.right;
-        double bottom = originalHeight + margins.bottom;
-        return "\n<g id=\"liubai-" + specName() + "-" + escapeAttr(pieceMongoId) + "\" img=\"" + escapeAttr(markPngUrl)
-                + "\" data-source-name=\"" + escapeAttr(markSourceName) + "\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"" + liubaiGroupRequirePlt() + "\">\n"
-                + "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" " + outerRectFillAttributes() + " stroke=\"" + outerBorderStrokeColorSvg() + "\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n"
-                + buildDashedInsetBorderPath(left, top, right, bottom, margins)
-                + buildInnerOriginalBorderPath(originalWidth, originalHeight)
-                + "</g>\n";
-    }
+
 
     protected String buildLiubaiTagGroups(String pieceMongoId,
                                          LiubaiTagAssets tagAssets,
                                          double originalWidth,
                                          double originalHeight,
                                          ExpandMargins margins) {
-        if (tagAssets == null) {
-            return "";
-        }
-        double left = -margins.left;
-        double top = -margins.top;
-        double right = originalWidth + margins.right;
-        double bottom = originalHeight + margins.bottom;
-        StringBuilder builder = new StringBuilder();
-        double horizontalX = left + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
-        double verticalY = top + LIUBAI_TAG_ADJACENT_EDGE_GAP_MM;
-        if (shouldBuildLiubaiTagGroup(margins.top)) {
-            appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "top", tagAssets.topUrl, tagAssets.topWidthMm, tagAssets.topHeightMm, horizontalX, top);
-        }
-        if (shouldBuildLiubaiTagGroup(margins.bottom)) {
-            appendLiubaiTagGroup(builder, pieceMongoId, "horizontal", "bottom", tagAssets.bottomUrl, tagAssets.bottomWidthMm, tagAssets.bottomHeightMm, horizontalX, bottom - tagAssets.bottomHeightMm);
-        }
-        if (shouldBuildLeftRightLiubaiTagGroups()) {
-            if (shouldBuildLiubaiTagGroup(margins.left)) {
-                appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "left", tagAssets.leftUrl, tagAssets.leftWidthMm, tagAssets.leftHeightMm, left, verticalY);
-            }
-            if (shouldBuildLiubaiTagGroup(margins.right)) {
-                appendLiubaiTagGroup(builder, pieceMongoId, "vertical", "right", tagAssets.rightUrl, tagAssets.rightWidthMm, tagAssets.rightHeightMm, right - tagAssets.rightWidthMm, verticalY);
-            }
-        }
-        return builder.toString();
+        return com.mes.application.command.graphics.RemoteGraphics.svg("LIUBAI_GROUPS", com.mes.application.command.graphics.RemoteGraphics.with(graphicsPolicy(), "pieceMongoId", pieceMongoId, "tagAssets", com.mes.application.command.graphics.RemoteGraphics.fields(tagAssets), "originalWidth", originalWidth, "originalHeight", originalHeight, "margins", com.mes.application.command.graphics.RemoteGraphics.fields(margins)));
     }
 
     /**
@@ -1249,51 +916,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
 
-    private void appendLiubaiTagGroup(StringBuilder builder,
-                                      String pieceMongoId,
-                                      String direction,
-                                      String suffix,
-                                      String imageUrl,
-                                      double widthMm,
-                                      double heightMm,
-                                      double x,
-                                      double y) {
-        builder.append("<g id=\"").append(tagMarkKeyPrefix()).append("-").append(direction).append("-").append(suffix).append("-").append(escapeAttr(pieceMongoId))
-                .append("\" img=\"").append(escapeAttr(imageUrl))
-                .append("\" data-source-name=\"").append(escapeAttr(sourceName(imageUrl)))
-                .append("\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
-                .append("<path d=\"M0 0 H").append(format(widthMm)).append(" V").append(format(heightMm)).append(" H0 Z\" fill=\"#999999\" />\n")
-                .append("</g>\n");
-    }
 
-    private String buildDashedInsetBorderPath(double outerLeft,
-                                              double outerTop,
-                                              double outerRight,
-                                              double outerBottom,
-                                              ExpandMargins margins) {
-        double insetMm = dashedInsetFromOuterBorderMm();
-        if (insetMm <= 0D) {
-            return "";
-        }
-        double left = outerLeft + dashedInsetForMargin(margins.left, insetMm);
-        double top = outerTop + dashedInsetForMargin(margins.top, insetMm);
-        double right = outerRight - dashedInsetForMargin(margins.right, insetMm);
-        double bottom = outerBottom - dashedInsetForMargin(margins.bottom, insetMm);
-        if (right <= left || bottom <= top) {
-            return "";
-        }
-        return "<path d=\"M" + format(left) + " " + format(top) + " H" + format(right) + " V" + format(bottom)
-                + " H" + format(left) + " Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\""
-                + borderStrokeWidthSvg() + "\" stroke-dasharray=\"6 4\" fill-rule=\"evenodd\" />\n";
-    }
 
-    private String buildInnerOriginalBorderPath(double originalWidth, double originalHeight) {
-        if (!shouldDrawInnerOriginalBorder()) {
-            return "";
-        }
-        return "<path d=\"M0 0 H" + format(originalWidth) + " V" + format(originalHeight)
-                + " H0 Z\" fill=\"none\" stroke=\"#111111\" stroke-width=\"" + borderStrokeWidthSvg() + "\" fill-rule=\"evenodd\" require-plt=\"" + liubaiOuterRectRequirePlt() + "\" />\n";
-    }
+
+
+
 
     /**
      * 从 URL 中提取文件名作为 data-source-name。
@@ -1430,12 +1057,12 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
     }
 
     private static class LiubaiTagImage {
-        private final byte[] bytes;
-        private final BufferedImage image;
+        private final com.mes.application.command.graphics.RemotePng bytes;
+        private final com.mes.application.command.graphics.RemoteImage image;
         private final double widthMm;
         private final double heightMm;
 
-        private LiubaiTagImage(byte[] bytes, BufferedImage image, double widthMm, double heightMm) {
+        private LiubaiTagImage(com.mes.application.command.graphics.RemotePng bytes, com.mes.application.command.graphics.RemoteImage image, double widthMm, double heightMm) {
             this.bytes = bytes;
             this.image = image;
             this.widthMm = widthMm;
@@ -1513,5 +1140,11 @@ public abstract class AbstractFixedLiubaiProcessStrategy extends AbstractLiubaiP
             this.top = top;
             this.bottom = bottom;
         }
+    }
+    private java.util.Map<String,Object> graphicsPolicy() {
+        return com.mes.application.command.graphics.RemoteGraphics.params("rootRequirePlt", rootRequirePlt(), "liubaiOuterRectRequirePlt", liubaiOuterRectRequirePlt(), "liubaiGroupRequirePlt", liubaiGroupRequirePlt(),
+            "shouldBuildLiubaiMarkGroup", shouldBuildLiubaiMarkGroup(), "shouldInsertMarkGroupsBeforeOriginalContent", shouldInsertMarkGroupsBeforeOriginalContent(), "shouldBuildLeftRightLiubaiTagGroups", shouldBuildLeftRightLiubaiTagGroups(),
+            "outerRectFillAttributes", outerRectFillAttributes(), "outerBorderStrokeColorSvg", outerBorderStrokeColorSvg(), "strokeScale", borderStrokeWidthScale(), "dashedInset", dashedInsetFromOuterBorderMm(), "innerBorder", shouldDrawInnerOriginalBorder(),
+            "expandMm", expandMm(), "specName", specName(), "tagMarkKeyPrefix", tagMarkKeyPrefix());
     }
 }

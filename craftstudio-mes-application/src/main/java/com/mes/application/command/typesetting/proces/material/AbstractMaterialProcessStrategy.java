@@ -142,26 +142,10 @@ public abstract class AbstractMaterialProcessStrategy extends AbstractCentimeter
     }
 
     private String updateRootSize(String svg, double width, double height) {
-        Matcher matcher = SVG_OPEN_PATTERN.matcher(svg);
-        if (!matcher.find()) {
-            return svg;
-        }
-        String openTag = matcher.group();
-        String updatedOpenTag = upsertSvgAttribute(openTag, "width", format(width));
-        updatedOpenTag = upsertSvgAttribute(updatedOpenTag, "height", format(height));
-        return svg.substring(0, matcher.start()) + updatedOpenTag + svg.substring(matcher.end());
+        return com.mes.application.command.graphics.RemoteGraphics.svg("SVG_RESIZE", com.mes.application.command.graphics.RemoteGraphics.params("source", svg, "width", width, "height", height));
     }
 
-    private String upsertSvgAttribute(String tag, String name, String value) {
-        Pattern attributePattern = Pattern.compile("\\s" + Pattern.quote(name) + "\\s*=\\s*([\"']).*?\\1", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = attributePattern.matcher(tag);
-        String attribute = " " + name + "=\"" + escapeAttr(value) + "\"";
-        if (matcher.find()) {
-            return matcher.replaceFirst(Matcher.quoteReplacement(attribute));
-        }
-        int insertIndex = tag.endsWith("/>") ? tag.length() - 2 : tag.length() - 1;
-        return tag.substring(0, insertIndex) + attribute + tag.substring(insertIndex);
-    }
+
 
     private String resolveMaterialName(OrderItem orderItem) {
         if (orderItem == null || orderItem.getMaterial() == null || orderItem.getMaterial().getMaterialSnapshot() == null) {

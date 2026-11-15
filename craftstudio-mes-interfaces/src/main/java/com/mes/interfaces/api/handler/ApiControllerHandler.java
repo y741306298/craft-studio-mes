@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiControllerHandler {
+    @ExceptionHandler(com.mes.application.command.graphics.GraphicsWorkflowException.class)
+    public org.springframework.http.ResponseEntity<ApiResponse<String>> graphics(com.mes.application.command.graphics.GraphicsWorkflowException ex){
+        var builder=org.springframework.http.ResponseEntity.status(ex.status());
+        if(ex.status()==429)builder.header("Retry-After","5");
+        return builder.body(ApiResponse.fail(ex.status(),ex.getMessage()));
+    }
 
     @ExceptionHandler(BusinessNotAllowException.class)
     @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.BAD_REQUEST)

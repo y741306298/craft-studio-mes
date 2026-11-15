@@ -7,10 +7,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.util.ArrayList;
@@ -113,19 +109,8 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
         return mark;
     }
 
-    private byte[] createBlackPng(int width, int height) {
-        try {
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = image.createGraphics();
-            g.setColor(Color.BLACK);
-            g.fillRect(0, 0, width, height);
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑色 PNG 失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng createBlackPng(int width, int height) {
+        return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 
     private String fetchSvgContent(String nestedSvg) {
@@ -133,7 +118,7 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
             throw new IllegalArgumentException("nestedSvg 不能为空");
         }
         try {
-            byte[] bytes = restTemplate.getForObject(URI.create(nestedSvg), byte[].class);
+            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(nestedSvg));
             if (bytes == null || bytes.length == 0) {
                 throw new IllegalArgumentException("无法下载 nestedSvg 内容");
             }

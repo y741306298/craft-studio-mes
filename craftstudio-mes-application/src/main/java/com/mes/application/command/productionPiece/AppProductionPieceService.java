@@ -248,7 +248,7 @@ public class AppProductionPieceService {
         redo.setId(new ObjectId().toHexString());
         redo.setProductionPieceId(IdGenerator.generateId("PP"));
         String svg = svgLocation.trim().startsWith("<svg")
-                ? svgLocation : restTemplate.getForObject(svgLocation, String.class);
+                ? svgLocation : com.mes.application.command.graphics.SvgResourceReader.text(svgLocation);
         String rewrittenSvg = rewriteSvgPieceId(svg, source.getId(), redo.getId());
         // 未经过抠图等处理的轮廓 SVG 不绑定零件 ID，保留原资源即可。
         if (Objects.equals(svg, rewrittenSvg)) {
@@ -266,17 +266,7 @@ public class AppProductionPieceService {
     }
 
     static String rewriteSvgPieceId(String svg, String oldId, String newId) {
-        if (StringUtils.isBlank(svg)) {
-            throw new IllegalStateException("重做零件 SVG 内容为空");
-        }
-        Pattern idPattern = Pattern.compile("(?i)(\\bid\\s*=\\s*)([\\\"'])"
-                + Pattern.quote(oldId) + "\\2");
-        Matcher matcher = idPattern.matcher(svg);
-        if (!matcher.find()) {
-            return svg;
-        }
-        return matcher.replaceFirst(Matcher.quoteReplacement(matcher.group(1) + matcher.group(2)
-                + newId + matcher.group(2)));
+        return com.mes.application.command.graphics.RemoteGraphics.svg("SVG_REDO_ID", com.mes.application.command.graphics.RemoteGraphics.params("source", svg, "oldId", oldId, "newId", newId));
     }
 
     private ImageFile copyImageFileWithRaw(ImageFile source, String raw) {

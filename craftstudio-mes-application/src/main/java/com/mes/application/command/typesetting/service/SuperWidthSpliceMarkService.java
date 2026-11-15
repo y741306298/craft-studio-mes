@@ -20,12 +20,9 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -137,26 +134,8 @@ public class SuperWidthSpliceMarkService {
     }
 
 
-    private byte[] createAlternatingStripePng(double width, double height) {
-        try {
-            int w = (int) Math.ceil(width);
-            int h = (int) Math.ceil(height);
-            BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = image.createGraphics();
-            g.setComposite(AlphaComposite.Src);
-            for (int y = 0; y < h; y++) {
-                boolean blackBand = y % 2 == 0;
-                Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
-                g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
-                g.fillRect(0, y, w, 1);
-            }
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑白交替矩形 PNG 失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng createAlternatingStripePng(double width, double height) {
+        return com.mes.application.command.graphics.RemoteGraphics.png("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 
     private void ensureFormeMarkList(FormeGenerationRequest formeRequest) {
@@ -181,7 +160,7 @@ public class SuperWidthSpliceMarkService {
 
     private String fetchUrlContent(String url) {
         try {
-            byte[] bytes = restTemplate.getForObject(url, byte[].class);
+            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(url);
             return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.warn("下载 nestedSvg 失败: {}, error={}", url, e.getMessage());
@@ -438,16 +417,16 @@ public class SuperWidthSpliceMarkService {
 
     private MarkAsset uploadEdgeAlignedTextMark(String businessId, String manufacturerMetaId, String typesettingId, String text, int width, int height, double angle, Color textColor) {
         String subDir = buildMarkSubDir(manufacturerMetaId, typesettingId);
-        BufferedImage base = createSingleLineTextImage(width, height, text, textColor);
-        BufferedImage rotated = rotateImageByAngle(base, angle);
+        com.mes.application.command.graphics.RemoteImage base = createSingleLineTextImage(width, height, text, textColor);
+        com.mes.application.command.graphics.RemoteImage rotated = rotateImageByAngle(base, angle);
         String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), subDir);
         return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
     }
 
     private MarkAsset uploadEdgeAlignedStripeMark(String businessId, String fallbackImg, double angle) {
         try {
-            BufferedImage base = createStripeImage(6, 1);
-            BufferedImage rotated = rotateImageByAngle(base, angle);
+            com.mes.application.command.graphics.RemoteImage base = createStripeImage(6, 1);
+            com.mes.application.command.graphics.RemoteImage rotated = rotateImageByAngle(base, angle);
             String img = ossTagUploadService.uploadTagPng(businessId, toPng(rotated), "mark/dynamic");
             return new MarkAsset(img, rotated.getWidth(), rotated.getHeight());
         } catch (Exception e) {
@@ -460,105 +439,31 @@ public class SuperWidthSpliceMarkService {
         String safeTypesettingId = StringUtils.isBlank(typesettingId) ? "unknown" : typesettingId;
         return "mark/" + safeManufacturerMetaId + "/" + safeTypesettingId;
     }
-    private byte[] createRotatedTwoLineTextPng(double width, double height, String text) {
-        try {
-            int w = (int) Math.ceil(width);
-            int h = (int) Math.ceil(height);
-            BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = image.createGraphics();
-            g.setComposite(AlphaComposite.Clear);
-            g.fillRect(0, 0, w, h);
-            g.setComposite(AlphaComposite.SrcOver);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h / 2 - 2)));
-            FontMetrics fm = g.getFontMetrics();
-            int textW = fm.stringWidth(text);
-            int textH = fm.getAscent();
-            int x = Math.max(0, (w - textW) / 2);
-            int firstLineY = Math.max(textH, h / 2 - 2);
-            int secondLineY = Math.max(textH + 2, h - 2);
-            g.setColor(Color.WHITE);
-            g.drawString(text, x, firstLineY);
-            g.setColor(createGrayColor(20));
-            g.drawString(text, x, secondLineY);
-            g.dispose();
-            BufferedImage rotated = rotateClockwise90(image);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(rotated, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成文字 PNG 失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng createRotatedTwoLineTextPng(double width, double height, String text) {
+        return com.mes.application.command.graphics.RemoteGraphics.image("MARK_TWO_LINES", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height, "text", text));
     }
 
-    private byte[] createTwoLineTextPng(double width, double height, String text) {
+    private com.mes.application.command.graphics.RemotePng createTwoLineTextPng(double width, double height, String text) {
         try {
-            BufferedImage image = createSingleLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text, Color.WHITE);
+            com.mes.application.command.graphics.RemoteImage image = createSingleLineTextImage((int) Math.ceil(width), (int) Math.ceil(height), text, Color.WHITE);
             return toPng(image);
         } catch (Exception e) {
             throw new IllegalStateException("生成横向文字 PNG 失败", e);
         }
     }
 
-    private BufferedImage createSingleLineTextImage(int w, int h, String text, Color textColor) {
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        g.setComposite(AlphaComposite.Clear);
-        g.fillRect(0, 0, w, h);
-        g.setComposite(AlphaComposite.SrcOver);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, h - 2)));
-        FontMetrics fm = g.getFontMetrics();
-        int textW = fm.stringWidth(text);
-        int textH = fm.getAscent();
-        int x = Math.max(0, (w - textW) / 2);
-        int y = Math.max(textH, Math.min(h - 2, (h + textH) / 2 - 1));
-        g.setColor(textColor);
-        g.drawString(text, x, y);
-        g.dispose();
+    private com.mes.application.command.graphics.RemoteImage createSingleLineTextImage(int w, int h, String text, Color textColor) {
+        return com.mes.application.command.graphics.RemoteGraphics.image("MARK_TEXT", com.mes.application.command.graphics.RemoteGraphics.params("width", w, "height", h, "text", text, "color", textColor.getRGB()));
+    }
+
+    private com.mes.application.command.graphics.RemoteImage createStripeImage(int w, int h) { return com.mes.application.command.graphics.RemoteGraphics.image("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", w, "height", h, "color", Color.BLACK.getRGB())); }
+
+    private com.mes.application.command.graphics.RemoteImage rotateImageByAngle(com.mes.application.command.graphics.RemoteImage src, double angle) {
+        return com.mes.application.command.graphics.RemoteGraphics.transformFloor(src, angle);
+    }
+
+    private com.mes.application.command.graphics.RemotePng toPng(com.mes.application.command.graphics.RemoteImage image) {
         return image;
-    }
-
-    private BufferedImage createStripeImage(int w, int h) {
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        g.setComposite(AlphaComposite.Src);
-        for (int y = 0; y < h; y++) {
-            boolean blackBand = y % 2 == 0;
-            Color bandColor = blackBand ? Color.BLACK : Color.WHITE;
-            g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
-            g.fillRect(0, y, w, 1);
-        }
-        g.dispose();
-        return image;
-    }
-
-    private BufferedImage rotateImageByAngle(BufferedImage src, double angle) {
-        double rad = Math.toRadians(angle);
-        double sin = Math.abs(Math.sin(rad));
-        double cos = Math.abs(Math.cos(rad));
-        int w = src.getWidth();
-        int h = src.getHeight();
-        int newW = (int) Math.floor(w * cos + h * sin);
-        int newH = (int) Math.floor(h * cos + w * sin);
-        BufferedImage rotated = new BufferedImage(Math.max(1, newW), Math.max(1, newH), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = rotated.createGraphics();
-        g2d.setComposite(AlphaComposite.Src);
-        g2d.translate((newW - w) / 2D, (newH - h) / 2D);
-        g2d.rotate(rad, w / 2D, h / 2D);
-        g2d.drawRenderedImage(src, null);
-        g2d.dispose();
-        return rotated;
-    }
-
-    private byte[] toPng(BufferedImage image) {
-        try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("PNG 编码失败", e);
-        }
     }
 
     /**
@@ -575,16 +480,8 @@ public class SuperWidthSpliceMarkService {
         }
     }
 
-    private BufferedImage rotateClockwise90(BufferedImage src) {
-        int srcW = src.getWidth();
-        int srcH = src.getHeight();
-        BufferedImage dst = new BufferedImage(srcH, srcW, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < srcH; y++) {
-            for (int x = 0; x < srcW; x++) {
-                dst.setRGB(srcH - 1 - y, x, src.getRGB(x, y));
-            }
-        }
-        return dst;
+    private com.mes.application.command.graphics.RemoteImage rotateClockwise90(com.mes.application.command.graphics.RemoteImage src) {
+        return com.mes.application.command.graphics.RemoteGraphics.transform(src, 90, 0);
     }
 
     private Color createGrayColor(int blackPercent) {

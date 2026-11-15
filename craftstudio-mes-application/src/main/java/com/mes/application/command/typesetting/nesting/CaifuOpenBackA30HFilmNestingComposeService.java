@@ -5,9 +5,6 @@ import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,26 +65,11 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
                 .filter(Objects::nonNull)
                 .max(Integer::compareTo)
                 .orElse(1500);
-        BufferedImage image = new BufferedImage(width, 6, BufferedImage.TYPE_INT_RGB);
-        Graphics2D graphics = image.createGraphics();
-        try {
-            graphics.setColor(Color.WHITE);
-            graphics.fillRect(0, 0, width, 6);
-            graphics.setColor(Color.BLACK);
-            graphics.fillRect(markerLineLeftMm(), 2, markerLineWidthMm(width), 1);
-        } finally {
-            graphics.dispose();
-        }
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            javax.imageio.ImageIO.write(image, "png", outputStream);
-            String subDir = "mark/" + manufacturerMetaId + "/caifu";
-            String pngUrl = ossTagUploadService.uploadTagPng(businessId, outputStream.toByteArray(), subDir, markerId + ".png");
-            String svg = buildMarkerSvg(width);
-            String svgUrl = ossTagUploadService.uploadTagSvg(businessId, svg.getBytes(StandardCharsets.UTF_8), subDir, markerId + ".svg");
-            return new MarkerAsset(pngUrl, svgUrl);
-        } catch (Exception e) {
-            throw new IllegalStateException("上传裁赋开背辅助标记失败", e);
-        }
+
+        var png = com.mes.application.command.graphics.RemoteGraphics.png("NESTING_MARKER", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", 6, "left", markerLineLeftMm()));
+        String svg = buildMarkerSvg(width);
+        String url = ossTagUploadService.uploadTagSvg(businessId, svg.getBytes(StandardCharsets.UTF_8), "mark/" + manufacturerMetaId + "/caifu", markerId + ".svg");
+        return new MarkerAsset(png.url(), url);
     }
 
     protected int markerLineLeftMm() {
@@ -100,11 +82,7 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
     }
 
     private String buildMarkerSvg(int width) {
-        int lineWidth = markerLineWidthMm(width);
-        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "mm\" height=\"6mm\" viewBox=\"0 0 " + width + " 6\">"
-                + "<rect x=\"0\" y=\"0\" width=\"" + width + "\" height=\"6\" fill=\"#ffffff\"/>"
-                + "<rect x=\"" + markerLineLeftMm() + "\" y=\"2.5\" width=\"" + lineWidth + "\" height=\"1\" fill=\"#000000\"/>"
-                + "</svg>";
+        return com.mes.application.command.graphics.RemoteGraphics.svg("NESTING_MARKER_SVG", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "left", markerLineLeftMm()));
     }
 
     private static class MarkerAsset {

@@ -6,6 +6,7 @@ import java.util.List;
 
 @Data
 public class ConfirmPrintResult {
+    private String graphicsTaskId;
     private boolean success;
     private String message;
     private Integer updatedPieceCount;

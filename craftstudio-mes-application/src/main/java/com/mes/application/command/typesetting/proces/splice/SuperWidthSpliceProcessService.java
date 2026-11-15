@@ -16,15 +16,12 @@ import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -198,9 +195,9 @@ public class SuperWidthSpliceProcessService {
         for (SpliceEdge edge : SpliceEdge.values()) {
             boolean verticalEdge = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT;
             double angle = verticalEdge ? 90D : 0D;
-            BufferedImage yellowTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createYellowColor(20)), angle);
-            BufferedImage grayTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createGrayColor(20)), angle);
-            BufferedImage stripeImage = rotateImageByAngle(createStripeImage(6, 1, createGrayColor(20)), angle);
+            com.mes.application.command.graphics.RemoteImage yellowTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createYellowColor(20)), angle);
+            com.mes.application.command.graphics.RemoteImage grayTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createGrayColor(20)), angle);
+            com.mes.application.command.graphics.RemoteImage stripeImage = rotateImageByAngle(createStripeImage(6, 1, createGrayColor(20)), angle);
             String yellowText = ossTagUploadService.uploadTagPng(businessId, toPng(yellowTextImage), markSubDir);
             String grayText = ossTagUploadService.uploadTagPng(businessId, toPng(grayTextImage), markSubDir);
             String stripe = ossTagUploadService.uploadTagPng(businessId, toPng(stripeImage), markSubDir);
@@ -308,13 +305,7 @@ public class SuperWidthSpliceProcessService {
     }
 
     private String buildRectMarkGroup(String id, String img, Rect rect) {
-        return "<g id=\"" + escapeAttr(id) + "\" img=\"" + escapeAttr(img)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(img)) + "\" data-forme=\"false\" data-rotation=\"0\"" + MARK_REQUIRE_PLT_ATTR + ">\n"
-                + "<path d=\"M" + format(rect.x) + " " + format(rect.y)
-                + " H" + format(rect.x + rect.width)
-                + " V" + format(rect.y + rect.height)
-                + " H" + format(rect.x) + " Z\" fill=\"#111111\" fill-opacity=\"0.82\" fill-rule=\"evenodd\" />\n"
-                + "</g>\n";
+        return com.mes.application.command.graphics.RemoteGraphics.svg("SVG_RECT_GROUP", com.mes.application.command.graphics.RemoteGraphics.params("id", id, "img", img, "x", rect.x, "y", rect.y, "width", rect.width, "height", rect.height));
     }
 
     private double edgeStartY(EdgeSpan span, double pieceHeight, double markHeight, boolean startCorner) {
@@ -332,33 +323,10 @@ public class SuperWidthSpliceProcessService {
     }
 
     private String appendMarksSvg(String originalSvg, String pieceMongoId, String originalContentImg, String marksSvg) {
-        String baseSvg = containsGroup(originalSvg) ? originalSvg : rebuildSvgWithOriginalGroup(originalSvg, pieceMongoId, originalContentImg);
-        int closeIndex = lastSvgCloseIndex(baseSvg);
-        if (closeIndex < 0) {
-            return baseSvg;
-        }
-        return baseSvg.substring(0, closeIndex) + marksSvg + baseSvg.substring(closeIndex);
+        return com.mes.application.command.graphics.RemoteGraphics.svg("SPLICE_APPEND", com.mes.application.command.graphics.RemoteGraphics.params("originalSvg", originalSvg, "pieceMongoId", pieceMongoId, "originalContentImg", originalContentImg, "marksSvg", marksSvg));
     }
 
-    private String rebuildSvgWithOriginalGroup(String originalSvg, String pieceMongoId, String originalContentImg) {
-        Matcher openMatcher = SVG_OPEN_PATTERN.matcher(originalSvg);
-        if (!openMatcher.find()) {
-            return originalSvg;
-        }
-        int closeIndex = lastSvgCloseIndex(originalSvg);
-        if (closeIndex < 0 || closeIndex < openMatcher.end()) {
-            return originalSvg;
-        }
-        String prefix = originalSvg.substring(0, openMatcher.end());
-        String innerSvg = originalSvg.substring(openMatcher.end(), closeIndex).trim();
-        String suffix = originalSvg.substring(closeIndex);
-        String groupId = StringUtils.isBlank(pieceMongoId) ? "original-mask" : pieceMongoId;
-        return prefix + "\n<g id=\"" + escapeAttr(groupId)
-                + "\" img=\"" + escapeAttr(originalContentImg)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-rotation=\"0\" require-plt=\"true\">\n"
-                + normalizeRectsToPaths(innerSvg) + "\n</g>\n" + suffix;
-    }
+
 
 
     /**
@@ -525,7 +493,7 @@ public class SuperWidthSpliceProcessService {
 
     private String resolveSvg(String url) {
         try {
-            byte[] bytes = restTemplate.getForObject(url, byte[].class);
+            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(url);
             return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
         } catch (Exception e) {
             log.warn("下载拼接 mask SVG 失败: {}, error={}", url, e.getMessage());
@@ -533,87 +501,33 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
-    private byte[] createAlternatingStripePng(double width, double height) {
+    private com.mes.application.command.graphics.RemotePng createAlternatingStripePng(double width, double height) {
         try {
-            BufferedImage image = createStripeImage((int) Math.ceil(width), (int) Math.ceil(height));
+            com.mes.application.command.graphics.RemoteImage image = createStripeImage((int) Math.ceil(width), (int) Math.ceil(height));
             return toPng(image);
         } catch (Exception e) {
             throw new IllegalStateException("生成拼接出血边 PNG 失败", e);
         }
     }
 
-    private BufferedImage createTextImage(double widthMm, double heightMm, String text, Color textColor) {
-        int width = convertTextMmToPixels(widthMm);
-        int height = convertTextMmToPixels(heightMm);
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        g.setComposite(AlphaComposite.Clear);
-        g.fillRect(0, 0, width, height);
-        g.setComposite(AlphaComposite.SrcOver);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(new Font("SansSerif", Font.BOLD, Math.max(8, height - convertTextMmToPixels(1D))));
-        FontMetrics fm = g.getFontMetrics();
-        int textW = fm.stringWidth(text);
-        int textH = fm.getAscent();
-        int x = Math.max(0, (width - textW) / 2);
-        int y = Math.max(textH, Math.min(height - convertTextMmToPixels(0.5D), (height + textH) / 2 - 1));
-        g.setColor(textColor);
-        g.drawString(text, x, y);
-        g.dispose();
-        return image;
+    private com.mes.application.command.graphics.RemoteImage createTextImage(double widthMm, double heightMm, String text, Color textColor) {
+        return com.mes.application.command.graphics.RemoteGraphics.image("SPLICE_TEXT", com.mes.application.command.graphics.RemoteGraphics.params("width", widthMm, "height", heightMm, "text", text, "color", textColor.getRGB()));
     }
 
     private int convertTextMmToPixels(double valueMm) {
         return Math.max(1, (int) Math.ceil(valueMm / MM_PER_INCH * TEXT_PNG_DPI));
     }
 
-    private BufferedImage createStripeImage(int width, int height) {
-        return createStripeImage(width, height, Color.BLACK);
+    private com.mes.application.command.graphics.RemoteImage createStripeImage(int width, int height) { return com.mes.application.command.graphics.RemoteGraphics.image("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height, "color", Color.BLACK.getRGB())); }
+
+    private com.mes.application.command.graphics.RemoteImage createStripeImage(int width, int height, Color darkBandColor) { return com.mes.application.command.graphics.RemoteGraphics.image("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height, "color", darkBandColor.getRGB())); }
+
+    private com.mes.application.command.graphics.RemoteImage rotateImageByAngle(com.mes.application.command.graphics.RemoteImage src, double angle) {
+        return com.mes.application.command.graphics.RemoteGraphics.transform(src, angle, 0);
     }
 
-    private BufferedImage createStripeImage(int width, int height, Color darkBandColor) {
-        BufferedImage image = new BufferedImage(Math.max(1, width), Math.max(1, height), BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = image.createGraphics();
-        g.setComposite(AlphaComposite.Src);
-        for (int y = 0; y < image.getHeight(); y++) {
-            boolean blackBand = y % 2 == 0;
-            Color bandColor = blackBand ? darkBandColor : Color.WHITE;
-            g.setColor(new Color(bandColor.getRed(), bandColor.getGreen(), bandColor.getBlue(), 255));
-            g.fillRect(0, y, image.getWidth(), 1);
-        }
-        g.dispose();
+    private com.mes.application.command.graphics.RemotePng toPng(com.mes.application.command.graphics.RemoteImage image) {
         return image;
-    }
-
-    private BufferedImage rotateImageByAngle(BufferedImage src, double angle) {
-        if (Math.abs(angle) < 0.000001D) {
-            return src;
-        }
-        double rad = Math.toRadians(angle);
-        double sin = Math.abs(Math.sin(rad));
-        double cos = Math.abs(Math.cos(rad));
-        int w = src.getWidth();
-        int h = src.getHeight();
-        int newW = Math.max(1, (int) Math.ceil(w * cos + h * sin));
-        int newH = Math.max(1, (int) Math.ceil(h * cos + w * sin));
-        BufferedImage rotated = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = rotated.createGraphics();
-        g2d.setComposite(AlphaComposite.Src);
-        g2d.translate((newW - w) / 2D, (newH - h) / 2D);
-        g2d.rotate(rad, w / 2D, h / 2D);
-        g2d.drawRenderedImage(src, null);
-        g2d.dispose();
-        return rotated;
-    }
-
-    private byte[] toPng(BufferedImage image) {
-        try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("PNG 编码失败", e);
-        }
     }
 
     private void updateMarks(ProductionPiece piece, MarkAssets assets) {
@@ -831,64 +745,15 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
-    private boolean containsGroup(String svg) {
-        return StringUtils.isNotBlank(svg) && SVG_GROUP_PATTERN.matcher(svg).find();
-    }
 
-    private int lastSvgCloseIndex(String svg) {
-        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
-        int closeIndex = -1;
-        while (matcher.find()) {
-            closeIndex = matcher.start();
-        }
-        return closeIndex;
-    }
 
-    private String normalizeRectsToPaths(String svgContent) {
-        if (StringUtils.isBlank(svgContent)) {
-            return svgContent;
-        }
-        Matcher matcher = SVG_RECT_PATTERN.matcher(svgContent);
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            String rectAttributes = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
-            String path = convertRectToPath(matcher.group(), rectAttributes);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(path));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
-    }
 
-    private String convertRectToPath(String originalRect, String rectAttributes) {
-        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
-        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
-        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
-        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
-        if (x == null || y == null || width == null || height == null) {
-            return originalRect;
-        }
-        StringBuilder path = new StringBuilder("<path d=\"M")
-                .append(format(x)).append(" ").append(format(y))
-                .append(" H").append(format(x + width))
-                .append(" V").append(format(y + height))
-                .append(" H").append(format(x))
-                .append(" Z\"");
-        appendRectAttributesAsPathAttributes(path, rectAttributes);
-        path.append("/>");
-        return path.toString();
-    }
 
-    private void appendRectAttributesAsPathAttributes(StringBuilder path, String rectAttributes) {
-        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(rectAttributes);
-        while (matcher.find()) {
-            String attributeName = matcher.group(1);
-            if ("x".equalsIgnoreCase(attributeName) || "y".equalsIgnoreCase(attributeName)
-                    || "width".equalsIgnoreCase(attributeName) || "height".equalsIgnoreCase(attributeName)) {
-                continue;
-            }
-            path.append(matcher.group());
-        }
-    }
+
+
+
+
+
 
     private String attributeValue(String attributes, String name) {
         if (StringUtils.isBlank(attributes) || StringUtils.isBlank(name)) {

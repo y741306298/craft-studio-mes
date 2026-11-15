@@ -28,11 +28,11 @@ public class OssTagUploadService {
     }
 
     public String uploadTagSvg(String businessId, byte[] bytes) {
-        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml");
+        return com.mes.application.command.graphics.RemoteGraphics.saveSvg(bytes);
     }
 
     public String uploadTagSvg(String businessId, byte[] bytes, String subDir) {
-        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml", subDir, false);
+        return com.mes.application.command.graphics.RemoteGraphics.saveSvg(bytes);
     }
 
     public String uploadTagPng(String businessId, byte[] bytes) {
@@ -45,7 +45,7 @@ public class OssTagUploadService {
 
 
     public String uploadTagSvg(String businessId, byte[] bytes, String subDir, String fileName) {
-        return uploadTagFile(businessId, bytes, "svg", "image/svg+xml", subDir, false, fileName);
+        return com.mes.application.command.graphics.RemoteGraphics.saveSvg(bytes);
     }
 
     public String uploadTagPng(String businessId, byte[] bytes, String subDir, String fileName) {
@@ -140,4 +140,9 @@ public class OssTagUploadService {
         }
         return "https://" + defaultBucket + "." + ossEndpoint + "/" + normalizedPath;
     }
+
+    public String uploadTagPng(String businessId, com.mes.application.command.graphics.RemotePng image) { return image.url(); }
+    public String uploadTagPng(String businessId, com.mes.application.command.graphics.RemotePng image, String subDir) { return image.url(); }
+    public String uploadTagPng(String businessId, com.mes.application.command.graphics.RemotePng image, String subDir, String fileName) { return image.url(); }
+    public String uploadLagPng(String businessId, com.mes.application.command.graphics.RemotePng image) { return image.url(); }
 }

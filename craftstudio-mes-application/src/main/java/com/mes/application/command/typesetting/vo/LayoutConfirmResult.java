@@ -4,6 +4,8 @@ import lombok.Data;
 
 @Data
 public class LayoutConfirmResult {
+    /** 接收成功并不代表图形、排版或制版已经完成。 */
+    private String graphicsTaskId;
     private boolean success;
     private String layoutId;
     private String layoutUrl;

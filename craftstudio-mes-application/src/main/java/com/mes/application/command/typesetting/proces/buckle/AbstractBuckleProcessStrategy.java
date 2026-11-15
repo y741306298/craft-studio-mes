@@ -291,7 +291,7 @@ public abstract class AbstractBuckleProcessStrategy {
             return trimmed;
         }
         try {
-            return restTemplate.getForObject(trimmed, String.class);
+            return com.mes.application.command.graphics.SvgResourceReader.text(trimmed);
         } catch (Exception e) {
             log.warn("下载{} mask SVG 失败: {}, error={}", nodeName(), svgRefOrContent, e.getMessage());
             return null;
@@ -456,106 +456,22 @@ public abstract class AbstractBuckleProcessStrategy {
 
     private String appendBuckleMarks(String originalSvg, ProductionPiece piece, String originalContentImg,
                                      List<BuckleMarkPoint> markPoints) {
-        int closeIndex = lastSvgCloseIndex(originalSvg);
-        if (closeIndex < 0) {
-            return originalSvg;
-        }
-        String pieceId = StringUtils.isNotBlank(piece.getId()) ? piece.getId() : piece.getProductionPieceId();
-        if (StringUtils.isBlank(pieceId)) {
-            pieceId = "unknown";
-        }
-        String baseSvg = containsGroup(originalSvg) ? originalSvg : rebuildSvgWithOriginalGroup(originalSvg, pieceId, originalContentImg);
-        closeIndex = lastSvgCloseIndex(baseSvg);
-        if (closeIndex < 0) {
-            return baseSvg;
-        }
-        String marksSvg = buildMarksSvg(pieceId, markPoints);
-        return baseSvg.substring(0, closeIndex) + marksSvg + baseSvg.substring(closeIndex);
+        return com.mes.application.command.graphics.RemoteGraphics.svg("BUCKLE_APPEND", com.mes.application.command.graphics.RemoteGraphics.params("originalSvg", originalSvg, "pieceId", piece.getId() == null ? piece.getProductionPieceId() : piece.getId(), "originalContentImg", originalContentImg, "markPoints", markPoints, "markKeyPrefix", markKeyPrefix()));
     }
 
-    private boolean containsGroup(String svg) {
-        return StringUtils.isNotBlank(svg) && SVG_GROUP_PATTERN.matcher(svg).find();
-    }
 
-    private int lastSvgCloseIndex(String svg) {
-        Matcher matcher = SVG_CLOSE_PATTERN.matcher(svg);
-        int closeIndex = -1;
-        while (matcher.find()) {
-            closeIndex = matcher.start();
-        }
-        return closeIndex;
-    }
 
-    private String rebuildSvgWithOriginalGroup(String originalSvg, String pieceId, String originalContentImg) {
-        Matcher openMatcher = SVG_OPEN_PATTERN.matcher(originalSvg);
-        if (!openMatcher.find()) {
-            return originalSvg;
-        }
-        int closeIndex = lastSvgCloseIndex(originalSvg);
-        if (closeIndex < 0 || closeIndex < openMatcher.end()) {
-            return originalSvg;
-        }
-        String prefix = originalSvg.substring(0, openMatcher.end());
-        String innerSvg = originalSvg.substring(openMatcher.end(), closeIndex).trim();
-        String suffix = originalSvg.substring(closeIndex);
-        return prefix + "\n" + buildOriginalContentGroup(pieceId, originalContentImg, innerSvg) + suffix;
-    }
 
-    private String buildOriginalContentGroup(String pieceId, String originalContentImg, String innerSvg) {
-        String groupId = StringUtils.isBlank(pieceId) ? "original-mask" : pieceId;
-        return "<g id=\"" + escapeAttr(groupId)
-                + "\" img=\"" + escapeAttr(originalContentImg)
-                + "\" data-source-name=\"" + escapeAttr(sourceName(originalContentImg))
-                + "\" data-rotation=\"0\">\n"
-                + normalizeRectsToPaths(innerSvg) + "\n"
-                + "</g>\n";
-    }
 
-    private String normalizeRectsToPaths(String svgContent) {
-        if (StringUtils.isBlank(svgContent)) {
-            return svgContent;
-        }
-        Matcher matcher = SVG_RECT_PATTERN.matcher(svgContent);
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            String rectAttributes = matcher.group(1) == null ? matcher.group(2) : matcher.group(1);
-            String path = convertRectToPath(matcher.group(), rectAttributes);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(path));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
-    }
 
-    private String convertRectToPath(String originalRect, String rectAttributes) {
-        Double x = parseSvgNumber(attributeValue(rectAttributes, "x"), 0D);
-        Double y = parseSvgNumber(attributeValue(rectAttributes, "y"), 0D);
-        Double width = parseSvgNumber(attributeValue(rectAttributes, "width"), null);
-        Double height = parseSvgNumber(attributeValue(rectAttributes, "height"), null);
-        if (x == null || y == null || width == null || height == null) {
-            return originalRect;
-        }
-        StringBuilder path = new StringBuilder("<path d=\"M")
-                .append(format(x)).append(" ").append(format(y))
-                .append(" H").append(format(x + width))
-                .append(" V").append(format(y + height))
-                .append(" H").append(format(x))
-                .append(" Z\"");
-        appendRectAttributesAsPathAttributes(path, rectAttributes);
-        path.append("/>");
-        return path.toString();
-    }
 
-    private void appendRectAttributesAsPathAttributes(StringBuilder path, String rectAttributes) {
-        Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(rectAttributes);
-        while (matcher.find()) {
-            String attributeName = matcher.group(1);
-            if ("x".equalsIgnoreCase(attributeName) || "y".equalsIgnoreCase(attributeName)
-                    || "width".equalsIgnoreCase(attributeName) || "height".equalsIgnoreCase(attributeName)) {
-                continue;
-            }
-            path.append(matcher.group());
-        }
-    }
+
+
+
+
+
+
+
 
     private String attributeValue(String attributes, String name) {
         Matcher matcher = SVG_ATTRIBUTE_PATTERN.matcher(attributes);
@@ -631,35 +547,11 @@ public abstract class AbstractBuckleProcessStrategy {
         return slashIndex >= 0 ? clean.substring(slashIndex + 1) : clean;
     }
 
-    private String buildMarksSvg(String pieceId, List<BuckleMarkPoint> markPoints) {
-        StringBuilder builder = new StringBuilder("\n");
-        for (BuckleMarkPoint point : markPoints) {
-            appendPointGroup(builder, pieceId, point);
-        }
-        return builder.toString();
-    }
 
-    private void appendPointGroup(StringBuilder builder, String pieceId, BuckleMarkPoint point) {
-        double x = point.getCenterX() - MARK_SIZE_MM / 2D;
-        double y = point.getCenterY() - MARK_SIZE_MM / 2D;
-        builder.append("<g id=\"").append(markKeyPrefix()).append("-").append(point.getSuffix()).append("-").append(escapeAttr(pieceId))
-                .append("\" img=\"").append(escapeAttr(MARK_IMG))
-                .append("\" data-source-name=\"").append(MARK_SOURCE_NAME)
-                .append("\" data-forme=\"false\" data-rotation=\"0\" require-plt=\"false\" transform=\"translate(").append(format(x)).append(" ").append(format(y)).append(")\">\n")
-                .append("<path d=\"").append(buildPointPath())
-                .append("\" fill=\"").append(MARK_PATH_FILL).append("\"/>\n")
-                .append("</g>\n");
-    }
 
-    private String buildPointPath() {
-        double radius = MARK_SIZE_MM / 2D;
-        double c = radius * 0.5522847498307936D;
-        return "M" + format(radius) + " 0"
-                + " C" + format(radius + c) + " 0 " + format(MARK_SIZE_MM) + " " + format(radius - c) + " " + format(MARK_SIZE_MM) + " " + format(radius)
-                + " C" + format(MARK_SIZE_MM) + " " + format(radius + c) + " " + format(radius + c) + " " + format(MARK_SIZE_MM) + " " + format(radius) + " " + format(MARK_SIZE_MM)
-                + " C" + format(radius - c) + " " + format(MARK_SIZE_MM) + " 0 " + format(radius + c) + " 0 " + format(radius)
-                + " C0 " + format(radius - c) + " " + format(radius - c) + " 0 " + format(radius) + " 0 Z";
-    }
+
+
+
 
     private void updateMaskImageFile(ProductionPiece piece, String maskUrl) {
         ImageFile maskFile = piece.getMaskImageFile();

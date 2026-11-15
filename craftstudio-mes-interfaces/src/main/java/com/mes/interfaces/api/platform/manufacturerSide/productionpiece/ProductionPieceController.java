@@ -25,6 +25,8 @@ import java.util.List;
 @RequestMapping("/api/manufacturerSide/productionPiece")
 @RequiredArgsConstructor
 public class ProductionPieceController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.mes.application.command.graphics.GraphicsWorkflowService graphicsWorkflows;
 
     @Autowired
     private AppProductionPieceService appProductionPieceService;
@@ -117,15 +119,12 @@ public class ProductionPieceController {
         return PagedApiResponse.success(responses, query.getCurrent(), query.getSize(), result.total());
     }
 
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.ACCEPTED)
     @PostMapping("/increasePendingTypesettingQuantity")
-    public ApiResponse<ProductionPieceResponse> increasePendingTypesettingQuantity(
+    public ApiResponse<com.mes.interfaces.api.platform.manufacturerSide.graphics.GraphicsWorkflowController.View> increasePendingTypesettingQuantity(
             @Valid @RequestBody UpdatePendingTypesettingQuantityRequest request) {
-        com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece piece =
-                appProductionPieceService.increasePendingTypesettingQuantity(
-                        request.getProductionPieceId(),
-                        request.getIncreaseQuantity()
-                );
-        return ApiResponse.success(ProductionPieceResponse.from(piece));
+        var job = graphicsWorkflows.submit("REDO", request, null);
+        return ApiResponse.success(com.mes.interfaces.api.platform.manufacturerSide.graphics.GraphicsWorkflowController.View.of(job));
     }
 
     @PostMapping("/normalizeInProgressStatuses")
@@ -144,18 +143,11 @@ public class ProductionPieceController {
         return ApiResponse.success(appProductionPieceService.deleteVectorsCreatedBetween(startDate, endDate));
     }
 
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.ACCEPTED)
     @PostMapping("/batchRedo")
-    public ApiResponse<List<ProductionPieceResponse>> batchRedo(
+    public ApiResponse<com.mes.interfaces.api.platform.manufacturerSide.graphics.GraphicsWorkflowController.View> batchRedo(
             @Valid @RequestBody BatchRedoProductionPieceRequest request) {
-        List<com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece> pieces =
-                appProductionPieceService.batchRedo(
-                        request.getPieces()
-                );
-
-        List<ProductionPieceResponse> responses = pieces.stream()
-                .map(ProductionPieceResponse::from)
-                .toList();
-
-        return ApiResponse.success(responses);
+        var job = graphicsWorkflows.submit("BATCH_REDO", request, null);
+        return ApiResponse.success(com.mes.interfaces.api.platform.manufacturerSide.graphics.GraphicsWorkflowController.View.of(job));
     }
 }

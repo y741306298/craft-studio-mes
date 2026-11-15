@@ -2,5 +2,7 @@
 
 ## 文档目录
 
+- [图形服务异步接入、任务查询及接口变更](docs/imgutil-async-api.md)
+
 - [排版方式（Typesetting Layout Mode）详细说明](docs/typesetting-layout-mode.md)
 - [排版能力改造整体说明（本轮改动汇总）](docs/typesetting-change-overview.md)

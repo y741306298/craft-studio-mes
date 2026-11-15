@@ -11,10 +11,6 @@ import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -210,18 +206,7 @@ public class CaifuA30SmallGraphLayoutBuildService extends CaifuLayoutBuildServic
         return mark;
     }
 
-    protected byte[] createBlackPng(int width, int height) {
-        try {
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = image.createGraphics();
-            g.setColor(Color.BLACK);
-            g.fillRect(0, 0, width, height);
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑色 PNG 失败", e);
-        }
+    protected com.mes.application.command.graphics.RemotePng createBlackPng(int width, int height) {
+        return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 }

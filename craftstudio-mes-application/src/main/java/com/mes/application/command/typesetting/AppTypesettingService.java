@@ -2390,6 +2390,8 @@ public class AppTypesettingService {
      * <p>这里不直接落 OSS，先返回 data URI 参与标签条 SVG 组装。
      */
     private String buildQrCodeDataUri(String manufacturerMetaId, String content) {
+        // The isolated label renderer generates and trims the QR bitmap; MES passes content only.
+        if(com.mes.application.command.graphics.RemoteGraphics.active())return "qr-content:"+Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
         GenerateQrCodeRequest qrCodeRequest = new GenerateQrCodeRequest();
         qrCodeRequest.setManufacturerMetaId(manufacturerMetaId);
         qrCodeRequest.setContent(content);
@@ -4637,7 +4639,7 @@ public class AppTypesettingService {
         }
         try {
             String completeUrl = buildCompleteOssUrl(nestedMirrorSvg);
-            byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
+            byte[] svgBytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(completeUrl));
             if (svgBytes == null || svgBytes.length == 0) {
                 if (isSublimationTypesetting(typesettingInfo)) {
                     throw new IllegalStateException("热升华反面排版 SVG 为空");
@@ -4645,7 +4647,7 @@ public class AppTypesettingService {
                 return nestedMirrorSvg;
             }
             String svgContent = new String(svgBytes, StandardCharsets.UTF_8);
-            String sanitizedSvg = SPLICE_MARK_GROUP_PATTERN.matcher(svgContent).replaceAll("");
+            String sanitizedSvg = com.mes.application.command.graphics.RemoteGraphics.svg("SVG_REMOVE_SPLICE", com.mes.application.command.graphics.RemoteGraphics.params("source", svgContent));
             if (isSublimationTypesetting(typesettingInfo)) {
                 sanitizedSvg = SublimationMirrorSvgCleaner.clean(sanitizedSvg);
             }
@@ -4662,12 +4664,7 @@ public class AppTypesettingService {
             String uploadPath = "typesetting/" + manufacturerMetaId + "/nested-mirror-clean/" + businessId + "/";
             return ossTagUploadService.uploadTagSvg(businessId, sanitizedSvg.getBytes(StandardCharsets.UTF_8), uploadPath, safeTemplateCode + ".svg");
         } catch (Exception e) {
-            if (isSublimationTypesetting(typesettingInfo)) {
-                throw new IllegalStateException("清理热升华反面排版 mark 失败", e);
-            }
-            log.warn("清理 nestedMirrorSvg 拼接 mark 失败，继续使用原始 mirror SVG: typesettingId={}, nestedMirrorSvg={}, error={}",
-                    typesettingInfo == null ? null : typesettingInfo.getTypesettingId(), nestedMirrorSvg, e.getMessage());
-            return nestedMirrorSvg;
+            throw new IllegalStateException("远程清理反面排版 mark 失败，不能继续使用未清理的 SVG", e);
         }
     }
 
@@ -5480,7 +5477,7 @@ public class AppTypesettingService {
             String completeUrl = buildCompleteOssUrl(nestedSvg);
             if (completeUrl.startsWith("http://") || completeUrl.startsWith("https://")) {
                 try {
-                    byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
+                    byte[] svgBytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(completeUrl));
                     if (svgBytes != null && svgBytes.length > 0) {
                         Path tempFile = Files.createTempFile("nested-svg-", ".svg");
                         Files.write(tempFile, svgBytes, StandardOpenOption.TRUNCATE_EXISTING);

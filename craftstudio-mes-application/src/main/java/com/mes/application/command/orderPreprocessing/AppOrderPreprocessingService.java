@@ -272,15 +272,25 @@ public class AppOrderPreprocessingService {
         // 与蒙版回调保持一致：先汇总本批次同步生成的零件，再一次性批量入库，
         // 避免按订单项循环执行单条新增。
         if (!piecesToAdd.isEmpty()) {
-            Set<String> cancelledIds = piecesToAdd.stream()
-                    .map(ProductionPiece::getOrderItemId)
-                    .filter(this::isOrderItemCancelled)
+            Set<String> cancelledIds = directlyGeneratedOrderItems.stream()
+                    .filter(item -> isOrderItemCancelled(item.getOrderItemId())
+                            || !isCallbackStillActive(item.getOrderItemId(), item.getPreprocessRequestId()))
+                    .map(OrderItem::getOrderItemId)
                     .collect(Collectors.toSet());
             piecesToAdd.removeIf(piece -> cancelledIds.contains(piece.getOrderItemId()));
             directlyGeneratedOrderItems.removeIf(item -> cancelledIds.contains(item.getOrderItemId()));
         }
         if (!piecesToAdd.isEmpty()) {
             List<ProductionPiece> savedPieces = productionPieceService.batchAddProductionPieces(piecesToAdd);
+            // Remote rendering may finish on another MES instance after an order was cancelled/reprocessed.
+            Set<String> inactiveAfterWrite = directlyGeneratedOrderItems.stream()
+                    .filter(item -> !isCallbackStillActive(item.getOrderItemId(), item.getPreprocessRequestId()))
+                    .map(OrderItem::getOrderItemId).collect(Collectors.toSet());
+            for (ProductionPiece savedPiece : savedPieces) {
+                if (inactiveAfterWrite.contains(savedPiece.getOrderItemId())) productionPieceService.deleteProductionPiece(savedPiece.getId());
+            }
+            savedPieces = savedPieces.stream().filter(piece -> !inactiveAfterWrite.contains(piece.getOrderItemId())).toList();
+            directlyGeneratedOrderItems.removeIf(item -> inactiveAfterWrite.contains(item.getOrderItemId()));
             savedPieces.forEach(this::indexProductionPieceImage);
             for (OrderItem orderItem : directlyGeneratedOrderItems) {
                 updateOrderItemStatusToInProduction(orderItem.getOrderItemId());
@@ -1055,11 +1065,7 @@ public class AppOrderPreprocessingService {
         log.info("矩形遮罩SVG生成: orderItemId={}, rectBlood={}, widthMm={}, heightMm={}",
                 orderItem.getOrderItemId(), rectBlood, width, height);
 
-        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width + "\" height=\"" + height
-                + "\" viewBox=\"0 0 " + width + " " + height + "\">"
-                + "<path d=\"M0 0 H" + width + " V" + height
-                + " H0 Z\" fill=\"#000000\" stroke=\"#000000\" stroke-width=\"1\"/>"
-                + "</svg>";
+        String svg = com.mes.application.command.graphics.RemoteGraphics.svg("SVG_MASK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
 
         String manufacturerMetaId = StringUtils.isBlank(orderItem.getManufacturerId()) ? "default" : orderItem.getManufacturerId();
         String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItem.getOrderItemId() + "/";

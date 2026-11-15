@@ -19,6 +19,7 @@
     </properties>
 
     <dependencies>
+        <dependency><groupId>de.bwaldvogel</groupId><artifactId>mongo-java-server</artifactId><version>1.47.0</version><scope>test</scope></dependency>
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>craftstudio-mes-domain</artifactId>

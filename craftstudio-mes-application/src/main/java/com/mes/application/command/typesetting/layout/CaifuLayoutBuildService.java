@@ -6,11 +6,6 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -152,83 +147,17 @@ public class CaifuLayoutBuildService extends AbstractLayoutModeBuildService {
     }
 
     protected String buildOpenBackTagStrip(FormeBuildContext context, int stripWidth, boolean rotate180) {
-        String elementA = context.getElementAResolver() == null || context.getTypesettingInfo() == null
-                ? ""
-                : context.getElementAResolver().apply(context.getTypesettingInfo());
-        int canvasWidthPx = mmToPx(stripWidth);
-        int canvasHeightPx = mmToPx(OPEN_BACK_TAG_HEIGHT_MM);
-        int textHeight = Math.max(mmToPx(4), 1);
-        BufferedImage canvas = new BufferedImage(canvasWidthPx, canvasHeightPx, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = canvas.createGraphics();
-        try {
-            g.setColor(Color.WHITE);
-            g.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
-            g.setColor(Color.BLACK);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setFont(new Font(TAG_TEXT_FONT, Font.PLAIN, textHeight));
-            FontMetrics fontMetrics = g.getFontMetrics();
-            int baselineY = ((canvasHeightPx - textHeight) / 2) + ((textHeight - fontMetrics.getHeight()) / 2) + fontMetrics.getAscent();
-            int currentX = mmToPx(TAG_TEXT_LEFT_MM);
-            if (elementA != null && !elementA.trim().isEmpty()) {
-                drawTextRotate180(g, elementA, currentX, baselineY, fontMetrics);
-                currentX += fontMetrics.stringWidth(elementA) + mmToPx(TAG_TEXT_GAP_MM);
-            }
-            BufferedImage uploadImage = rotate180 ? rotateCenter180(canvas) : canvas;
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(uploadImage, "png", outputStream);
-            return ossTagUploadService.uploadTagPng(context.getBusinessId(), outputStream.toByteArray(), buildTagUploadSubDir(context));
-        } catch (Exception e) {
-            throw new IllegalStateException("生成开背标签条PNG失败", e);
-        } finally {
-            g.dispose();
-        }
+        String elementA = context.getElementAResolver() == null || context.getTypesettingInfo() == null ? "" : context.getElementAResolver().apply(context.getTypesettingInfo());
+        return com.mes.application.command.graphics.RemoteGraphics.png("CAIFU_TAG", com.mes.application.command.graphics.RemoteGraphics.params("elementA", elementA, "stripWidth", stripWidth, "rotate180", rotate180)).url();
     }
 
-    private void drawTextRotate180(Graphics2D g, String text, int x, int baselineY, FontMetrics fontMetrics) {
-        int textWidth = fontMetrics.stringWidth(text);
-        if (textWidth <= 0) {
-            return;
-        }
-        int textHeight = fontMetrics.getHeight();
-        double centerX = x + textWidth / 2.0D;
-        double centerY = baselineY - fontMetrics.getAscent() + textHeight / 2.0D;
-        AffineTransform origin = g.getTransform();
-        try {
-            g.rotate(Math.PI, centerX, centerY);
-            g.drawString(text, x, baselineY);
-        } finally {
-            g.setTransform(origin);
-        }
-    }
 
-    private BufferedImage rotateCenter180(BufferedImage source) {
-        BufferedImage rotated = new BufferedImage(source.getWidth(), source.getHeight(), source.getType());
-        Graphics2D g = rotated.createGraphics();
-        try {
-            g.rotate(Math.PI, source.getWidth() / 2.0D, source.getHeight() / 2.0D);
-            g.drawImage(source, 0, 0, null);
-            return rotated;
-        } finally {
-            g.dispose();
-        }
-    }
 
-    private int mmToPx(int mm) {
-        return (int) Math.round(mm / MM_PER_INCH * TAG_DPI);
-    }
 
-    protected byte[] createBlackPng(int width, int height) {
-        try {
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = image.createGraphics();
-            g.setColor(Color.BLACK);
-            g.fillRect(0, 0, width, height);
-            g.dispose();
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑色 PNG 失败", e);
-        }
+
+
+
+    protected com.mes.application.command.graphics.RemotePng createBlackPng(int width, int height) {
+        return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 }

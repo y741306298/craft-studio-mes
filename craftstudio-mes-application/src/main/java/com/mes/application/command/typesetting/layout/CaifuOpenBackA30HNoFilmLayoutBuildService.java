@@ -1,5 +1,6 @@
 package com.mes.application.command.typesetting.layout;
 
+import java.io.ByteArrayInputStream;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -12,7 +13,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -222,7 +222,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             return bands;
         }
         try {
-            byte[] bytes = URI.create(nestedSvg).toURL().openStream().readAllBytes();
+            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(nestedSvg));
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
@@ -264,7 +264,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             return null;
         }
         try {
-            byte[] bytes = URI.create(context.getTypesettingInfo().getElement().getNestedSvg()).toURL().openStream().readAllBytes();
+            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(context.getTypesettingInfo().getElement().getNestedSvg()));
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
@@ -436,19 +436,8 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         return mark;
     }
 
-    private byte[] createBlackPng(double width, double height) {
-        try {
-            java.awt.image.BufferedImage image = new java.awt.image.BufferedImage((int) Math.ceil(width), (int) Math.ceil(height), java.awt.image.BufferedImage.TYPE_INT_RGB);
-            java.awt.Graphics2D g = image.createGraphics();
-            g.setColor(java.awt.Color.BLACK);
-            g.fillRect(0, 0, image.getWidth(), image.getHeight());
-            g.dispose();
-            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(image, "png", outputStream);
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            throw new IllegalStateException("生成黑色 PNG 失败", e);
-        }
+    private com.mes.application.command.graphics.RemotePng createBlackPng(double width, double height) {
+        return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 
     protected static class MarkerBand {
