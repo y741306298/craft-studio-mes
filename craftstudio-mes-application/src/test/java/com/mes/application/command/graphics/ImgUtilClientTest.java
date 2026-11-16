@@ -56,4 +56,20 @@ class ImgUtilClientTest {
     @Test void remoteFailureIsNotReplacedByLocalRendering(){stored.set(callback("task","workflow",false));assertThrows(IllegalStateException.class,()->client.render("workflow","BLACK",Map.of()));}
     @Test void callbackTimeoutIsReportedAndListenerReleased(){assertThrows(IllegalStateException.class,()->client.render("workflow","BLACK",Map.of()));verify(notifier).release(anyString(),same(wakeup));}
     @Test void renderingOutsideWorkflowIsForbidden(){assertThrows(IllegalStateException.class,()->RemoteGraphics.png("BLACK",Map.of()));}
+    @Test void wholePieceSubmitsOnceAndReadsAllAssetUrlsFromSameCallback(){
+        when(algorithms.generateGraphicsAsync(any())).thenAnswer(call->{
+            var request=call.getArgument(0,GraphicsGenerationRequest.class);
+            assertEquals("SPLICE_PIECE",request.getMes().get("operation"));
+            assertEquals("https://bucket.example.com",((Map<?,?>)request.getMes().get("parameters")).get("artifactBaseUrl"));
+            var response=JSON.parseObject(callback(request.getRequestId(),"workflow",true));
+            Map<String,String> assets=new LinkedHashMap<>();
+            for(String key:List.of("dark-horizontal","dark-vertical","stripe-horizontal","stripe-vertical","yellow-horizontal","yellow-vertical","gray-horizontal","gray-vertical"))assets.put(key,"imgutil/piece/"+key+".png");
+            var artifact=response.getJSONObject("result").getJSONObject("artifact");artifact.put("assets",assets);artifact.put("objectName","imgutil/piece/result.svg");
+            stored.set(response.toJSONString());wakeup.complete(null);return null;
+        });
+        var piece=client.splicePiece("workflow",Map.of("groupText","618#1-2","marks",List.of()));
+        assertEquals("https://bucket.example.com/imgutil/piece/result.svg",piece.maskUrl());
+        assertEquals("https://bucket.example.com/imgutil/piece/yellow-vertical.png",piece.asset("yellow-vertical"));
+        assertEquals(8,piece.assets().size());verify(algorithms,times(1)).generateGraphicsAsync(any());verifyNoMoreInteractions(algorithms);
+    }
 }

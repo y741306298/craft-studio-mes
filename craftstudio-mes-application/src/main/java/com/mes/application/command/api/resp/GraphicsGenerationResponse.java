@@ -26,5 +26,6 @@ public class GraphicsGenerationResponse {
         private String unit;
         private String downloadPath;
         private String objectName;
+        private java.util.Map<String, String> assets;
     }
 }

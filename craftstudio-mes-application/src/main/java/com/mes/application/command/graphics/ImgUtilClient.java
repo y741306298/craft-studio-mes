@@ -66,6 +66,21 @@ public class ImgUtilClient {
         if(object==null || object.isBlank() || artifactBase.isBlank())throw new IllegalStateException("MES 接入需开启 imgUtil OSS 并配置 graphics.imgutil.artifact-base-url");
         return new RemoteImage(job.getString("taskId"),artifactBase+"/"+object,artifact.getIntValue("width"),artifact.getIntValue("height"));
     }
+    public RemotePieceGraphics splicePiece(String workflow, Map<String,Object> parameters) {
+        if (artifactBase.isBlank()) throw new IllegalStateException("请配置 graphics.imgutil.artifact-base-url");
+        JSONObject artifact = task(workflow, "SPLICE_PIECE", RemoteGraphics.with(parameters, "artifactBaseUrl", artifactBase)).getJSONObject("artifact");
+        String object = artifact.getString("objectName");
+        JSONObject assets = artifact.getJSONObject("assets");
+        if (object == null || object.isBlank() || assets == null || assets.size() != 8) {
+            throw new IllegalStateException("零件图形结果缺少 OSS 蒙版或素材");
+        }
+        Map<String,String> urls = new LinkedHashMap<>();
+        assets.forEach((key,value) -> {
+            if (!(value instanceof String name) || name.isBlank()) throw new IllegalStateException("零件素材 OSS 对象名为空");
+            urls.put(key, artifactBase + "/" + name);
+        });
+        return new RemotePieceGraphics(artifactBase + "/" + object, urls);
+    }
     public String svg(String workflow,String operation,Map<String,Object> parameters){
         JSONObject job=task(workflow,operation,parameters);
         // An artifact GET transfers SVG text only; it never queries task status.

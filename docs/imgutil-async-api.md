@@ -185,6 +185,7 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 | NESTING_MARKER / NESTING_MARKER_SVG | width、height=6、left，保留分隔线右侧 30mm 留白 |
 | SVG_MASK / SVG_SAVE | 矩形蒙版生成 / 最终 SVG 验证保存 |
 | LIUBAI_EXPAND / LIUBAI_GROUPS | source/原图引用、边距、标签资产和策略标志；保留负 viewBox 坐标及 require-plt |
+| SPLICE_PIECE | groupText、originalSvg、pieceMongoId、originalContentImg、marks(assetKey)；同一零件 PNG 素材、旋转、全部 SVG 标记和最终上传共1个任务，artifact.assets 返回8个素材对象名 |
 | SPLICE_MARKS_APPEND | originalSvg、pieceMongoId、originalContentImg、marks 数组；同一零件所有 SVG 标记一次生成、合并并上传，直接返回最终 SVG artifact；最多32个标记 |
 | BUCKLE_APPEND / SPLICE_APPEND / SVG_RECT_GROUP | 追加扣点、拼接组及矩形标记，保留原 img 和工艺元数据 |
 | SUB_OPEN / SUB_ORIGINAL / SUB_BACK / SUB_POINT / SUB_BORDER | 热升华 SVG 原语；反面只保留对应图片矩形 |
@@ -195,35 +196,61 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 
 SVG 兼容操作支持 MES 既有负 viewBox，不套用通用 EDIT 的零原点限制；仍拒绝脚本、外部实体、外部 CSS 及服务端资源抓取。参数不允许传 Java 类名或任意执行代码。
 
-### 同一零件的拼接 mark 批量提交
+### 同一零件的拼接完整任务
 
-MES 已将 SuperWidthSpliceProcessService 的 SVG 标记处理改为 `SPLICE_MARKS_APPEND`。原先 N 个标记需要 N 次 SVG_RECT_GROUP、1 次 SPLICE_APPEND 和1次 SVG_SAVE；现在一共1个图形任务及其结果回调，直接用 artifact.objectName 组成最终蒙版 URL，不再下载各标记片段或重新上传合并结果。PNG 条纹和文字素材仍按现有独立任务生成及复用；这里批量的是同一零件的 SVG mark 写入，不代表整个零件只剩1次所有类型的图形请求。
+MES 的 SuperWidthSpliceProcessService 现在只提交一个 `SPLICE_PIECE` 任务。条纹、黄色/灰色文字、横竖方向旋转、SVG 标记构建、合并和上传全部在图形服务的同一有界工作线程内执行。MES 不再为该零件分别提交 STRIPES_PX / SPLICE_TEXT / TRANSFORM / SVG_RECT_GROUP / SPLICE_MARKS_APPEND / SVG_SAVE。
+
+每个任务按顺序生成8种素材并及时释放画布，内部不创建子任务，也不再次调用图形 HTTP 接口。全部 PNG 与 SVG 共用一个任务超时、一个本地任务目录和一个文件总大小上限，清理任务会清理整个目录。PNG 和 SVG 都上传成功后才回调成功；回调失败按原规则重试，不会重画。部分失败时 MES 不更新该零件的 mask 和 marks；已经上传的 OSS 对象按桶生命周期管理。
 
 ```json
 {
-  "requestId":"mes-piece-marks-batch",
+  "requestId":"mes-piece-complete",
   "mes":{
-    "operation":"SPLICE_MARKS_APPEND",
+    "operation":"SPLICE_PIECE",
     "parameters":{
+      "groupText":"618#1-2",
+      "artifactBaseUrl":"https://bucket.oss-cn-hangzhou.aliyuncs.com",
       "originalSvg":"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='200'><path d='M0 0 H100 V200 H0 Z'/></svg>",
       "pieceMongoId":"piece-id",
       "originalContentImg":"https://bucket/image.tif",
       "marks":[
-        {"id":"adhesive-splice-stripe-bottom-a-piece-id","img":"https://bucket/stripe.png","x":0,"y":180,"width":6,"height":1},
-        {"id":"adhesive-splice-stripe-bottom-b-piece-id","img":"https://bucket/stripe.png","x":94,"y":180,"width":6,"height":1}
+        {"id":"adhesive-splice-stripe-bottom-a-piece-id","assetKey":"stripe-horizontal","x":0,"y":180,"width":6,"height":1},
+        {"id":"adhesive-splice-text-yellow-bottom-b-piece-id","assetKey":"yellow-horizontal","x":44,"y":192,"width":56,"height":8}
       ]
     }
   },
   "callbackConfig":{
     "callbackUrl":"http://MES地址:8081/api/manufacturerSide/graphics/callback/generate_graphics",
-    "callbackCustomValue":{"id":"workflow-id","workflowId":"workflow-id","taskId":"mes-piece-marks-batch"}
+    "callbackCustomValue":{"id":"workflow-id","workflowId":"workflow-id","taskId":"mes-piece-complete"}
   }
 }
 ```
 
-marks 数量为1–32，每项必须包含唯一非空 id、非空 img、有限数值 x/y 及正数 width/height。任一标记非法则整个任务失败，不发布部分结果。标记顺序、坐标、图片引用、data-source-name、data-forme、data-rotation 和 require-plt 沿用旧实现；MES 仍负责工艺和点位规划。
+artifactBaseUrl 由 MES 的 graphics.imgutil.artifact-base-url 自动填入，必须对应图形服务上传桶。groupText 为1–512字符；marks 最多32项，assetKey 可为 dark-horizontal、dark-vertical、stripe-horizontal、stripe-vertical、yellow-horizontal、yellow-vertical、gray-horizontal、gray-vertical。坐标、尺寸、ID 和工艺元数据沿用旧规则；MES 仍规划点位。已有拼接标记时不重复追加，使用空 marks 生成素材，MES 保留原 mask 引用。
 
-升级时先部署图形服务，确认 capabilities 返回 `spliceMarksBatchVersion=1`，再部署 MES。无需新增配置；仍需开启 OSS，并将 MES artifact-base-url 对齐上传桶。旧 SPLICE_APPEND / SVG_RECT_GROUP 操作继续兼容其他调用方。
+成功回调仍返回 result.artifact，objectName 是最终 SVG；新增 assets 为上述8个 assetKey 到 OSS 对象名的映射。例如：
+
+```json
+{
+  "objectName":"imgutil/mes-piece-complete/result.svg",
+  "assets":{
+    "dark-horizontal":"imgutil/mes-piece-complete/dark-horizontal.png",
+    "dark-vertical":"imgutil/mes-piece-complete/dark-vertical.png",
+    "stripe-horizontal":"imgutil/mes-piece-complete/stripe-horizontal.png",
+    "stripe-vertical":"imgutil/mes-piece-complete/stripe-vertical.png",
+    "yellow-horizontal":"imgutil/mes-piece-complete/yellow-horizontal.png",
+    "yellow-vertical":"imgutil/mes-piece-complete/yellow-vertical.png",
+    "gray-horizontal":"imgutil/mes-piece-complete/gray-horizontal.png",
+    "gray-vertical":"imgutil/mes-piece-complete/gray-vertical.png"
+  }
+}
+```
+
+MES 收到同一次回调后，用 OSS 域名拼接所有对象名，回写 mask 和原有 superWidthSplice* marks 字段；不再下载 SVG 或另行上传。普通单文件任务不会新增空 assets 字段，兼容旧回调及持久化结果。
+
+先部署图形服务，确认 capabilities 返回 `splicePieceVersion=1`，再部署 MES。无需新增配置；仍须启用 OSS。升级后新零件日志应为一次 `operation=SPLICE_PIECE`，而非逐素材提交。其他工艺仍可能独立请求，不能将整个订单的所有图形操作视为一个零件任务。
+
+旧 SPLICE_MARKS_APPEND 继续兼容：它只批量处理 SVG 标记，参数仍为 marks 数组（每项使用 img，非 assetKey），最多32项；旧 SPLICE_APPEND / SVG_RECT_GROUP 也保留。
 
 ## 六、部署配置与顺序
 

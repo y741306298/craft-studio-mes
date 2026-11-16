@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.proces.splice;
 
-import com.mes.application.command.typesetting.support.OssTagUploadService;
+import com.mes.application.command.graphics.RemoteGraphics;
+import com.mes.application.command.graphics.RemotePieceGraphics;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
@@ -10,18 +11,10 @@ import com.mes.domain.shared.utils.IdGenerator;
 import com.piliofpala.craftstudio.shared.domain.file.vo.FilePreview;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import io.micrometer.common.util.StringUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,7 +37,6 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SuperWidthSpliceProcessService {
     private static final String SUPER_WIDTH_SPLICE_NODE_NAME = "超幅拼接";
     private static final String ADHESIVE_SPLICE_NODE_NAME = "背胶拼接";
@@ -62,8 +54,6 @@ public class SuperWidthSpliceProcessService {
     private static final Pattern SVG_PATH_TOKEN_PATTERN = Pattern.compile("[AaCcHhLlMmQqSsTtVvZz]|[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?");
     private static final Pattern MAX_SEQ_PATTERN = Pattern.compile("#\\s*\\d+-(\\d+)");
     private static final String MARK_REQUIRE_PLT_ATTR = " require-plt=\"false\"";
-    private static final double TEXT_PNG_DPI = 300D;
-    private static final double MM_PER_INCH = 25.4D;
     private static final SpliceProcessConfig SUPER_WIDTH_SPLICE_CONFIG = new SpliceProcessConfig(
             SUPER_WIDTH_SPLICE_NODE_NAME, "super-width-splice", 30D, true);
     private static final SpliceProcessConfig ADHESIVE_SPLICE_CONFIG = new SpliceProcessConfig(
@@ -88,8 +78,6 @@ public class SuperWidthSpliceProcessService {
             PANEL_SPLICE_CONFIG
     };
 
-    private final RestTemplate restTemplate;
-    private final OssTagUploadService ossTagUploadService;
 
     public void process(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
         SpliceProcessConfig processConfig = resolveSpliceProcessConfig(procedureFlow, piece);
@@ -106,33 +94,25 @@ public class SuperWidthSpliceProcessService {
         }
         String originalMaskUrl = piece.getMaskImageFile().getRawFile();
         String originalSvg = resolveSvg(originalMaskUrl);
-        if (StringUtils.isBlank(originalSvg) || containsSpliceMarks(originalSvg)) {
-            updateMarksForExistingSvg(orderItem, piece);
-            return;
-        }
+        if (StringUtils.isBlank(originalSvg)) throw new IllegalStateException("下载拼接 mask SVG 失败");
+        boolean existingMarks = containsSpliceMarks(originalSvg);
 
         String pieceMongoId = ensureProductionPieceMongoId(piece);
-        String productionPieceId = ensureProductionPieceBusinessId(piece);
-        String manufacturerMetaId = resolveManufacturerMetaId(orderItem, piece);
-        String markSubDir = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        String businessId = productionPieceId;
-
+        ensureProductionPieceBusinessId(piece);
         SpliceEdges spliceEdges = resolveSpliceEdges(procedureFlow, processConfig, piece, firstSeqBlood);
-        if (spliceEdges.bleedEdges.isEmpty() && spliceEdges.coveredEdges.isEmpty()) {
-            return;
-        }
+        if (!existingMarks && spliceEdges.bleedEdges.isEmpty() && spliceEdges.coveredEdges.isEmpty()) return;
 
-        MarkAssets assets = uploadMarkAssets(businessId, markSubDir, piece.getGroup());
-        ShapeEdgeSpans shapeEdgeSpans = resolveShapeEdgeSpans(originalSvg, width, height);
-        List<Map<String, Object>> marks = buildMarks(processConfig, pieceMongoId, width, height,
-                spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets, shapeEdgeSpans);
-        String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
-        // One task builds every mark, appends them and publishes the final SVG.
-        String newMaskUrl = com.mes.application.command.graphics.RemoteGraphics.image("SPLICE_MARKS_APPEND",
-                com.mes.application.command.graphics.RemoteGraphics.params("originalSvg", originalSvg,
-                        "pieceMongoId", pieceMongoId, "originalContentImg", originalContentImg, "marks", marks)).url();
-        updateMaskImageFile(piece, newMaskUrl);
-        updateMarks(piece, assets);
+        MarkAssets planned = markAssets(piece.getGroup(), java.util.function.Function.identity());
+        List<Map<String, Object>> marks = existingMarks ? List.of() : buildMarks(processConfig, pieceMongoId, width, height,
+                spliceEdges.bleedEdges, spliceEdges.coveredEdges, planned, resolveShapeEdgeSpans(originalSvg, width, height));
+        RemotePieceGraphics result = RemoteGraphics.splicePiece(RemoteGraphics.params("originalSvg", originalSvg,
+                "pieceMongoId", pieceMongoId, "originalContentImg", resolveOriginalContentImg(piece, originalMaskUrl),
+                "groupText", piece.getGroup(), "marks", marks));
+        // Validate all asset keys before changing either the mask or the production-piece metadata.
+        MarkAssets completed = markAssets(piece.getGroup(), result::asset);
+        if (!existingMarks) updateMaskImageFile(piece, result.maskUrl());
+        updateMarks(piece, completed);
+        String newMaskUrl = piece.getMaskImageFile().getRawFile();
         log.info("{}预处理完成: productionPieceId={}, mask={}", processConfig.nodeName, piece.getProductionPieceId(), newMaskUrl);
     }
 
@@ -180,34 +160,18 @@ public class SuperWidthSpliceProcessService {
         return false;
     }
 
-    private void updateMarksForExistingSvg(OrderItem orderItem, ProductionPiece piece) {
-        String productionPieceId = ensureProductionPieceBusinessId(piece);
-        String manufacturerMetaId = resolveManufacturerMetaId(orderItem, piece);
-        String markSubDir = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
-        updateMarks(piece, uploadMarkAssets(productionPieceId, markSubDir, piece.getGroup()));
-    }
-
-    private MarkAssets uploadMarkAssets(String businessId, String markSubDir, String groupText) {
-        String horizontalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(6, 1), markSubDir);
-        String verticalDarkMark = ossTagUploadService.uploadTagPng(businessId, createAlternatingStripePng(1, 6), markSubDir);
+    private MarkAssets markAssets(String groupText, java.util.function.Function<String, String> reference) {
         double textWidthMm = Math.max(24D, groupText.length() * 8D);
-        double textHeightMm = 8D;
         Map<SpliceEdge, EdgeAssets> edgeAssets = new EnumMap<>(SpliceEdge.class);
         for (SpliceEdge edge : SpliceEdge.values()) {
-            boolean verticalEdge = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT;
-            double angle = verticalEdge ? 90D : 0D;
-            com.mes.application.command.graphics.RemoteImage yellowTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createYellowColor(20)), angle);
-            com.mes.application.command.graphics.RemoteImage grayTextImage = rotateImageByAngle(createTextImage(textWidthMm, textHeightMm, groupText, createGrayColor(20)), angle);
-            com.mes.application.command.graphics.RemoteImage stripeImage = rotateImageByAngle(createStripeImage(6, 1, createGrayColor(20)), angle);
-            String yellowText = ossTagUploadService.uploadTagPng(businessId, toPng(yellowTextImage), markSubDir);
-            String grayText = ossTagUploadService.uploadTagPng(businessId, toPng(grayTextImage), markSubDir);
-            String stripe = ossTagUploadService.uploadTagPng(businessId, toPng(stripeImage), markSubDir);
-            double displayTextWidthMm = verticalEdge ? textHeightMm : textWidthMm;
-            double displayTextHeightMm = verticalEdge ? textWidthMm : textHeightMm;
-            edgeAssets.put(edge, new EdgeAssets(stripe, yellowText, grayText, stripeImage.getWidth(), stripeImage.getHeight(),
-                    displayTextWidthMm, displayTextHeightMm));
+            boolean vertical = edge == SpliceEdge.LEFT || edge == SpliceEdge.RIGHT;
+            String orientation = vertical ? "vertical" : "horizontal";
+            edgeAssets.put(edge, new EdgeAssets(reference.apply("stripe-" + orientation),
+                    reference.apply("yellow-" + orientation), reference.apply("gray-" + orientation),
+                    vertical ? 1D : 6D, vertical ? 6D : 1D,
+                    vertical ? 8D : textWidthMm, vertical ? textWidthMm : 8D));
         }
-        return new MarkAssets(horizontalDarkMark, verticalDarkMark, edgeAssets, 6D, 1D, 1D, 6D);
+        return new MarkAssets(reference.apply("dark-horizontal"), reference.apply("dark-vertical"), edgeAssets, 6D, 1D, 1D, 6D);
     }
 
     private List<Map<String, Object>> buildMarks(SpliceProcessConfig processConfig,
@@ -305,7 +269,7 @@ public class SuperWidthSpliceProcessService {
     }
 
     private Map<String, Object> rectMark(String id, String img, Rect rect) {
-        return com.mes.application.command.graphics.RemoteGraphics.params("id", id, "img", img,
+        return com.mes.application.command.graphics.RemoteGraphics.params("id", id, "assetKey", img,
                 "x", rect.x, "y", rect.y, "width", rect.width, "height", rect.height);
     }
 
@@ -497,35 +461,6 @@ public class SuperWidthSpliceProcessService {
             log.warn("下载拼接 mask SVG 失败: {}, error={}", url, e.getMessage());
             return null;
         }
-    }
-
-    private com.mes.application.command.graphics.RemotePng createAlternatingStripePng(double width, double height) {
-        try {
-            com.mes.application.command.graphics.RemoteImage image = createStripeImage((int) Math.ceil(width), (int) Math.ceil(height));
-            return toPng(image);
-        } catch (Exception e) {
-            throw new IllegalStateException("生成拼接出血边 PNG 失败", e);
-        }
-    }
-
-    private com.mes.application.command.graphics.RemoteImage createTextImage(double widthMm, double heightMm, String text, Color textColor) {
-        return com.mes.application.command.graphics.RemoteGraphics.image("SPLICE_TEXT", com.mes.application.command.graphics.RemoteGraphics.params("width", widthMm, "height", heightMm, "text", text, "color", textColor.getRGB()));
-    }
-
-    private int convertTextMmToPixels(double valueMm) {
-        return Math.max(1, (int) Math.ceil(valueMm / MM_PER_INCH * TEXT_PNG_DPI));
-    }
-
-    private com.mes.application.command.graphics.RemoteImage createStripeImage(int width, int height) { return com.mes.application.command.graphics.RemoteGraphics.image("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height, "color", Color.BLACK.getRGB())); }
-
-    private com.mes.application.command.graphics.RemoteImage createStripeImage(int width, int height, Color darkBandColor) { return com.mes.application.command.graphics.RemoteGraphics.image("STRIPES_PX", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height, "color", darkBandColor.getRGB())); }
-
-    private com.mes.application.command.graphics.RemoteImage rotateImageByAngle(com.mes.application.command.graphics.RemoteImage src, double angle) {
-        return com.mes.application.command.graphics.RemoteGraphics.transform(src, angle, 0);
-    }
-
-    private com.mes.application.command.graphics.RemotePng toPng(com.mes.application.command.graphics.RemoteImage image) {
-        return image;
     }
 
     private void updateMarks(ProductionPiece piece, MarkAssets assets) {
@@ -810,18 +745,6 @@ public class SuperWidthSpliceProcessService {
 
     private boolean isNonZero(Integer value) {
         return value != null && value != 0;
-    }
-
-    private Color createYellowColor(int yellowPercent) {
-        int yellow = Math.max(0, Math.min(100, yellowPercent));
-        int blue = (int) Math.round(255 * (1 - yellow / 100.0));
-        return new Color(255, 255, blue);
-    }
-
-    private Color createGrayColor(int blackPercent) {
-        int black = Math.max(0, Math.min(100, blackPercent));
-        int v = (int) Math.round(255 * (1 - black / 100.0));
-        return new Color(v, v, v);
     }
 
     private static class SpliceProcessConfig {
