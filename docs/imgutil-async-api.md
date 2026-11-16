@@ -185,6 +185,7 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 | NESTING_MARKER / NESTING_MARKER_SVG | width、height=6、left，保留分隔线右侧 30mm 留白 |
 | SVG_MASK / SVG_SAVE | 矩形蒙版生成 / 最终 SVG 验证保存 |
 | LIUBAI_EXPAND / LIUBAI_GROUPS | source/原图引用、边距、标签资产和策略标志；保留负 viewBox 坐标及 require-plt |
+| SPLICE_MARKS_APPEND | originalSvg、pieceMongoId、originalContentImg、marks 数组；同一零件所有 SVG 标记一次生成、合并并上传，直接返回最终 SVG artifact；最多32个标记 |
 | BUCKLE_APPEND / SPLICE_APPEND / SVG_RECT_GROUP | 追加扣点、拼接组及矩形标记，保留原 img 和工艺元数据 |
 | SUB_OPEN / SUB_ORIGINAL / SUB_BACK / SUB_POINT / SUB_BORDER | 热升华 SVG 原语；反面只保留对应图片矩形 |
 | SUB_CLEAN / SVG_REMOVE_SPLICE | 清理镜像工艺标记，保留排版位置和原图组 |
@@ -193,6 +194,36 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 专用标签沿用 MES 原绘图函数和常量，不用通用 LABEL 自动缩小规则替代。内部二维码传 `qr-content:` 加内容 UTF-8 Base64，由图形服务生成二维码、裁白边及合成；原独立二维码和物流二维码接口不属于本次四类工艺图形迁移。
 
 SVG 兼容操作支持 MES 既有负 viewBox，不套用通用 EDIT 的零原点限制；仍拒绝脚本、外部实体、外部 CSS 及服务端资源抓取。参数不允许传 Java 类名或任意执行代码。
+
+### 同一零件的拼接 mark 批量提交
+
+MES 已将 SuperWidthSpliceProcessService 的 SVG 标记处理改为 `SPLICE_MARKS_APPEND`。原先 N 个标记需要 N 次 SVG_RECT_GROUP、1 次 SPLICE_APPEND 和1次 SVG_SAVE；现在一共1个图形任务及其结果回调，直接用 artifact.objectName 组成最终蒙版 URL，不再下载各标记片段或重新上传合并结果。PNG 条纹和文字素材仍按现有独立任务生成及复用；这里批量的是同一零件的 SVG mark 写入，不代表整个零件只剩1次所有类型的图形请求。
+
+```json
+{
+  "requestId":"mes-piece-marks-batch",
+  "mes":{
+    "operation":"SPLICE_MARKS_APPEND",
+    "parameters":{
+      "originalSvg":"<svg xmlns='http://www.w3.org/2000/svg' width='100' height='200'><path d='M0 0 H100 V200 H0 Z'/></svg>",
+      "pieceMongoId":"piece-id",
+      "originalContentImg":"https://bucket/image.tif",
+      "marks":[
+        {"id":"adhesive-splice-stripe-bottom-a-piece-id","img":"https://bucket/stripe.png","x":0,"y":180,"width":6,"height":1},
+        {"id":"adhesive-splice-stripe-bottom-b-piece-id","img":"https://bucket/stripe.png","x":94,"y":180,"width":6,"height":1}
+      ]
+    }
+  },
+  "callbackConfig":{
+    "callbackUrl":"http://MES地址:8081/api/manufacturerSide/graphics/callback/generate_graphics",
+    "callbackCustomValue":{"id":"workflow-id","workflowId":"workflow-id","taskId":"mes-piece-marks-batch"}
+  }
+}
+```
+
+marks 数量为1–32，每项必须包含唯一非空 id、非空 img、有限数值 x/y 及正数 width/height。任一标记非法则整个任务失败，不发布部分结果。标记顺序、坐标、图片引用、data-source-name、data-forme、data-rotation 和 require-plt 沿用旧实现；MES 仍负责工艺和点位规划。
+
+升级时先部署图形服务，确认 capabilities 返回 `spliceMarksBatchVersion=1`，再部署 MES。无需新增配置；仍需开启 OSS，并将 MES artifact-base-url 对齐上传桶。旧 SPLICE_APPEND / SVG_RECT_GROUP 操作继续兼容其他调用方。
 
 ## 六、部署配置与顺序
 

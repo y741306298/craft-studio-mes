@@ -117,19 +117,20 @@ public class SuperWidthSpliceProcessService {
         String markSubDir = "mark/" + manufacturerMetaId + "/" + productionPieceId + "/";
         String businessId = productionPieceId;
 
-        MarkAssets assets = uploadMarkAssets(businessId, markSubDir, piece.getGroup());
         SpliceEdges spliceEdges = resolveSpliceEdges(procedureFlow, processConfig, piece, firstSeqBlood);
         if (spliceEdges.bleedEdges.isEmpty() && spliceEdges.coveredEdges.isEmpty()) {
             return;
         }
 
+        MarkAssets assets = uploadMarkAssets(businessId, markSubDir, piece.getGroup());
         ShapeEdgeSpans shapeEdgeSpans = resolveShapeEdgeSpans(originalSvg, width, height);
-        String marksSvg = buildMarksSvg(processConfig, pieceMongoId, width, height, piece.getGroup(), spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets, shapeEdgeSpans);
+        List<Map<String, Object>> marks = buildMarks(processConfig, pieceMongoId, width, height,
+                spliceEdges.bleedEdges, spliceEdges.coveredEdges, assets, shapeEdgeSpans);
         String originalContentImg = resolveOriginalContentImg(piece, originalMaskUrl);
-        String markedSvg = appendMarksSvg(originalSvg, pieceMongoId, originalContentImg, marksSvg);
-        String orderItemId = StringUtils.isBlank(orderItem.getOrderItemId()) ? "default" : orderItem.getOrderItemId();
-        String uploadPath = "mask/" + manufacturerMetaId + "/" + orderItemId + "/" + processConfig.markPrefix + "/";
-        String newMaskUrl = ossTagUploadService.uploadTagSvg(businessId, markedSvg.getBytes(StandardCharsets.UTF_8), uploadPath);
+        // One task builds every mark, appends them and publishes the final SVG.
+        String newMaskUrl = com.mes.application.command.graphics.RemoteGraphics.image("SPLICE_MARKS_APPEND",
+                com.mes.application.command.graphics.RemoteGraphics.params("originalSvg", originalSvg,
+                        "pieceMongoId", pieceMongoId, "originalContentImg", originalContentImg, "marks", marks)).url();
         updateMaskImageFile(piece, newMaskUrl);
         updateMarks(piece, assets);
         log.info("{}预处理完成: productionPieceId={}, mask={}", processConfig.nodeName, piece.getProductionPieceId(), newMaskUrl);
@@ -209,24 +210,23 @@ public class SuperWidthSpliceProcessService {
         return new MarkAssets(horizontalDarkMark, verticalDarkMark, edgeAssets, 6D, 1D, 1D, 6D);
     }
 
-    private String buildMarksSvg(SpliceProcessConfig processConfig,
+    private List<Map<String, Object>> buildMarks(SpliceProcessConfig processConfig,
                                  String pieceMongoId,
                                  double width,
                                  double height,
-                                 String groupText,
                                  Set<SpliceEdge> bleedEdges,
                                  Set<SpliceEdge> coveredEdges,
                                  MarkAssets assets,
                                  ShapeEdgeSpans shapeEdgeSpans) {
-        StringBuilder builder = new StringBuilder("\n");
+        List<Map<String, Object>> marks = new ArrayList<>();
         int index = 0;
         for (SpliceEdge edgeType : bleedEdges) {
             String edgeName = edgeType.name().toLowerCase(Locale.ROOT);
             BleedMarkAsset bleedMarkAsset = assets.bleedMarkAsset(edgeType);
             String offsetLabel = formatOffsetLabel(processConfig.bleedOffsetMm);
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-bleed-" + edgeName + "-start-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
                     bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, true, processConfig.bleedOffsetMm, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-bleed-" + edgeName + "-end-" + offsetLabel + "mm-" + index + "-" + pieceMongoId,
                     bleedMarkAsset.img, bleedRectOnEdge(edgeType, width, height, bleedMarkAsset.width, bleedMarkAsset.height, false, processConfig.bleedOffsetMm, shapeEdgeSpans)));
             index++;
         }
@@ -236,21 +236,21 @@ public class SuperWidthSpliceProcessService {
                 continue;
             }
             // 被出血边置换到右/下侧后，按视觉方向仍保持“线条、文字、文字”的顺序。
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, true, 19D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-stripe-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.stripe, coveredRectOnEdge(edgeType, width, height, edgeAssets.stripeWidth, edgeAssets.stripeHeight, false, 19D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 8D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-text-gray-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.grayText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 8D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-a-" + index + "-" + pieceMongoId,
                     edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, true, 0D, shapeEdgeSpans)));
-            builder.append(buildRectMarkGroup(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
+            marks.add(rectMark(processConfig.markPrefix + "-text-yellow-" + edgeType.name().toLowerCase(Locale.ROOT) + "-b-" + index + "-" + pieceMongoId,
                     edgeAssets.yellowText, coveredRectOnEdge(edgeType, width, height, edgeAssets.textWidth, edgeAssets.textHeight, false, 0D, shapeEdgeSpans)));
             index++;
         }
-        return builder.toString();
+        return marks;
     }
 
     /**
@@ -304,8 +304,9 @@ public class SuperWidthSpliceProcessService {
         }
     }
 
-    private String buildRectMarkGroup(String id, String img, Rect rect) {
-        return com.mes.application.command.graphics.RemoteGraphics.svg("SVG_RECT_GROUP", com.mes.application.command.graphics.RemoteGraphics.params("id", id, "img", img, "x", rect.x, "y", rect.y, "width", rect.width, "height", rect.height));
+    private Map<String, Object> rectMark(String id, String img, Rect rect) {
+        return com.mes.application.command.graphics.RemoteGraphics.params("id", id, "img", img,
+                "x", rect.x, "y", rect.y, "width", rect.width, "height", rect.height);
     }
 
     private double edgeStartY(EdgeSpan span, double pieceHeight, double markHeight, boolean startCorner) {
@@ -322,9 +323,6 @@ public class SuperWidthSpliceProcessService {
         return startCorner ? span.start : Math.max(span.start, span.end - markWidth);
     }
 
-    private String appendMarksSvg(String originalSvg, String pieceMongoId, String originalContentImg, String marksSvg) {
-        return com.mes.application.command.graphics.RemoteGraphics.svg("SPLICE_APPEND", com.mes.application.command.graphics.RemoteGraphics.params("originalSvg", originalSvg, "pieceMongoId", pieceMongoId, "originalContentImg", originalContentImg, "marksSvg", marksSvg));
-    }
 
 
 
