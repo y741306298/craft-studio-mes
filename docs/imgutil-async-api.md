@@ -2,7 +2,7 @@
 
 本次将 MES 的 PNG、专用文字标签、条纹/定位标记和 SVG 蒙版/编辑迁移至 `craftstudio-mes-imgUtil`。MES 保留工艺判断、几何参数规划、订单和生产片写入；大画布分配、字体测量/富文本绘制、PNG 编码、裁剪旋转及 SVG 重构由独立服务执行。
 
-图形服务必须升级为包含 `mes` 兼容操作的版本，`GET /api/graphics/capabilities` 的 mesCompatibilityVersion 应为 1。旧版仅有 raster/svg 原语，不能直接承载现有生产标签。原有抠图、出血、彩白彩、套料、制版算法接口保持原职责。
+图形服务必须升级为包含 `mes` 兼容操作的版本，`GET /api/graphics/capabilities` 的 mesCompatibilityVersion 和 callbackProtocolVersion 都应为 1。旧版仅有 raster/svg 原语，不能直接承载现有生产标签。原有抠图、出血、彩白彩、套料、制版算法接口保持原职责。
 
 ## 一、整体流程
 
@@ -10,27 +10,27 @@
 sequenceDiagram
     participant C as 前端/算法回调
     participant M as MES 接口
-    participant Q as MongoDB graphics_workflow
     participant W as MES 有界后台工作线程
+    participant A as AlgorithmCoreApiService
     participant G as imgUtil
-    C->>M: 提交原业务请求
-    M->>Q: 持久化 QUEUED 工作流
-    M-->>C: HTTP 202，graphicsTaskId（回调仅确认接收）
-    W->>Q: 原子领取 RUNNING 并续租
-    W->>G: POST /api/graphics/tasks，mes 操作
-    G-->>W: HTTP 202
-    loop 后台查询，不占用 MES HTTP 请求线程
-        W->>G: GET /api/graphics/tasks/{taskId}
-        G-->>W: 状态、OSS objectName、尺寸
-    end
-    W->>M: 继续原业务校验、写回图片地址、提交下游异步算法
-    W->>Q: SUCCEEDED / FAILED
-    C->>M: 查询工作流和原业务状态
+    participant I as Mongo回调收件箱及Redis通知
+    C->>M: 提交业务请求
+    M-->>C: 工作流持久化后 HTTP 202
+    W->>I: 先注册 workflowId/taskId
+    W->>A: generateGraphicsAsync(request)
+    A->>A: 保存 AlgorithmCoreApiCallRecord
+    A->>G: POST + callbackConfig + X-Fc-Invocation-Type: Async
+    G-->>A: HTTP 202
+    G->>G: 后台绘图、上传OSS
+    G->>M: POST generate_graphics 回调及HMAC签名
+    M->>I: 幂等落库并通过Redis通知等待实例
+    I-->>W: 唤醒并读取持久化结果
+    W->>M: 继续原业务处理和结果回写
 ```
 
 **工作流 SUCCEEDED 表示 MES 这一阶段执行成功。排版、制版等仍需等待原下游算法回调，不代表生产文件已经全部生成。** `result` 保存原业务返回值，可继续通过原查询接口查看最终业务状态。
 
-首版使用两个有限后台线程轮询远程图形任务。这些线程会等待网络结果，但 HTTP 请求和算法回调线程不等待绘图；不使用无界线程池，也不在图形服务故障时回退到 MES 本地绘图。
+MES 使用有限后台线程等待结果回调，不再 GET 轮询图形任务状态。后台线程等待期间仍占用工作流槽位，HTTP 业务请求和回调接收线程不等待绘图。结果先存入 MongoDB，再通过 Redis Pub/Sub 唤醒对应实例；通知丢失时，在等待期限结束后从持久化收件箱再读取一次。服务故障不会回退到 MES 本地绘图。
 
 ## 二、已有接口变化
 
@@ -124,15 +124,19 @@ Authorization: Bearer {MES登录令牌}
 
 工作流排队数据保存在 MongoDB，MES 重启后 QUEUED 会继续领取。RUNNING 采用 120 秒租约、每 15 秒续租；失联任务转为 RECOVERY_REQUIRED，不盲目重放可能已提交的生产写入。终态工作流保留 7 天后由 MongoDB TTL 清理。
 
-网络不确定、imgUtil 429/503 时，客户端在配置的等待期限内使用同一远程 taskId 退避重试。图形任务明确 FAILED/TIMED_OUT 后，MES 工作流失败；不会把不完整资源写成成功结果，也不会在 MES 本地重画。
+提交或回调超时、图形错误结果会使 MES 工作流失败，按原重试接口使用新工作流编号重试。图形服务会对回调投递失败进行持久化退避重试（最多10次），包括绘图失败、超时及服务重启中断结果；不会因回调失败重复绘图。
 
 ## 五、MES → imgUtil 协议
 
-提交：`POST /api/graphics/tasks`，请求头 `X-Api-Key`，示例：
+统一入口为 `AlgorithmCoreApiService.generateGraphicsAsync`，使用 `external.api.generateGraphicsUrl`。HTTP 请求头为 `Content-Type: application/json`、`X-Fc-Invocation-Type: Async` 和 `X-Api-Key`；API Key 仅放在请求头，不写入请求体和调用记录。示例：
 
 ```json
 {
   "requestId":"mes-工作流UUID去连字符-参数摘要",
+  "callbackConfig":{
+    "callbackUrl":"http://MES地址:8081/api/manufacturerSide/graphics/callback/generate_graphics",
+    "callbackCustomValue":{"id":"工作流UUID","workflowId":"工作流UUID","taskId":"与requestId相同"}
+  },
   "mes":{
     "operation":"LIUBAI_BORDER",
     "parameters":{
@@ -144,7 +148,27 @@ Authorization: Bearer {MES登录令牌}
 }
 ```
 
-查询 `GET /api/graphics/tasks/{taskId}`，成功后获取 `artifact.objectName / width / height`；MES 组合 OSS URL 回写业务对象。SVG 片段、SVG 编辑结果通过受鉴权的 artifact 接口读取，MES 限制结果文本为 1MiB；PNG 不下载到 MES，也不携带位图字节。
+图形服务处理完成后，POST 到 `callbackConfig.callbackUrl`：
+
+```json
+{
+  "id":"图形taskId",
+  "status":"success",
+  "result":{
+    "taskId":"图形taskId",
+    "artifact":{"objectName":"imgutil/taskId/result.png","width":8,"height":3,"mediaType":"image/png"}
+  },
+  "error":null,
+  "errorCode":null,
+  "callbackCustomValue":{"id":"工作流UUID","workflowId":"工作流UUID","taskId":"图形taskId"}
+}
+```
+
+失败时 status=error，result=null，error/errorCode 表示原因。回调接口为 `POST /api/manufacturerSide/graphics/callback/generate_graphics`，不使用用户登录令牌，改为校验 `X-Graphics-Signature`：以相同的 GRAPHICS_API_KEY 为密钥，对原始 UTF-8 JSON 字节执行 HMAC-SHA256，得到小写十六进制签名。必须先验签再落库，重复相同结果幂等确认，未知关联或冲突结果拒绝。
+
+MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需要 SVG 文本时才 GET artifact 下载文件，限制1MiB；这不是任务状态查询。任务 GET 接口继续保留供人工排障，MES 不调用它轮询。
+
+调用记录沿用 AlgorithmCoreApiCallRecord：mode=async、type=generateGraphicsAsync、sourceId=workflowId，并保存请求和 callbackCustomValue。MES 的 graphics_callback_inbox 先于提交注册关联，结果保留7天，解决快速回调、重复投递和实例间通知问题。图形服务 `GET /api/graphics/tasks/{taskId}/callback` 返回投递状态 PENDING/DELIVERED/FAILED、attempts、nextAttemptAt 和 lastError。
 
 | operation | 参数约定及用途 |
 | --- | --- |
@@ -174,24 +198,30 @@ SVG 兼容操作支持 MES 既有负 viewBox，不套用通用 EDIT 的零原点
 
 1. 先部署新版 imgUtil，开启 OSS，确认 bucket/prefix 和 MES 访问权限。
 2. 将生产实际使用的 `Source Han Sans SC VF` 等字体安装/挂载到图形服务。字体必须一致，否则字宽和换行可能不同。可配置 required-fonts，缺字库直接阻止启动。
-3. 配置 MES 并重启；工作流首次启动自动创建集合索引。
+3. 暂停新的图形业务提交，等待旧版 MES 的 RUNNING 工作流完成，再配置 MES 并重启；工作流首次启动自动创建集合索引。新版请求增加 callbackConfig，同编号的旧版请求不能直接改用新协议重发；中断任务核对业务写入后用新工作流编号重试。
 4. 前端适配 HTTP 202、graphicsTaskId、查询和重试，再切换生产流量。上线前核对真实工艺样本。
 
-MES 配置示例（合并进现有环境配置，不替换原配置）：
+MES 配置示例（合并进现有环境配置，不替换原配置；external 下的其他算法地址继续保留）：
 
 ```yaml
+external:
+  api:
+    generateGraphicsUrl: http://imgutil:8092/api/graphics/tasks
+  callbackApi:
+    generate_graphics: http://MES可被图形服务访问的地址:8081/api/manufacturerSide/graphics/callback/generate_graphics
+
 graphics:
   imgutil:
-    base-url: http://imgutil:8092
     api-key: ${GRAPHICS_API_KEY}
     artifact-base-url: https://your-bucket.oss-cn-hangzhou.aliyuncs.com
-    poll-interval-ms: 500
     wait-timeout-ms: 180000
   workflow:
     workers: 2
     capacity: 1000
     poll-ms: 500
 ```
+
+新配置优先使用 external.api.generateGraphicsUrl；未设置时兼容旧 graphics.imgutil.base-url 拼接 /api/graphics/tasks。external.callbackApi.generate_graphics 必填，必须能从图形服务访问，不能误填图形服务自己的回环地址。原 graphics.imgutil.poll-interval-ms 已移除、不再生效，wait-timeout-ms 现在表示回调等待期限。
 
 imgUtil 必须使用相同 API Key，配置 OSS_ENABLED=true 及服务端 OSS 凭据。OSS 端点与 artifact-base-url 必须对应同一存储桶，不传 STS 给绘图请求。
 
@@ -227,6 +257,6 @@ Compose 会将 GRAPHICS_FONTS_HOST_DIRECTORY 只读挂载到 /app/fonts；先创
 
 ## 八、验证范围
 
-两项目使用 Java 22 执行 Maven verify；图形服务包含像素、专用标签、负 viewBox、SVG 元数据、XML 安全与任务队列测试；MES 包含异步工作线程、远程提交/轮询、失败传播、并发幂等领取、租约失联恢复及已有业务测试。
+两项目使用 Java 22 执行 Maven verify；图形服务包含像素、专用标签、负 viewBox、SVG 元数据、XML 安全与任务队列测试；MES 包含异步工作线程、统一算法提交/结果回调、失败传播、并发幂等领取、租约失联恢复及已有业务测试。
 
 当前构建环境无法访问原私有 Maven 仓库。MES 验证使用公开 shared 源码 98ef34a 和 pangolin 源码 91dcf03 本地构建的兼容依赖；仅在临时依赖副本中排除了本次不涉及且无法获取 SDK 的 Lakala 支付适配器，并将 pangolin 的 shared 依赖对齐 MES 使用的 1.2.1。这些依赖副本不提交、不用于生产发布。上线前须使用正式私库构件再次构建，并以真实 MongoDB/Redis、OSS 和生产字体联调。

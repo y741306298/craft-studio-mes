@@ -72,6 +72,38 @@ public class AlgorithmCoreApiService {
     @Value("${external.api.rectBloodUrl:}")
     private String rectBloodUrl;
 
+    @Value("${external.api.generateGraphicsUrl:${graphics.imgutil.base-url:http://127.0.0.1:8092}/api/graphics/tasks}")
+    private String generateGraphicsUrl;
+
+    @Value("${graphics.imgutil.api-key:}")
+    private String graphicsApiKey;
+
+    /** 图形服务沿用算法服务的提交、回调透传及调用记录，202 只表示接收。 */
+    public String generateGraphicsAsync(com.mes.application.command.api.req.GraphicsGenerationRequest request) {
+        if (request == null || request.getRequestId() == null
+                || !request.getRequestId().matches("[A-Za-z0-9][A-Za-z0-9_-]{0,79}") || request.getMes() == null) {
+            throw new IllegalArgumentException("图形请求参数无效");
+        }
+        if (request.getCallbackConfig() == null || isBlank(request.getCallbackConfig().getCallbackUrl())) {
+            throw new IllegalArgumentException("图形异步回调地址不能为空：external.callbackApi.generate_graphics");
+        }
+        if (isBlank(graphicsApiKey)) throw new IllegalArgumentException("图形服务 API Key 未配置");
+        return callAlgorithmAsync(generateGraphicsUrl, "", request, request.getCallbackConfig().getCallbackUrl(),
+                "generateGraphicsAsync", String.class, java.util.Map.of("X-Api-Key", graphicsApiKey));
+    }
+
+    /** 只下载成功回调所对应的 SVG 内容，不查询任务状态。 */
+    public String readGraphicsSvgArtifact(String taskId) {
+        if (taskId == null || !taskId.matches("[A-Za-z0-9][A-Za-z0-9_-]{0,79}")) throw new IllegalArgumentException("图形任务编号无效");
+        String url = generateGraphicsUrl.replaceAll("/+$", "") + "/" + taskId + "/artifact";
+        return restTemplate.execute(url, org.springframework.http.HttpMethod.GET,
+                request -> request.getHeaders().set("X-Api-Key", graphicsApiKey), response -> {
+                    byte[] bytes = response.getBody().readNBytes(1048577);
+                    if (bytes.length > 1048576) throw new IllegalStateException("SVG 结果超过 MES 1MiB 上限");
+                    return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                });
+    }
+
     /**
      * 矩形旗出血 - 同步模式，返回旗帜及可选的镜像文件地址。
      */
@@ -235,6 +267,11 @@ public class AlgorithmCoreApiService {
     }
 
     public <T> T callAlgorithmAsync(String baseUrl, String apiPath, Object requestBody, String callbackUrl, String type, Class<T> responseType) {
+        return callAlgorithmAsync(baseUrl, apiPath, requestBody, callbackUrl, type, responseType, java.util.Map.of());
+    }
+
+    public <T> T callAlgorithmAsync(String baseUrl, String apiPath, Object requestBody, String callbackUrl,
+                                    String type, Class<T> responseType, java.util.Map<String,String> extraHeaders) {
         if (baseUrl == null || baseUrl.isEmpty()) {
             throw new RuntimeException("算法服务地址未配置");
         }
@@ -247,6 +284,7 @@ public class AlgorithmCoreApiService {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            extraHeaders.forEach(headers::set);
             headers.set("X-Fc-Invocation-Type", "Async");
 
             HttpEntity<Object> requestEntity = new HttpEntity<>(requestBody, headers);

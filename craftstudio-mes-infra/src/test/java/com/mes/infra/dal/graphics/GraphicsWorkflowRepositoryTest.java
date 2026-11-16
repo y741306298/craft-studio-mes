@@ -36,4 +36,16 @@ class GraphicsWorkflowRepositoryTest {
         repository.finish("success","new-instance","{\"success\":true}",null);
         assertEquals("SUCCEEDED",new GraphicsWorkflowRepository(mongo).find("success","factory").status());
     }
+    @Test void callbackInboxIsDurableIdempotentAndRejectsForeignOrChangedResults(){
+        var inbox=new GraphicsCallbackInbox(mongo);inbox.indexes();inbox.expect("task","workflow");
+        assertNull(inbox.completed("task"));
+        inbox.accept("task","workflow","{\"status\":\"success\"}");
+        inbox.accept("task","workflow","{\"status\":\"success\"}");
+        assertEquals("{\"status\":\"success\"}",new GraphicsCallbackInbox(mongo).completed("task"));
+        assertThrows(IllegalArgumentException.class,()->inbox.accept("task","foreign","{}"));
+        assertThrows(IllegalArgumentException.class,()->inbox.accept("task","workflow","{\"status\":\"error\"}"));
+        assertThrows(IllegalArgumentException.class,()->inbox.accept("unknown","workflow","{}"));
+        assertThrows(IllegalArgumentException.class,()->inbox.expect("task","foreign"));
+        assertEquals("{\"status\":\"success\"}",inbox.completed("task"));
+    }
 }
