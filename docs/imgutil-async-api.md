@@ -291,11 +291,9 @@ graphics:
 
 imgUtil 必须使用相同 API Key，配置 OSS_ENABLED=true 及服务端 OSS 凭据。OSS 端点与 artifact-base-url 必须对应同一存储桶，不传 STS 给绘图请求。
 
-长标签使用 300 DPI，1500mm 宽约为 17717px，不能沿用 8192px 单边上限。建议按真实最大标签和内存预算配置，例如：
+图形服务已移除画布单边尺寸、总像素和累计画布像素上限。旧 GRAPHICS_MAX_DIMENSION / GRAPHICS_MAX_PIXELS（graphics.max-dimension / graphics.max-pixels）不再生效，可删除；capabilities 返回 pixelLimitsEnabled=false，不再返回 maxDimension/maxPixels。长标签仍按原有300 DPI等生产参数绘制，例如：
 
 ```text
-GRAPHICS_MAX_DIMENSION=65536
-GRAPHICS_MAX_PIXELS=16000000
 GRAPHICS_WORKERS=1
 GRAPHICS_FONT_DIRECTORY=/app/fonts
 GRAPHICS_FONTS_HOST_DIRECTORY=./fonts
@@ -304,7 +302,7 @@ GRAPHICS_REQUIRED_FONTS=Source Han Sans SC VF
 
 Compose 会将 GRAPHICS_FONTS_HOST_DIRECTORY 只读挂载到 /app/fonts；先创建该目录并放入授权的生产字体文件。裸机运行使用 GRAPHICS_FONT_DIRECTORY 指定字体目录。
 
-该配置配合独立容器限额使用，超限明确失败，不自动降低生产分辨率。默认 512MiB 堆须通过真实标签压测后确认；不能只提高像素上限而不调整并发和内存预算。本地缓存有保留期，生产业务只持久化 OSS 地址，OSS 生命周期按生产文件要求另设。
+图形服务按实际画布尺寸申请内存，不自动降低生产分辨率；JVM/容器内存、CPU、并发队列、任务超时和文件大小等限制仍然生效。本地缓存有保留期，生产业务只持久化 OSS 地址，OSS 生命周期按生产文件要求另设。
 
 ## 七、错误码
 
