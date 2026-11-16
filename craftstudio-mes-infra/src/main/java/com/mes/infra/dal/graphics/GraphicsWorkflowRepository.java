@@ -28,6 +28,10 @@ public class GraphicsWorkflowRepository {
         Document doc=new Document("_id",id).append("manufacturerMetaId",tenant).append("kind",kind).append("businessId",business).append("status","QUEUED").append("payload",payload).append("dedupKey",dedup).append("createdAt",now).append("updatedAt",now);
         try{mongo.insert(doc,COLLECTION);return view(doc);}catch(DuplicateKeyException e){return view(mongo.findOne(Query.query(Criteria.where("dedupKey").is(dedup)),Document.class,COLLECTION));}
     }
+    public GraphicsWorkflow findByDedupKey(String dedup) {
+        Document doc = mongo.findOne(Query.query(Criteria.where("dedupKey").is(dedup)), Document.class, COLLECTION);
+        return doc == null ? null : view(doc);
+    }
     public GraphicsWorkflow claim(String owner){
         Date now=new Date();
         Query query=Query.query(Criteria.where("status").is("QUEUED")).with(Sort.by("createdAt"));

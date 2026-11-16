@@ -6,6 +6,9 @@ import lombok.Data;
 public class LayoutConfirmResult {
     /** 接收成功并不代表图形、排版或制版已经完成。 */
     private String graphicsTaskId;
+    /** Whether a durable workflow was accepted; inspect status for the final outcome. */
+    private Boolean accepted;
+    private String status;
     private boolean success;
     private String layoutId;
     private String layoutUrl;

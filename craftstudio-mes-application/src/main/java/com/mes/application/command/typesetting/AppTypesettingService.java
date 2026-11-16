@@ -1313,7 +1313,8 @@ public class AppTypesettingService {
         }
     }
 
-    private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
+    private ToLayoutPreparation prepareToLayout(LayoutConfirmRequest request, boolean readOnly) {
+        validateToLayoutShape(request);
         List<ProductionPiece> productionPieces = new ArrayList<>();
         Map<String, Integer> productionPieceTotalQuantities = new LinkedHashMap<>();
         List<TypesettingInfo> typesettingInfos = new ArrayList<>();
@@ -1338,6 +1339,8 @@ public class AppTypesettingService {
                 if (dbPiece == null) {
                     throw new IllegalArgumentException("生产工件不存在：" + productionPiece.getProductionPieceId());
                 }
+                if (!Objects.equals(request.getManufacturerMetaId(), dbPiece.getManufacturerId())) throw new IllegalArgumentException("不能排版其他工厂的生产工件");
+                if (readOnly) dbPiece = preflightCopy(dbPiece, ProductionPiece.class);
                 productionPieceTotalQuantities.put(dbPiece.getId(),
                         dbPiece.getQuantity() == null ? 0 : dbPiece.getQuantity());
                 dbPiece.setQuantity(quantity);
@@ -1352,6 +1355,8 @@ public class AppTypesettingService {
                 if (dbTypesettingInfo == null) {
                     throw new IllegalArgumentException("排版信息不存在：" + typesettingInfo.getId());
                 }
+                if (!Objects.equals(request.getManufacturerMetaId(), dbTypesettingInfo.getManufacturerMetaId())) throw new IllegalArgumentException("不能排版其他工厂的印版");
+                if (readOnly) dbTypesettingInfo = preflightCopy(dbTypesettingInfo, TypesettingInfo.class);
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
                 }
@@ -1370,31 +1375,31 @@ public class AppTypesettingService {
 
         String sublimationResult = validateSublimationLayout(productionPieces, typesettingInfos, request.getLayoutMode());
         if (!"PASS".equals(sublimationResult)) {
-            return LayoutConfirmResult.failed(sublimationResult);
+            throw new IllegalArgumentException(sublimationResult);
         }
 
         String doubleSideConsistencyResult = validateDoubleSideMountingConsistency(productionPieces, typesettingInfos);
         if (!doubleSideConsistencyResult.equals("PASS")) {
-            return LayoutConfirmResult.failed(doubleSideConsistencyResult);
+            throw new IllegalArgumentException(doubleSideConsistencyResult);
         }
 
         for (ProductionPiece productionPiece : productionPieces) {
             Integer quantity = productionPiece.getQuantity();
             int pendingQuantity = getPendingTypesettingQuantity(productionPiece);
             if (quantity != null && pendingQuantity < quantity) {
-                return LayoutConfirmResult.failed(productionPiece.getProductionPieceId() + "可排版数量不足");
+                throw new IllegalArgumentException(productionPiece.getProductionPieceId() + "可排版数量不足");
             }
         }
 
         String existingReservationError = validateExistingProductionPieceReservations(
                 productionPieces, productionPieceTotalQuantities);
         if (existingReservationError != null) {
-            return LayoutConfirmResult.failed(existingReservationError);
+            throw new IllegalArgumentException(existingReservationError);
         }
 
         String filmConsistencyResult = validateFilmConsistency(productionPieces, typesettingInfos);
         if (!filmConsistencyResult.equals("PASS")) {
-            return LayoutConfirmResult.failed(filmConsistencyResult);
+            throw new IllegalArgumentException(filmConsistencyResult);
         }
         // 步骤备注1：聚合本次确认印版是否含血位特征（零件当前/历史 + 来源印版haveBlood）
         boolean haveBlood = productionPieces.stream().anyMatch(this::isBloodPieceByCoordinates)
@@ -1406,26 +1411,69 @@ public class AppTypesettingService {
         try {
             commonProcedureFlow = validateAndBuildCommonProcedureFlow(productionPieces, typesettingInfos);
         } catch (IllegalArgumentException ex) {
-            return LayoutConfirmResult.failed(ex.getMessage());
+            throw new IllegalArgumentException(ex.getMessage());
         }
 
         // 3. 校验材料是否一致
         String validateMaterialResult = validateMaterials(productionPieces);
         if (!validateMaterialResult.equals("PASS")) {
-            return LayoutConfirmResult.failed(validateMaterialResult);
+            throw new IllegalArgumentException(validateMaterialResult);
         }
 
         // 4. 校验特殊工艺的材料一致性
         String validateProcedureResult = validateSpecialProcedureMaterials(productionPieces);
         if (!validateProcedureResult.equals("PASS")) {
-            return LayoutConfirmResult.failed(validateProcedureResult);
+            throw new IllegalArgumentException(validateProcedureResult);
         }
         try {
             applyToLayoutContainerWidthInset(request, productionPieces, typesettingInfos);
             validateCellSizeAgainstContainers(request, productionPieces, typesettingInfos, TypesettingLayoutMode.fromCode(request.getLayoutMode()));
         } catch (IllegalArgumentException ex) {
-            return LayoutConfirmResult.failed(ex.getMessage());
+            throw new IllegalArgumentException(ex.getMessage());
         }
+        return new ToLayoutPreparation(productionPieces, productionPieceTotalQuantities, typesettingInfos,
+                typesettingCells, haveBlood, isUrgent, commonProcedureFlow);
+    }
+
+    private record ToLayoutPreparation(List<ProductionPiece> pieces, Map<String,Integer> totalQuantities,
+            List<TypesettingInfo> layouts, List<TypesettingProductionPieceVO> cells,
+            boolean haveBlood, boolean urgent, ProcedureFlow flow) { }
+
+    /** Read-only admission check. Never reserve quantities, cache requests, render or call algorithms here. */
+    public void validateToLayoutRequest(LayoutConfirmRequest request) {
+        if (request == null) throw new IllegalArgumentException("排版参数不能为空");
+        prepareToLayout(preflightCopy(request, LayoutConfirmRequest.class), true);
+    }
+
+    private <T> T preflightCopy(T value, Class<T> type) {
+        return JSON.parseObject(JSON.toJSONString(value, com.alibaba.fastjson2.JSONWriter.Feature.FieldBased),
+                type, com.alibaba.fastjson2.JSONReader.Feature.FieldBased);
+    }
+
+    private void validateToLayoutShape(LayoutConfirmRequest request) {
+        if (request == null || StringUtils.isBlank(request.getManufacturerMetaId())) throw new IllegalArgumentException("工厂ID不能为空");
+        if (StringUtils.isBlank(request.getLayoutMode())) throw new IllegalArgumentException("排版方式不能为空");
+        TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        if (CollectionUtils.isEmpty(request.getTypesettingCells())) throw new IllegalArgumentException("至少选择一个有效排版来源");
+        for (TypesettingProductionPieceVO cell : request.getTypesettingCells()) {
+            if (cell == null || StringUtils.isBlank(cell.getSourceId()) || cell.getQuantity() == null || cell.getQuantity() <= 0
+                    || !(TypesettingSourceType.PART.getCode().equals(cell.getSourceType()) || TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType()))) {
+                throw new IllegalArgumentException("排版来源类型、ID及正数数量不能为空");
+            }
+        }
+        if (request.getContainers() != null) for (var container : request.getContainers()) {
+            if (container == null || container.getWidth() == null || container.getHeight() == null || container.getWidth() <= 0 || container.getHeight() <= 0) throw new IllegalArgumentException("容器宽高必须为正数");
+        }
+    }
+
+    private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
+        ToLayoutPreparation prepared = prepareToLayout(request, false);
+        List<ProductionPiece> productionPieces = prepared.pieces();
+        Map<String,Integer> productionPieceTotalQuantities = prepared.totalQuantities();
+        List<TypesettingInfo> typesettingInfos = prepared.layouts();
+        List<TypesettingProductionPieceVO> typesettingCells = prepared.cells();
+        boolean haveBlood = prepared.haveBlood(), isUrgent = prepared.urgent();
+        ProcedureFlow commonProcedureFlow = prepared.flow();
         //记录id，供callback使用
         String cacheKey = generateTypesettingId(request.getManufacturerMetaId());
         try {
@@ -1823,17 +1871,7 @@ public class AppTypesettingService {
             throw new IllegalArgumentException("排版信息不存在：" + request.getId());
         }
         try {
-            validateConfirmLayoutPreconditions(typesettingInfo);
-
-            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
-                    StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
-            );
-            if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-                throw new TypesettingPreAlgorithmValidationException("排版信息缺少 nestedSvg，无法确认排版");
-            }
-            if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-                throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
-            }
+            TypesettingLayoutMode layoutMode = validateConfirmation(typesettingInfo, request.getLayoutMode(), null);
             typesettingInfo.setLayoutMode(layoutMode.getCode());
             typesettingInfo.applyLayoutModeConfig();
 
@@ -1882,6 +1920,46 @@ public class AppTypesettingService {
             markTypesettingFailed(typesettingInfo, failureReason);
             return LayoutConfirmResult.failed(failureReason);
         }
+    }
+
+    public void validateConfirmLayoutRequest(TypesettingInfo request) {
+        TypesettingInfo info = requireConfirmationRecord(request == null ? null : request.getId());
+        if (StringUtils.isNotBlank(request.getManufacturerMetaId()) && !Objects.equals(request.getManufacturerMetaId(), info.getManufacturerMetaId())) throw new IllegalArgumentException("不能确认其他工厂的印版");
+        validateConfirmationAdmission(info, request.getLayoutMode(), null);
+    }
+
+    public void validateConfirmPrintRequest(ConfirmPrintRequest request) {
+        if (request == null || StringUtils.isBlank(request.getDeviceCode())) throw new IllegalArgumentException("设备编号不能为空");
+        validateConfirmationAdmission(requireConfirmationRecord(request.getId()), request.getLayoutMode(), request.getDeviceCode());
+    }
+
+    private TypesettingInfo requireConfirmationRecord(String id) {
+        if (StringUtils.isBlank(id)) throw new IllegalArgumentException("排版ID不能为空");
+        TypesettingInfo info = domainTypesettingService.findById(id);
+        if (info == null) throw new IllegalArgumentException("排版信息不存在：" + id);
+        return info;
+    }
+
+    private void validateConfirmationAdmission(TypesettingInfo info, String mode, String device) {
+        try { validateConfirmation(info, mode, device); }
+        catch (TypesettingPreAlgorithmValidationException e) { throw new IllegalArgumentException(e.getMessage(), e); }
+    }
+
+    private TypesettingLayoutMode validateConfirmation(TypesettingInfo info, String requestedMode, String device) {
+        boolean printing = device != null;
+        if (printing) validateConfirmPrintPreconditions(info); else validateConfirmLayoutPreconditions(info);
+        TypesettingLayoutMode mode = TypesettingLayoutMode.fromCode(StringUtils.isNotBlank(requestedMode) ? requestedMode : info.getLayoutMode());
+        if (info.getElement() == null || StringUtils.isBlank(info.getElement().getNestedSvg())) throw new TypesettingPreAlgorithmValidationException("排版信息缺少 nestedSvg，无法确认" + (printing ? "打印" : "排版"));
+        if (info.getElement().getWidth() == null || info.getElement().getHeight() == null
+                || info.getElement().getWidth().signum() <= 0 || info.getElement().getHeight().signum() <= 0) throw new TypesettingPreAlgorithmValidationException("印版宽高必须大于零");
+        if (!layoutModeBuildServiceMap.containsKey(mode)) throw new TypesettingPreAlgorithmValidationException("未找到排版模式构建服务: " + mode.getCode());
+        if (requireManufacturerMetaId(mode) && StringUtils.isBlank(info.getManufacturerMetaId())) throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
+        if (printing) {
+            if (isSublimationTypesetting(info) && mode != TypesettingLayoutMode.LARGE_VISION_LAYOUT) throw new TypesettingPreAlgorithmValidationException("热升华印版只允许使用大视觉排版直接下发");
+            if (StringUtils.isBlank(info.getManufacturerMetaId())) throw new TypesettingPreAlgorithmValidationException("印版所属工厂不能为空");
+            findDeviceCfgByDeviceCode(info.getManufacturerMetaId(), device);
+        }
+        return mode;
     }
 
     private void validateConfirmLayoutPreconditions(TypesettingInfo typesettingInfo) {
@@ -3107,20 +3185,7 @@ public class AppTypesettingService {
             throw new RuntimeException("排版信息不存在：" + request.getId());
         }
         try {
-            validateConfirmPrintPreconditions(typesettingInfo);
-            if (typesettingInfo.getElement() == null || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
-                throw new TypesettingPreAlgorithmValidationException("排版信息缺少 nestedSvg，无法确认打印");
-            }
-
-            TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(
-                    StringUtils.isNotBlank(request.getLayoutMode()) ? request.getLayoutMode() : typesettingInfo.getLayoutMode()
-            );
-            if (isSublimationTypesetting(typesettingInfo) && layoutMode != TypesettingLayoutMode.LARGE_VISION_LAYOUT) {
-                throw new TypesettingPreAlgorithmValidationException("热升华印版只允许使用大视觉排版直接下发");
-            }
-            if (requireManufacturerMetaId(layoutMode) && StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())) {
-                throw new TypesettingPreAlgorithmValidationException("plt二维码排版缺少 manufacturerMetaId，无法生成队列编号与二维码");
-            }
+            TypesettingLayoutMode layoutMode = validateConfirmation(typesettingInfo, request.getLayoutMode(), request.getDeviceCode());
             typesettingInfo.setLayoutMode(layoutMode.getCode());
             typesettingInfo.applyLayoutModeConfig();
 
@@ -3241,9 +3306,12 @@ public class AppTypesettingService {
         if (request == null || request.getTypesettingInfos() == null || request.getTypesettingInfos().isEmpty()) {
             throw new IllegalArgumentException("批量确认排版参数不能为空");
         }
+        List<String> failures = new ArrayList<>();
         for (TypesettingInfo info : request.getTypesettingInfos()) {
-            confirmLayout(info);
+            LayoutConfirmResult result = confirmLayout(info);
+            if (!result.isSuccess()) failures.add(result.getMessage());
         }
+        if (!failures.isEmpty()) return LayoutConfirmResult.failed(String.join("；", failures));
         LayoutConfirmResult ok = new LayoutConfirmResult();
         ok.setSuccess(true);
         ok.setMessage("批量确认排版任务已提交");
@@ -3340,12 +3408,14 @@ public class AppTypesettingService {
         if (request == null || request.getRequests() == null || request.getRequests().isEmpty()) {
             throw new RuntimeException("批量确认打印参数不能为空");
         }
+        List<String> failures = new ArrayList<>();
         for (ConfirmPrintRequest item : request.getRequests()) {
-            confirmPrint(item);
+            ConfirmPrintResult response = confirmPrint(item);
+            if (!response.isSuccess()) failures.add(response.getMessage());
         }
         ConfirmPrintResult result = new ConfirmPrintResult();
-        result.setSuccess(true);
-        result.setMessage("批量确认打印任务已提交");
+        result.setSuccess(failures.isEmpty());
+        result.setMessage(failures.isEmpty() ? "批量确认打印任务已提交" : String.join("；", failures));
         return result;
     }
 
@@ -3551,7 +3621,7 @@ public class AppTypesettingService {
         }
         List<ManufacturerDeviceCfg> deviceCfgs = manufacturerDeviceCfgRepository.filterList(1, 1, filters);
         if (deviceCfgs == null || deviceCfgs.isEmpty()) {
-            throw new RuntimeException("设备编号不存在：" + deviceCode);
+            throw new IllegalArgumentException("设备编号不存在：" + deviceCode);
         }
         return deviceCfgs.get(0);
     }

@@ -193,7 +193,7 @@ public class AppProductionPieceService {
         return new PagedResult<>(items, total, query.getSize(), query.getCurrent());
     }
 
-    public ProductionPiece increasePendingTypesettingQuantity(String productionPieceId, Integer increaseQuantity) {
+    public ProductionPiece validateRedoRequest(String productionPieceId, Integer increaseQuantity) {
         if (StringUtils.isBlank(productionPieceId)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "productionPieceId 不能为空");
         }
@@ -209,6 +209,14 @@ public class AppProductionPieceService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "生产工件未配置工序节点");
         }
 
+        if (piece.getProcedureFlow().getNodes().stream().noneMatch(node -> node != null && "待排版".equals(node.getNodeName()))) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "未找到“待排版”节点");
+        }
+        return piece;
+    }
+
+    public ProductionPiece increasePendingTypesettingQuantity(String productionPieceId, Integer increaseQuantity) {
+        ProductionPiece piece = validateRedoRequest(productionPieceId, increaseQuantity);
         ProductionPiece redoPiece = copyForRedo(piece);
         List<ProcedureFlowNode> nodes = redoPiece.getProcedureFlow().getNodes();
         ProcedureFlowNode pendingTypesettingNode = nodes.stream()

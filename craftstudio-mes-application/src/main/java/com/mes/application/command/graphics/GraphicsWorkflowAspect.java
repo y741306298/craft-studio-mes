@@ -32,13 +32,19 @@ public class GraphicsWorkflowAspect {
         String key=requestId();
         if(kind.endsWith("CALLBACK"))key=kind+":"+JSON.toJSONString(input);
         var job=workflows.submit(kind,input,key);
-        accepted();
+        respond(job.status().equals("SUCCEEDED") ? 200 : 202);
         if(kind.endsWith("CALLBACK"))return null;
         if(kind.equals("CONFIRM_PRINT")||kind.equals("BATCH_PRINT")){
-            ConfirmPrintResult result=new ConfirmPrintResult();result.setSuccess(true);result.setGraphicsTaskId(job.id());result.setMessage("图形工作流已接收，请查询工作流状态；尚未完成制版或下发");return result;
+            ConfirmPrintResult result=!kind.startsWith("BATCH_") && job.status().equals("SUCCEEDED") && job.result()!=null ? JSON.parseObject(job.result(),ConfirmPrintResult.class) : new ConfirmPrintResult();
+            result.setSuccess(true);result.setAccepted(true);result.setStatus(job.status());result.setGraphicsTaskId(job.id());
+            if(job.status().equals("SUCCEEDED") && kind.startsWith("BATCH_"))result.setMessage("工作流已完成，请查询逐项结果");
+            if(!job.status().equals("SUCCEEDED"))result.setMessage("图形工作流已接收，请查询工作流状态；尚未完成制版或下发");return result;
         }
-        LayoutConfirmResult result=new LayoutConfirmResult();result.setSuccess(true);result.setGraphicsTaskId(job.id());result.setMessage("图形工作流已接收，请查询工作流状态；尚未完成排版或制版");return result;
+        LayoutConfirmResult result=!kind.startsWith("BATCH_") && job.status().equals("SUCCEEDED") && job.result()!=null ? JSON.parseObject(job.result(),LayoutConfirmResult.class) : new LayoutConfirmResult();
+        result.setSuccess(true);result.setAccepted(true);result.setStatus(job.status());result.setGraphicsTaskId(job.id());
+        if(job.status().equals("SUCCEEDED") && kind.startsWith("BATCH_"))result.setMessage("工作流已完成，请查询逐项结果");
+        if(!job.status().equals("SUCCEEDED"))result.setMessage("图形工作流已接收，请查询工作流状态；尚未完成排版或制版");return result;
     }
     private String requestId(){var attributes=RequestContextHolder.getRequestAttributes();return attributes instanceof ServletRequestAttributes a?a.getRequest().getHeader("X-Graphics-Request-Id"):null;}
-    private void accepted(){var attributes=RequestContextHolder.getRequestAttributes();if(attributes instanceof ServletRequestAttributes a && a.getResponse()!=null)a.getResponse().setStatus(202);}
+    private void respond(int status){var attributes=RequestContextHolder.getRequestAttributes();if(attributes instanceof ServletRequestAttributes a && a.getResponse()!=null)a.getResponse().setStatus(status);}
 }

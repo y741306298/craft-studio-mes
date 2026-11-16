@@ -237,10 +237,7 @@ public class TypesettingController {
         public ApiResponse<LayoutConfirmResult> confirmLayout(@RequestBody TypesettingInfo request) {
         LayoutConfirmResult result = appTypesettingService.confirmLayout(request);
         if (!result.isSuccess()) {
-            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
-            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage(result.getMessage());
-            return failResponse;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
         return ApiResponse.success(result);
     }
@@ -250,10 +247,7 @@ public class TypesettingController {
     public ApiResponse<LayoutConfirmResult> batchConfirmLayout(@RequestBody BatchConfirmLayoutRequest request) {
         LayoutConfirmResult result = appTypesettingService.batchConfirmLayout(request);
         if (!result.isSuccess()) {
-            ApiResponse<LayoutConfirmResult> failResponse = new ApiResponse<>();
-            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage(result.getMessage());
-            return failResponse;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         }
         return ApiResponse.success(result);
     }
@@ -279,18 +273,13 @@ public class TypesettingController {
         logger.info("response: " + JsonLogUtil.toJSONString(request));
         logger.info("========== confirmPrint 入参结束 ==========");
         if (request.getId() == null || request.getId().isBlank()) {
-            ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
-            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage("排版ID不能为空");
-            return failResponse;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版ID不能为空");
         }
         if (request.getDeviceCode() == null || request.getDeviceCode().isBlank()) {
-            ApiResponse<ConfirmPrintResult> failResponse = new ApiResponse<>();
-            failResponse.setCode(ApiResponse.RepStatusCode.badParams);
-            failResponse.setMessage("设备编号不能为空");
-            return failResponse;
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "设备编号不能为空");
         }
         ConfirmPrintResult result = appTypesettingService.confirmPrint(request);
+        if (!result.isSuccess()) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         return ApiResponse.success(result);
     }
 
@@ -298,6 +287,7 @@ public class TypesettingController {
     @PostMapping("/confirmPrint/batch")
     public ApiResponse<ConfirmPrintResult> batchConfirmPrint(@Valid @RequestBody BatchConfirmPrintRequest request) {
         ConfirmPrintResult result = appTypesettingService.batchConfirmPrint(request);
+        if (!result.isSuccess()) throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, result.getMessage());
         return ApiResponse.success(result);
     }
 

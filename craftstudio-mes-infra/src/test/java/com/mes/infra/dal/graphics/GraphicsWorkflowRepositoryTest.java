@@ -35,6 +35,8 @@ class GraphicsWorkflowRepositoryTest {
         repository.finish("success","wrong-owner","{}",null);assertEquals("RUNNING",repository.find("success","factory").status());
         repository.finish("success","new-instance","{\"success\":true}",null);
         assertEquals("SUCCEEDED",new GraphicsWorkflowRepository(mongo).find("success","factory").status());
+        assertEquals("success",new GraphicsWorkflowRepository(mongo).findByDedupKey("new-key").id());
+        assertNull(repository.findByDedupKey("unknown"));
     }
     @Test void callbackInboxIsDurableIdempotentAndRejectsForeignOrChangedResults(){
         var inbox=new GraphicsCallbackInbox(mongo);inbox.indexes();inbox.expect("task","workflow");
