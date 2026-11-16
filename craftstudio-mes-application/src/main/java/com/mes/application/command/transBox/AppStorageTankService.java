@@ -46,7 +46,6 @@ public class AppStorageTankService {
         return tank;
     }
 
-    @Transactional
     public StorageTank add(String manufacturerId, StorageTankRequest request) {
         requireText(manufacturerId, "制造商 ID 不能为空");
         if (hasText(request.getId())) throw invalid("新增时不能指定 ID");
@@ -58,7 +57,6 @@ public class AppStorageTankService {
         return tankRepository.add(tank);
     }
 
-    @Transactional
     public StorageTank edit(String manufacturerId, StorageTankRequest request) {
         StorageTank tank = get(manufacturerId, request.getId());
         List<StorageSlot> oldSlots = standaloneSlots(tank.getStorageTankId());
@@ -68,7 +66,6 @@ public class AppStorageTankService {
         return tank;
     }
 
-    @Transactional
     public void delete(String manufacturerId, String id) {
         StorageTank tank = get(manufacturerId, id);
         List<StorageSlot> standalone = standaloneSlots(tank.getStorageTankId());
