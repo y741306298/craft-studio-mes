@@ -13,13 +13,16 @@ import java.util.List;
 
 /** 读取订单参数并将独立的热升华组合规则适配到矩形旗出血算法。 */
 public final class SublimationProcessStrategy {
+    // 暂停热升华专用预处理，统一回退到原有策略；恢复时将此开关改为 true。
+    private static final boolean ENABLED = false;
+
     public static final String FRONT_CALLBACK = "SUBLIMATION_FRONT";
     public static final String BACK_CALLBACK = "SUBLIMATION_BACK";
 
     private SublimationProcessStrategy() { }
 
     public static boolean applies(ProcedureFlow flow) {
-        return SublimationRules.applies(steps(flow, false));
+        return ENABLED && SublimationRules.applies(steps(flow, false));
     }
 
     public static SublimationPlan resolve(OrderItem item) {

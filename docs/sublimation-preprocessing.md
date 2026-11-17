@@ -1,5 +1,7 @@
 # 热升华矩形旗组合工艺
 
+当前热升华专用预处理暂时关闭：`SublimationProcessStrategy.ENABLED = false`，不选择热升华处理策略，也不解析或提交专用出血请求，订单按原有策略处理。恢复时将该开关改为 `true`。原有矩形旗缝套筒出血及排版校验保持不变。
+
 订单仍由 `addOrderWithItems` 入库并提交预处理队列。彩白彩（如需）完成后，热升华组合工艺汇总参数并调用 `generateRectBloodAsync`，结果进入现有 `/callback/rect_blood` 的 `handleRectBloodCallback`。出血完成后才生成矩形零件、扣点/绑带点、灰色工艺标签及最外圈2mm黑边。
 
 ## 匹配及参数来源
