@@ -80,12 +80,11 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
         String elementB = context.getPlateNameSupplier().get();
         String elementBB = context.getPlateNameBBSupplier().get();
         boolean allCellsAreParts = allCellsAreProductionPieces(context.getTypesettingInfo());
-        String elementC = allCellsAreParts ? LEFT_ARROW_URL : null;
-        String elementCC = allCellsAreParts ? LEFT_ARROW_URL : null;
+        // The fixed arrow is a separate forme mark, not QR bitmap input for the label.
         String manufacturerMetaId = context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getManufacturerMetaId();
         String typesettingId = normalizeMirrorTypesettingId(context.getTypesettingInfo() == null ? null : context.getTypesettingInfo().getTypesettingId());
-        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, elementC, context.getNestedWidth(), marginHeight, false);
-        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, elementCC, context.getNestedWidth(), marginHeight, true);
+        String elementF = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementB, context.getNestedWidth(), marginHeight, false);
+        String elementFRotated = buildTagStripDataUri(context.getBusinessId(), manufacturerMetaId, typesettingId, elementA, elementAExtInfos, commonOrderId, elementBB, context.getNestedWidth(), marginHeight, true);
         if (context.getTypesettingInfo() != null) {
             LinkedHashMap<String, String> marks = new LinkedHashMap<>();
             marks.put("elementF", elementF);
@@ -237,10 +236,9 @@ public class DoubleSideMountingLayoutBuildService extends AbstractLayoutModeBuil
                                         List<String> elementAExtInfos,
                                         String commonOrderId,
                                         String elementB,
-                                        String qrDataUri,
                                         BigDecimal stripWidth,
                                         BigDecimal stripHeight,
                                         boolean rotate180) {
-        return com.mes.application.command.graphics.RemoteGraphics.png("DOUBLE_TAG", com.mes.application.command.graphics.RemoteGraphics.params("businessId", businessId, "manufacturerMetaId", manufacturerMetaId, "typesettingId", typesettingId, "elementA", elementA, "elementAExtInfos", elementAExtInfos, "commonOrderId", commonOrderId, "elementB", elementB, "qrDataUri", qrDataUri, "stripWidth", stripWidth, "stripHeight", stripHeight, "rotate180", rotate180)).url();
+        return com.mes.application.command.graphics.RemoteGraphics.png("DOUBLE_TAG", com.mes.application.command.graphics.RemoteGraphics.params("businessId", businessId, "manufacturerMetaId", manufacturerMetaId, "typesettingId", typesettingId, "elementA", elementA, "elementAExtInfos", elementAExtInfos, "commonOrderId", commonOrderId, "elementB", elementB, "stripWidth", stripWidth, "stripHeight", stripHeight, "rotate180", rotate180)).url();
     }
 }

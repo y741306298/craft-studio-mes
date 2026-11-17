@@ -200,6 +200,8 @@ MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需
 | SUB_CLEAN / SVG_REMOVE_SPLICE | 清理镜像工艺标记，保留排版位置和原图组 |
 | SVG_RESIZE / SVG_REDO_ID | 材料根尺寸调整、重做首个匹配 ID 替换 |
 
+双面对裱的固定箭头作为独立 forme mark 提交（elementG），不会再放入 DOUBLE_TAG.qrDataUri。为兼容旧 MES，图形服务遇到旧版本使用的固定 basetag-leftarrow.png / basetag-rightarrow.png 地址时沿用原标签行为：跳过二维码位绘制，保留独立箭头 mark，不下载远程图片。其他 URL 仍不作为二维码输入；PNG data URI 和 qr-content 输入继续支持。圆形/十字标签继续传真实二维码内容。
+
 专用标签沿用 MES 原绘图函数和常量，不用通用 LABEL 自动缩小规则替代。内部二维码传 `qr-content:` 加内容 UTF-8 Base64，由图形服务生成二维码、裁白边及合成；原独立二维码和物流二维码接口不属于本次四类工艺图形迁移。
 
 SVG 兼容操作支持 MES 既有负 viewBox，不套用通用 EDIT 的零原点限制；仍拒绝脚本、外部实体、外部 CSS 及服务端资源抓取。参数不允许传 Java 类名或任意执行代码。
