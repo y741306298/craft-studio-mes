@@ -92,6 +92,9 @@ public class PackagingBoxService {
         if (box.getCode() == null || box.getCode().isBlank()) {
             throw new IllegalArgumentException("编码(code)不能为空");
         }
+        if (box.getManufacturerId() == null || box.getManufacturerId().isBlank()) {
+            throw new IllegalArgumentException("制造商ID(manufacturerId)不能为空");
+        }
         requirePositive(box.getCardboardDepth(), "纸板厚度(cardboardDepth)");
         requirePositive(box.getCardboardHeight(), "纸板长度(cardboardHeight)");
         requirePositive(box.getCardboardWidth(), "纸板宽度(cardboardWidth)");
@@ -100,6 +103,7 @@ public class PackagingBoxService {
         requirePositive(box.getHeight(), "箱高(height)");
         box.setBoxName(box.getBoxName().strip());
         box.setCode(box.getCode().strip());
+        box.setManufacturerId(box.getManufacturerId().strip());
     }
 
     private void requirePositive(BigDecimal value, String field) {

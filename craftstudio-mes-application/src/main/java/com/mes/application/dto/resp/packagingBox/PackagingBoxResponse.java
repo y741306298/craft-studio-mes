@@ -16,6 +16,7 @@ public class PackagingBoxResponse {
     private Date updateTime;
     private String boxName;
     private String code;
+    private String manufacturerId;
     private BigDecimal cardboardDepth;
     private BigDecimal cardboardHeight;
     private BigDecimal cardboardWidth;
@@ -33,6 +34,7 @@ public class PackagingBoxResponse {
         response.setUpdateTime(box.getUpdateTime());
         response.setBoxName(box.getBoxName());
         response.setCode(box.getCode());
+        response.setManufacturerId(box.getManufacturerId());
         response.setCardboardDepth(box.getCardboardDepth());
         response.setCardboardHeight(box.getCardboardHeight());
         response.setCardboardWidth(box.getCardboardWidth());

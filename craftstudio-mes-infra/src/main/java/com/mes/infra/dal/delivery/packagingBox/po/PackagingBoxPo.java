@@ -17,6 +17,7 @@ import java.util.List;
 public class PackagingBoxPo extends BasePO<PackagingBox> {
     private String boxName;
     private String code;
+    private String manufacturerId;
     @Field(targetType = FieldType.STRING)
     private BigDecimal cardboardDepth;
     @Field(targetType = FieldType.STRING)
@@ -41,6 +42,7 @@ public class PackagingBoxPo extends BasePO<PackagingBox> {
         copyBaseFieldsToDO(box);
         box.setBoxName(boxName);
         box.setCode(code);
+        box.setManufacturerId(manufacturerId);
         box.setCardboardDepth(cardboardDepth);
         box.setCardboardHeight(cardboardHeight);
         box.setCardboardWidth(cardboardWidth);
@@ -57,6 +59,7 @@ public class PackagingBoxPo extends BasePO<PackagingBox> {
     protected PackagingBoxPo fromDO(PackagingBox box) {
         this.boxName = box.getBoxName();
         this.code = box.getCode();
+        this.manufacturerId = box.getManufacturerId();
         this.cardboardDepth = box.getCardboardDepth();
         this.cardboardHeight = box.getCardboardHeight();
         this.cardboardWidth = box.getCardboardWidth();

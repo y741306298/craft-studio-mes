@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 public class PackagingBox extends BaseEntity {
     private String boxName;
     private String code;
+    private String manufacturerId;
     private BigDecimal cardboardDepth;
     private BigDecimal cardboardHeight;
     private BigDecimal cardboardWidth;

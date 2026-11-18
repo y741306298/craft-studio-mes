@@ -1,5 +1,6 @@
 package com.mes.infra.db.mongodb;
 
+import com.mes.infra.dal.delivery.packagingBox.po.PackagingBoxPo;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,8 @@ public class MongoIndexConfig {
                 .on("updatedAt", Sort.Direction.ASC).named("idx_packaging_task_recovery"));
         mongoTemplate.indexOps("orderInfo").ensureIndex(new Index().on("orderId", Sort.Direction.ASC)
                 .on("deleteAt", Sort.Direction.ASC).named("idx_order_info_business_id_active"));
+        mongoTemplate.indexOps(PackagingBoxPo.class).ensureIndex(new Index().on("code", Sort.Direction.ASC)
+                .unique().named("uk_packaging_box_code"));
         ensureOrderItemIndexes();
         ensureProductionPieceIndexes();
         ensureTypesettingIndexes();

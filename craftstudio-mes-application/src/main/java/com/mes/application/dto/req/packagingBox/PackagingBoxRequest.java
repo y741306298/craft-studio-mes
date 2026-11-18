@@ -10,6 +10,7 @@ public class PackagingBoxRequest {
     private String id;
     private String boxName;
     private String code;
+    private String manufacturerId;
     private BigDecimal cardboardDepth;
     private BigDecimal cardboardHeight;
     private BigDecimal cardboardWidth;
@@ -25,6 +26,7 @@ public class PackagingBoxRequest {
         box.setId(id);
         box.setBoxName(boxName);
         box.setCode(code);
+        box.setManufacturerId(manufacturerId);
         box.setCardboardDepth(cardboardDepth);
         box.setCardboardHeight(cardboardHeight);
         box.setCardboardWidth(cardboardWidth);

@@ -20,7 +20,8 @@
 | --- | --- | --- | --- |
 | `id` | 字符串 | 编辑时必填 | 包装箱 ID |
 | `boxName` | 字符串 | 是 | 箱名，去除首尾空白后须有内容 |
-| `code` | 字符串 | 是 | 编码，去除首尾空白后须有内容 |
+| `code` | 字符串 | 是 | 编码，去除首尾空白后须有内容，在整个包装箱集合中区分大小写且唯一 |
+| `manufacturerId` | 字符串 | 是 | 制造商 ID，去除首尾空白后须有内容 |
 | `cardboardDepth` | 数字 | 否 | 纸板厚度 |
 | `cardboardHeight` | 数字 | 否 | 纸板长度 |
 | `cardboardWidth` | 数字 | 否 | 纸板宽度 |
@@ -39,6 +40,7 @@
 {
   "boxName": "小号包装箱",
   "code": "BOX-001",
+  "manufacturerId": "MFR-001",
   "cardboardDepth": 2.5,
   "cardboardHeight": 560,
   "cardboardWidth": 420,
@@ -52,6 +54,10 @@
 ```
 
 包装箱对象包含表中的所有字段，以及 `createTime` 和 `updateTime`。时间使用北京时间，格式为 `yyyy-MM-dd HH:mm:ss`。
+
+不同制造商也不能使用同一编码，软删除后原编码仍被保留。编辑时可以保留本记录的编码。
+
+服务启动时为 `packaging_box.code` 创建唯一索引。已有重复编码时须先处理冲突才能创建索引。已有记录的 `manufacturerId` 若为空，仍可查询，编辑保存时须提供制造商 ID。
 
 ## 分页列表
 
@@ -85,4 +91,4 @@
 
 ## 响应状态
 
-统一响应包含 `code`、`message`、`data` 和 `timestamp`。成功时 HTTP 状态与 `code` 均为 `200`。参数错误、详情不存在、编辑或删除的记录不存在时均为 `400`，具体原因在 `message` 中。登录校验失败时为 `401`。
+统一响应包含 `code`、`message`、`data` 和 `timestamp`。成功时 HTTP 状态与 `code` 均为 `200`。参数错误、编码重复、详情不存在、编辑或删除的记录不存在时均为 `400`，具体原因在 `message` 中。登录校验失败时为 `401`。

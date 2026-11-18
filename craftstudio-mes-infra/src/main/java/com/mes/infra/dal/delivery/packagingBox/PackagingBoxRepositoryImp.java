@@ -1,11 +1,13 @@
 package com.mes.infra.dal.delivery.packagingBox;
 
 import com.mes.domain.delivery.packagingBox.entity.PackagingBox;
+import com.mes.domain.delivery.packagingBox.exception.DuplicatePackagingBoxCodeException;
 import com.mes.domain.delivery.packagingBox.repository.PackagingBoxRepository;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.delivery.packagingBox.po.PackagingBoxPo;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Update;
@@ -30,11 +32,21 @@ public class PackagingBoxRepositoryImp extends BaseRepositoryImp<PackagingBox, P
     }
 
     @Override
+    public PackagingBox add(PackagingBox box) {
+        try {
+            return super.add(box);
+        } catch (DuplicateKeyException ex) {
+            throw new DuplicatePackagingBoxCodeException(ex);
+        }
+    }
+
+    @Override
     public boolean updateActive(PackagingBox box, PackagingBox existing) {
         SoftDeleteQuery query = new SoftDeleteQuery(Criteria.where("_id").is(box.getId()));
         Update update = new Update()
                 .set("boxName", box.getBoxName())
                 .set("code", box.getCode())
+                .set("manufacturerId", box.getManufacturerId())
                 .set("cardboardDepth", box.getCardboardDepth())
                 .set("cardboardHeight", box.getCardboardHeight())
                 .set("cardboardWidth", box.getCardboardWidth())
@@ -48,7 +60,11 @@ public class PackagingBoxRepositoryImp extends BaseRepositoryImp<PackagingBox, P
         // 兼容旧记录，并在同一次写入中登记尺寸，避免并发编辑覆盖历史选项。
         retainOptions(update, "cardboardHeightHistory", existing.getCardboardHeight(), box.getCardboardHeight());
         retainOptions(update, "cardboardWidthHistory", existing.getCardboardWidth(), box.getCardboardWidth());
-        return mongoTemplate.updateFirst(query, update, poClass()).getMatchedCount() > 0;
+        try {
+            return mongoTemplate.updateFirst(query, update, poClass()).getMatchedCount() > 0;
+        } catch (DuplicateKeyException ex) {
+            throw new DuplicatePackagingBoxCodeException(ex);
+        }
     }
 
     @Override
