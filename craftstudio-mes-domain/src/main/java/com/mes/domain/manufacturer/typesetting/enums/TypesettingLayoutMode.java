@@ -40,6 +40,19 @@ public enum TypesettingLayoutMode {
             true
     ),
 
+    SHAPED_CUTTING_PLT_QR_CIRCLE_5MM(
+            "shaped_cutting_plt_qr_circle_5mm",
+            "铣刀异形间距5mm-圆形定位点",
+            SHAPED_CUTTING_PLT_QR_CIRCLE,
+            5
+    ),
+
+    SHAPED_CUTTING_PLT_QR_CROSS_5MM(
+            "shaped_cutting_plt_qr_cross_5mm",
+            "铣刀异形间距5mm-十字定位点",
+            SHAPED_CUTTING_PLT_QR_CROSS,
+            5
+    ),
 
     /**
      * 矩形排版（plt二维码）-圆形定位点：
@@ -362,6 +375,12 @@ public enum TypesettingLayoutMode {
         this.anchorPointShape = anchorPointShape;
         this.nestingSpacingMm = nestingSpacingMm;
         this.queryable = queryable;
+    }
+
+    TypesettingLayoutMode(String code, String description, TypesettingLayoutMode baseMode, int nestingSpacingMm) {
+        this(code, description, baseMode.layoutCategory, baseMode.requireJsonFile, baseMode.requirePltFile,
+                baseMode.requireSvgFile, baseMode.codeGenerateType, baseMode.tempCodeFormat,
+                baseMode.anchorPointShape, nestingSpacingMm, baseMode.queryable);
     }
 
     public static TypesettingLayoutMode fromCode(String code) {

@@ -3599,6 +3599,8 @@ public class AppTypesettingService {
     private boolean requireManufacturerMetaId(TypesettingLayoutMode layoutMode) {
         return TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE == layoutMode
                 || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS == layoutMode
+                || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE_5MM == layoutMode
+                || TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS_5MM == layoutMode
                 || TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CIRCLE == layoutMode
                 || TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CROSS == layoutMode
                 || TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE == layoutMode
@@ -5634,6 +5636,8 @@ public class AppTypesettingService {
         return layoutMode == TypesettingLayoutMode.LARGE_VISION_LAYOUT
                 || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CIRCLE_5MM
+                || layoutMode == TypesettingLayoutMode.SHAPED_CUTTING_PLT_QR_CROSS_5MM
                 || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CIRCLE
                 || layoutMode == TypesettingLayoutMode.RECT_TYPESETTING_PLT_QR_CROSS
                 || layoutMode == TypesettingLayoutMode.GRID_TYPESETTING_PLT_QR_CIRCLE
