@@ -51,8 +51,8 @@ public class PackagingBoxService {
         }
     }
 
-    public PagedResult<PackagingBox> list(String boxName, String code, BigDecimal cardboardHeight,
-                                          BigDecimal cardboardWidth, int current, int size) {
+    public PagedResult<PackagingBox> list(String boxName, String code, String manufacturerId,
+                                         BigDecimal cardboardHeight, BigDecimal cardboardWidth, int current, int size) {
         if (current < 1 || size < 1 || size > 100) {
             throw new IllegalArgumentException("页码(current)必须大于0，每页大小(size)必须在1-100之间");
         }
@@ -62,6 +62,9 @@ public class PackagingBoxService {
         }
         if (code != null && !code.isBlank()) {
             filters.put("code", code.strip());
+        }
+        if (manufacturerId != null && !manufacturerId.isBlank()) {
+            filters.put("manufacturerId", manufacturerId.strip());
         }
         requirePositive(cardboardHeight, "纸板长度(cardboardHeight)");
         requirePositive(cardboardWidth, "纸板宽度(cardboardWidth)");

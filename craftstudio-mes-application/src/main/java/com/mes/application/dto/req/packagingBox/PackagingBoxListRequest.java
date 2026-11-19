@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 public class PackagingBoxListRequest extends PagedApiRequest {
     private String boxName;
     private String code;
+    private String manufacturerId;
     private BigDecimal cardboardHeight;
     private BigDecimal cardboardWidth;
 }

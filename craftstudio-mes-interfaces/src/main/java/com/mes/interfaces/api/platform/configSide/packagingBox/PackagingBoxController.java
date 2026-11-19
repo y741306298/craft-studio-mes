@@ -57,8 +57,8 @@ public class PackagingBoxController {
     @PostMapping("/list")
     public PagedApiResponse<PackagingBoxResponse> list(@RequestBody PackagingBoxListRequest request) {
         PagedResult<PackagingBox> result = packagingBoxService.list(
-                request.getBoxName(), request.getCode(), request.getCardboardHeight(), request.getCardboardWidth(),
-                request.getCurrent(), request.getSize());
+                request.getBoxName(), request.getCode(), request.getManufacturerId(),
+                request.getCardboardHeight(), request.getCardboardWidth(), request.getCurrent(), request.getSize());
         List<PackagingBoxResponse> items = result.items().stream().map(PackagingBoxResponse::from).toList();
         return PagedApiResponse.success(items, request.getCurrent(), request.getSize(), result.total());
     }

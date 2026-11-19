@@ -67,6 +67,7 @@
 | `size` | 整数 | 是 | 每页条数，范围为 1–100 |
 | `boxName` | 字符串 | 否 | 按箱名做忽略大小写的包含匹配 |
 | `code` | 字符串 | 否 | 按编码做区分大小写的精确匹配 |
+| `manufacturerId` | 字符串 | 否 | 按制造商 ID 做区分大小写的精确匹配 |
 | `cardboardHeight` | 数字 | 否 | 按纸板长度做精确数值匹配 |
 | `cardboardWidth` | 数字 | 否 | 按纸板宽度做精确数值匹配 |
 
@@ -78,6 +79,7 @@
   "size": 20,
   "boxName": "小号",
   "code": "BOX-001",
+  "manufacturerId": "MFR-001",
   "cardboardHeight": 560,
   "cardboardWidth": 420
 }
