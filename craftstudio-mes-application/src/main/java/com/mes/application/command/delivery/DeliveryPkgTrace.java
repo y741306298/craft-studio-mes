@@ -46,6 +46,11 @@ public final class DeliveryPkgTrace implements AutoCloseable {
         return new DeliveryPkgTrace(request);
     }
 
+    static String currentTraceId() {
+        DeliveryPkgTrace trace = CURRENT.get();
+        return trace == null ? null : trace.traceId;
+    }
+
     public static <T> T stage(String stage, Supplier<T> action) {
         DeliveryPkgTrace trace = CURRENT.get();
         if (trace == null) {

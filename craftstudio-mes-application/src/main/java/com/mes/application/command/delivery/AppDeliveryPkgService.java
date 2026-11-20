@@ -63,6 +63,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -912,6 +913,11 @@ public class AppDeliveryPkgService {
                         if (claimed == null) {
                             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "面单正在打印，请勿重复提交");
                         }
+                        log.info("快递100预下单面单复打 orderId={} traceId={} recordId={} kuaidiNum={} taskId={} "
+                                        + "previousStatus={} originalSiid={} requestedDeliverySiidId={} printSiid={}",
+                                orderId, DeliveryPkgTrace.currentTraceId(), claimed.getId(), claimed.getKuaidiNum(),
+                                claimed.getTaskId(), preOrderRecord.getConsumeStatus(), preOrderRecord.getSiid(),
+                                request.getDeliverySiidId(), reprintSiid);
                         AuthOrderResponse reprintResponse;
                         try {
                             reprintResponse = reprintKuaidi100Label(claimed.getTaskId(), reprintSiid);
@@ -1845,7 +1851,27 @@ public class AppDeliveryPkgService {
         fdParam.put("taskId", taskId);
         fdParam.put("siid", siid);
         String result = callPost("https://api.kuaidi100.com/label/order", JSON.toJSONString(fdParam), "printOld");
-        return JSON.parseObject(result, AuthOrderResponse.class);
+        AuthOrderResponse response;
+        try {
+            response = JSON.parseObject(result, AuthOrderResponse.class);
+        } catch (RuntimeException ex) {
+            log.warn("快递100复打响应解析失败 traceId={} taskId={} siid={} responseLength={} exceptionType={}",
+                    DeliveryPkgTrace.currentTraceId(), taskId, siid, StringUtils.length(result),
+                    ex.getClass().getSimpleName());
+            throw ex;
+        }
+        if (response == null || !Boolean.TRUE.equals(response.getSuccess())) {
+            String message = response == null ? null : response.getMessage();
+            log.warn("快递100复打失败 traceId={} taskId={} siid={} responsePresent={} success={} code={} message={} hasData={}",
+                    DeliveryPkgTrace.currentTraceId(), taskId, siid, response != null,
+                    response == null ? null : response.getSuccess(), response == null ? null : response.getCode(),
+                    message == null ? null : StringUtils.abbreviate(message.replaceAll("[\\p{Cntrl}]", " "), 200),
+                    response != null && response.getData() != null);
+        } else {
+            log.info("快递100复打成功 traceId={} taskId={} siid={} code={} hasData={}",
+                    DeliveryPkgTrace.currentTraceId(), taskId, siid, response.getCode(), response.getData() != null);
+        }
+        return response;
     }
 
     private boolean isKuaidi100TestEnvironment() {
@@ -2071,14 +2097,18 @@ public class AppDeliveryPkgService {
         long startedAt = System.nanoTime();
         log.info("快递100调用开始: method={}, url={}", method, url);
         try {
-            String result = DeliveryPkgTrace.stage("快递100HTTP调用:" + method,
-                    () -> restTemplate.postForObject(url, httpEntity, String.class));
-            log.info("快递100调用完成: method={}, url={}, elapsedMs={}",
-                    method, url, (System.nanoTime() - startedAt) / 1_000_000.0);
-            return result;
+            var response = DeliveryPkgTrace.stage("快递100HTTP调用:" + method,
+                    () -> restTemplate.postForEntity(url, httpEntity, String.class));
+            log.info("快递100调用完成: method={}, url={}, traceId={}, httpStatus={}, elapsedMs={}",
+                    method, url, DeliveryPkgTrace.currentTraceId(), response.getStatusCode().value(),
+                    (System.nanoTime() - startedAt) / 1_000_000.0);
+            return response.getBody();
         } catch (RuntimeException ex) {
-            log.warn("快递100调用失败: method={}, url={}, elapsedMs={}, exceptionType={}",
-                    method, url, (System.nanoTime() - startedAt) / 1_000_000.0,
+            Integer httpStatus = ex instanceof RestClientResponseException responseException
+                    ? responseException.getStatusCode().value() : null;
+            log.warn("快递100调用失败: method={}, url={}, traceId={}, httpStatus={}, elapsedMs={}, exceptionType={}",
+                    method, url, DeliveryPkgTrace.currentTraceId(), httpStatus,
+                    (System.nanoTime() - startedAt) / 1_000_000.0,
                     ex.getClass().getSimpleName());
             throw ex;
         }
