@@ -230,6 +230,9 @@ public class AppTypesettingService {
     private List<NestingRequestRuleService> nestingRequestRuleServices;
     @Autowired(required = false)
     private List<NestingRequestComposeService> nestingRequestComposeServices;
+    @Value("${typesetting.sublimation-layout-validation-enabled:false}")
+    private boolean sublimationLayoutValidationEnabled;
+
     @Value("${external.callbackApi.generate_nested_files:}")
     private String generateNestedFilesCallbackUrl;
     @Value("${external.callbackApi.generate_grid_nested_files:}")
@@ -1368,9 +1371,11 @@ public class AppTypesettingService {
             }
         }
 
-        String sublimationResult = validateSublimationLayout(productionPieces, typesettingInfos, request.getLayoutMode());
-        if (!"PASS".equals(sublimationResult)) {
-            throw new IllegalArgumentException(sublimationResult);
+        if (sublimationLayoutValidationEnabled) {
+            String sublimationResult = validateSublimationLayout(productionPieces, typesettingInfos, request.getLayoutMode());
+            if (!"PASS".equals(sublimationResult)) {
+                throw new IllegalArgumentException(sublimationResult);
+            }
         }
 
         String doubleSideConsistencyResult = validateDoubleSideMountingConsistency(productionPieces, typesettingInfos);
