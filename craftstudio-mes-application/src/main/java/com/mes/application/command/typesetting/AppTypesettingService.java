@@ -21,7 +21,6 @@ import com.mes.application.command.typesetting.layout.FormeLayoutBuildResult;
 import com.mes.application.command.typesetting.layout.NestingRequestRuleService;
 import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
 import com.mes.application.command.typesetting.service.MarkedNestingElementService;
-import com.mes.application.command.typesetting.service.SublimationMirrorSvgCleaner;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfirmService;
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
@@ -144,10 +143,6 @@ public class AppTypesettingService {
     private static final Pattern SVG_VIEW_BOX_PATTERN = Pattern.compile(
             "\\bviewBox\\s*=\\s*[\"']\\s*[-+]?\\d*\\.?\\d+\\s+[-+]?\\d*\\.?\\d+\\s+([-+]?\\d*\\.?\\d+)\\s+([-+]?\\d*\\.?\\d+)\\s*[\"']",
             Pattern.CASE_INSENSITIVE
-    );
-    private static final Pattern SPLICE_MARK_GROUP_PATTERN = Pattern.compile(
-            "<g\\b(?=[^>]*\\bid\\s*=\\s*([\"'])(?:super-width-splice|adhesive-splice|photo-splice|board-cover-splice|inkjet-splice|seamless-splice|panel-splice)-).*?</g\\s*>",
-            Pattern.CASE_INSENSITIVE | Pattern.DOTALL
     );
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
@@ -4705,13 +4700,13 @@ public class AppTypesettingService {
      * super-width/adhesive/photo/board-cover/inkjet/seamless/panel splice 标识一起带入。
      * 这里在回调落库前清理这些拼接 mark，并上传一份干净的 nestedMirrorSvg 供后续 -Mirror 印版使用。</p>
      */
-    private String removeSpliceMarksFromNestedMirrorSvg(String nestedMirrorSvg, TypesettingInfo typesettingInfo, String templateCode) {
+    private String removeSpliceMarksFromNestedMirrorSvg(String nestedMirrorSvg, TypesettingInfo typesettingInfo) {
         if (StringUtils.isBlank(nestedMirrorSvg)) {
             return nestedMirrorSvg;
         }
         try {
             String completeUrl = buildCompleteOssUrl(nestedMirrorSvg);
-            byte[] svgBytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(completeUrl));
+            byte[] svgBytes = restTemplate.getForObject(URI.create(completeUrl), byte[].class);
             if (svgBytes == null || svgBytes.length == 0) {
                 if (isSublimationTypesetting(typesettingInfo)) {
                     throw new IllegalStateException("热升华反面排版 SVG 为空");
@@ -4719,24 +4714,15 @@ public class AppTypesettingService {
                 return nestedMirrorSvg;
             }
             String svgContent = new String(svgBytes, StandardCharsets.UTF_8);
-            String sanitizedSvg = com.mes.application.command.graphics.RemoteGraphics.svg("SVG_REMOVE_SPLICE", com.mes.application.command.graphics.RemoteGraphics.params("source", svgContent));
-            if (isSublimationTypesetting(typesettingInfo)) {
-                sanitizedSvg = SublimationMirrorSvgCleaner.clean(sanitizedSvg);
-            }
-            if (sanitizedSvg.equals(svgContent)) {
-                return nestedMirrorSvg;
-            }
-            String businessId = StringUtils.isNotBlank(typesettingInfo.getTypesettingId())
-                    ? typesettingInfo.getTypesettingId()
-                    : typesettingInfo.getId();
-            String manufacturerMetaId = StringUtils.isBlank(typesettingInfo.getManufacturerMetaId())
-                    ? "default"
-                    : typesettingInfo.getManufacturerMetaId();
-            String safeTemplateCode = StringUtils.isBlank(templateCode) ? "default" : templateCode;
-            String uploadPath = "typesetting/" + manufacturerMetaId + "/nested-mirror-clean/" + businessId + "/";
-            return ossTagUploadService.uploadTagSvg(businessId, sanitizedSvg.getBytes(StandardCharsets.UTF_8), uploadPath, safeTemplateCode + ".svg");
+            return com.mes.application.command.graphics.RemoteGraphics.cleanNestedMirrorSvg(
+                    nestedMirrorSvg, svgContent, isSublimationTypesetting(typesettingInfo));
         } catch (Exception e) {
-            throw new IllegalStateException("远程清理反面排版 mark 失败，不能继续使用未清理的 SVG", e);
+            if (isSublimationTypesetting(typesettingInfo)) {
+                throw new IllegalStateException("清理热升华反面排版 mark 失败", e);
+            }
+            log.warn("清理 nestedMirrorSvg 拼接 mark 失败，继续使用原始 mirror SVG: typesettingId={}, nestedMirrorSvg={}, error={}",
+                    typesettingInfo == null ? null : typesettingInfo.getTypesettingId(), nestedMirrorSvg, e.getMessage());
+            return nestedMirrorSvg;
         }
     }
 
@@ -4839,7 +4825,7 @@ public class AppTypesettingService {
                             ? callbackResult.getNestedMirrorSvg()
                             : callbackResult.getMirrorNestedSvg();
                     if (StringUtils.isNotBlank(nestedMirrorSvg)) {
-                        String sanitizedNestedMirrorSvg = removeSpliceMarksFromNestedMirrorSvg(nestedMirrorSvg, baseTypesettingInfo, templateCode);
+                        String sanitizedNestedMirrorSvg = removeSpliceMarksFromNestedMirrorSvg(nestedMirrorSvg, baseTypesettingInfo);
                         element.setNestedMirrorSvg(buildCompleteOssUrl(sanitizedNestedMirrorSvg));
                     }
                     element.setUtilization(callbackResult.getUtilization());

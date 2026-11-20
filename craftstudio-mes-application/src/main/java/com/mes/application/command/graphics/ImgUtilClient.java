@@ -86,6 +86,28 @@ public class ImgUtilClient {
         // An artifact GET transfers SVG text only; it never queries task status.
         return algorithms.readGraphicsSvgArtifact(job.getString("taskId"));
     }
+    public String cleanNestedMirrorSvg(String workflow, String originalUrl, String source, boolean sublimation) {
+        JSONObject artifact = task(workflow, "NESTED_MIRROR_CLEAN",
+                Map.of("source", source, "sublimation", sublimation)).getJSONObject("artifact");
+        if (sha256(source).equals(artifact.getString("sha256"))) {
+            return originalUrl;
+        }
+        String objectName = artifact.getString("objectName");
+        if (objectName == null || objectName.isBlank() || artifactBase.isBlank()) {
+            throw new IllegalStateException("MES 接入需开启 imgUtil OSS 并配置 graphics.imgutil.artifact-base-url");
+        }
+        return artifactBase + "/" + objectName;
+    }
+
+    private String sha256(String source) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 不可用", e);
+        }
+    }
+
     public String saveSvg(String workflow,byte[] content){return render(workflow,"SVG_SAVE",Map.of("source",new String(content,StandardCharsets.UTF_8))).url();}
     private String id(String workflow,String operation,Map<String,Object> parameters){
         try{

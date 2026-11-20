@@ -16,6 +16,10 @@ public final class RemoteGraphics {
     public static RemoteImage image(String operation,Map<String,Object> parameters){var scope=current();return scope.client().render(scope.workflowId(),operation,parameters);}
     public static RemoteImage png(String operation,Map<String,Object> parameters){return image(operation,parameters);}
     public static String svg(String operation,Map<String,Object> parameters){var scope=current();return scope.client().svg(scope.workflowId(),operation,parameters);}
+    public static String cleanNestedMirrorSvg(String originalUrl, String source, boolean sublimation) {
+        var scope = current();
+        return scope.client().cleanNestedMirrorSvg(scope.workflowId(), originalUrl, source, sublimation);
+    }
     public static RemotePieceGraphics splicePiece(Map<String,Object> parameters){var scope=current();return scope.client().splicePiece(scope.workflowId(),parameters);}
     public static String saveSvg(byte[] content){var scope=current();return scope.client().saveSvg(scope.workflowId(),content);}
     public static RemoteImage transform(RemoteImage source,double angle,int cropWidth){return image("TRANSFORM",params("sourceTaskId",source.taskId(),"angle",angle,"cropWidth",cropWidth));}
