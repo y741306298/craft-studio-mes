@@ -6,6 +6,7 @@ import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.infra.base.BaseRepositoryImp;
 import com.mes.infra.dal.manufacurer.typesetting.po.TypesettingPo;
 import com.mes.infra.db.mongodb.SoftDeleteQuery;
+import com.mongodb.ReadPreference;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -113,6 +114,20 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
                 .include("materialConfig.materialId")
                 .include("materialConfig.materialSnapshot.name")
                 .exclude("_id");
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
+    @Override
+    public List<TypesettingInfo> findByStatusesFromPrimary(String manufacturerMetaId, Collection<String> statuses,
+                                                           String materialId) {
+        Criteria criteria = Criteria.where("manufacturerMetaId").is(manufacturerMetaId)
+                .and("status").in(statuses);
+        if (StringUtils.isNotBlank(materialId)) {
+            criteria.and("materialConfig.materialId").is(materialId.trim());
+        }
+        Query query = new SoftDeleteQuery(criteria)
+                .withReadPreference(ReadPreference.primary())
+                .with(Sort.by(Sort.Direction.DESC, "updateTime"));
         return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
     }
 

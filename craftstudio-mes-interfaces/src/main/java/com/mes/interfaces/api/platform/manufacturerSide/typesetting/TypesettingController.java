@@ -19,12 +19,15 @@ import com.mes.application.command.typesetting.vo.TypesettingPiecesQueryResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -169,8 +172,10 @@ public class TypesettingController {
             @RequestParam(required = false) String typesettingId,
             @RequestParam(required = false) String materialId,
             @RequestParam(required = false, defaultValue = "1") int current,
-            @RequestParam(required = false, defaultValue = "20") int size) {
-        
+            @RequestParam(required = false, defaultValue = "20") int size,
+            HttpServletResponse response) {
+        response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
+
         PagedResult<TypesettingInfo> result = 
                 appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, materialId, current, size);
         

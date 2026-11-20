@@ -968,53 +968,12 @@ public class AppTypesettingService {
             size = 20;
         }
 
-        List<TypesettingInfo> confirmingTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
-                manufacturerMetaId,
+        List<String> statuses = List.of(
                 TypesettingStatus.CONFIRMING.getCode(),
-                null,
-                materialId,
-                null,
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-        List<TypesettingInfo> inProgressTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
-                manufacturerMetaId,
                 TypesettingStatus.IN_PROGRESS.getCode(),
-                null,
-                materialId,
-                null,
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-        List<TypesettingInfo> failedTypesettingInfos = domainTypesettingService.findTypesettingByConditions(
-                manufacturerMetaId,
-                TypesettingStatus.FAILED.getCode(),
-                null,
-                materialId,
-                null,
-                null,
-                null,
-                null,
-                1,
-                Integer.MAX_VALUE
-        );
-
-        List<TypesettingInfo> allTypesettingInfos = new ArrayList<>();
-        if (confirmingTypesettingInfos != null) {
-            allTypesettingInfos.addAll(confirmingTypesettingInfos);
-        }
-        if (inProgressTypesettingInfos != null) {
-            allTypesettingInfos.addAll(inProgressTypesettingInfos);
-        }
-        if (failedTypesettingInfos != null) {
-            allTypesettingInfos.addAll(failedTypesettingInfos);
-        }
+                TypesettingStatus.FAILED.getCode());
+        List<TypesettingInfo> allTypesettingInfos = new ArrayList<>(
+                domainTypesettingService.findByStatusesFromPrimary(manufacturerMetaId, statuses, materialId));
 
         if (StringUtils.isNotBlank(typesettingId)) {
             String keyword = typesettingId.trim().toLowerCase();
@@ -1028,7 +987,8 @@ public class AppTypesettingService {
                 .comparing((TypesettingInfo info) -> Boolean.TRUE.equals(info.getIsUrgent()))
                 .reversed()
                 .thenComparing(TypesettingInfo::getCreateTime,
-                        Comparator.nullsLast(Comparator.reverseOrder())));
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparingInt(info -> statuses.indexOf(info.getStatus())));
 
         int fromIndex = Math.min((current - 1) * size, allTypesettingInfos.size());
         int toIndex = Math.min(fromIndex + size, allTypesettingInfos.size());

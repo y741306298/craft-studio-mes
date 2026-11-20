@@ -81,6 +81,11 @@ public class TypesettingService {
         return typesettingRepository.filterList(current, size, filters);
     }
 
+    public List<TypesettingInfo> findByStatusesFromPrimary(String manufacturerMetaId, Collection<String> statuses,
+                                                           String materialId) {
+        return typesettingRepository.findByStatusesFromPrimary(manufacturerMetaId, statuses, materialId);
+    }
+
     public List<TypesettingInfo> findPrintableMaterials(String manufacturerMetaId, String deviceCode,
                                                          Date startTime, Date endTime) {
         return typesettingRepository.findPrintableMaterials(manufacturerMetaId, deviceCode, startTime, endTime);
