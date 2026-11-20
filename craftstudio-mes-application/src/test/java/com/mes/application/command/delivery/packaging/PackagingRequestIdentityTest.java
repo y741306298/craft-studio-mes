@@ -139,6 +139,20 @@ class PackagingRequestIdentityTest {
         verify(store, times(2)).release(anyString(), eq("execution-owner"));
     }
 
+    @Test void aPendingReplacementBlocksAnotherRequestBeforePrinting() {
+        Document pending = new Document("_id", "replacement-task").append("state", "REVIEW");
+        when(store.pendingLabelReplacement(anyString())).thenReturn(pending, (Document) null);
+
+        var error = assertThrows(BusinessNotAllowException.class,
+                () -> operation.execute(request(null, "piece"), () -> fail("Must resolve the earlier replacement")));
+        assertTrue(error.getMessage().contains("replacement-task"));
+        verify(store).release(anyString(), eq("execution-owner"));
+
+        DeliveryPkg next = operation.execute(request(null, "piece"), this::newPackage);
+        assertEquals("READY", next.getPackagingState());
+        verify(worker, times(1)).applyQuantities(any());
+    }
+
     @Test void networkRetryReplaysSavedResultWithoutPrintingOrAcquiringLockAgain() {
         DeliveryPkg first = operation.execute(request("batch", "piece"), this::newPackage);
         clearInvocations(store, worker);

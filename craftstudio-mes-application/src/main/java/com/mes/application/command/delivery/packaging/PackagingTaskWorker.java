@@ -78,6 +78,7 @@ public class PackagingTaskWorker {
             transfers.add(new UpdateOneModel<>(snapshot(piece).append("packagingAppliedJobIds", new Document("$ne", job.getString("_id"))), update));
         }
         write(job, "productionPiece", transfers);
+        store.clearReplacedOrderWaybill(job);
     }
 
     private List<Document> validatedItems(Document job) {

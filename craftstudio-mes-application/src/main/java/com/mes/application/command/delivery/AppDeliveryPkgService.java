@@ -113,6 +113,7 @@ public class AppDeliveryPkgService {
     private static final String NODE_ID_PACKED = "NODE_PACKAGED";
     private static final String NODE_NAME_PENDING_PACKING = "待打包";
     private static final String NODE_NAME_PACKED = "已打包";
+    private static final int KUAIDI100_ORDER_NOT_FOUND = 30009;
     private static final String PRE_ORDER_SIID = "KX100L3AD65411C274";
     private static final String TEST_KUAIDI100_TASK_ID = "TEST_KUAIDI100_TASK_ID";
     private static final String TEST_KUAIDI100_NUM = "TEST_KUAIDI100_NUM";
@@ -897,51 +898,18 @@ public class AppDeliveryPkgService {
 
         String actualPresetType = useCustomPackagingFlow ? presetType.toUpperCase(Locale.ROOT) : presetType;
 
-        if (!useCustomPackagingFlow) {
-            if (orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
-                DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
-                if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
-                    String reprintSiid = resolveKuaidi100SiidForAddPkg(request, deliveryToken);
-                    if (StringUtils.isBlank(reprintSiid)) {
-                        throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
-                                "快递100云打印设备为空");
-                    }
-                    if (preOrderRecord.getConsumeStatus() != PreOrderLabelConsumeStatus.CONSUMED) {
-                        packagingSideEffect();
-                        DeliveryRecord claimed = deliveryRecordRepository.claimForPrinting(preOrderRecord.getId(),
-                                preOrderRecord.getConsumeStatus(), reprintSiid);
-                        if (claimed == null) {
-                            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "面单正在打印，请勿重复提交");
-                        }
-                        log.info("快递100预下单面单复打 orderId={} traceId={} recordId={} kuaidiNum={} taskId={} "
-                                        + "previousStatus={} originalSiid={} requestedDeliverySiidId={} printSiid={}",
-                                orderId, DeliveryPkgTrace.currentTraceId(), claimed.getId(), claimed.getKuaidiNum(),
-                                claimed.getTaskId(), preOrderRecord.getConsumeStatus(), preOrderRecord.getSiid(),
-                                request.getDeliverySiidId(), reprintSiid);
-                        AuthOrderResponse reprintResponse;
-                        try {
-                            reprintResponse = reprintKuaidi100Label(claimed.getTaskId(), reprintSiid);
-                        } catch (RuntimeException ex) {
-                            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
-                            claimed.setErrorMsg(ex.getMessage());
-                            deliveryRecordRepository.update(claimed);
-                            throw ex;
-                        }
-                        if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
-                            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
-                            claimed.setErrorMsg(reprintResponse == null ? "快递100预下单面单复打失败" : reprintResponse.getMessage());
-                            deliveryRecordRepository.update(claimed);
-                            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
-                                    claimed.getErrorMsg());
-                        }
-                        claimed.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
-                        claimed.setPackedAt(new Date());
-                        claimed.setReprintCount(claimed.getReprintCount() == null ? 1 : claimed.getReprintCount() + 1);
-                        if (StringUtils.isBlank(claimed.getDeliveryPkgId())) claimed.setDeliveryPkgId("DP" + claimed.getId());
-                        deliveryRecordRepository.update(claimed); // persist external success before local recovery work
-                        preOrderRecord = claimed;
-                    }
-                    DeliveryPkg deliveryPkg = findOrCreateConsumedPkg(preOrderRecord, request, orderId, carrierId,
+        if (!useCustomPackagingFlow && orderInfo != null && StringUtils.isNotBlank(orderInfo.getKuaidiNum())) {
+            DeliveryRecord preOrderRecord = deliveryRecordRepository.findByKuaidiNum(orderInfo.getKuaidiNum());
+            if (preOrderRecord != null && StringUtils.isNotBlank(preOrderRecord.getTaskId())) {
+                String reprintSiid = resolveKuaidi100SiidForAddPkg(request, deliveryToken);
+                if (StringUtils.isBlank(reprintSiid)) {
+                    throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError,
+                            "快递100云打印设备为空");
+                }
+                DeliveryRecord consumed = consumePreOrderLabel(preOrderRecord, orderId,
+                        request.getDeliverySiidId(), reprintSiid);
+                if (consumed != null) {
+                    DeliveryPkg deliveryPkg = findOrCreateConsumedPkg(consumed, request, orderId, carrierId,
                             carrierName, actualPresetType, orderInfo.getKuaidiNum(), remarks);
                     transferPiecesToPacked(selectedPieces, packageQuantityMap, carrierId, carrierName,
                             request.getRouteId(), request.getRouteNodeId(), orderInfo.getKuaidiNum());
@@ -992,6 +960,52 @@ public class AppDeliveryPkgService {
                 .collect(Collectors.toSet());
         refreshPackagingCompletionStatus(touchedOrderItemIds);
         return deliveryPkg;
+    }
+
+    /** A missing upstream task falls through to normal label creation. */
+    private DeliveryRecord consumePreOrderLabel(DeliveryRecord record, String orderId,
+                                                 String requestedDeliverySiidId, String reprintSiid) {
+        if (record.getConsumeStatus() == PreOrderLabelConsumeStatus.CONSUMED) {
+            return record;
+        }
+        packagingSideEffect();
+        DeliveryRecord claimed = deliveryRecordRepository.claimForPrinting(record.getId(),
+                record.getConsumeStatus(), reprintSiid);
+        if (claimed == null) {
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, "面单正在打印，请勿重复提交");
+        }
+        log.info("快递100预下单面单复打 orderId={} traceId={} recordId={} kuaidiNum={} taskId={} "
+                        + "previousStatus={} originalSiid={} requestedDeliverySiidId={} printSiid={}",
+                orderId, DeliveryPkgTrace.currentTraceId(), claimed.getId(), claimed.getKuaidiNum(),
+                claimed.getTaskId(), record.getConsumeStatus(), record.getSiid(),
+                requestedDeliverySiidId, reprintSiid);
+        AuthOrderResponse reprintResponse;
+        try {
+            reprintResponse = reprintKuaidi100Label(claimed.getTaskId(), reprintSiid);
+        } catch (RuntimeException ex) {
+            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
+            claimed.setErrorMsg(ex.getMessage());
+            deliveryRecordRepository.update(claimed);
+            throw ex;
+        }
+        if (reprintResponse == null || !Boolean.TRUE.equals(reprintResponse.getSuccess())) {
+            claimed.setConsumeStatus(PreOrderLabelConsumeStatus.PRINT_FAILED);
+            claimed.setErrorMsg(reprintResponse == null ? "快递100预下单面单复打失败" : reprintResponse.getMessage());
+            deliveryRecordRepository.update(claimed);
+            if (reprintResponse != null && reprintResponse.getCode() == KUAIDI100_ORDER_NOT_FOUND) {
+                packagingOperation.beginLabelReplacement(record.getKuaidiNum());
+                log.warn("快递100旧面单查无此单，重新申请面单 orderId={} traceId={} oldKuaidiNum={} oldTaskId={}",
+                        orderId, DeliveryPkgTrace.currentTraceId(), record.getKuaidiNum(), record.getTaskId());
+                return null;
+            }
+            throw new BusinessNotAllowException(ApiResponse.RepStatusCode.serviceError, claimed.getErrorMsg());
+        }
+        claimed.setConsumeStatus(PreOrderLabelConsumeStatus.CONSUMED);
+        claimed.setPackedAt(new Date());
+        claimed.setReprintCount(claimed.getReprintCount() == null ? 1 : claimed.getReprintCount() + 1);
+        if (StringUtils.isBlank(claimed.getDeliveryPkgId())) claimed.setDeliveryPkgId("DP" + claimed.getId());
+        deliveryRecordRepository.update(claimed); // persist external success before local recovery work
+        return claimed;
     }
 
     private boolean isCustomPackagingPresetType(String presetType) {

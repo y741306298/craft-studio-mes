@@ -27,6 +27,9 @@ public class PackagingOperation {
     public static boolean active() { return ACTIVE.get() != null; }
     public static String pkgId() { return ACTIVE.get().getString("pkgId"); }
     public void risk() { if (active()) store.risk(ACTIVE.get().getString("_id")); }
+    public void beginLabelReplacement(String oldKuaidiNum) {
+        store.beginLabelReplacement(ACTIVE.get().getString("_id"), oldKuaidiNum);
+    }
     public List<ProductionPiece> pieces(Collection<String> ids) { return store.pieces(ids, ACTIVE.get().getString("manufacturerId")); }
 
     public DeliveryPkg execute(DeliveryPkgAddRequest request, Supplier<DeliveryPkg> action) {
@@ -77,6 +80,10 @@ public class PackagingOperation {
         log.info("打包任务受理 taskId={} orderId={} pkgId={}", id, orderId, job.getString("pkgId"));
         ACTIVE.set(job);
         try {
+            Document pendingReplacement = store.pendingLabelReplacement(orderKey);
+            if (pendingReplacement != null) {
+                throw bad("重开面单的打包任务尚未完成，请查看任务状态，taskId=" + pendingReplacement.getString("_id"));
+            }
             DeliveryPkg result = action.get();
             Document saved = store.publish(id, result); // Durable result + owned lease; a crash can be recovered without reprinting.
             saved.put("executionLockOwner", lockOwner);

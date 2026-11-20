@@ -3,6 +3,7 @@ package com.mes.application.command.delivery.packaging;
 import com.mes.domain.delivery.deliveryPkg.entity.DeliveryPkg;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.infra.dal.manufacurer.ProductionPiece.po.ProductionPiecePo;
+import com.mes.infra.dal.order.po.OrderInfoPo;
 import com.mes.infra.dal.order.po.OrderItemPo;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
 import org.bson.Document;
@@ -96,6 +97,29 @@ public class PackagingTaskStore {
         require(mongo.updateFirst(Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING")),
                 new Update().set("sideEffectPossible", true).set("updatedAt", new Date()), TASKS).getMatchedCount());
     }
+    void beginLabelReplacement(String id, String oldKuaidiNum) {
+        Query preparing = Query.query(Criteria.where("_id").is(id).and("state").is("PREPARING"));
+        require(mongo.updateFirst(preparing, new Update().set("replacedKuaidiNum", oldKuaidiNum)
+                .set("sideEffectPossible", true).set("updatedAt", new Date()), TASKS).getMatchedCount());
+    }
+
+    Document pendingLabelReplacement(String orderKey) {
+        Query query = Query.query(Criteria.where("orderKey").is(orderKey).and("replacedKuaidiNum").exists(true)
+                .and("state").in("PREPARING", "PROCESSING", "READY", "RETRY", "REVIEW")
+                .and("quantitiesApplied").ne(true));
+        query.fields().include("_id");
+        return mongo.findOne(query, Document.class, TASKS);
+    }
+
+    void clearReplacedOrderWaybill(Document job) {
+        String oldKuaidiNum = job.getString("replacedKuaidiNum");
+        if (oldKuaidiNum == null) return;
+        Query order = Query.query(Criteria.where("orderId").is(job.getString("orderId"))
+                .and("manufacturerId").is(job.getString("manufacturerId")).and("deleteAt").is(null)
+                .and("kuaidiNum").is(oldKuaidiNum));
+        mongo.updateFirst(order, new Update().unset("kuaidiNum").set("updateTime", new Date()), OrderInfoPo.class);
+    }
+
     /** Persist the printing result before touching quantities, and hold a lease during synchronous visibility updates. */
     public Document publish(String id, DeliveryPkg pkg) {
         Document result = new Document(); mongo.getConverter().write(pkg, result);

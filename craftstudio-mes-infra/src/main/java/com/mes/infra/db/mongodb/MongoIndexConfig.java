@@ -27,6 +27,9 @@ public class MongoIndexConfig {
                 .on("leaseUntil", Sort.Direction.ASC).named("idx_packaging_task_lease"));
         mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("state", Sort.Direction.ASC)
                 .on("updatedAt", Sort.Direction.ASC).named("idx_packaging_task_recovery"));
+        mongoTemplate.indexOps("deliveryPackagingTask").ensureIndex(new Index().on("orderKey", Sort.Direction.ASC)
+                .on("state", Sort.Direction.ASC).named("idx_packaging_label_replacement")
+                .partial(PartialIndexFilter.of(Criteria.where("replacedKuaidiNum").exists(true))));
         mongoTemplate.indexOps("orderInfo").ensureIndex(new Index().on("orderId", Sort.Direction.ASC)
                 .on("deleteAt", Sort.Direction.ASC).named("idx_order_info_business_id_active"));
         mongoTemplate.indexOps(PackagingBoxPo.class).ensureIndex(new Index().on("code", Sort.Direction.ASC)
