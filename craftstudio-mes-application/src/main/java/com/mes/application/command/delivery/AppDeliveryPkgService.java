@@ -1905,7 +1905,7 @@ public class AppDeliveryPkgService {
                 || StringUtils.isBlank(orderInfo.getManufacturerId())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "快递100预打印订单物流或工厂信息不完整");
         }
-        if ("CUSTOM".equalsIgnoreCase(orderInfo.getLogisticsCarrierInfo().getPresetType())) {
+        if (isCustomPackagingPresetType(orderInfo.getLogisticsCarrierInfo().getPresetType())) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "自定义物流不支持快递100预打印");
         }
         String carrierId = orderInfo.getLogisticsCarrierInfo().getCarrierId();

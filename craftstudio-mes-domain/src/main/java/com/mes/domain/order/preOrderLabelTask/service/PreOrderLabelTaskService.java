@@ -18,8 +18,16 @@ public class PreOrderLabelTaskService {
     @Autowired
     private PreOrderLabelTaskRepository preOrderLabelTaskRepository;
 
+    public static boolean skipsPreOrderLabel(OrderInfo orderInfo) {
+        if (orderInfo == null || orderInfo.getLogisticsCarrierInfo() == null) {
+            return false;
+        }
+        String presetType = orderInfo.getLogisticsCarrierInfo().getPresetType();
+        return "CUSTOM".equalsIgnoreCase(presetType) || "DOOR_2_DOOR".equalsIgnoreCase(presetType);
+    }
+
     public PreOrderLabelTask createFromOrderInfo(OrderInfo orderInfo) {
-        if (orderInfo == null) {
+        if (orderInfo == null || skipsPreOrderLabel(orderInfo)) {
             return null;
         }
         PreOrderLabelTask task = new PreOrderLabelTask();

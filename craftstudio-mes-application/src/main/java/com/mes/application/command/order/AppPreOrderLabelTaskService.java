@@ -150,6 +150,7 @@ public class AppPreOrderLabelTaskService {
                             || StringUtils.isBlank(task.getOrderId()) || StringUtils.isNotBlank(task.getKuaidiNum())) continue;
                     OrderInfo order = orderInfoService.findByOrderId(task.getOrderId());
                     if (!isJstOrder(order) || OrderStatus.RETURNED.equals(order.getStatus())
+                            || PreOrderLabelTaskService.skipsPreOrderLabel(order)
                             || StringUtils.isNotBlank(order.getKuaidiNum())
                             || StringUtils.isBlank(order.getChannel().getOrderId())
                             || StringUtils.isBlank(order.getManufacturerId()) || order.getLogisticsCarrierInfo() == null) continue;
@@ -305,6 +306,13 @@ public class AppPreOrderLabelTaskService {
             if (OrderStatus.RETURNED.equals(orderInfo.getStatus())) {
                 preOrderLabelTaskService.delete(task);
                 log.info("预下快递单批处理任务已删除，订单已退单: taskId={}, orderId={}", task.getId(), task.getOrderId());
+                return;
+            }
+
+            if (PreOrderLabelTaskService.skipsPreOrderLabel(orderInfo)) {
+                preOrderLabelTaskService.markProcessed(task, null, "当前物流方式无需预打单");
+                log.info("预下快递单任务已跳过: taskId={}, orderId={}, presetType={}",
+                        task.getId(), task.getOrderId(), orderInfo.getLogisticsCarrierInfo().getPresetType());
                 return;
             }
 
