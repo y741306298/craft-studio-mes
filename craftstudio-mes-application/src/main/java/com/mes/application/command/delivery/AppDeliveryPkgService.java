@@ -1856,16 +1856,22 @@ public class AppDeliveryPkgService {
             response = JSON.parseObject(result, AuthOrderResponse.class);
         } catch (RuntimeException ex) {
             log.warn("快递100复打响应解析失败 traceId={} taskId={} siid={} responseLength={} exceptionType={}",
-                    DeliveryPkgTrace.currentTraceId(), taskId, siid, StringUtils.length(result),
+                    DeliveryPkgTrace.currentTraceId(), taskId, siid, result == null ? 0 : result.length(),
                     ex.getClass().getSimpleName());
             throw ex;
         }
         if (response == null || !Boolean.TRUE.equals(response.getSuccess())) {
             String message = response == null ? null : response.getMessage();
+            if (message != null) {
+                message = message.replaceAll("[\\p{Cntrl}]", " ");
+                if (message.length() > 200) {
+                    message = message.substring(0, 197) + "...";
+                }
+            }
             log.warn("快递100复打失败 traceId={} taskId={} siid={} responsePresent={} success={} code={} message={} hasData={}",
                     DeliveryPkgTrace.currentTraceId(), taskId, siid, response != null,
                     response == null ? null : response.getSuccess(), response == null ? null : response.getCode(),
-                    message == null ? null : StringUtils.abbreviate(message.replaceAll("[\\p{Cntrl}]", " "), 200),
+                    message,
                     response != null && response.getData() != null);
         } else {
             log.info("快递100复打成功 traceId={} taskId={} siid={} code={} hasData={}",
