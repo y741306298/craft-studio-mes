@@ -1328,7 +1328,7 @@ public class AppTypesettingService {
                 }
                 if (!Objects.equals(request.getManufacturerMetaId(), dbTypesettingInfo.getManufacturerMetaId())) throw new IllegalArgumentException("不能排版其他工厂的印版");
                 if (TypesettingStatus.isFormeInProgress(dbTypesettingInfo.getStatus())) {
-                    return LayoutConfirmResult.failed("印版正在确认或下发，暂不能用于排版：" + dbTypesettingInfo.getId());
+                    throw new IllegalArgumentException("印版正在确认或下发，暂不能用于排版：" + dbTypesettingInfo.getId());
                 }
                 if (readOnly) dbTypesettingInfo = preflightCopy(dbTypesettingInfo, TypesettingInfo.class);
                 if (typesettingInfo.getQuantity() != null) {
