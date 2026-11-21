@@ -334,14 +334,18 @@ public class AppOrderPreprocessingService {
                 if (finalResult == null) {
                     finalResult = new ArrayList<>();
                 }
-                if (!SublimationProcessStrategy.applies(orderItem.getProcedureFlow())
-                        && hasCurrentRectBloodResult(orderItem)
-                        && StringUtils.isNotBlank(orderItem.getMirrorFlagUrl())) {
+                if (!SublimationProcessStrategy.applies(procedureFlow)) {
+                    boolean hasRectBloodMirror = hasCurrentRectBloodResult(orderItem)
+                            && StringUtils.isNotBlank(orderItem.getMirrorFlagUrl());
                     for (ProductionPiece piece : current) {
-                        MirrorConfig mirror = new MirrorConfig();
-                        mirror.setImg(orderItem.getMirrorFlagUrl());
-                        mirror.setSvg(piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
-                        piece.setMirrorConfigs(List.of(mirror));
+                        // 同步零件统一在生成遮罩后按工艺处理，再组装需要引用最终遮罩的镜像配置。
+                        applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
+                        if (hasRectBloodMirror) {
+                            MirrorConfig mirror = new MirrorConfig();
+                            mirror.setImg(orderItem.getMirrorFlagUrl());
+                            mirror.setSvg(piece.getMaskImageFile() == null ? null : piece.getMaskImageFile().getRawFile());
+                            piece.setMirrorConfigs(List.of(mirror));
+                        }
                     }
                 }
                 finalResult.addAll(current);
@@ -975,10 +979,7 @@ public class AppOrderPreprocessingService {
             }
         }
 
-        // 写真/无痕/板材拼接不生成任何 mark；其他路线按工艺执行打扣与留白。
-        if (!isMarklessSpliceFlow(procedureFlow)) {
-            applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
-        }
+        applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
 
         productionPieceService.addProductionPiece(piece);
         indexProductionPieceImage(piece);

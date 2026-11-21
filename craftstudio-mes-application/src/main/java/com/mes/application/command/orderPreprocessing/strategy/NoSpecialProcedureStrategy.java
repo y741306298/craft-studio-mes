@@ -53,9 +53,7 @@ public class NoSpecialProcedureStrategy implements OrderItemProcessingStrategy {
             piece.setRemark(orderInfo.getRemark());
         }
         
-        // 步骤4.1：按"画内打扣"工艺决定打扣与留白外扩的先后顺序；false 表示没有出血边需要跳过，四边都允许外扩。
-        processingService.applyBuckleAndLiubaiProcessForStrategy(orderItem, procedureFlow, piece, false);
-        // 步骤5：返回待批量持久化的结果。
+        // 步骤5：返回零件，由预处理服务统一处理打扣与留白后批量持久化。
         List<ProductionPiece> pieces = new ArrayList<>();
         pieces.add(piece);
         return pieces;
