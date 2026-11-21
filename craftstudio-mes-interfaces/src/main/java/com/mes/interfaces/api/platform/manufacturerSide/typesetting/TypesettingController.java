@@ -17,6 +17,7 @@ import com.piliofpala.craftstudio.shared.domain.base.exception.BusinessNotAllowE
 import com.piliofpala.craftstudio.shared.domain.base.repository.PagedResult;
 import com.mes.application.command.typesetting.vo.TypesettingPiecesQueryResult;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.order.orderInfo.entity.OrderInfo;
 import com.mes.domain.order.orderInfo.service.OrderInfoService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -164,7 +165,7 @@ public class TypesettingController {
      * @param materialId 材料 ID
      * @param current 当前页码（默认1）
      * @param size 每页大小（默认20，最大100）
-     * @return 分页查询结果
+     * @return 分页查询结果，status 为中文状态名称
      */
     @GetMapping("/confirming/list")
     public ApiResponse<PagedResult<TypesettingInfo>> listConfirmingTypesetting(
@@ -176,9 +177,14 @@ public class TypesettingController {
             HttpServletResponse response) {
         response.setHeader(HttpHeaders.CACHE_CONTROL, CacheControl.noStore().getHeaderValue());
 
-        PagedResult<TypesettingInfo> result = 
+        PagedResult<TypesettingInfo> result =
                 appTypesettingService.findConfirmingTypesetting(manufacturerMetaId, typesettingId, materialId, current, size);
-        
+        for (TypesettingInfo item : result.items()) {
+            TypesettingStatus status = TypesettingStatus.getByCode(item.getStatus());
+            if (status != null) {
+                item.setStatus(status.getDescription());
+            }
+        }
         return ApiResponse.success(result);
     }
 
