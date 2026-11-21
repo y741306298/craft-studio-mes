@@ -126,6 +126,8 @@ public class AppTypesettingService {
     private static final String LAYOUT_CONFIRM_CACHE_PREFIX = "layout:confirm:";
     private static final String TYPESETTING_OPERATION_LOCK_PREFIX = "typesetting:operation:lock:";
     private static final String FORME_CALLBACK_LOCK_PREFIX = "typesetting:forme:callback:lock:";
+    private static final List<TypesettingStatus> FORME_RETRY_STATUSES = List.of(
+            TypesettingStatus.CONFIRM_IN_PROGRESS, TypesettingStatus.DISPATCH_IN_PROGRESS, TypesettingStatus.CONFIRMED);
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
     private static final long NESTING_CALLBACK_RECORD_WAIT_MILLIS = 10_000;
@@ -288,6 +290,15 @@ public class AppTypesettingService {
      * @return 分页结果
      */
     public TypesettingPiecesQueryResult findTypesettingAndProductionPieces(TypesettingQuery query) {
+        return findTypesettingAndProductionPieces(query, false);
+    }
+
+    public TypesettingPiecesQueryResult findTypesettingAndProductionPiecesByCondition(TypesettingQuery query) {
+        return findTypesettingAndProductionPieces(query, true);
+    }
+
+    private TypesettingPiecesQueryResult findTypesettingAndProductionPieces(TypesettingQuery query,
+                                                                           boolean includeFormeInProgress) {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
@@ -312,15 +323,15 @@ public class AppTypesettingService {
             return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, 0L, size, current), pageItems);
         }
         if (queryTypesettingOnly) {
-            long total = countPendingTypesettingInfos(query, null);
-            pageItems.addAll(findPendingTypesettingItems(query, null, globalOffset, size));
+            long total = countPendingTypesettingInfos(query, null, includeFormeInProgress);
+            pageItems.addAll(findPendingTypesettingItems(query, null, includeFormeInProgress, globalOffset, size));
             return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
         }
 
         long urgentPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, true, orderItemIds) : 0;
-        long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true) : 0;
+        long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true, includeFormeInProgress) : 0;
         long normalPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, false, orderItemIds) : 0;
-        long normalTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, false) : 0;
+        long normalTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, false, includeFormeInProgress) : 0;
 
         // 全局顺序：加急优先；同一加急级别内零件优先于印版；各分组内部按创建时间正序。
         long[] skipped = {globalOffset};
@@ -328,11 +339,11 @@ public class AppTypesettingService {
         remaining = appendPageBucket(pageItems, skipped, remaining, urgentPartTotal,
                 (offset, limit) -> findPendingProductionPieceItems(query, true, offset, limit, orderItemIds));
         remaining = appendPageBucket(pageItems, skipped, remaining, urgentTypesettingTotal,
-                (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
+                (offset, limit) -> findPendingTypesettingItems(query, true, includeFormeInProgress, offset, limit));
         remaining = appendPageBucket(pageItems, skipped, remaining, normalPartTotal,
                 (offset, limit) -> findPendingProductionPieceItems(query, false, offset, limit, orderItemIds));
         appendPageBucket(pageItems, skipped, remaining, normalTypesettingTotal,
-                (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
+                (offset, limit) -> findPendingTypesettingItems(query, false, includeFormeInProgress, offset, limit));
 
         long total = urgentPartTotal + urgentTypesettingTotal + normalPartTotal + normalTypesettingTotal;
         return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
@@ -370,13 +381,13 @@ public class AppTypesettingService {
         }
         if (!queryPartOnly && !queryProductionPiecesByRoute && !filterByOrderNames) {
             if (queryTypesettingOnly) {
-                appendAllItems(items, countPendingTypesettingInfos(query, null),
-                        (offset, limit) -> findPendingTypesettingItems(query, null, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, null, false),
+                        (offset, limit) -> findPendingTypesettingItems(query, null, false, offset, limit));
             } else {
-                appendAllItems(items, countPendingTypesettingInfos(query, true),
-                        (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
-                appendAllItems(items, countPendingTypesettingInfos(query, false),
-                        (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, true, false),
+                        (offset, limit) -> findPendingTypesettingItems(query, true, false, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, false, false),
+                        (offset, limit) -> findPendingTypesettingItems(query, false, false, offset, limit));
             }
         }
         return items;
@@ -416,19 +427,19 @@ public class AppTypesettingService {
         return remaining - loaded.size();
     }
 
-    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent) {
+    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent, boolean includeFormeInProgress) {
         return timeMongoQuery("countPendingTypesettingInfos", () ->
                 domainTypesettingService.countPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                        query.getStartTime(), query.getEndTime(), urgent));
+                        query.getStartTime(), query.getEndTime(), urgent, includeFormeInProgress));
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItems(
-            TypesettingQuery query, Boolean urgent, long offset, int limit) {
+            TypesettingQuery query, Boolean urgent, boolean includeFormeInProgress, long offset, int limit) {
         List<TypesettingInfo> infos = timeMongoQuery("findPendingTypesettingInfos", () ->
                 domainTypesettingService.findPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                        query.getStartTime(), query.getEndTime(), urgent, offset, limit));
+                        query.getStartTime(), query.getEndTime(), urgent, includeFormeInProgress, offset, limit));
         return infos.stream().map(TypesettingProductionPieceVO::fromTypesettingInfo).toList();
     }
 
@@ -948,7 +959,7 @@ public class AppTypesettingService {
     }
 
     /**
-     * 查询状态为待确认（confirming）的排版信息列表（分页）
+     * 分页查询待确认、排版中、处理失败、确认中和下发中的排版信息。
      * @param manufacturerMetaId 厂商元数据ID
      * @param typesettingId 排版编号（支持模糊匹配）
      * @param materialId 材料 ID
@@ -971,7 +982,9 @@ public class AppTypesettingService {
         List<String> statuses = List.of(
                 TypesettingStatus.CONFIRMING.getCode(),
                 TypesettingStatus.IN_PROGRESS.getCode(),
-                TypesettingStatus.FAILED.getCode());
+                TypesettingStatus.FAILED.getCode(),
+                TypesettingStatus.CONFIRM_IN_PROGRESS.getCode(),
+                TypesettingStatus.DISPATCH_IN_PROGRESS.getCode());
         List<TypesettingInfo> allTypesettingInfos = new ArrayList<>(
                 domainTypesettingService.findByStatusesFromPrimary(manufacturerMetaId, statuses, materialId));
 
@@ -1314,6 +1327,9 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("排版信息不存在：" + typesettingInfo.getId());
                 }
                 if (!Objects.equals(request.getManufacturerMetaId(), dbTypesettingInfo.getManufacturerMetaId())) throw new IllegalArgumentException("不能排版其他工厂的印版");
+                if (TypesettingStatus.isFormeInProgress(dbTypesettingInfo.getStatus())) {
+                    return LayoutConfirmResult.failed("印版正在确认或下发，暂不能用于排版：" + dbTypesettingInfo.getId());
+                }
                 if (readOnly) dbTypesettingInfo = preflightCopy(dbTypesettingInfo, TypesettingInfo.class);
                 if (typesettingInfo.getQuantity() != null) {
                     dbTypesettingInfo.setQuantity(typesettingInfo.getQuantity());
@@ -1839,7 +1855,7 @@ public class AppTypesettingService {
             FormeGenerationRequest formeRequest = buildConfirmFormeGenerationRequest(typesettingInfo, layoutMode, businessId);
             String formeOpRemark = "FORME_OP:LAYOUT";
             // 先落库为确认中状态，再提交异步任务，避免算法服务快速回调时读不到 FORME_OP 标记而跳过回调落库。
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setStatus(TypesettingStatus.CONFIRM_IN_PROGRESS.getCode());
             typesettingInfo.setRemark(formeOpRemark);
             mergeExistingMarksBeforeUpdate(typesettingInfo);
             domainTypesettingService.updateTypesetting(typesettingInfo);
@@ -1853,7 +1869,7 @@ public class AppTypesettingService {
                     mirrorTypesettingInfo.getElement().setNestedSvg(mirrorTypesettingInfo.getElement().getNestedMirrorSvg());
                 }
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
-                mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+                mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRM_IN_PROGRESS.getCode());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
                 FormeGenerationRequest mirrorFormeRequest = buildConfirmFormeGenerationRequest(
                         mirrorTypesettingInfo,
@@ -3164,7 +3180,7 @@ public class AppTypesettingService {
                 }
                 mirrorTypesettingInfo.setRemark(formeOpRemark);
                 mirrorTypesettingInfo.setDeviceCode(request.getDeviceCode());
-                mirrorTypesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+                mirrorTypesettingInfo.setStatus(TypesettingStatus.DISPATCH_IN_PROGRESS.getCode());
                 ManufacturerDeviceCfg mirrorDeviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
                 mirrorTypesettingInfo.setDeviceName(mirrorDeviceCfg.getDeviceName());
                 ensureMirrorTypesettingExists(mirrorTypesettingInfo);
@@ -3182,7 +3198,7 @@ public class AppTypesettingService {
             }
 
             ManufacturerDeviceCfg deviceCfg = findDeviceCfgByDeviceCode(typesettingInfo.getManufacturerMetaId(), request.getDeviceCode());
-            typesettingInfo.setStatus(TypesettingStatus.CONFIRMED.getCode());
+            typesettingInfo.setStatus(TypesettingStatus.DISPATCH_IN_PROGRESS.getCode());
             typesettingInfo.setRemark(formeOpRemark);
             typesettingInfo.setDeviceCode(request.getDeviceCode());
             typesettingInfo.setDeviceName(deviceCfg.getDeviceName());
@@ -3279,21 +3295,21 @@ public class AppTypesettingService {
     }
 
     /**
-     * 重新提交所有仍停留在 confirmed 状态的印版生成任务。
+     * 重新提交仍在确认或下发中的印版生成任务，兼容旧的 confirmed 记录。
      * 每条记录按库内 remark 保留原操作类型（确认排版或确认打印），回调仍按原链路完成落库。
      */
     public RetryFormeGenerationResult retryAllConfirmedFormeGeneration(RetryConfirmedFormeRequest retryRequest) {
         if (retryRequest == null) {
             throw new IllegalArgumentException("重试印版生成参数不能为空");
         }
-        List<TypesettingInfo> confirmedTypesettings = domainTypesettingService.findAllByStatusAndCreateTime(
-                TypesettingStatus.CONFIRMED, retryRequest.getStartTime(), retryRequest.getEndTime());
+        List<TypesettingInfo> retryTypesettings = domainTypesettingService.findAllByStatusesAndCreateTime(
+                FORME_RETRY_STATUSES, retryRequest.getStartTime(), retryRequest.getEndTime());
         RetryFormeGenerationResult result = new RetryFormeGenerationResult();
-        if (confirmedTypesettings == null) {
-            confirmedTypesettings = Collections.emptyList();
+        if (retryTypesettings == null) {
+            retryTypesettings = Collections.emptyList();
         }
-        result.setTotal(confirmedTypesettings.size());
-        for (TypesettingInfo snapshot : confirmedTypesettings) {
+        result.setTotal(retryTypesettings.size());
+        for (TypesettingInfo snapshot : retryTypesettings) {
             String recordId = snapshot == null ? null : snapshot.getId();
             try {
                 FormeRetrySubmission submission = prepareConfirmedFormeRetry(recordId);
@@ -3322,12 +3338,13 @@ public class AppTypesettingService {
         String lockToken = acquireOperationLocks(lockKeys, "印版记录正在处理中，请稍后重试");
         try {
             TypesettingInfo latest = domainTypesettingService.findById(recordId);
-            if (latest == null || !TypesettingStatus.CONFIRMED.getCode().equals(latest.getStatus())) {
+            if (latest == null || FORME_RETRY_STATUSES.stream()
+                    .noneMatch(status -> status.getCode().equals(latest.getStatus()))) {
                 return null;
             }
             String remark = StringUtils.trimToEmpty(latest.getRemark());
             if (!"FORME_OP:LAYOUT".equals(remark) && !remark.startsWith("FORME_OP:PRINT:")) {
-                throw new IllegalStateException("confirmed 印版缺少有效的生成操作标记，remark=" + latest.getRemark());
+                throw new IllegalStateException(latest.getStatus() + " 印版缺少有效的生成操作标记，remark=" + latest.getRemark());
             }
             if (latest.getElement() == null || StringUtils.isBlank(latest.getElement().getNestedSvg())) {
                 throw new IllegalStateException("印版缺少 nestedSvg，无法重新生成");

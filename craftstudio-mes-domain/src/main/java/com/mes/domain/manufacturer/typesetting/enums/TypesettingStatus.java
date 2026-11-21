@@ -8,7 +8,9 @@ public enum TypesettingStatus {
     PENDING("待排版", "pending"),           // 等待排版
     IN_PROGRESS("排版中", "in_progress"),   // 正在排版
     CONFIRMING("待确认", "confirming"),     // 等待确认
-    CONFIRMED("已确认", "confirmed"),       // 确认中
+    CONFIRM_IN_PROGRESS("确认中", "confirm_in_progress"),
+    DISPATCH_IN_PROGRESS("下发中", "dispatch_in_progress"),
+    CONFIRMED("已确认", "confirmed"),
     PRINTING("待打印", "printing"),
     PRINTING_IN_PROGRESS("打印中", "printing_in_progress"),
     COMPLETED("已完成", "completed"),
@@ -28,6 +30,10 @@ public enum TypesettingStatus {
 
     public String getCode() {
         return code;
+    }
+
+    public static boolean isFormeInProgress(String code) {
+        return CONFIRM_IN_PROGRESS.getCode().equals(code) || DISPATCH_IN_PROGRESS.getCode().equals(code);
     }
 
     /**

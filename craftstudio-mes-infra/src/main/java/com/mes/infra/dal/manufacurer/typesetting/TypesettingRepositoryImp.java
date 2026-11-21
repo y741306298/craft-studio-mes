@@ -1,6 +1,7 @@
 package com.mes.infra.dal.manufacurer.typesetting;
 
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
+import com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus;
 import com.mes.domain.manufacturer.typesetting.repository.TypesettingRepository;
 import com.mes.domain.manufacturer.procedureFlow.vo.ProcessingFlowCondition;
 import com.mes.infra.base.BaseRepositoryImp;
@@ -37,8 +38,8 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     }
 
     @Override
-    public List<TypesettingInfo> findByStatusAndCreateTime(String status, Date startTime, Date endTime) {
-        Criteria criteria = Criteria.where("status").is(status)
+    public List<TypesettingInfo> findByStatusesAndCreateTime(Collection<String> statuses, Date startTime, Date endTime) {
+        Criteria criteria = Criteria.where("status").in(statuses)
                 .and("createTime").gte(startTime).lte(endTime);
         Query query = new SoftDeleteQuery(criteria);
         query.with(Sort.by(Sort.Order.asc("createTime")));
@@ -48,10 +49,10 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, long offset, int size) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress, long offset, int size) {
         int pageSize = Math.max(1, size);
         Query query = new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent));
+                startTime, endTime, urgent, includeFormeInProgress));
         query.with(urgent == null
                         ? Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime"))
                         : Sort.by(Sort.Order.asc("createTime")))
@@ -76,16 +77,16 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public long countPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
         return mongoTemplate.count(new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName,
-                processingNames, startTime, endTime, urgent)), poClass());
+                processingNames, startTime, endTime, urgent, includeFormeInProgress)), poClass());
     }
 
     @Override
     public List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
             String materialName, List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime) {
         List<Criteria> criteria = new ArrayList<>();
-        criteria.add(pendingCriteria(manufacturerMetaId, materialName, processingNames, startTime, endTime, null));
+        criteria.add(pendingCriteria(manufacturerMetaId, materialName, processingNames, startTime, endTime, null, false));
         criteria.add(Criteria.where("typesettingId").is(typesettingId));
         Query query = new SoftDeleteQuery(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
         query.with(Sort.by(Sort.Order.asc("createTime")));
@@ -145,14 +146,18 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
 
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
         List<Criteria> criteria = new ArrayList<>();
         criteria.add(Criteria.where("manufacturerMetaId").is(manufacturerMetaId));
-        criteria.add(Criteria.where("status").is(com.mes.domain.manufacturer.typesetting.enums.TypesettingStatus.PENDING.getCode()));
+        Criteria availablePlate = Criteria.where("status").is(TypesettingStatus.PENDING.getCode())
+                .and("leaveQuantity").gt(0);
+        criteria.add(includeFormeInProgress
+                ? new Criteria().orOperator(availablePlate, Criteria.where("status").in(
+                        TypesettingStatus.CONFIRM_IN_PROGRESS.getCode(), TypesettingStatus.DISPATCH_IN_PROGRESS.getCode()))
+                : availablePlate);
         if (urgent != null) {
             criteria.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));
         }
-        criteria.add(Criteria.where("leaveQuantity").gt(0));
         if (StringUtils.isNotBlank(materialName)) {
             criteria.add(Criteria.where("materialConfig.materialSnapshot.name").is(materialName.trim()));
         }

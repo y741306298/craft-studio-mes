@@ -9,7 +9,7 @@ import java.util.Date;
 import java.util.List;
 
 public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
-    List<TypesettingInfo> findByStatusAndCreateTime(String status, Date startTime, Date endTime);
+    List<TypesettingInfo> findByStatusesAndCreateTime(Collection<String> statuses, Date startTime, Date endTime);
 
     void batchUpdateCallbackFailure(Collection<String> ids, String status, String remark);
 
@@ -17,10 +17,12 @@ public interface TypesettingRepository extends BaseRepository<TypesettingInfo> {
                                      String status, String remark);
 
     List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
-            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent, long offset, int size);
+            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent,
+            boolean includeFormeInProgress, long offset, int size);
 
     long countPendingByConditions(String manufacturerMetaId, String materialName,
-            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent);
+            List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime, Boolean urgent,
+            boolean includeFormeInProgress);
 
     List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
             String materialName, List<ProcessingFlowCondition> processingNames, Date startTime, Date endTime);

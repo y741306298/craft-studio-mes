@@ -144,7 +144,7 @@ public class TypesettingController {
         query.setRouteId(routeId);
         query.setCurrent(current);
         query.setSize(size);
-        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(query);
+        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPiecesByCondition(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
         TypesettingAndProductionPiecesResponse response = new TypesettingAndProductionPiecesResponse(
@@ -157,7 +157,7 @@ public class TypesettingController {
 
 
     /**
-     * 查询状态为待确认（confirming）的排版信息列表（分页）
+     * 分页查询待确认、排版中、处理失败、确认中和下发中的排版信息。
      *
      * @param manufacturerMetaId 厂商元数据ID
      * @param typesettingId 排版编号（支持模糊匹配）
@@ -258,7 +258,7 @@ public class TypesettingController {
     }
 
     /**
-     * 扫描指定创建时间范围内的 confirmed 印版，并按原确认操作重新提交印版生成请求。
+     * 扫描指定创建时间范围内待回调的印版，并按原确认操作重新提交印版生成请求。
      */
     @PostMapping("/forme/retryConfirmed")
     public ApiResponse<RetryFormeGenerationResult> retryConfirmedFormeGeneration(

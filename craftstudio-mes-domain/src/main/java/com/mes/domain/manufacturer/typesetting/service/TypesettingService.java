@@ -193,16 +193,16 @@ public class TypesettingService {
 
     public List<TypesettingInfo> findPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, long offset, int size) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress, long offset, int size) {
         return typesettingRepository.findPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent, offset, size);
+                startTime, endTime, urgent, includeFormeInProgress, offset, size);
     }
 
     public long countPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
         return typesettingRepository.countPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent);
+                startTime, endTime, urgent, includeFormeInProgress);
     }
 
     public List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,
@@ -388,8 +388,8 @@ public class TypesettingService {
         return typesettingRepository.fuzzySearch(searchFilters, current, size);
     }
 
-    public List<TypesettingInfo> findAllByStatusAndCreateTime(TypesettingStatus status, Date startTime, Date endTime) {
-        if (status == null) {
+    public List<TypesettingInfo> findAllByStatusesAndCreateTime(Collection<TypesettingStatus> statuses, Date startTime, Date endTime) {
+        if (statuses == null || statuses.isEmpty()) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "排版状态不能为空");
         }
         if (startTime == null || endTime == null) {
@@ -398,7 +398,8 @@ public class TypesettingService {
         if (startTime.after(endTime)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "开始时间不能晚于结束时间");
         }
-        return typesettingRepository.findByStatusAndCreateTime(status.getCode(), startTime, endTime);
+        List<String> statusCodes = statuses.stream().map(TypesettingStatus::getCode).toList();
+        return typesettingRepository.findByStatusesAndCreateTime(statusCodes, startTime, endTime);
     }
 
     /**

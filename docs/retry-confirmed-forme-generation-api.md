@@ -4,8 +4,8 @@
 
 `POST /api/manufacturerSide/typesetting/forme/retryConfirmed`
 
-请求体必须提供创建时间范围。接口查询范围内所有 `status=confirmed` 的印版，并根据每条记录保存的 `layoutMode`、
-`element.nestedSvg` 和 `remark` 重新构建、提交印版生成请求。
+请求体必须提供创建时间范围。接口查询范围内处于 `confirm_in_progress`、`dispatch_in_progress` 或旧 `confirmed` 状态的印版，
+并根据每条记录保存的 `layoutMode`、`element.nestedSvg` 和 `remark` 重新构建、提交印版生成请求。
 
 ```json
 {
@@ -30,7 +30,7 @@
 
 | 字段 | 含义 |
 | --- | --- |
-| `total` | 本次扫描到的 confirmed 印版数 |
+| `total` | 本次扫描到的待回调印版数 |
 | `submitted` | 成功重新提交数 |
 | `skipped` | 提交前状态已经发生变化的跳过数 |
 | `failed` | 构建或提交失败数 |
