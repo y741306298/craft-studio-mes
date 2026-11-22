@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.layout.CaifuMarkerBands.Band;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
@@ -49,16 +50,16 @@ public class CaifuOpenBackA30ProNoFilmLayoutBuildService extends CaifuOpenBackA3
                                     String elementB,
                                     int expandedHeight,
                                     int contentOffsetY,
-                                    List<MarkerBand> orderedBands) {
+                                    List<Band> orderedBands) {
         // 相对旧版 W+14 左移 8mm；D/E 随左扩量从 11 改为 6 自动左移 5mm。
         int rightX = expandLeftMm() + context.getNestedWidth().intValue();
         Set<Integer> placedYs = new LinkedHashSet<>();
-        for (MarkerBand band : orderedBands) {
+        for (Band band : orderedBands) {
             if (band == null) {
                 continue;
             }
             // 与 A30H 共用已解析的辅助条中线、顶部和底部参考，不读取 gridLines。
-            double markY = band.getCenterY() - ELEMENT_B_OFFSET_Y_MM;
+            double markY = band.centerY() - ELEMENT_B_OFFSET_Y_MM;
             int roundedY = (int) Math.round(markY);
             if (markY < 0 || markY + ELEMENT_B_HEIGHT_MM > expandedHeight
                     || roundedY + ELEMENT_B_HEIGHT_MM > expandedHeight || !placedYs.add(roundedY)) {

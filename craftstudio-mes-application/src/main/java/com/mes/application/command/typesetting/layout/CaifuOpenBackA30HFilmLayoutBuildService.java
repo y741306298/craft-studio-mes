@@ -1,29 +1,20 @@
 package com.mes.application.command.typesetting.layout;
 
-import java.io.ByteArrayInputStream;
 import com.mes.application.command.api.req.FormeGenerationRequest;
-import com.mes.application.command.typesetting.enums.TypesettingSourceType;
-import com.mes.application.command.typesetting.support.CaifuSeparatorMarkers;
+import com.mes.application.command.typesetting.layout.CaifuMarkerBands.Band;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.service.TypesettingService;
-import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * XY切割-裁赋开背A30H覆膜模式构建器。
@@ -88,6 +79,9 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         margin.setBottom(OPEN_BACK_TAG_HEIGHT_MM);
         result.setMargin(margin);
 
+        List<Band> orderedBands = CaifuMarkerBands.read(context.getTypesettingInfo());
+        boolean hasBloodBand = orderedBands.stream().anyMatch(this::isBloodBand);
+
         String tagUploadSubDir = buildTagUploadSubDir(context);
         String elementA = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_A_WIDTH_MM, expandedHeight), tagUploadSubDir);
         String elementB = ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM), tagUploadSubDir);
@@ -95,38 +89,15 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         String elementF = buildOpenBackTagStrip(context, originalWidth, false);
         String elementFRotated = buildOpenBackTagStrip(context, originalWidth, true);
 
-        List<MarkerBand> bands = extractMarkerBands(context, originalHeight);
-        List<MarkerBand> orderedBands = new ArrayList<>();
-        MarkerBand zeroBand = null;
-        for (MarkerBand band : bands) {
-            if (band != null && Math.abs(band.centerY) < 0.0001) {
-                zeroBand = band;
-                break;
-            }
-        }
-        if (zeroBand == null) {
-            zeroBand = extractZeroBand(context);
-        }
-        if (zeroBand != null) {
-            orderedBands.add(zeroBand);
-        }
-        for (MarkerBand band : bands) {
-            if (band == null || (zeroBand != null && band == zeroBand) || Math.abs(band.centerY) < 0.0001) {
-                continue;
-            }
-            orderedBands.add(band);
-        }
-        boolean hasBloodBand = orderedBands.stream().anyMatch(band -> isBloodBand(band, context.getTypesettingInfo()));
-
         Map<Integer, String> elementEByHeight = new HashMap<>();
         List<FormeGenerationRequest.Mark> marks = new ArrayList<>();
         marks.add(createMark(elementF, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, 0, 0));
         marks.add(createMark(elementFRotated, originalWidth, OPEN_BACK_TAG_HEIGHT_MM, 0, contentOffsetY + expandedHeight));
-        for (MarkerBand band : orderedBands) {
+        for (Band band : orderedBands) {
             if (band == null) {
                 continue;
             }
-            double y = band.centerY;
+            double y = band.centerY();
             double elementBY = y + ELEMENT_B_OFFSET_Y_MM;
             if (elementBY <= expandedHeight) {
                 marks.add(createMark(elementB, ELEMENT_B_WIDTH_MM, ELEMENT_B_HEIGHT_MM, originalWidth, elementBY + contentOffsetY));
@@ -138,11 +109,11 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
             if (!hasBloodBand) {
                 continue;
             }
-            boolean isBlood = isBloodBand(band, context.getTypesettingInfo());
+            boolean isBlood = isBloodBand(band);
             String lineImg = elementD;
             double lineHeight = ELEMENT_D_HEIGHT_MM;
             if (!isBlood) {
-                int svgHeight = (int) Math.max(1, Math.round(band.height) - 30);
+                int svgHeight = (int) Math.max(1, Math.round(band.height()) - 30);
                 lineImg = elementEByHeight.computeIfAbsent(svgHeight,
                         h -> ossTagUploadService.uploadTagPng(context.getBusinessId(), createBlackPng(ELEMENT_D_WIDTH_TENTH_MM / 10.0, h), tagUploadSubDir));
                 lineHeight = svgHeight;
@@ -179,258 +150,21 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
     }
 
     /**
-     * 解析 nestedSvg 中的 marker band：
-     * 1) 定位 caifuMarker_* 对应 id 节点；
-     * 2) 计算 y 中值与 band 高度；
-     * 3) 通过 resolveRelatedTypesettingId 绑定“ys 下方后继 g”的 id。
-     */
-    private List<MarkerBand> extractMarkerBands(FormeBuildContext context, double nestedHeight) {
-        List<MarkerBand> bands = new ArrayList<>();
-        if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
-            return bands;
-        }
-        Set<String> markerIds = CaifuSeparatorMarkers.groupIds(context.getTypesettingInfo().getMarks());
-        if (markerIds.isEmpty()) {
-            return bands;
-        }
-        String nestedSvg = context.getTypesettingInfo().getElement() == null ? null : context.getTypesettingInfo().getElement().getNestedSvg();
-        if (StringUtils.isBlank(nestedSvg)) {
-            return bands;
-        }
-        try {
-            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(nestedSvg));
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
-            Element root = document.getDocumentElement();
-            if (root == null) {
-                return bands;
-            }
-            NodeList children = root.getChildNodes();
-            for (int i = 0; i < children.getLength(); i++) {
-                if (!(children.item(i) instanceof Element)) {
-                    continue;
-                }
-                Element element = (Element) children.item(i);
-                if (!"g".equalsIgnoreCase(element.getTagName())) {
-                    continue;
-                }
-                String markerId = element.getAttribute("id");
-                if (!markerIds.contains(markerId)) {
-                    continue;
-                }
-                double y = firstValid(
-                        parseDouble(element.getAttribute("data-cell-y")),
-                        parseTranslateY(element.getAttribute("transform")),
-                        parseDouble(element.getAttribute("y"))
-                );
-                double markerHeight = firstValid(
-                        parseDouble(element.getAttribute("data-cell-height")),
-                        parseDouble(element.getAttribute("height"))
-                );
-                if (Double.isNaN(y) || Double.isNaN(markerHeight)) {
-                    continue;
-                }
-                String relatedId = resolveRelatedTypesettingId(element, markerId);
-                double relatedHeight = resolveGroupHeightById(root, relatedId);
-                double bandHeight = Double.isNaN(relatedHeight) ? markerHeight : relatedHeight;
-                bands.add(new MarkerBand(markerId, y + markerHeight / 2.0, bandHeight, relatedId));
-            }
-        } catch (Exception ignored) {
-            return bands;
-        }
-        return bands;
-    }
-
-    private double resolveGroupHeightById(Element root, String groupId) {
-        if (root == null || StringUtils.isBlank(groupId)) {
-            return Double.NaN;
-        }
-        NodeList children = root.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            if (!(children.item(i) instanceof Element)) {
-                continue;
-            }
-            Element child = (Element) children.item(i);
-            if (!"g".equalsIgnoreCase(child.getTagName())) {
-                continue;
-            }
-            if (!StringUtils.equals(groupId, child.getAttribute("id"))) {
-                continue;
-            }
-            return firstValid(
-                    parseDouble(child.getAttribute("data-cell-height")),
-                    parseDouble(child.getAttribute("height"))
-            );
-        }
-        return Double.NaN;
-    }
-
-
-    /**
-     * 关键方法：从 marker 节点获取“ys 下方后继 g”的 id。
-     *
-     * <p>实现要点：只在 SVG 根节点的顶层 g 列表中按顺序找，避免命中 forme-base 内层子 g。
-     */
-    private String resolveRelatedTypesettingId(Element markerElement, String fallbackId) {
-        if (markerElement == null) {
-            return fallbackId;
-        }
-        Element root = markerElement.getOwnerDocument() == null ? null : markerElement.getOwnerDocument().getDocumentElement();
-        if (root == null) {
-            return fallbackId;
-        }
-        List<Element> topLevelGroups = new ArrayList<>();
-        NodeList children = root.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            if (!(children.item(i) instanceof Element)) {
-                continue;
-            }
-            Element child = (Element) children.item(i);
-            if ("g".equalsIgnoreCase(child.getTagName())) {
-                topLevelGroups.add(child);
-            }
-        }
-        if (topLevelGroups.isEmpty()) {
-            return fallbackId;
-        }
-        if (Math.abs(firstValid(parseDouble(markerElement.getAttribute("data-cell-y")), parseTranslateY(markerElement.getAttribute("transform")))) < 0.0001) {
-            for (Element g : topLevelGroups) {
-                if (isPlateGroup(g)) {
-                    return g.getAttribute("id");
-                }
-            }
-        }
-        for (int i = 0; i < topLevelGroups.size(); i++) {
-            Element g = topLevelGroups.get(i);
-            if (g != markerElement) {
-                continue;
-            }
-            for (int j = i + 1; j < topLevelGroups.size(); j++) {
-                Element next = topLevelGroups.get(j);
-                if (isPlateGroup(next)) {
-                    return next.getAttribute("id");
-                }
-            }
-            break;
-        }
-        return fallbackId;
-    }
-
-    private boolean isPlateGroup(Element g) {
-        if (g == null) {
-            return false;
-        }
-        String id = g.getAttribute("id");
-        if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
-            return false;
-        }
-        return StringUtils.equalsIgnoreCase(g.getAttribute("data-forme"), "true")
-                || StringUtils.endsWithIgnoreCase(g.getAttribute("data-source-name"), ".svg");
-    }
-
-    private double firstValid(double... values) {
-        for (double value : values) {
-            if (!Double.isNaN(value) && !Double.isInfinite(value)) {
-                return value;
-            }
-        }
-        return Double.NaN;
-    }
-
-    private double parseTranslateY(String transform) {
-        if (StringUtils.isBlank(transform)) {
-            return Double.NaN;
-        }
-        int l = transform.indexOf('(');
-        int r = transform.indexOf(')');
-        if (l < 0 || r <= l) {
-            return Double.NaN;
-        }
-        String[] parts = transform.substring(l + 1, r).trim().split("\\s+|,");
-        if (parts.length == 6) {
-            return parseDouble(parts[5]);
-        }
-        return Double.NaN;
-    }
-
-    private MarkerBand extractZeroBand(FormeBuildContext context) {
-        if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getElement() == null || StringUtils.isBlank(context.getTypesettingInfo().getElement().getNestedSvg())) {
-            return null;
-        }
-        try {
-            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(context.getTypesettingInfo().getElement().getNestedSvg()));
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(bytes));
-            NodeList groups = document.getElementsByTagName("g");
-            for (int i = 0; i < groups.getLength(); i++) {
-                Element g = (Element) groups.item(i);
-                String id = g.getAttribute("id");
-                if (StringUtils.isBlank(id) || StringUtils.equals(id, "forme-base")) {
-                    continue;
-                }
-                String relatedId = resolveRelatedTypesettingId(g, id);
-                double h = firstValid(parseDouble(g.getAttribute("data-cell-height")), parseDouble(g.getAttribute("height")), ELEMENT_D_HEIGHT_MM);
-                return new MarkerBand("ys0", 0D, h, relatedId);
-            }
-        } catch (Exception ignored) {
-            return null;
-        }
-        return null;
-    }
-
-    /**
      * 按 relatedTypesettingId 直接查询 typesetting，使用 haveBlood 判断是否出血印版。
      */
-    private boolean isBloodBand(MarkerBand band, TypesettingInfo currentTypesetting) {
-        if (band == null || StringUtils.isBlank(band.relatedTypesettingId)) {
+    private boolean isBloodBand(Band band) {
+        if (band == null || StringUtils.isBlank(band.relatedTypesettingId())) {
             return false;
         }
-        TypesettingInfo info = typesettingService.findById(band.relatedTypesettingId);
+        TypesettingInfo info = typesettingService.findById(band.relatedTypesettingId());
         if (info != null) {
             return Boolean.TRUE.equals(info.getHaveBlood());
         }
-        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(band.relatedTypesettingId);
+        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(band.relatedTypesettingId());
         if (infos != null && !infos.isEmpty() && infos.get(0) != null) {
             return Boolean.TRUE.equals(infos.get(0).getHaveBlood());
         }
         return false;
-    }
-
-    private TypesettingInfo findTypesettingInfoById(String id) {
-        if (StringUtils.isBlank(id)) {
-            return null;
-        }
-        TypesettingInfo infoById = typesettingService.findById(id);
-        if (infoById != null) {
-            return infoById;
-        }
-        List<TypesettingInfo> infos = typesettingService.findTypesettingListByTypesettingId(id);
-        if (infos != null && !infos.isEmpty()) {
-            return infos.get(0);
-        }
-        return null;
-    }
-
-    private TypesettingInfo resolveTypesettingCellInfo(TypesettingSourceCell cell) {
-        if (cell == null || StringUtils.isBlank(cell.getSourceType()) || StringUtils.isBlank(cell.getSourceId())) {
-            return null;
-        }
-        boolean isTypesettingSource = TypesettingSourceType.TYPESETTING.getCode().equals(cell.getSourceType())
-                || "typesetting".equalsIgnoreCase(cell.getSourceType());
-        if (!isTypesettingSource) {
-            return null;
-        }
-        return findTypesettingInfoById(cell.getSourceId());
-    }
-
-    private double parseDouble(String value) {
-        try {
-            return Double.parseDouble(value);
-        } catch (Exception e) {
-            return Double.NaN;
-        }
     }
 
     protected FormeGenerationRequest.Mark createMark(String img, double width, double height, double x, double y) {
@@ -445,17 +179,4 @@ public class CaifuOpenBackA30HFilmLayoutBuildService extends CaifuLayoutBuildSer
         return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 
-    private static class MarkerBand {
-        private final String id;
-        private final double centerY;
-        private final double height;
-        private final String relatedTypesettingId;
-
-        private MarkerBand(String id, double centerY, double height, String relatedTypesettingId) {
-            this.id = id;
-            this.centerY = centerY;
-            this.height = height;
-            this.relatedTypesettingId = relatedTypesettingId;
-        }
-    }
 }
