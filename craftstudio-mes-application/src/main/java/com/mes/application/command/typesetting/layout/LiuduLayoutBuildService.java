@@ -1,11 +1,11 @@
 package com.mes.application.command.typesetting.layout;
 
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.graphics.SvgResourceReader;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -21,7 +21,6 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
     private static final int GAP_TO_RIGHT_MM = 10;
 
     private final OssTagUploadService ossTagUploadService;
-    private final RestTemplate restTemplate = new RestTemplate();
 
     public LiuduLayoutBuildService(OssTagUploadService ossTagUploadService) {
         this.ossTagUploadService = ossTagUploadService;
@@ -35,9 +34,8 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
 
     @Override
     public FormeLayoutBuildResult build(FormeBuildContext context) {
-        String svgContent = fetchSvgContent(context.getTypesettingInfo().getElement().getNestedSvg());
-        LeftBottomCoordinate leftBottom = parseFormeLeftBottomCoordinate(svgContent);
-        LeftBottomCoordinate leftTop = parseFormeLeftTopCoordinate(svgContent);
+        String nestedSvg = context.getTypesettingInfo().getElement().getNestedSvg();
+        BoundingBox bounds = readFormeBounds(nestedSvg);
 
         int originalWidth = context.getNestedWidth().intValue();
         int originalHeight = context.getNestedHeight().intValue();
@@ -64,8 +62,8 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
 
         // Step5: C based on left-bottom coordinate, put left 21 and up 500, overflow no place
         double originRightX = finalWidth;
-        double lbXFromRight = originRightX - (leftBottom.getX().doubleValue() + EXPAND_LEFT_MM);
-        double lbYFromTop = leftBottom.getY().doubleValue() + EXPAND_TOP_MM;
+        double lbXFromRight = originRightX - (bounds.getMinX().doubleValue() + EXPAND_LEFT_MM);
+        double lbYFromTop = bounds.getMaxY().doubleValue() + EXPAND_TOP_MM;
         double cRightBasedX = lbXFromRight + EXPAND_LEFT_MM;
         double cY = lbYFromTop - 500;
         int cWidth = 5;
@@ -75,8 +73,8 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
         }
 
         // Step7: B based on left-top coordinate (left10, down60 / down80)
-        double ltXFromRight = originRightX - (leftTop.getX().doubleValue() + EXPAND_LEFT_MM);
-        double ltYFromTop = leftTop.getY().doubleValue() + EXPAND_TOP_MM;
+        double ltXFromRight = originRightX - (bounds.getMinX().doubleValue() + EXPAND_LEFT_MM);
+        double ltYFromTop = bounds.getMinY().doubleValue() + EXPAND_TOP_MM;
         List<FormeGenerationRequest.Mark> bMarks = new ArrayList<>();
         addBMark(bMarks, elementB, finalWidth, ltXFromRight + 10, ltYFromTop + 60);
         addBMark(bMarks, elementB, finalWidth, ltXFromRight + 10, ltYFromTop + 80);
@@ -113,18 +111,14 @@ public class LiuduLayoutBuildService extends AbstractLayoutModeBuildService {
         return com.mes.application.command.graphics.RemoteGraphics.png("BLACK", com.mes.application.command.graphics.RemoteGraphics.params("width", width, "height", height));
     }
 
-    private String fetchSvgContent(String nestedSvg) {
+    private BoundingBox readFormeBounds(String nestedSvg) {
         if (StringUtils.isBlank(nestedSvg)) {
             throw new IllegalArgumentException("nestedSvg 不能为空");
         }
         try {
-            byte[] bytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(nestedSvg));
-            if (bytes == null || bytes.length == 0) {
-                throw new IllegalArgumentException("无法下载 nestedSvg 内容");
-            }
-            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("读取 nestedSvg 失败: " + nestedSvg, e);
+            return SvgResourceReader.scanXml(URI.create(nestedSvg), this::parseFormeBoundingBox);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("读取六渡大板标记坐标失败: " + nestedSvg, e);
         }
     }
 }

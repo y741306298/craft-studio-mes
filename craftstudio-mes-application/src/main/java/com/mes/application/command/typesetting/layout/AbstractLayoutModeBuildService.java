@@ -3,15 +3,14 @@ package com.mes.application.command.typesetting.layout;
 import com.mes.application.command.api.req.FormeGenerationRequest;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.apache.commons.lang3.StringUtils;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
-import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.math.BigDecimal;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -71,25 +70,6 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
 
         protected BigDecimal getMaxY() {
             return BigDecimal.valueOf(maxY);
-        }
-    }
-
-    /** 左下角坐标（单位：mm）。 */
-    protected static class LeftBottomCoordinate {
-        private final BigDecimal x;
-        private final BigDecimal y;
-
-        protected LeftBottomCoordinate(BigDecimal x, BigDecimal y) {
-            this.x = x;
-            this.y = y;
-        }
-
-        public BigDecimal getX() {
-            return x;
-        }
-
-        public BigDecimal getY() {
-            return y;
         }
     }
 
@@ -186,90 +166,44 @@ public abstract class AbstractLayoutModeBuildService implements TypesettingLayou
         return outputs;
     }
 
-    /**
-     * 从 SVG 中解析印版（data-forme=true）区域的左下角坐标（单位 mm）。
-     *
-     * <p>仅对 path/rect 提供边界计算；会累计父子节点 matrix(a b c d e f) 变换。
-     */
-    protected LeftBottomCoordinate parseFormeLeftBottomCoordinate(String svgContent) {
-        BoundingBox box = parseFormeBoundingBox(svgContent);
-        return new LeftBottomCoordinate(box.getMinX(), box.getMaxY());
-    }
-
-    /** 从 SVG 中解析印版（data-forme=true）区域的左上角坐标（单位 mm）。 */
-    protected LeftBottomCoordinate parseFormeLeftTopCoordinate(String svgContent) {
-        BoundingBox box = parseFormeBoundingBox(svgContent);
-        return new LeftBottomCoordinate(box.getMinX(), box.getMinY());
-    }
-
-    /** 从 SVG 中解析印版（data-forme=true）边界框。 */
-    protected BoundingBox parseFormeBoundingBox(String svgContent) {
-        if (StringUtils.isBlank(svgContent)) {
-            throw new IllegalArgumentException("SVG 内容不能为空");
-        }
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(false);
-            Document document = factory.newDocumentBuilder()
-                    .parse(new java.io.ByteArrayInputStream(svgContent.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-            Element formeElement = findFirstFormeElement(document.getDocumentElement());
-            if (formeElement == null) {
-                throw new IllegalArgumentException("SVG 中未找到 data-forme=true 的印版节点");
-            }
-            BoundingBox box = new BoundingBox();
-            collectBounds(formeElement, new AffineTransform(), box);
-            if (box.isEmpty()) {
-                throw new IllegalArgumentException("无法从印版节点解析有效几何边界");
-            }
-            return box;
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("解析 SVG 印版左下角坐标失败", e);
-        }
-    }
-
-    private Element findFirstFormeElement(Element element) {
-        if (element == null) {
-            return null;
-        }
-        if ("true".equalsIgnoreCase(element.getAttribute("data-forme"))) {
-            return element;
-        }
-        NodeList children = element.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-            if (child instanceof Element) {
-                Element found = findFirstFormeElement((Element) child);
-                if (found != null) {
-                    return found;
+    /** 从首个 data-forme=true 节点解析边界，累计该节点及其子节点的 matrix 变换。 */
+    protected BoundingBox parseFormeBoundingBox(XMLStreamReader xml) throws XMLStreamException {
+        BoundingBox box = new BoundingBox();
+        Deque<AffineTransform> transforms = new ArrayDeque<>();
+        while (xml.hasNext()) {
+            int event = xml.next();
+            if (event == XMLStreamConstants.START_ELEMENT) {
+                if (transforms.isEmpty() && !"true".equalsIgnoreCase(xml.getAttributeValue(null, "data-forme"))) {
+                    continue;
+                }
+                AffineTransform parent = transforms.peek();
+                AffineTransform current = parent == null ? new AffineTransform() : new AffineTransform(parent);
+                current.concatenate(parseMatrixTransform(xml.getAttributeValue(null, "transform")));
+                transforms.push(current);
+                includeGeometry(xml, current, box);
+            } else if (event == XMLStreamConstants.END_ELEMENT && !transforms.isEmpty()) {
+                transforms.pop();
+                if (transforms.isEmpty()) {
+                    if (box.isEmpty()) {
+                        throw new IllegalArgumentException("无法从印版节点解析有效几何边界");
+                    }
+                    return box;
                 }
             }
         }
-        return null;
+        throw new IllegalArgumentException("SVG 中未找到 data-forme=true 的印版节点");
     }
 
-    private void collectBounds(Element element, AffineTransform parentTransform, BoundingBox box) {
-        AffineTransform currentTransform = new AffineTransform(parentTransform);
-        currentTransform.concatenate(parseMatrixTransform(element.getAttribute("transform")));
-
-        String tag = element.getTagName();
+    private void includeGeometry(XMLStreamReader xml, AffineTransform transform, BoundingBox box) {
+        String tag = xml.getLocalName();
         if ("rect".equalsIgnoreCase(tag)) {
-            double x = parseDouble(element.getAttribute("x"), 0D);
-            double y = parseDouble(element.getAttribute("y"), 0D);
-            double width = parseDouble(element.getAttribute("width"), 0D);
-            double height = parseDouble(element.getAttribute("height"), 0D);
-            box.includeRect(x, y, width, height, currentTransform);
+            double x = parseDouble(xml.getAttributeValue(null, "x"), 0D);
+            double y = parseDouble(xml.getAttributeValue(null, "y"), 0D);
+            double width = parseDouble(xml.getAttributeValue(null, "width"), 0D);
+            double height = parseDouble(xml.getAttributeValue(null, "height"), 0D);
+            box.includeRect(x, y, width, height, transform);
         } else if ("path".equalsIgnoreCase(tag)) {
-            includePathBounds(element.getAttribute("d"), currentTransform, box);
-        }
-
-        NodeList children = element.getChildNodes();
-        for (int i = 0; i < children.getLength(); i++) {
-            Node child = children.item(i);
-            if (child instanceof Element) {
-                collectBounds((Element) child, currentTransform, box);
-            }
+            includePathBounds(xml.getAttributeValue(null, "d"), transform, box);
         }
     }
 

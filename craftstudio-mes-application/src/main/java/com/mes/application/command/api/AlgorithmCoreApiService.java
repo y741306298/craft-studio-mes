@@ -18,6 +18,7 @@ import com.mes.application.command.api.resp.GrayImgToSvgResponse;
 import com.mes.application.command.api.resp.ImageMaskResponse;
 import com.mes.application.command.api.resp.NestingResponse;
 import com.mes.application.command.api.vo.CallbackConfig;
+import com.mes.application.command.graphics.SvgResourceReader;
 import com.mes.domain.shared.algorithm.entity.AlgorithmCoreApiCallRecord;
 import com.mes.domain.shared.algorithm.repository.AlgorithmCoreApiCallRecordRepository;
 import com.mes.domain.shared.algorithm.enums.AlgorithmCoreApiCallType;
@@ -97,11 +98,8 @@ public class AlgorithmCoreApiService {
         if (taskId == null || !taskId.matches("[A-Za-z0-9][A-Za-z0-9_-]{0,79}")) throw new IllegalArgumentException("图形任务编号无效");
         String url = generateGraphicsUrl.replaceAll("/+$", "") + "/" + taskId + "/artifact";
         return restTemplate.execute(url, org.springframework.http.HttpMethod.GET,
-                request -> request.getHeaders().set("X-Api-Key", graphicsApiKey), response -> {
-                    byte[] bytes = response.getBody().readNBytes(1048577);
-                    if (bytes.length > 1048576) throw new IllegalStateException("SVG 结果超过 MES 1MiB 上限");
-                    return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                });
+                request -> request.getHeaders().set("X-Api-Key", graphicsApiKey),
+                response -> SvgResourceReader.readText(response.getBody()));
     }
 
     /**

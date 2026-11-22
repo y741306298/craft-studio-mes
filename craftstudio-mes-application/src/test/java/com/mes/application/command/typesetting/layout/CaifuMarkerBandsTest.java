@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -76,7 +76,7 @@ class CaifuMarkerBandsTest {
         RemoteGraphics.enter(renderer, "workflow");
         try {
             String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/nested.svg";
-            assertThrows(IllegalArgumentException.class, () -> SvgResourceReader.read(url));
+            assertArrayEquals(svg, SvgResourceReader.read(url));
             var noFilm = new CaifuOpenBackA30HNoFilmLayoutBuildService(uploads, layouts).build(context(url));
             var film = new CaifuOpenBackA30HFilmLayoutBuildService(uploads, layouts).build(context(url));
             assertEquals(38, positions(noFilm, ELEMENT_B).size());

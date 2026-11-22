@@ -18,6 +18,24 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
 class GraphicsAlgorithmSubmissionTest {
+    @Test
+    void downloadsCompleteSvgArtifactLargerThanOneMebibyte() {
+        RestTemplate http = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(http).build();
+        AlgorithmCoreApiService algorithms = new AlgorithmCoreApiService();
+        ReflectionTestUtils.setField(algorithms, "restTemplate", http);
+        ReflectionTestUtils.setField(algorithms, "generateGraphicsUrl", "http://imgutil/api/graphics/tasks");
+        ReflectionTestUtils.setField(algorithms, "graphicsApiKey", "test-key");
+        String svg = "<svg><desc>" + "图".repeat(400_000) + "</desc></svg>";
+        server.expect(requestTo("http://imgutil/api/graphics/tasks/task-large/artifact"))
+                .andExpect(method(HttpMethod.GET)).andExpect(header("X-Api-Key", "test-key"))
+                .andRespond(withSuccess(svg.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        MediaType.parseMediaType("image/svg+xml")));
+
+        assertEquals(svg, algorithms.readGraphicsSvgArtifact("task-large"));
+        server.verify();
+    }
+
     @Test void sharesAlgorithmHeadersLogRecordAndSupportsEmpty202(){
         var http=new RestTemplate();var server=MockRestServiceServer.bindTo(http).build();var records=mock(AlgorithmCoreApiCallRecordRepository.class);
         var algorithms=new AlgorithmCoreApiService();ReflectionTestUtils.setField(algorithms,"restTemplate",http);ReflectionTestUtils.setField(algorithms,"algorithmCoreApiCallRecordRepository",records);

@@ -292,9 +292,8 @@ public abstract class AbstractBuckleProcessStrategy {
         }
         try {
             return com.mes.application.command.graphics.SvgResourceReader.text(trimmed);
-        } catch (Exception e) {
-            log.warn("下载{} mask SVG 失败: {}, error={}", nodeName(), svgRefOrContent, e.getMessage());
-            return null;
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("读取" + nodeName() + "所需的蒙版 SVG 失败", e);
         }
     }
 

@@ -174,7 +174,7 @@ Authorization: Bearer {MES登录令牌}
 
 失败时 status=error，result=null，error/errorCode 表示原因。回调接口为 `POST /api/manufacturerSide/graphics/callback/generate_graphics`，不使用用户登录令牌，改为校验 `X-Graphics-Signature`：以相同的 GRAPHICS_API_KEY 为密钥，对原始 UTF-8 JSON 字节执行 HMAC-SHA256，得到小写十六进制签名。必须先验签再落库，重复相同结果幂等确认，未知关联或冲突结果拒绝。
 
-MES 根据回调中的 artifact.objectName/width/height 继续业务。只有需要 SVG 文本时才 GET artifact 下载文件，限制1MiB；这不是任务状态查询。任务 GET 接口继续保留供人工排障，MES 不调用它轮询。
+MES 根据回调中的 artifact.objectName/width/height 继续业务。需要完整 SVG 文本进行编辑时，MES 通过 GET artifact 读取结果，允许超过 1 MiB 的 SVG。任务 GET 接口供人工排障，MES 通过回调获知任务状态。
 
 调用记录沿用 AlgorithmCoreApiCallRecord：mode=async、type=generateGraphicsAsync、sourceId=workflowId，并保存请求和 callbackCustomValue。MES 的 graphics_callback_inbox 先于提交注册关联，结果保留7天，解决快速回调、重复投递和实例间通知问题。图形服务 `GET /api/graphics/tasks/{taskId}/callback` 返回投递状态 PENDING/DELIVERED/FAILED、attempts、nextAttemptAt 和 lastError。
 

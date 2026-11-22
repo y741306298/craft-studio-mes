@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.graphics.SvgResourceReader;
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.resp.MaterialDevelopedSizeResponse;
 import com.mes.application.command.api.req.FormeGenerationRequest;
@@ -95,15 +96,18 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 
 import jakarta.annotation.PostConstruct;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.net.URI;
 import java.util.Base64;
 import java.util.*;
@@ -137,18 +141,11 @@ public class AppTypesettingService {
     private static final String TEMP_CODE_QUEUE_KEY_PREFIX = "typesetting:temp-code:queue:";
     private static final String TEMP_CODE_QUEUE_INIT_KEY_PREFIX = "typesetting:temp-code:init:";
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
-    private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
-    private static final Pattern SVG_TAG_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern SVG_IMAGE_TAG_PATTERN = Pattern.compile(
             "<(?:[\\w.-]+:)?(?:img|image)(?=[\\s/>])[^>]*>", Pattern.CASE_INSENSITIVE);
-    private static final Pattern SVG_ROOT_SIZE_PATTERN = Pattern.compile(
-            "\\b(width|height)\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']",
-            Pattern.CASE_INSENSITIVE
-    );
-    private static final Pattern SVG_VIEW_BOX_PATTERN = Pattern.compile(
-            "\\bviewBox\\s*=\\s*[\"']\\s*[-+]?\\d*\\.?\\d+\\s+[-+]?\\d*\\.?\\d+\\s+([-+]?\\d*\\.?\\d+)\\s+([-+]?\\d*\\.?\\d+)\\s*[\"']",
-            Pattern.CASE_INSENSITIVE
-    );
+    private static final Pattern SVG_LENGTH_PATTERN = Pattern.compile(
+            "\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*", Pattern.CASE_INSENSITIVE);
+    private static final String MARKED_NESTING_PREFIX = "marked-nesting-";
     private static final int TAG_STRIP_HEIGHT_MM = 20;
     private static final int DEFAULT_CONTAINER_WIDTH_INSET_COVER_BOARD_PARTS_MM = 16;
     private static final int DEFAULT_CONTAINER_HEIGHT_INSET_COVER_BOARD_PARTS_MM = 40;
@@ -2145,65 +2142,56 @@ public class AppTypesettingService {
                 || StringUtils.isBlank(typesettingInfo.getElement().getNestedSvg())) {
             return null;
         }
-        Path tempSvgPath = null;
         try {
-            tempSvgPath = downloadNestedSvgToTempFile(typesettingInfo.getElement().getNestedSvg());
-            if (tempSvgPath == null) {
-                return null;
-            }
-            String svg = Files.readString(tempSvgPath, StandardCharsets.UTF_8);
-            return parseSvgRootSize(svg);
+            return scanNestedSvg(typesettingInfo.getElement().getNestedSvg(), this::readSvgRootSize);
         } catch (Exception e) {
             log.warn("解析 nestedSvg 原始尺寸失败，回退使用 element.width/height: typesettingId={}, nestedSvg={}, error={}",
                     typesettingInfo.getTypesettingId(), typesettingInfo.getElement().getNestedSvg(), e.getMessage());
             return null;
-        } finally {
-            if (tempSvgPath != null) {
-                try {
-                    Files.deleteIfExists(tempSvgPath);
-                } catch (IOException e) {
-                    log.warn("删除 nestedSvg 临时文件失败: {}", tempSvgPath, e);
-                }
-            }
         }
     }
 
-    private SvgRootSize parseSvgRootSize(String svg) {
-        if (StringUtils.isBlank(svg)) {
+    private SvgRootSize readSvgRootSize(XMLStreamReader xml) throws XMLStreamException {
+        while (xml.hasNext() && xml.getEventType() != XMLStreamConstants.START_ELEMENT) {
+            xml.next();
+        }
+        if (xml.getEventType() != XMLStreamConstants.START_ELEMENT || !"svg".equalsIgnoreCase(xml.getLocalName())) {
             return null;
         }
-        Matcher svgTagMatcher = SVG_TAG_PATTERN.matcher(svg);
-        if (!svgTagMatcher.find()) {
-            return null;
-        }
-        String openTag = svgTagMatcher.group();
         BigDecimal width = null;
         BigDecimal height = null;
-        Matcher sizeMatcher = SVG_ROOT_SIZE_PATTERN.matcher(openTag);
-        while (sizeMatcher.find()) {
-            String attribute = sizeMatcher.group(1);
-            BigDecimal value = new BigDecimal(sizeMatcher.group(2));
-            if ("width".equalsIgnoreCase(attribute)) {
-                width = value;
-            } else if ("height".equalsIgnoreCase(attribute)) {
-                height = value;
+        String viewBox = null;
+        for (int index = 0; index < xml.getAttributeCount(); index++) {
+            switch (xml.getAttributeLocalName(index).toLowerCase(Locale.ROOT)) {
+                case "width" -> width = svgLength(xml.getAttributeValue(index));
+                case "height" -> height = svgLength(xml.getAttributeValue(index));
+                case "viewbox" -> viewBox = xml.getAttributeValue(index);
+                default -> { }
             }
         }
-        if (width == null || height == null) {
-            Matcher viewBoxMatcher = SVG_VIEW_BOX_PATTERN.matcher(openTag);
-            if (viewBoxMatcher.find()) {
+        if ((width == null || height == null) && StringUtils.isNotBlank(viewBox)) {
+            String[] dimensions = viewBox.trim().split("[\\s,]+");
+            if (dimensions.length == 4) {
                 if (width == null) {
-                    width = new BigDecimal(viewBoxMatcher.group(1));
+                    width = new BigDecimal(dimensions[2]);
                 }
                 if (height == null) {
-                    height = new BigDecimal(viewBoxMatcher.group(2));
+                    height = new BigDecimal(dimensions[3]);
                 }
             }
         }
-        if (width == null || height == null || width.compareTo(BigDecimal.ZERO) <= 0 || height.compareTo(BigDecimal.ZERO) <= 0) {
+        if (width == null || height == null || width.signum() <= 0 || height.signum() <= 0) {
             return null;
         }
         return new SvgRootSize(width, height);
+    }
+
+    private BigDecimal svgLength(String attribute) {
+        if (attribute == null) {
+            return null;
+        }
+        Matcher matcher = SVG_LENGTH_PATTERN.matcher(attribute);
+        return matcher.matches() ? new BigDecimal(matcher.group(1)) : null;
     }
 
     private static class SvgRootSize {
@@ -5344,28 +5332,18 @@ public class AppTypesettingService {
             return Collections.emptyList();
         }
 
-        Path tempSvgPath = null;
         try {
-            tempSvgPath = downloadNestedSvgToTempFile(nestedSvgUrl);
-            if (tempSvgPath == null || !Files.exists(tempSvgPath)) {
-                return Collections.emptyList();
-            }
-            String svgContent = Files.readString(tempSvgPath, StandardCharsets.UTF_8);
-            if (StringUtils.isBlank(svgContent)) {
-                return Collections.emptyList();
-            }
-
-            Map<String, Integer> sourceIdCountMap = new LinkedHashMap<>();
-            Matcher matcher = SVG_SOURCE_INDEX_PATTERN.matcher(svgContent);
-            while (matcher.find()) {
-                String sourceId = matcher.group(1);
-                sourceIdCountMap.put(sourceId, sourceIdCountMap.getOrDefault(sourceId, 0) + 1);
-            }
+            List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
+            Set<String> sourceIds = sourceCells.stream().filter(Objects::nonNull)
+                    .flatMap(cell -> Stream.of(cell.getId(), cell.getSourceId()))
+                    .filter(StringUtils::isNotBlank)
+                    .flatMap(id -> Stream.of(id, MARKED_NESTING_PREFIX + id))
+                    .collect(Collectors.toSet());
+            Map<String, Integer> sourceIdCountMap = scanNestedSvg(nestedSvgUrl, xml -> readSvgSourceCounts(xml, sourceIds));
             if (sourceIdCountMap.isEmpty()) {
                 return Collections.emptyList();
             }
 
-            List<TypesettingProductionPieceVO> sourceCells = request.getTypesettingCells();
             Set<String> markedSourceCellKeys = resolveMarkedSourceCellKeys(sourceIdCountMap.keySet(), sourceCells);
             Map<String, TypesettingSourceCell> usedCellMap = new LinkedHashMap<>();
             for (Map.Entry<String, Integer> entry : sourceIdCountMap.entrySet()) {
@@ -5387,15 +5365,20 @@ public class AppTypesettingService {
         } catch (Exception e) {
             System.err.println("解析 nestedSvg 失败: " + nestedSvgUrl + ", error=" + e.getMessage());
             return Collections.emptyList();
-        } finally {
-            if (tempSvgPath != null) {
-                try {
-                    Files.deleteIfExists(tempSvgPath);
-                } catch (Exception ignore) {
-                    System.err.println("删除临时 nestedSvg 文件失败: " + tempSvgPath);
+        }
+    }
+
+    private Map<String, Integer> readSvgSourceCounts(XMLStreamReader xml, Set<String> sourceIds) throws XMLStreamException {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        while (xml.hasNext()) {
+            if (xml.next() == XMLStreamConstants.START_ELEMENT) {
+                String id = xml.getAttributeValue(null, "id");
+                if (sourceIds.contains(id)) {
+                    counts.merge(id, 1, Integer::sum);
                 }
             }
         }
+        return counts;
     }
 
     /**
@@ -5455,7 +5438,7 @@ public class AppTypesettingService {
     }
 
     private boolean isMarkedNestingElementId(String nestedElementId) {
-        return StringUtils.isNotBlank(nestedElementId) && nestedElementId.startsWith("marked-nesting-");
+        return StringUtils.isNotBlank(nestedElementId) && nestedElementId.startsWith(MARKED_NESTING_PREFIX);
     }
 
     /**
@@ -5474,47 +5457,29 @@ public class AppTypesettingService {
                 || Objects.equals(nestedElementId, cell.getSourceId())) {
             return true;
         }
-        String markedPrefix = "marked-nesting-";
         if (isMarkedNestingElementId(nestedElementId)) {
-            String originalId = nestedElementId.substring(markedPrefix.length());
+            String originalId = nestedElementId.substring(MARKED_NESTING_PREFIX.length());
             return Objects.equals(originalId, cell.getId())
                     || Objects.equals(originalId, cell.getSourceId());
         }
         return false;
     }
 
-    private Path downloadNestedSvgToTempFile(String nestedSvg) {
-        if (StringUtils.isBlank(nestedSvg)) {
-            return null;
+    private <T> T scanNestedSvg(String nestedSvg, SvgResourceReader.XmlScanner<T> scanner) throws IOException {
+        String value = nestedSvg.trim();
+        boolean remoteUrl = value.startsWith("http://") || value.startsWith("https://");
+        String completeUrl = buildCompleteOssUrl(value);
+        if (completeUrl.startsWith("http://") || completeUrl.startsWith("https://")) {
+            try {
+                return SvgResourceReader.scanXml(URI.create(completeUrl), scanner);
+            } catch (RuntimeException e) {
+                if (remoteUrl || !Files.isRegularFile(Path.of(value))) {
+                    throw e;
+                }
+            }
         }
-        try {
-            String completeUrl = buildCompleteOssUrl(nestedSvg);
-            if (completeUrl.startsWith("http://") || completeUrl.startsWith("https://")) {
-                try {
-                    byte[] svgBytes = com.mes.application.command.graphics.SvgResourceReader.read(URI.create(completeUrl));
-                    if (svgBytes != null && svgBytes.length > 0) {
-                        Path tempFile = Files.createTempFile("nested-svg-", ".svg");
-                        Files.write(tempFile, svgBytes, StandardOpenOption.TRUNCATE_EXISTING);
-                        return tempFile;
-                    }
-                } catch (Exception ex) {
-                    System.err.println("下载 nestedSvg 失败，尝试按本地文件读取: " + completeUrl + ", error=" + ex.getMessage());
-                }
-            }
-            Path localPath = Path.of(nestedSvg);
-            if (Files.exists(localPath)) {
-                byte[] svgBytes = Files.readAllBytes(localPath);
-                if (svgBytes.length > 0) {
-                    Path tempFile = Files.createTempFile("nested-svg-", ".svg");
-                    Files.write(tempFile, svgBytes, StandardOpenOption.TRUNCATE_EXISTING);
-                    return tempFile;
-                }
-            }
-            System.err.println("nestedSvg 不是可下载URL且本地文件不存在: " + nestedSvg);
-            return null;
-        } catch (Exception e) {
-            System.err.println("读取 nestedSvg 失败: " + nestedSvg + ", error=" + e.getMessage());
-            return null;
+        try (InputStream input = Files.newInputStream(Path.of(value))) {
+            return SvgResourceReader.scanXml(input, scanner);
         }
     }
 
