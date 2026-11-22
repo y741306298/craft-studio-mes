@@ -5,6 +5,8 @@ import com.mes.application.command.api.AlgorithmCoreApiService;
 import com.mes.application.command.api.req.GraphicsGenerationRequest;
 import com.mes.infra.dal.graphics.GraphicsCallbackInbox;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
@@ -47,26 +49,28 @@ class ImgUtilClientTest {
         assertEquals(3,client.render("workflow","BLACK",Map.of()).getHeight());verifyNoInteractions(algorithms);
     }
 
-    @Test
-    void liubaiFontChangeDoesNotReuseAnOldTagButNewAttemptsStillDeduplicate() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"LIUBAI_TAG", "SPLICE_TEXT", "SPLICE_PIECE", "MARK_TEXT", "MARK_TWO_LINES",
+            "CAIFU_TAG", "CIRCLE_TAG", "CROSS_TAG", "DOUBLE_TAG"})
+    void textFontChangeDoesNotReuseAnOldMarkButNewAttemptsStillDeduplicate(String operation) throws Exception {
         String workflow = "workflow";
         Map<String, Object> params = Map.of("text", "留白");
         byte[] oldHash = MessageDigest.getInstance("SHA-256")
-                .digest(("LIUBAI_TAG" + JSON.toJSONString(params)).getBytes(StandardCharsets.UTF_8));
+                .digest((operation + JSON.toJSONString(params)).getBytes(StandardCharsets.UTF_8));
         String oldId = "mes-workflow-" + HexFormat.of().formatHex(oldHash).substring(0, 32);
         when(inbox.completed(eq(oldId))).thenReturn(callback(oldId, workflow, true));
         when(algorithms.generateGraphicsAsync(any())).thenAnswer(call -> {
             var request = call.getArgument(0, GraphicsGenerationRequest.class);
-            assertEquals("LIUBAI_TAG", request.getMes().get("operation"));
+            assertEquals(operation, request.getMes().get("operation"));
             assertEquals(params, request.getMes().get("parameters"));
             stored.set(callback(request.getRequestId(), workflow, true));
             wakeup.complete(null);
             return null;
         });
 
-        var fresh = client.render(workflow, "LIUBAI_TAG", params);
+        var fresh = client.render(workflow, operation, params);
         assertNotEquals(oldId, fresh.taskId());
-        assertEquals(fresh.taskId(), client.render(workflow, "LIUBAI_TAG", params).taskId());
+        assertEquals(fresh.taskId(), client.render(workflow, operation, params).taskId());
         verify(algorithms, times(1)).generateGraphicsAsync(any());
     }
     @Test void backgroundWaitIsResumedByCallbackNotStatusPolling()throws Exception{
