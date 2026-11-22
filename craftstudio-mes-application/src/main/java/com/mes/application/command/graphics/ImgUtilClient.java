@@ -112,7 +112,9 @@ public class ImgUtilClient {
     private String id(String workflow,String operation,Map<String,Object> parameters){
         try{
             Object canonical=canonical(JSON.parse(JSON.toJSONString(parameters)));
-            byte[] hash=MessageDigest.getInstance("SHA-256").digest((operation+JSON.toJSONString(canonical)).getBytes(StandardCharsets.UTF_8));
+            // Regenerate the tag if this workflow already cached a result from the old font renderer.
+            String operationIdentity = "LIUBAI_TAG".equals(operation) ? "LIUBAI_TAG:elementF" : operation;
+            byte[] hash=MessageDigest.getInstance("SHA-256").digest((operationIdentity+JSON.toJSONString(canonical)).getBytes(StandardCharsets.UTF_8));
             return "mes-"+workflow.replace("-","")+"-"+HexFormat.of().formatHex(hash).substring(0,32);
         }catch(Exception e){throw new IllegalArgumentException("图形任务参数无法序列化",e);}
     }
