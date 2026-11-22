@@ -1,6 +1,7 @@
 package com.mes.application.command.typesetting.nesting;
 
 import com.mes.application.command.api.req.NestingRequest;
+import com.mes.application.command.typesetting.support.CaifuSeparatorMarkers.SeparatorElement;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,7 @@ public class CaifuOpenBackA30HFilmNestingComposeService implements NestingReques
         for (int i = 0; i < elements.size(); i++) {
             result.add(elements.get(i));
             if (i < elements.size() - 1) {
-                NestingRequest.Element markerElement = new NestingRequest.Element();
+                NestingRequest.Element markerElement = new SeparatorElement();
                 markerElement.setId(markerId);
                 markerElement.setImg(markerAsset.pngUrl);
                 markerElement.setSvg(markerAsset.svgUrl);

@@ -26,6 +26,7 @@ import com.mes.application.command.typesetting.layout.TypesettingLayoutModeConfi
 import com.mes.application.command.typesetting.strategy.MirrorFormeStrategy;
 import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
 import com.mes.application.command.typesetting.strategy.SpecialCraftMarkStrategy;
+import com.mes.application.command.typesetting.support.CaifuSeparatorMarkers;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.application.command.typesetting.enums.FormeGenerationElementType;
 import com.mes.application.command.typesetting.enums.MachiningCompType;
@@ -138,6 +139,8 @@ public class AppTypesettingService {
     private static final int TEMP_CODE_QUEUE_MAX = 100000;
     private static final Pattern SVG_SOURCE_INDEX_PATTERN = Pattern.compile("id\\s*=\\s*\"([^\"]+)\"");
     private static final Pattern SVG_TAG_PATTERN = Pattern.compile("<svg\\b[^>]*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern SVG_IMAGE_TAG_PATTERN = Pattern.compile(
+            "<(?:[\\w.-]+:)?(?:img|image)(?=[\\s/>])[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern SVG_ROOT_SIZE_PATTERN = Pattern.compile(
             "\\b(width|height)\\s*=\\s*[\"']\\s*([0-9]+(?:\\.[0-9]+)?)\\s*(?:px|mm)?\\s*[\"']",
             Pattern.CASE_INSENSITIVE
@@ -1548,7 +1551,7 @@ public class AppTypesettingService {
         LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
         mergeSourceProductionPieceMarks(productionPieces, mergedMarks);
         mergeSourceTypesettingMarks(typesettingInfos, mergedMarks);
-        Map<String, String> markerMarks = extractCaifuOpenBackMarkerMarks(nestingRequest, layoutMode);
+        Map<String, String> markerMarks = CaifuSeparatorMarkers.collect(nestingRequest);
         if (!markerMarks.isEmpty()) {
             mergeMarkMapIncrementally(markerMarks, mergedMarks, "marker");
         }
@@ -1774,38 +1777,6 @@ public class AppTypesettingService {
             return info.getId();
         }
         return "typesetting";
-    }
-
-    private Map<String, String> extractCaifuOpenBackMarkerMarks(NestingRequest nestingRequest, TypesettingLayoutMode layoutMode) {
-        if (layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_FILM
-                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30H_NO_FILM
-                && layoutMode != TypesettingLayoutMode.XY_CUTTING_AUX_LINE_CAIFU_OPEN_BACK_A30PRO_NO_FILM) {
-            return Collections.emptyMap();
-        }
-        if (nestingRequest == null || nestingRequest.getNestManifest() == null
-                || nestingRequest.getNestManifest().getElements() == null) {
-            return Collections.emptyMap();
-        }
-        LinkedHashMap<String, String> markMap = new LinkedHashMap<>();
-        int idx = 1;
-        for (NestingRequest.Element element : nestingRequest.getNestManifest().getElements()) {
-            if (element == null || StringUtils.isBlank(element.getId()) || StringUtils.isBlank(element.getImg())) {
-                continue;
-            }
-            String id = element.getId();
-            String lowerImg = element.getImg().toLowerCase(Locale.ROOT);
-            if (!lowerImg.endsWith(".png")) {
-                continue;
-            }
-            boolean caifuMarkerByPath = lowerImg.contains("/mark/") && lowerImg.contains("/caifu/");
-            boolean caifuMarkerByName = id.matches("[0-9a-fA-F-]{36}") && lowerImg.endsWith(id.toLowerCase(Locale.ROOT) + ".png");
-            if (!caifuMarkerByPath && !caifuMarkerByName) {
-                continue;
-            }
-            markMap.put("caifuMarker_" + idx, element.getImg());
-            idx++;
-        }
-        return markMap;
     }
 
     /**
@@ -3479,6 +3450,7 @@ public class AppTypesettingService {
                 String printTaskTypesettingId = callbackTypesettingId;
                 String printTaskTypesettingCode = typesettingInfo.getId();
                 String deviceInfoId = resolveDeviceInfoIdByDeviceCode(typesettingInfo.getManufacturerMetaId(), deviceCode);
+                mergeExistingMarksBeforeUpdate(typesettingInfo);
                 Map<String, String> allMarks = collectTypesettingMarks(typesettingInfo);
                 TypesettingDownloadTaskData downloadTaskData = buildDownloadTaskData(
                         printTaskTypesettingId,
@@ -3489,7 +3461,6 @@ public class AppTypesettingService {
                         productionPieceIds,
                         typesettingInfo);
                 typesettingInfo.setRemark(null);
-                mergeExistingMarksBeforeUpdate(typesettingInfo);
                 domainTypesettingService.updateTypesetting(typesettingInfo);
                 TypesettingDownloadTaskData nonPltData = copyDownloadTaskDataWithoutPlts(downloadTaskData);
                 savePrintTaskByDeviceCode(printTaskTypesettingId, printTaskTypesettingCode, typesettingInfo.getManufacturerMetaId(), deviceCode, nonPltData);
@@ -3955,15 +3926,18 @@ public class AppTypesettingService {
             if (StringUtils.isBlank(svgContent)) {
                 return;
             }
-            Matcher imgTagMatcher = Pattern.compile("<img\\b[^>]*>", Pattern.CASE_INSENSITIVE).matcher(svgContent);
+            Matcher imgTagMatcher = SVG_IMAGE_TAG_PATTERN.matcher(svgContent);
             while (imgTagMatcher.find()) {
                 String imgTag = imgTagMatcher.group();
-                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "src"));
-                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "href"));
-                appendRawFile(imageSet, extractImgTagAttribute(imgTag, "xlink:href"));
+                for (String attribute : List.of("src", "href", "xlink:href")) {
+                    String reference = StringUtils.trimToEmpty(extractImgTagAttribute(imgTag, attribute));
+                    if (!reference.startsWith("#") && !StringUtils.startsWithIgnoreCase(reference, "data:")) {
+                        appendRawFile(imageSet, reference.replace("&amp;", "&"));
+                    }
+                }
             }
         } catch (Exception ex) {
-            log.warn("读取 formeSvg 中 img 标签失败, formeSvg={}, error={}", formeSvg, ex.getMessage());
+            log.warn("读取 formeSvg 中的图片资源失败, formeSvg={}, error={}", formeSvg, ex.getMessage());
         }
     }
 

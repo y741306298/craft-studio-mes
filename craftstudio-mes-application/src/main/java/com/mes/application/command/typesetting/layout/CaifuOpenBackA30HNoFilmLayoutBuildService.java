@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting.layout;
 
 import java.io.ByteArrayInputStream;
 import com.mes.application.command.api.req.FormeGenerationRequest;
+import com.mes.application.command.typesetting.support.CaifuSeparatorMarkers;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
 import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
@@ -202,18 +203,7 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
         if (context.getTypesettingInfo() == null || context.getTypesettingInfo().getMarks() == null) {
             return bands;
         }
-        Set<String> markerIds = new LinkedHashSet<>();
-        for (Map.Entry<String, String> entry : context.getTypesettingInfo().getMarks().entrySet()) {
-            if (entry == null || !StringUtils.startsWith(entry.getKey(), "caifuMarker_")) {
-                continue;
-            }
-            String fileName = extractFileName(entry.getValue());
-            int dotIdx = StringUtils.defaultString(fileName).lastIndexOf('.');
-            String id = dotIdx > 0 ? fileName.substring(0, dotIdx) : fileName;
-            if (StringUtils.isNotBlank(id)) {
-                markerIds.add(id);
-            }
-        }
+        Set<String> markerIds = CaifuSeparatorMarkers.groupIds(context.getTypesettingInfo().getMarks());
         if (markerIds.isEmpty()) {
             return bands;
         }
@@ -410,14 +400,6 @@ public class CaifuOpenBackA30HNoFilmLayoutBuildService extends CaifuLayoutBuildS
             }
         }
         return Double.NaN;
-    }
-
-    private String extractFileName(String path) {
-        if (StringUtils.isBlank(path)) {
-            return null;
-        }
-        int slash = path.lastIndexOf('/');
-        return slash >= 0 ? path.substring(slash + 1) : path;
     }
 
     private double parseDouble(String value) {
