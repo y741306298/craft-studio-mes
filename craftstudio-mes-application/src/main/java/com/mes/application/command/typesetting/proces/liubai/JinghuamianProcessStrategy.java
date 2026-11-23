@@ -3,18 +3,25 @@ package com.mes.application.command.typesetting.proces.liubai;
 import com.mes.application.command.typesetting.support.OssTagUploadService;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import io.micrometer.common.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Set;
 
 /**
  * “净画面”工艺策略。
  *
  * <p>该工艺复用固定尺寸留白的 SVG/PNG 外框生成流程，但外扩尺寸为 0，
- * 只在现有图形同等尺寸位置添加一圈黑色边框，不生成留白标签、不改变生产工件宽高。</p>
+ * 只在现有图形同等尺寸位置添加一圈黑色边框，不生成留白标签、不改变生产工件宽高。
+ * 指定材料跳过该描边。</p>
  */
 @Service
 public class JinghuamianProcessStrategy extends AbstractFixedLiubaiProcessStrategy {
+    private static final Set<String> BORDER_EXCLUDED_MATERIAL_NAMES = Set.of(
+            "户外油画布", "户内写真布", "户外写真布", "户内油画布");
+
     public JinghuamianProcessStrategy(RestTemplate restTemplate, OssTagUploadService ossTagUploadService) {
         super(restTemplate, ossTagUploadService);
     }
@@ -25,7 +32,23 @@ public class JinghuamianProcessStrategy extends AbstractFixedLiubaiProcessStrate
             return false;
         }
         ProcedureFlow procedureFlow = context.getProcedureFlow();
-        return !hasNode(procedureFlow, "异形切割") && containsJinghuamianProcedure(context);
+        return !hasNode(procedureFlow, "异形切割")
+                && containsJinghuamianProcedure(context)
+                && !isBorderExcludedMaterial(context);
+    }
+
+    private boolean isBorderExcludedMaterial(LiubaiProcessContext context) {
+        String materialName = getMaterialName(context.getProductionPiece() == null
+                ? null : context.getProductionPiece().getMaterialConfig());
+        if (StringUtils.isBlank(materialName) && context.getOrderItem() != null) {
+            materialName = getMaterialName(context.getOrderItem().getMaterial());
+        }
+        return StringUtils.isNotBlank(materialName) && BORDER_EXCLUDED_MATERIAL_NAMES.contains(materialName.strip());
+    }
+
+    private String getMaterialName(MaterialConfig material) {
+        return material == null || material.getMaterialSnapshot() == null
+                ? null : material.getMaterialSnapshot().getName();
     }
 
     @Override
