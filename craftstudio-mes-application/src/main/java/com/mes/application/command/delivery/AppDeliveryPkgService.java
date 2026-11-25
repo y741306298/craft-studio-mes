@@ -1178,6 +1178,10 @@ public class AppDeliveryPkgService {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams, "面单记录与订单聚单平台不一致");
         }
         if (resolveCloudPrintPlatform(record) != LogisticsCloudPrintPlatform.DY) {
+            Object cloudPrintData = record.getLogisticsCloudPrintData();
+            if (cloudPrintData != null) {
+                pkg.setLogisticsCloudPrintData(cloudPrintData);
+            }
             pkg.setWdtLabelRecord(record);
             return pkg;
         }

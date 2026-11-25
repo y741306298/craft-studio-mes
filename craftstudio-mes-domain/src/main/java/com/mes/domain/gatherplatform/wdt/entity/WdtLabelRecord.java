@@ -1,9 +1,13 @@
 package com.mes.domain.gatherplatform.wdt.entity;
 
+import com.alibaba.fastjson.JSON;
 import com.mes.domain.base.BaseEntity;
 import com.mes.domain.delivery.deliveryPkg.enums.PreOrderLabelConsumeStatus;
+import com.piliofpala.craftstudio.pangolin.domain.logistics.vo.LogisticsCloudPrintData;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.util.LinkedHashMap;
 
 /**
  * 聚单平台快递（保留 WDT 类型名兼容历史调用）面单打印记录。
@@ -46,4 +50,11 @@ public class WdtLabelRecord extends BaseEntity {
 
     /** 由订单号、生产文件名和订单备注组成的打印备注。 */
     private String remark;
+
+    public void setLogisticsCloudPrintData(Object logisticsCloudPrintData) {
+        // 以文档保存上游云打印数据，保留 signature 等字段及其原始值。
+        this.logisticsCloudPrintData = logisticsCloudPrintData instanceof LogisticsCloudPrintData
+                ? new LinkedHashMap<>(JSON.parseObject(JSON.toJSONString(logisticsCloudPrintData)))
+                : logisticsCloudPrintData;
+    }
 }
