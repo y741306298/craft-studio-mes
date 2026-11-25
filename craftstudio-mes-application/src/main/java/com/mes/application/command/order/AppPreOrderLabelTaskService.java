@@ -495,7 +495,13 @@ public class AppPreOrderLabelTaskService {
                 }
                 GatherPlatform platform = GatherPlatform.getInstance(platformType);
                 try {
-                    platform.configLogisticsWarehouse(config.getLogisticsId(), config.getWarehouseId(), uniCode);
+                    String logisticsId = config.getLogisticsId();
+                    String warehouseId = config.getWarehouseId();
+                    if (platformType == GatherPlatformType.JST) {
+                        log.info("JST 预打单换仓入参: orderId={}, channelOrderId={}, logisticsId={}, warehouseId={}",
+                                orderInfo.getOrderId(), uniCode, JSON.toJSONString(logisticsId), warehouseId);
+                    }
+                    platform.configLogisticsWarehouse(logisticsId, warehouseId, uniCode);
                 } catch (Exception warehouseException) {
                     log.error("聚单平台换仓异常: orderId={}", uniCode, warehouseException);
                     if (!containsExceptionMessage(warehouseException, SAME_WAREHOUSE_FAILURE)) {
@@ -505,7 +511,14 @@ public class AppPreOrderLabelTaskService {
                 }
                 LogisticsLabel label;
                 try {
-                    label = printGatherPlatformLabel(platform, uniCode, presetType);
+                    String printer = "default";
+                    boolean printFlag = true;
+                    if (platformType == GatherPlatformType.JST) {
+                        log.info("JST 预打单打印入参: orderId={}, channelOrderId={}, printer={}, printFlag={}, presetType={}",
+                                orderInfo.getOrderId(), uniCode, printer, printFlag, presetType);
+                    }
+                    label = platform.printLogisticsLabel(uniCode, printer, printFlag,
+                            LogisticsCarrierPresetType.valueOf(presetType));
                     if (label == null || StringUtils.isBlank(label.getLogisticsOrderId())) {
                         throw new IllegalStateException("聚单平台打印未返回物流单号");
                     }
@@ -526,13 +539,6 @@ public class AppPreOrderLabelTaskService {
             }
             throw new IllegalStateException(ex.getMessage(), ex);
         }
-    }
-
-    /**
-     * 使用默认打印机打印聚单平台面单。
-     */
-    private LogisticsLabel printGatherPlatformLabel(GatherPlatform platform, String uniCode,String presetType) throws Exception {
-        return platform.printLogisticsLabel(uniCode, "default",true, LogisticsCarrierPresetType.valueOf(presetType));
     }
 
     /**
