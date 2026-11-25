@@ -346,6 +346,13 @@ public class TypesettingService {
         return typesettingRepository.fuzzySearch(searchFilters, 1, 1000);
     }
 
+    public List<TypesettingInfo> findByExactTypesettingIdFromPrimary(String typesettingId) {
+        if (StringUtils.isBlank(typesettingId)) {
+            return Collections.emptyList();
+        }
+        return typesettingRepository.findByExactTypesettingIdFromPrimary(typesettingId);
+    }
+
     public List<TypesettingInfo> findByProductionPieceSourceIds(Collection<String> sourceIds) {
         if (sourceIds == null || sourceIds.isEmpty()) {
             return Collections.emptyList();

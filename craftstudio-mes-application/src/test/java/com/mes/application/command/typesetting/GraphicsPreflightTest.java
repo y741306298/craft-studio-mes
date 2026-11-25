@@ -141,7 +141,7 @@ class GraphicsPreflightTest {
             calls.verify(algorithms).generateVerticalNestedFilesAsync(any());
             assertEquals("piece", record.get().getTypesettingCells().getFirst().getSourceId());
 
-            when(layouts.findTypesettingListByTypesettingId(record.get().getTypesettingId()))
+            when(layouts.findByExactTypesettingIdFromPrimary(record.get().getTypesettingId()))
                     .thenReturn(List.of(record.get()));
             NestingResponse.Result nested = new NestingResponse.Result();
             nested.setHaveBlood(false);

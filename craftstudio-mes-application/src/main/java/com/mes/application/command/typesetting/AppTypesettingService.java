@@ -136,6 +136,7 @@ public class AppTypesettingService {
             TypesettingStatus.CONFIRM_IN_PROGRESS, TypesettingStatus.DISPATCH_IN_PROGRESS, TypesettingStatus.CONFIRMED);
     private static final long TYPESETTING_OPERATION_LOCK_EXPIRE_MINUTES = 10;
     private static final long CACHE_EXPIRE_HOURS = 72;
+    private static final long NESTING_RELEASE_TIMEOUT_MINUTES = 5;
     private static final long NESTING_CALLBACK_RECORD_WAIT_MILLIS = 10_000;
     private static final long NESTING_CALLBACK_RECORD_POLL_MILLIS = 100;
     private static final DateTimeFormatter TYPESETTING_ID_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -1186,6 +1187,10 @@ public class AppTypesettingService {
      */
     private String buildTypesettingOperationLockKey(String id) {
         return TYPESETTING_OPERATION_LOCK_PREFIX + "typesetting:" + id;
+    }
+
+    private String buildNestingCallbackLockKey(String typesettingId) {
+        return TYPESETTING_OPERATION_LOCK_PREFIX + "nestingCallback:" + typesettingId;
     }
 
     private List<String> buildTypesettingOperationLockKeys(TypesettingInfo info, String requestedId) {
@@ -4203,7 +4208,15 @@ public class AppTypesettingService {
 
         List<String> operationLockKeys = typesettingIds.stream()
                 .filter(StringUtils::isNotBlank)
-                .flatMap(id -> buildTypesettingOperationLockKeys(domainTypesettingService.findById(id), id).stream())
+                .distinct()
+                .flatMap(id -> {
+                    TypesettingInfo info = domainTypesettingService.findById(id);
+                    Stream<String> recordLocks = buildTypesettingOperationLockKeys(info, id).stream();
+                    if (info == null || StringUtils.isBlank(info.getTypesettingId())) {
+                        return recordLocks;
+                    }
+                    return Stream.concat(recordLocks, Stream.of(buildNestingCallbackLockKey(info.getTypesettingId())));
+                })
                 .distinct()
                 .sorted()
                 .toList();
@@ -4216,13 +4229,16 @@ public class AppTypesettingService {
     }
 
     private ReleaseLayoutResult doReleaseLayout(List<String> typesettingIds) {
+        Date nestingReleaseCutoff = new Date(System.currentTimeMillis()
+                - TimeUnit.MINUTES.toMillis(NESTING_RELEASE_TIMEOUT_MINUTES));
         Map<String, TypesettingInfo> typesettingInfoMap = new LinkedHashMap<>();
         for (String typesettingId : typesettingIds) {
             if (StringUtils.isBlank(typesettingId) || typesettingInfoMap.containsKey(typesettingId)) {
                 continue;
             }
             TypesettingInfo info = domainTypesettingService.findById(typesettingId);
-            if (info != null && TypesettingStatus.isLayoutInProgress(info.getStatus())) {
+            if (info != null && TypesettingStatus.isLayoutInProgress(info.getStatus())
+                    && !canReleaseTimedOutNesting(info, nestingReleaseCutoff)) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
                         "存在排版中的印版，不允许释放");
             }
@@ -4266,6 +4282,15 @@ public class AppTypesettingService {
         }
 
         return buildReleaseLayoutResult(errorMessages, releasedPieceIds, deletedLayoutIds);
+    }
+
+    private boolean canReleaseTimedOutNesting(TypesettingInfo info, Date cutoff) {
+        if (!TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus())) {
+            return false;
+        }
+        // 先准备图形再提交算法的印版，在进入排版中时会刷新更新时间。
+        Date startedAt = info.getUpdateTime() != null ? info.getUpdateTime() : info.getCreateTime();
+        return startedAt != null && startedAt.before(cutoff);
     }
 
     /**
@@ -4726,8 +4751,7 @@ public class AppTypesettingService {
         }
 
         String typesettingId = response.getId();
-        List<String> callbackLockKeys = Collections.singletonList(
-                TYPESETTING_OPERATION_LOCK_PREFIX + "nestingCallback:" + typesettingId);
+        List<String> callbackLockKeys = Collections.singletonList(buildNestingCallbackLockKey(typesettingId));
         String callbackLockToken = acquireOperationLocks(callbackLockKeys, "排版算法回调正在处理中，请稍后重试");
         try {
             doHandleNestingCallback(response, typesettingId);
@@ -4852,7 +4876,8 @@ public class AppTypesettingService {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(NESTING_CALLBACK_RECORD_WAIT_MILLIS);
         List<TypesettingInfo> typesettingInfos;
         do {
-            typesettingInfos = domainTypesettingService.findTypesettingListByTypesettingId(typesettingId);
+            // 从主库按完整编号读取，防止迟到的回调写入已释放的记录或其他印版。
+            typesettingInfos = domainTypesettingService.findByExactTypesettingIdFromPrimary(typesettingId);
             if (typesettingInfos != null && !typesettingInfos.isEmpty()) {
                 return typesettingInfos;
             }

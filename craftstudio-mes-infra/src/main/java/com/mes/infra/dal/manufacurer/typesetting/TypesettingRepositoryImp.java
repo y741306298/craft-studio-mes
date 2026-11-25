@@ -133,6 +133,14 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     }
 
     @Override
+    public List<TypesettingInfo> findByExactTypesettingIdFromPrimary(String typesettingId) {
+        Query query = new SoftDeleteQuery(Criteria.where("typesettingId").is(typesettingId))
+                .withReadPreference(ReadPreference.primary())
+                .with(Sort.by(Sort.Direction.DESC, "updateTime"));
+        return mongoTemplate.find(query, poClass()).stream().map(TypesettingPo::toDO).toList();
+    }
+
+    @Override
     public List<TypesettingInfo> findMaterialsByStatuses(String manufacturerMetaId, Collection<String> statuses) {
         Query query = new SoftDeleteQuery(new Criteria().andOperator(
                 Criteria.where("manufacturerMetaId").is(manufacturerMetaId),
@@ -239,13 +247,15 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
             return null;
         }
         TypesettingPo po = mongoTemplate.findOne(
-                new SoftDeleteQuery(Criteria.where("_id").is(id)), poClass()
+                new SoftDeleteQuery(Criteria.where("_id").is(id)).withReadPreference(ReadPreference.primary()),
+                poClass()
         );
         if (po != null || !ObjectId.isValid(id)) {
             return po;
         }
         return mongoTemplate.findOne(
-                new SoftDeleteQuery(Criteria.where("_id").is(new ObjectId(id))), poClass()
+                new SoftDeleteQuery(Criteria.where("_id").is(new ObjectId(id))).withReadPreference(ReadPreference.primary()),
+                poClass()
         );
     }
 }
