@@ -11,6 +11,7 @@ import com.mes.domain.manufacturer.typesetting.enums.TypesettingLayoutMode;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingSourceCell;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
 import lombok.Data;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -228,7 +229,6 @@ public class TypesettingProductionPieceVO {
         vo.setOriMaterialType(info.getOriMaterialType());
         vo.setProcessingFlow(info.getProcessingFlow());
         vo.setProcedureFlow(info.getProcedureFlow());
-        vo.setPreviewUrl(info.getElement().getFormeSvg());
         vo.setStatus(info.getStatus());
         vo.setIsUrgent(info.getIsUrgent());
         vo.setHaveBlood(info.getHaveBlood());
@@ -236,9 +236,15 @@ public class TypesettingProductionPieceVO {
         vo.setMaskSvg(info.getMaskSvg());
         vo.setLayoutMode(info.getLayoutMode());
         vo.setDescription(resolveLayoutModeDescription(info));
-        if (info.getElement() != null) {
-            vo.setWidth(toCentimeters(info.getElement().getWidth().doubleValue()));
-            vo.setHeight(toCentimeters(info.getElement().getHeight().doubleValue()));
+        var element = info.getElement();
+        if (element != null) {
+            vo.setPreviewUrl(StringUtils.defaultIfBlank(element.getFormeSvg(), element.getNestedSvg()));
+            if (element.getWidth() != null) {
+                vo.setWidth(toCentimeters(element.getWidth().doubleValue()));
+            }
+            if (element.getHeight() != null) {
+                vo.setHeight(toCentimeters(element.getHeight().doubleValue()));
+            }
         }
         vo.setCreateTime(info.getCreateTime());
         return vo;

@@ -32,7 +32,7 @@ public class PrintController {
     private final AppPrintService appPrintService;
 
     /**
-     * 查询状态为"待打印"的排版信息（分页）
+     * 分页查询印版，默认覆盖待打印、打印中和下发中。
      */
     @PostMapping("/pending/list")
     public ApiResponse<PagedResult<PendingPrintTypesettingVO>> listPendingPrintTypesetting(

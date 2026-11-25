@@ -6,6 +6,7 @@ package com.mes.domain.manufacturer.typesetting.enums;
 public enum TypesettingStatus {
 
     PENDING("待排版", "pending"),           // 等待排版
+    LAYOUT_PROCESSING("排版处理中", "layout_processing"),
     IN_PROGRESS("排版中", "in_progress"),   // 正在排版
     CONFIRMING("待确认", "confirming"),     // 等待确认
     CONFIRM_IN_PROGRESS("确认中", "confirm_in_progress"),
@@ -34,6 +35,10 @@ public enum TypesettingStatus {
 
     public static boolean isFormeInProgress(String code) {
         return CONFIRM_IN_PROGRESS.getCode().equals(code) || DISPATCH_IN_PROGRESS.getCode().equals(code);
+    }
+
+    public static boolean isLayoutInProgress(String code) {
+        return LAYOUT_PROCESSING.getCode().equals(code) || IN_PROGRESS.getCode().equals(code);
     }
 
     /**

@@ -59,69 +59,22 @@ public class AppPrintService {
             size = 20;
         }
 
-        String deviceCode = null;
-        if (StringUtils.isNotBlank(deviceCfgId)) {
-            ManufacturerDeviceCfg deviceCfg = manufacturerDeviceCfgService.findById(deviceCfgId);
-            if (deviceCfg != null) {
-                deviceCode = deviceCfg.getDeviceCode();
-            }
-        }
-
-        Set<String> allowedStatuses = new HashSet<>(Arrays.asList(
+        String deviceCode = resolveDeviceCode(deviceCfgId);
+        List<String> defaultStatuses = List.of(
                 TypesettingStatus.PRINTING.getCode(),
                 TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
-                TypesettingStatus.COMPLETED.getCode()
-        ));
-        if (StringUtils.isNotBlank(status) && !allowedStatuses.contains(status)) {
+                TypesettingStatus.DISPATCH_IN_PROGRESS.getCode());
+        if (StringUtils.isNotBlank(status) && !defaultStatuses.contains(status)
+                && !TypesettingStatus.COMPLETED.getCode().equals(status)) {
             throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
-                    "status 仅支持 printing / printing_in_progress / completed");
+                    "status 仅支持 printing / printing_in_progress / dispatch_in_progress / completed");
         }
 
-        List<TypesettingInfo> mergedItems = new ArrayList<>();
-        if (StringUtils.isBlank(status)) {
-            List<TypesettingInfo> pendingPrintItems = typesettingService.findTypesettingByConditions(
-                    manufacturerMetaId,
-                    TypesettingStatus.PRINTING.getCode(),
-                    null,
-                    materialId,
-                    null,
-                    startTime,
-                    endTime,
-                    deviceCode,
-                    1,
-                    Integer.MAX_VALUE
-            );
-            List<TypesettingInfo> printingInProgressItems = typesettingService.findTypesettingByConditions(
-                    manufacturerMetaId,
-                    TypesettingStatus.PRINTING_IN_PROGRESS.getCode(),
-                    null,
-                    materialId,
-                    null,
-                    startTime,
-                    endTime,
-                    deviceCode,
-                    1,
-                    Integer.MAX_VALUE
-            );
-            mergedItems.addAll(pendingPrintItems == null ? Collections.emptyList() : pendingPrintItems);
-            mergedItems.addAll(printingInProgressItems == null ? Collections.emptyList() : printingInProgressItems);
-        } else {
-            List<TypesettingInfo> statusItems = typesettingService.findTypesettingByConditions(
-                    manufacturerMetaId,
-                    status,
-                    null,
-                    materialId,
-                    null,
-                    startTime,
-                    endTime,
-                    deviceCode,
-                    1,
-                    Integer.MAX_VALUE
-            );
-            mergedItems.addAll(statusItems == null ? Collections.emptyList() : statusItems);
-        }
+        List<String> statuses = StringUtils.isBlank(status) ? defaultStatuses : List.of(status);
+        List<TypesettingInfo> matchingItems = typesettingService.findTypesettingByStatuses(
+                manufacturerMetaId, statuses, null, materialId, startTime, endTime, deviceCode, 1, Integer.MAX_VALUE);
         Map<String, TypesettingInfo> uniqueMap = new LinkedHashMap<>();
-        for (TypesettingInfo item : mergedItems) {
+        for (TypesettingInfo item : matchingItems == null ? List.<TypesettingInfo>of() : matchingItems) {
             if (item != null && StringUtils.isNotBlank(item.getId())) {
                 uniqueMap.put(item.getId(), item);
             }
@@ -334,9 +287,10 @@ public class AppPrintService {
                 continue;
             }
             TypesettingInfo info = typesettingService.findById(typesettingId);
-            if (info != null && TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus())) {
+            if (info != null && (TypesettingStatus.isLayoutInProgress(info.getStatus())
+                    || TypesettingStatus.DISPATCH_IN_PROGRESS.getCode().equals(info.getStatus()))) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
-                        "存在排版中的印版，不允许释放");
+                        "存在正在排版或下发的印版，不允许释放");
             }
             typesettingInfoMap.put(typesettingId, info);
         }

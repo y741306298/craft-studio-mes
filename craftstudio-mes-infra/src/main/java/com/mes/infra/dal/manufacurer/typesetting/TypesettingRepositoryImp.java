@@ -49,10 +49,10 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public List<TypesettingInfo> findPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress, long offset, int size) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeConfirmInProgress, long offset, int size) {
         int pageSize = Math.max(1, size);
         Query query = new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent, includeFormeInProgress));
+                startTime, endTime, urgent, includeConfirmInProgress));
         query.with(urgent == null
                         ? Sort.by(Sort.Order.desc("isUrgent"), Sort.Order.asc("createTime"))
                         : Sort.by(Sort.Order.asc("createTime")))
@@ -77,9 +77,9 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
     @Override
     public long countPendingByConditions(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeConfirmInProgress) {
         return mongoTemplate.count(new SoftDeleteQuery(pendingCriteria(manufacturerMetaId, materialName,
-                processingNames, startTime, endTime, urgent, includeFormeInProgress)), poClass());
+                processingNames, startTime, endTime, urgent, includeConfirmInProgress)), poClass());
     }
 
     @Override
@@ -146,14 +146,14 @@ public class TypesettingRepositoryImp extends BaseRepositoryImp<TypesettingInfo,
 
     private Criteria pendingCriteria(String manufacturerMetaId, String materialName,
             List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeConfirmInProgress) {
         List<Criteria> criteria = new ArrayList<>();
         criteria.add(Criteria.where("manufacturerMetaId").is(manufacturerMetaId));
         Criteria availablePlate = Criteria.where("status").is(TypesettingStatus.PENDING.getCode())
                 .and("leaveQuantity").gt(0);
-        criteria.add(includeFormeInProgress
-                ? new Criteria().orOperator(availablePlate, Criteria.where("status").in(
-                        TypesettingStatus.CONFIRM_IN_PROGRESS.getCode(), TypesettingStatus.DISPATCH_IN_PROGRESS.getCode()))
+        criteria.add(includeConfirmInProgress
+                ? new Criteria().orOperator(availablePlate,
+                        Criteria.where("status").is(TypesettingStatus.CONFIRM_IN_PROGRESS.getCode()))
                 : availablePlate);
         if (urgent != null) {
             criteria.add(urgent ? Criteria.where("isUrgent").is(true) : Criteria.where("isUrgent").ne(true));

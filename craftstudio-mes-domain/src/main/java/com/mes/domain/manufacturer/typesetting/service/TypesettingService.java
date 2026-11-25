@@ -58,10 +58,17 @@ public class TypesettingService {
             String deviceCode,
             int current,
             int size) {
+        return findTypesettingByStatuses(manufacturerMetaId, status == null ? null : List.of(status), materialName,
+                materialId, startTime, endTime, deviceCode, current, size);
+    }
+
+    public List<TypesettingInfo> findTypesettingByStatuses(
+            String manufacturerMetaId, Collection<String> statuses, String materialName, String materialId,
+            Date startTime, Date endTime, String deviceCode, int current, int size) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("manufacturerMetaId", manufacturerMetaId);
-        if (status != null) {
-            filters.put("status", status);
+        if (statuses != null) {
+            filters.put("status_in", statuses);
         }
         if (StringUtils.isNotBlank(materialName)) {
             filters.put("materialConfig.materialSnapshot.name_like", materialName);
@@ -193,16 +200,16 @@ public class TypesettingService {
 
     public List<TypesettingInfo> findPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress, long offset, int size) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeConfirmInProgress, long offset, int size) {
         return typesettingRepository.findPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent, includeFormeInProgress, offset, size);
+                startTime, endTime, urgent, includeConfirmInProgress, offset, size);
     }
 
     public long countPendingTypesettingByProcessingConditions(
             String manufacturerMetaId, String materialName, List<ProcessingFlowCondition> processingNames,
-            Date startTime, Date endTime, Boolean urgent, boolean includeFormeInProgress) {
+            Date startTime, Date endTime, Boolean urgent, boolean includeConfirmInProgress) {
         return typesettingRepository.countPendingByConditions(manufacturerMetaId, materialName, processingNames,
-                startTime, endTime, urgent, includeFormeInProgress);
+                startTime, endTime, urgent, includeConfirmInProgress);
     }
 
     public List<TypesettingInfo> findPendingByTypesettingId(String manufacturerMetaId, String typesettingId,

@@ -2,8 +2,15 @@ package com.mes.application.command.typesetting;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.api.resp.NestingResponse;
+import com.mes.application.command.graphics.ImgUtilClient;
+import com.mes.application.command.graphics.RemoteGraphics;
 import com.mes.application.command.typesetting.enums.TypesettingSourceType;
 import com.mes.application.command.typesetting.layout.TypesettingLayoutModeBuildService;
+import com.mes.application.command.typesetting.nesting.NestingRequestComposeService;
+import com.mes.application.command.typesetting.service.MarkedNestingElementService;
+import com.mes.application.command.typesetting.strategy.NestingManifestStrategy;
+import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.*;
 import com.mes.domain.manufacturer.procedureFlow.entity.*;
@@ -14,11 +21,14 @@ import com.mes.domain.manufacturer.typesetting.enums.*;
 import com.mes.domain.manufacturer.typesetting.service.*;
 import com.mes.domain.manufacturer.typesetting.vo.TypesettingElement;
 import com.piliofpala.craftstudio.shared.domain.product.mtoproduct.vo.MaterialConfig;
+import com.piliofpala.craftstudio.shared.infra.cloud.platforms.alicloud.AliCloudAuthService;
 import org.junit.jupiter.api.*;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -27,7 +37,7 @@ class GraphicsPreflightTest {
     private final ProductionPieceService pieces = mock(ProductionPieceService.class);
     private final TypesettingService layouts = mock(TypesettingService.class);
     private final AlgorithmCoreApiService algorithms = mock(AlgorithmCoreApiService.class);
-    private final RedisTemplate<?,?> redis = mock(RedisTemplate.class);
+    private final RedisTemplate<String, Object> redis = mock(RedisTemplate.class);
     private ProductionPiece piece;
     private LayoutConfirmRequest request;
     @BeforeEach void setup() {
@@ -92,5 +102,94 @@ class GraphicsPreflightTest {
         var input=new ConfirmPrintRequest();input.setId("layout");input.setDeviceCode("missing");
         assertTrue(assertThrows(IllegalArgumentException.class,()->service.validateConfirmPrintRequest(input)).getMessage().contains("设备编号不存在"));
         verify(layouts,never()).updateTypesetting(any());verifyNoInteractions(algorithms,redis);
+    }
+
+    @Test
+    void toLayoutPersistsDistinctStatesForGraphicsAndNestingCallbacks() {
+        setUpLayoutExecution();
+        AtomicReference<TypesettingInfo> record = new AtomicReference<>();
+        when(layouts.addTypesetting(any())).thenAnswer(invocation -> {
+            TypesettingInfo info = invocation.getArgument(0);
+            assertEquals("layout_processing", info.getStatus());
+            info.setId("plate");
+            record.set(info);
+            return info;
+        });
+        ImgUtilClient imgUtil = mock(ImgUtilClient.class);
+        when(imgUtil.svg("workflow", "NESTING_MARKER_SVG", Map.of())).thenAnswer(invocation -> {
+            assertEquals("layout_processing", record.get().getStatus());
+            verifyNoInteractions(algorithms);
+            return "<svg/>";
+        });
+        NestingRequestComposeService compose = mock(NestingRequestComposeService.class);
+        when(compose.composeElements(anyString(), anyString(), anyList(), anyList())).thenAnswer(invocation -> {
+            RemoteGraphics.svg("NESTING_MARKER_SVG", Map.of());
+            return invocation.getArgument(2);
+        });
+        @SuppressWarnings("unchecked")
+        var composers = (Map<TypesettingLayoutMode, NestingRequestComposeService>)
+                ReflectionTestUtils.getField(service, "nestingRequestComposeServiceMap");
+        composers.put(TypesettingLayoutMode.fromCode(request.getLayoutMode()), compose);
+
+        RemoteGraphics.enter(imgUtil, "workflow");
+        try {
+            LayoutConfirmResult result = service.toLayout(request);
+            assertTrue(result.isSuccess(), result.getMessage());
+            assertEquals("in_progress", record.get().getStatus());
+            var calls = inOrder(layouts, algorithms);
+            calls.verify(layouts).updateTypesetting(record.get());
+            calls.verify(algorithms).generateVerticalNestedFilesAsync(any());
+            assertEquals("piece", record.get().getTypesettingCells().getFirst().getSourceId());
+
+            when(layouts.findTypesettingListByTypesettingId(record.get().getTypesettingId()))
+                    .thenReturn(List.of(record.get()));
+            NestingResponse.Result nested = new NestingResponse.Result();
+            nested.setHaveBlood(false);
+            nested.setNestedSvg("https://bucket/nested.svg");
+            NestingResponse callback = new NestingResponse();
+            callback.setId(record.get().getTypesettingId());
+            callback.setStatus("success");
+            callback.setResults(List.of(nested));
+            service.handleNestingCallback(callback);
+            assertEquals("confirming", record.get().getStatus());
+        } finally {
+            RemoteGraphics.exit();
+        }
+    }
+
+    @Test
+    void toLayoutWithoutGraphicsStartsInNesting() {
+        setUpLayoutExecution();
+        when(layouts.addTypesetting(any())).thenAnswer(invocation -> {
+            TypesettingInfo info = invocation.getArgument(0);
+            assertEquals("in_progress", info.getStatus());
+            return info;
+        });
+        ImgUtilClient imgUtil = mock(ImgUtilClient.class);
+        RemoteGraphics.enter(imgUtil, "workflow");
+        try {
+            LayoutConfirmResult result = service.toLayout(request);
+            assertTrue(result.isSuccess(), result.getMessage());
+        } finally {
+            RemoteGraphics.exit();
+        }
+        verify(layouts).addTypesetting(any());
+        verifyNoInteractions(imgUtil);
+    }
+
+    private void setUpLayoutExecution() {
+        piece.setTemplateCode("https://bucket/piece.png");
+        piece.setRouteSvg("https://bucket/piece.svg");
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, Object> redisValues = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(redisValues);
+        when(redisValues.setIfAbsent(anyString(), any(), anyLong(), any())).thenReturn(true);
+        when(pieces.reservePendingTypesettingQuantities(Map.of("piece", 1))).thenReturn(1L);
+        ReflectionTestUtils.setField(service, "typesettingSequencePoolService", mock(TypesettingSequencePoolService.class));
+        ReflectionTestUtils.setField(service, "markedNestingElementService", mock(MarkedNestingElementService.class));
+        ReflectionTestUtils.setField(service, "nestingManifestStrategy", mock(NestingManifestStrategy.class));
+        ReflectionTestUtils.setField(service, "aliCloudAuthService", mock(AliCloudAuthService.class));
+        ReflectionTestUtils.setField(service, "generateNestedFilesCallbackUrl", "https://mes/callback/nesting");
+        ReflectionTestUtils.setField(service, "generateGridNestedFilesCallbackUrl", "https://mes/callback/grid-nesting");
     }
 }

@@ -34,7 +34,7 @@
 | `materialId` | string | 否 | **新增字段**；材料 ID，去除首尾空白后精确匹配 `materialConfig.materialId` |
 | `startTime` | string | 否 | 印版创建时间起点，包含边界；建议使用 ISO-8601 格式 |
 | `endTime` | string | 否 | 印版创建时间终点，包含边界；建议使用 ISO-8601 格式 |
-| `status` | string | 否 | 可传 `printing`、`printing_in_progress` 或 `completed`；不传时合并查询 `printing` 与 `printing_in_progress` |
+| `status` | string | 否 | 可传 `printing`、`printing_in_progress`、`dispatch_in_progress` 或 `completed`。默认查询待打印、打印中和下发中 |
 | `current` | integer | 是 | 页码，从 `1` 开始；小于 `1` 时后端按 `1` 处理 |
 | `size` | integer | 是 | 每页条数，有效范围为 `1`～`100`；无效时后端按 `20` 处理 |
 
@@ -44,6 +44,7 @@
 |---|---|
 | `printing` | 待打印 |
 | `printing_in_progress` | 打印中 |
+| `dispatch_in_progress` | 下发中 |
 | `completed` | 已完成 |
 
 ### 2.5 请求示例
@@ -120,7 +121,7 @@
 | 场景 | 响应/异常说明 |
 |---|---|
 | `manufacturerMetaId` 为空 | 参数校验失败，提示 `manufacturerMetaId不能为空` 或 `manufacturerMetaId 不能为空` |
-| `status` 不在允许范围内 | 返回参数错误，提示 `status 仅支持 printing / printing_in_progress / completed` |
+| `status` 不在允许范围内 | 返回参数错误，提示 `status 仅支持 printing / printing_in_progress / dispatch_in_progress / completed` |
 
 ---
 
@@ -228,4 +229,4 @@
 2. 用户选择材料后，将返回的 `materialId` 传给 `/pending/list`。
 3. `/pending/list` 返回同时符合设备、时间、状态、印版 ID 和材料 ID 条件的分页印版数据。
 
-如果用户未选择材料，则调用 `/pending/list` 时不传 `materialId`，接口行为与本次修改前保持一致。
+用户未选择材料时，可省略 `materialId`。

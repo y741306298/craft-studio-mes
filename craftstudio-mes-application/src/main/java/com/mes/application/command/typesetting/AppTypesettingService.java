@@ -2,6 +2,7 @@ package com.mes.application.command.typesetting;
 
 import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.api.AlgorithmCoreApiService;
+import com.mes.application.command.graphics.RemoteGraphics;
 import com.mes.application.command.graphics.SvgResourceReader;
 import com.mes.application.command.api.ProductCoreApiService;
 import com.mes.application.command.api.resp.MaterialDevelopedSizeResponse;
@@ -290,15 +291,6 @@ public class AppTypesettingService {
      * @return 分页结果
      */
     public TypesettingPiecesQueryResult findTypesettingAndProductionPieces(TypesettingQuery query) {
-        return findTypesettingAndProductionPieces(query, false);
-    }
-
-    public TypesettingPiecesQueryResult findTypesettingAndProductionPiecesByCondition(TypesettingQuery query) {
-        return findTypesettingAndProductionPieces(query, true);
-    }
-
-    private TypesettingPiecesQueryResult findTypesettingAndProductionPieces(TypesettingQuery query,
-                                                                           boolean includeFormeInProgress) {
         if (query == null) {
             throw new IllegalArgumentException("查询参数不能为空");
         }
@@ -323,15 +315,15 @@ public class AppTypesettingService {
             return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, 0L, size, current), pageItems);
         }
         if (queryTypesettingOnly) {
-            long total = countPendingTypesettingInfos(query, null, includeFormeInProgress);
-            pageItems.addAll(findPendingTypesettingItems(query, null, includeFormeInProgress, globalOffset, size));
+            long total = countPendingTypesettingInfos(query, null);
+            pageItems.addAll(findPendingTypesettingItems(query, null, globalOffset, size));
             return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
         }
 
         long urgentPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, true, orderItemIds) : 0;
-        long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true, includeFormeInProgress) : 0;
+        long urgentTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, true) : 0;
         long normalPartTotal = includeParts ? countPendingTypesettingProductionPieces(query, false, orderItemIds) : 0;
-        long normalTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, false, includeFormeInProgress) : 0;
+        long normalTypesettingTotal = includeTypesettings ? countPendingTypesettingInfos(query, false) : 0;
 
         // 全局顺序：加急优先；同一加急级别内零件优先于印版；各分组内部按创建时间正序。
         long[] skipped = {globalOffset};
@@ -339,11 +331,11 @@ public class AppTypesettingService {
         remaining = appendPageBucket(pageItems, skipped, remaining, urgentPartTotal,
                 (offset, limit) -> findPendingProductionPieceItems(query, true, offset, limit, orderItemIds));
         remaining = appendPageBucket(pageItems, skipped, remaining, urgentTypesettingTotal,
-                (offset, limit) -> findPendingTypesettingItems(query, true, includeFormeInProgress, offset, limit));
+                (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
         remaining = appendPageBucket(pageItems, skipped, remaining, normalPartTotal,
                 (offset, limit) -> findPendingProductionPieceItems(query, false, offset, limit, orderItemIds));
         appendPageBucket(pageItems, skipped, remaining, normalTypesettingTotal,
-                (offset, limit) -> findPendingTypesettingItems(query, false, includeFormeInProgress, offset, limit));
+                (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
 
         long total = urgentPartTotal + urgentTypesettingTotal + normalPartTotal + normalTypesettingTotal;
         return new TypesettingPiecesQueryResult(new PagedResult<>(pageItems, total, size, current), pageItems);
@@ -381,13 +373,13 @@ public class AppTypesettingService {
         }
         if (!queryPartOnly && !queryProductionPiecesByRoute && !filterByOrderNames) {
             if (queryTypesettingOnly) {
-                appendAllItems(items, countPendingTypesettingInfos(query, null, false),
-                        (offset, limit) -> findPendingTypesettingItems(query, null, false, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, null),
+                        (offset, limit) -> findPendingTypesettingItems(query, null, offset, limit));
             } else {
-                appendAllItems(items, countPendingTypesettingInfos(query, true, false),
-                        (offset, limit) -> findPendingTypesettingItems(query, true, false, offset, limit));
-                appendAllItems(items, countPendingTypesettingInfos(query, false, false),
-                        (offset, limit) -> findPendingTypesettingItems(query, false, false, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, true),
+                        (offset, limit) -> findPendingTypesettingItems(query, true, offset, limit));
+                appendAllItems(items, countPendingTypesettingInfos(query, false),
+                        (offset, limit) -> findPendingTypesettingItems(query, false, offset, limit));
             }
         }
         return items;
@@ -427,19 +419,19 @@ public class AppTypesettingService {
         return remaining - loaded.size();
     }
 
-    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent, boolean includeFormeInProgress) {
+    private long countPendingTypesettingInfos(TypesettingQuery query, Boolean urgent) {
         return timeMongoQuery("countPendingTypesettingInfos", () ->
                 domainTypesettingService.countPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                        query.getStartTime(), query.getEndTime(), urgent, includeFormeInProgress));
+                        query.getStartTime(), query.getEndTime(), urgent, true));
     }
 
     private List<TypesettingProductionPieceVO> findPendingTypesettingItems(
-            TypesettingQuery query, Boolean urgent, boolean includeFormeInProgress, long offset, int limit) {
+            TypesettingQuery query, Boolean urgent, long offset, int limit) {
         List<TypesettingInfo> infos = timeMongoQuery("findPendingTypesettingInfos", () ->
                 domainTypesettingService.findPendingTypesettingByProcessingConditions(
                         query.getManufacturerMetaId(), query.getMaterialName(), query.getProcessingName(),
-                        query.getStartTime(), query.getEndTime(), urgent, includeFormeInProgress, offset, limit));
+                        query.getStartTime(), query.getEndTime(), urgent, true, offset, limit));
         return infos.stream().map(TypesettingProductionPieceVO::fromTypesettingInfo).toList();
     }
 
@@ -959,7 +951,7 @@ public class AppTypesettingService {
     }
 
     /**
-     * 分页查询待确认、排版中、处理失败、确认中和下发中的排版信息。
+     * 分页查询排版处理中、排版中、待确认及处理失败的排版信息。
      * @param manufacturerMetaId 厂商元数据ID
      * @param typesettingId 排版编号（支持模糊匹配）
      * @param materialId 材料 ID
@@ -982,9 +974,8 @@ public class AppTypesettingService {
         List<String> statuses = List.of(
                 TypesettingStatus.CONFIRMING.getCode(),
                 TypesettingStatus.IN_PROGRESS.getCode(),
-                TypesettingStatus.FAILED.getCode(),
-                TypesettingStatus.CONFIRM_IN_PROGRESS.getCode(),
-                TypesettingStatus.DISPATCH_IN_PROGRESS.getCode());
+                TypesettingStatus.LAYOUT_PROCESSING.getCode(),
+                TypesettingStatus.FAILED.getCode());
         List<TypesettingInfo> allTypesettingInfos = new ArrayList<>(
                 domainTypesettingService.findByStatusesFromPrimary(manufacturerMetaId, statuses, materialId));
 
@@ -1327,6 +1318,9 @@ public class AppTypesettingService {
                     throw new IllegalArgumentException("排版信息不存在：" + typesettingInfo.getId());
                 }
                 if (!Objects.equals(request.getManufacturerMetaId(), dbTypesettingInfo.getManufacturerMetaId())) throw new IllegalArgumentException("不能排版其他工厂的印版");
+                if (TypesettingStatus.isLayoutInProgress(dbTypesettingInfo.getStatus())) {
+                    throw new IllegalArgumentException("印版正在排版，暂不能用于排版：" + dbTypesettingInfo.getId());
+                }
                 if (TypesettingStatus.isFormeInProgress(dbTypesettingInfo.getStatus())) {
                     throw new IllegalArgumentException("印版正在确认或下发，暂不能用于排版：" + dbTypesettingInfo.getId());
                 }
@@ -1407,11 +1401,11 @@ public class AppTypesettingService {
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(ex.getMessage());
         }
-        return new ToLayoutPreparation(productionPieces, productionPieceTotalQuantities, typesettingInfos,
+        return new ToLayoutPreparation(productionPieces, typesettingInfos,
                 typesettingCells, haveBlood, isUrgent, commonProcedureFlow);
     }
 
-    private record ToLayoutPreparation(List<ProductionPiece> pieces, Map<String,Integer> totalQuantities,
+    private record ToLayoutPreparation(List<ProductionPiece> pieces,
             List<TypesettingInfo> layouts, List<TypesettingProductionPieceVO> cells,
             boolean haveBlood, boolean urgent, ProcedureFlow flow) { }
 
@@ -1444,13 +1438,6 @@ public class AppTypesettingService {
 
     private LayoutConfirmResult doToLayout(LayoutConfirmRequest request) {
         ToLayoutPreparation prepared = prepareToLayout(request, false);
-        List<ProductionPiece> productionPieces = prepared.pieces();
-        Map<String,Integer> productionPieceTotalQuantities = prepared.totalQuantities();
-        List<TypesettingInfo> typesettingInfos = prepared.layouts();
-        List<TypesettingProductionPieceVO> typesettingCells = prepared.cells();
-        boolean haveBlood = prepared.haveBlood(), isUrgent = prepared.urgent();
-        ProcedureFlow commonProcedureFlow = prepared.flow();
-        //记录id，供callback使用
         String cacheKey = generateTypesettingId(request.getManufacturerMetaId());
         try {
             String requestJson = JSON.toJSONString(request);
@@ -1458,23 +1445,59 @@ public class AppTypesettingService {
         } catch (Exception e) {
             return LayoutConfirmResult.failed("缓存请求数据失败：" + e.getMessage());
         }
-        // 5. 调用排版 API
+        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
+        TypesettingInfo typesettingInfo = createTypesettingInfo(request, prepared, cacheKey);
         NestingRequest nestingRequest;
         try {
-            nestingRequest = buildNestingRequest(request, cacheKey);
+            nestingRequest = RemoteGraphics.beforeFirstTask(() -> {
+                typesettingInfo.setStatus(TypesettingStatus.LAYOUT_PROCESSING.getCode());
+                TypesettingInfo saved = domainTypesettingService.addTypesetting(typesettingInfo);
+                typesettingInfo.setId(saved.getId());
+                typesettingInfo.setCreateTime(saved.getCreateTime());
+            }, () -> buildNestingRequest(request, cacheKey));
+
+            LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
+            mergeSourceProductionPieceMarks(prepared.pieces(), mergedMarks);
+            mergeSourceTypesettingMarks(prepared.layouts(), mergedMarks);
+            mergeMarkMapIncrementally(CaifuSeparatorMarkers.collect(nestingRequest), mergedMarks, "marker");
+            if (!mergedMarks.isEmpty()) {
+                typesettingInfo.setMarks(mergedMarks);
+            }
         } catch (Exception e) {
-            return LayoutConfirmResult.failed(e.getMessage());
+            String reason = resolveExceptionMessage(e);
+            if (typesettingInfo.getId() != null) {
+                markTypesettingsFailed(List.of(typesettingInfo), reason);
+            }
+            return LayoutConfirmResult.failed(reason);
         }
 
-        // 所有 toLayout 校验完成后立即占用来源数量，避免算法调用期间同一零件再次进入排版。
-        // 此处必须早于异步排版请求；后续请求重新读取零件时会看到“待排版”数量已经扣减。
-        Map<String, Integer> pieceReservations = productionPieces.stream()
+        List<TypesettingSourceCell> sourceCells = toSourceCells(request.getTypesettingCells());
+        try {
+            reserveToLayoutSources(prepared, cacheKey, request.getManufacturerMetaId());
+        } catch (RuntimeException e) {
+            if (typesettingInfo.getId() != null) {
+                markTypesettingsFailed(List.of(typesettingInfo), resolveExceptionMessage(e));
+            }
+            throw e;
+        }
+        typesettingInfo.setTypesettingCells(sourceCells);
+        persistAndSubmitTypesetting(typesettingInfo, nestingRequest, layoutMode);
+
+        LayoutConfirmResult result = new LayoutConfirmResult();
+        result.setSuccess(true);
+        result.setMessage("排版开始,耐心请等待");
+        return result;
+    }
+
+    private void reserveToLayoutSources(ToLayoutPreparation prepared, String typesettingId, String manufacturerMetaId) {
+        // 图形准备成功后再占用来源数量。排版处理中记录还没有正式占用来源。
+        Map<String, Integer> pieceReservations = prepared.pieces().stream()
                 .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
                 .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getQuantity,
                         Integer::sum, LinkedHashMap::new));
         if (pieceReservations.isEmpty()) {
             log.warn("toLayout未生成零件占用明细, typesettingId={}, sourceCellCount={}, manufacturerMetaId={}",
-                    cacheKey, typesettingCells.size(), request.getManufacturerMetaId());
+                    typesettingId, prepared.cells().size(), manufacturerMetaId);
         }
         try {
             long reservedCount = productionPieceService.reservePendingTypesettingQuantities(pieceReservations);
@@ -1483,11 +1506,11 @@ public class AppTypesettingService {
                         + pieceReservations.size() + "，实际占用=" + reservedCount);
             }
             log.info("toLayout零件占用成功, typesettingId={}, expected={}, matched={}, reservations={}",
-                    cacheKey, pieceReservations.size(), reservedCount, pieceReservations);
+                    typesettingId, pieceReservations.size(), reservedCount, pieceReservations);
         } catch (Exception e) {
             throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
         }
-        for (TypesettingInfo info : typesettingInfos) {
+        for (TypesettingInfo info : prepared.layouts()) {
             Integer quantity = info.getQuantity();
             if (quantity == null || quantity <= 0) {
                 continue;
@@ -1496,16 +1519,15 @@ public class AppTypesettingService {
             info.setLeaveQuantity(Math.max(leaveQuantity - quantity, 0));
             domainTypesettingService.updateTypesetting(info);
         }
+    }
 
-        // 6. 构建返回结果
-        LayoutConfirmResult result = new LayoutConfirmResult();
-        result.setSuccess(true);
-        result.setMessage("排版开始,耐心请等待");
-
-        //添加排版信息
+    private TypesettingInfo createTypesettingInfo(LayoutConfirmRequest request, ToLayoutPreparation prepared,
+                                                  String typesettingId) {
+        List<ProductionPiece> productionPieces = prepared.pieces();
+        List<TypesettingInfo> typesettingInfos = prepared.layouts();
+        ProcedureFlow commonProcedureFlow = prepared.flow();
         TypesettingInfo typesettingInfo = new TypesettingInfo();
-        typesettingInfo.setTypesettingId(cacheKey);
-        typesettingInfo.setElement(null);
+        typesettingInfo.setTypesettingId(typesettingId);
         List<String> materialConfigs = productionPieces.stream()
                 .map(ProductionPiece::getMaterialConfig)
                 .filter(Objects::nonNull)
@@ -1532,40 +1554,24 @@ public class AppTypesettingService {
         typesettingInfo.setProcessingFlow(commonProcessingFlow);
         typesettingInfo.setProcedureFlow(commonProcedureFlow);
         typesettingInfo.setManufacturerMetaId(request.getManufacturerMetaId());
-        typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
         typesettingInfo.setQuantity(1);
         typesettingInfo.setLeaveQuantity(1);
-        typesettingInfo.setIsUrgent(isUrgent);
-        typesettingInfo.setHaveBlood(haveBlood);
-        if (StringUtils.isNotBlank(request.getLayoutMode())) {
-            typesettingInfo.setLayoutMode(request.getLayoutMode());
-        } else if (!typesettingInfos.isEmpty()) {
-            typesettingInfo.setLayoutMode(typesettingInfos.get(0).getLayoutMode());
-        }
-        typesettingInfo.setTypesettingCells(toSourceCells(request.getTypesettingCells()));
-        TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
-        // 生产工件只要携带 marks，就会按特殊 element 参与排版；这里同步把来源 marks 汇总到新建的 typesettingInfo。
-        LinkedHashMap<String, String> mergedMarks = new LinkedHashMap<>();
-        mergeSourceProductionPieceMarks(productionPieces, mergedMarks);
-        mergeSourceTypesettingMarks(typesettingInfos, mergedMarks);
-        Map<String, String> markerMarks = CaifuSeparatorMarkers.collect(nestingRequest);
-        if (!markerMarks.isEmpty()) {
-            mergeMarkMapIncrementally(markerMarks, mergedMarks, "marker");
-        }
-        if (!mergedMarks.isEmpty()) {
-            typesettingInfo.setMarks(mergedMarks);
-        }
-        // 必须在提交异步任务前落库：大请求的 HTTP 提交本身也可能超时或失败，并且算法服务可能在
-        // 本次调用返回前完成回调。先保存任务既能为已占用的零件留下持久化凭据，也能确保回调
-        // 始终可以通过 typesettingId 找到对应记录。
-        persistAndSubmitTypesetting(typesettingInfo, nestingRequest, layoutMode);
-        return result;
+        typesettingInfo.setIsUrgent(prepared.urgent());
+        typesettingInfo.setHaveBlood(prepared.haveBlood());
+        typesettingInfo.setLayoutMode(request.getLayoutMode());
+        return typesettingInfo;
     }
 
     void persistAndSubmitTypesetting(TypesettingInfo typesettingInfo,
                                      NestingRequest nestingRequest,
                                      TypesettingLayoutMode layoutMode) {
-        domainTypesettingService.addTypesetting(typesettingInfo);
+        // 排版回调可能早于提交返回，先落库状态和来源明细。
+        typesettingInfo.setStatus(TypesettingStatus.IN_PROGRESS.getCode());
+        if (typesettingInfo.getId() == null) {
+            domainTypesettingService.addTypesetting(typesettingInfo);
+        } else {
+            domainTypesettingService.updateTypesetting(typesettingInfo);
+        }
         switch (layoutMode.getLayoutCategory()) {
             case "grid_typesetting":
                 algorithmCoreApiService.generateGridNestedFilesAsync(nestingRequest);
@@ -4216,7 +4222,7 @@ public class AppTypesettingService {
                 continue;
             }
             TypesettingInfo info = domainTypesettingService.findById(typesettingId);
-            if (info != null && TypesettingStatus.IN_PROGRESS.getCode().equals(info.getStatus())) {
+            if (info != null && TypesettingStatus.isLayoutInProgress(info.getStatus())) {
                 throw new BusinessNotAllowException(ApiResponse.RepStatusCode.badParams,
                         "存在排版中的印版，不允许释放");
             }
@@ -4435,6 +4441,11 @@ public class AppTypesettingService {
         TypesettingInfo info = domainTypesettingService.findById(typesettingId);
         if (info == null || StringUtils.isBlank(info.getId())) {
             errorMessages.add("排版记录不存在: " + typesettingId);
+            visitingIds.remove(typesettingId);
+            return;
+        }
+        if (TypesettingStatus.isLayoutInProgress(info.getStatus())) {
+            errorMessages.add("印版正在排版，无法完全释放: " + typesettingId);
             visitingIds.remove(typesettingId);
             return;
         }

@@ -3,16 +3,41 @@ package com.mes.application.command.graphics;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
 import java.util.*;
+import java.util.function.Supplier;
 
 /** Rendering is permitted only inside a bounded, persistent background workflow. */
 public final class RemoteGraphics {
     private RemoteGraphics(){}
-    public record Scope(ImgUtilClient client,String workflowId){}
+    private record Scope(ImgUtilClient client, String workflowId, Runnable beforeFirstTask) {}
     private static final ThreadLocal<Scope> CURRENT=new ThreadLocal<>();
     public static boolean active(){return CURRENT.get()!=null;}
-    public static void enter(ImgUtilClient client,String id){if(active())throw new IllegalStateException("图形上下文重复进入");CURRENT.set(new Scope(client,id));}
+    public static void enter(ImgUtilClient client,String id){if(active())throw new IllegalStateException("图形上下文重复进入");CURRENT.set(new Scope(client,id,null));}
     public static void exit(){CURRENT.remove();}
-    private static Scope current(){Scope value=CURRENT.get();if(value==null)throw new IllegalStateException("图形操作必须在异步工作流中执行");return value;}
+
+    public static <T> T beforeFirstTask(Runnable listener, Supplier<T> operation) {
+        Scope scope = CURRENT.get();
+        if (scope == null) {
+            return operation.get();
+        }
+        CURRENT.set(new Scope(scope.client(), scope.workflowId(), listener));
+        try {
+            return operation.get();
+        } finally {
+            CURRENT.set(scope);
+        }
+    }
+
+    private static Scope current() {
+        Scope scope = CURRENT.get();
+        if (scope == null) {
+            throw new IllegalStateException("图形操作必须在异步工作流中执行");
+        }
+        if (scope.beforeFirstTask() != null) {
+            CURRENT.set(new Scope(scope.client(), scope.workflowId(), null));
+            scope.beforeFirstTask().run();
+        }
+        return scope;
+    }
     public static RemoteImage image(String operation,Map<String,Object> parameters){var scope=current();return scope.client().render(scope.workflowId(),operation,parameters);}
     public static RemoteImage png(String operation,Map<String,Object> parameters){return image(operation,parameters);}
     public static String svg(String operation,Map<String,Object> parameters){var scope=current();return scope.client().svg(scope.workflowId(),operation,parameters);}

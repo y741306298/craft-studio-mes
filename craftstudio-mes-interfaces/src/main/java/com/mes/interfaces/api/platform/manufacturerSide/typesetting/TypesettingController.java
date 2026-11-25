@@ -144,7 +144,7 @@ public class TypesettingController {
         query.setRouteId(routeId);
         query.setCurrent(current);
         query.setSize(size);
-        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPiecesByCondition(query);
+        TypesettingPiecesQueryResult result = appTypesettingService.findTypesettingAndProductionPieces(query);
         List<TypesettingProductionPieceVO> items = new ArrayList<>((List<TypesettingProductionPieceVO>) result.getPagedResult().items());
         sanitizeProcedureFlow(items);
         TypesettingAndProductionPiecesResponse response = new TypesettingAndProductionPiecesResponse(
@@ -157,7 +157,7 @@ public class TypesettingController {
 
 
     /**
-     * 分页查询待确认、排版中、处理失败、确认中和下发中的排版信息。
+     * 分页查询排版处理中、排版中、待确认及处理失败的排版信息。
      *
      * @param manufacturerMetaId 厂商元数据ID
      * @param typesettingId 排版编号（支持模糊匹配）
