@@ -1,5 +1,6 @@
 package com.mes.application.command.graphics;
 
+import com.alibaba.fastjson2.JSON;
 import com.mes.application.command.orderPreprocessing.AppOrderPreprocessingService;
 import com.mes.application.command.productionPiece.AppProductionPieceService;
 import com.mes.application.command.typesetting.AppTypesettingService;
@@ -13,6 +14,7 @@ import com.mes.domain.shared.graphics.GraphicsWorkflow;
 import com.mes.infra.dal.graphics.GraphicsWorkflowRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.ObjectProvider;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,6 +72,25 @@ class GraphicsWorkflowServiceTest {
     private TypesettingInfo storedLayout(String id) {
         var info=new TypesettingInfo();info.setId(id);info.setManufacturerMetaId("factory");when(domainLayouts.findById(id)).thenReturn(info);return info;
     }
+    @Test
+    void workflowAcceptsTenMebibytesButRejectsOneMoreByte() {
+        var input = new LinkedHashMap<>(Map.of("manufacturerMetaId", "factory", "padding", ""));
+        int remaining = 10 * 1024 * 1024 - JSON.toJSONString(input).getBytes(StandardCharsets.UTF_8).length;
+        String padding = "图".repeat(remaining / 3) + "a".repeat(remaining % 3);
+        input.put("padding", padding);
+        when(repository.insert(anyString(), eq("factory"), eq("TO_LAYOUT"), anyString(), anyString(), anyString()))
+                .thenAnswer(call -> job("TO_LAYOUT", call.getArgument(4)));
+
+        var accepted = service.submit("TO_LAYOUT", input, "size-limit");
+
+        assertEquals(10 * 1024 * 1024, accepted.payload().getBytes(StandardCharsets.UTF_8).length);
+        input.put("padding", padding + "a");
+        var error = assertThrows(IllegalArgumentException.class, () -> service.submit("TO_LAYOUT", input, "too-large"));
+        assertEquals("图形工作流输入超过 10MiB", error.getMessage());
+        verify(repository, times(1)).insert(anyString(), eq("factory"), eq("TO_LAYOUT"),
+                anyString(), anyString(), anyString());
+    }
+
     @Test void oversizedLayoutIsRejectedBeforePersistingOrRendering(){
         doThrow(new IllegalArgumentException("PP-test零件的尺寸大于所选规格，不能排版")).when(layouts).validateToLayoutRequest(any());
         assertThrows(IllegalArgumentException.class,()->service.submit("TO_LAYOUT",Map.of("manufacturerMetaId","factory"),null));

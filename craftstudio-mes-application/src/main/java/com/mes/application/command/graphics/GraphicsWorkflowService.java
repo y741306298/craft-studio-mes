@@ -29,6 +29,7 @@ import java.util.concurrent.*;
 @Service
 public class GraphicsWorkflowService {
     private static final Logger log=LoggerFactory.getLogger(GraphicsWorkflowService.class);
+    private static final int MAX_PAYLOAD_MIB = 10;
     private final GraphicsWorkflowRepository repository;
     private final ImgUtilClient client;
     private final ObjectProvider<AppTypesettingService> typesetting;
@@ -52,7 +53,10 @@ public class GraphicsWorkflowService {
     public synchronized GraphicsWorkflow submit(String kind,Object input,String requestId){
         if (!Set.of("TO_LAYOUT", "CONFIRM_LAYOUT", "CONFIRM_PRINT", "BATCH_LAYOUT", "BATCH_PRINT", "REDO", "BATCH_REDO", "PREPROCESS", "MASK_CALLBACK", "NESTING_CALLBACK").contains(kind == null ? "" : kind)) throw new IllegalArgumentException("未知图形工作流类型");
         if (input == null) throw new IllegalArgumentException("图形工作流参数不能为空");
-        String payload=JSON.toJSONString(input);if(payload.getBytes(StandardCharsets.UTF_8).length>1048576)throw new IllegalArgumentException("图形工作流输入超过 1MiB");
+        String payload = JSON.toJSONString(input);
+        if (payload.getBytes(StandardCharsets.UTF_8).length > MAX_PAYLOAD_MIB * 1024 * 1024) {
+            throw new IllegalArgumentException("图形工作流输入超过 " + MAX_PAYLOAD_MIB + "MiB");
+        }
         JSONObject p=JSON.parseObject(payload);
         String batchField = switch (kind) { case "BATCH_LAYOUT" -> "typesettingInfos"; case "BATCH_PRINT" -> "requests"; case "BATCH_REDO" -> "pieces"; default -> null; };
         if (batchField != null) {
