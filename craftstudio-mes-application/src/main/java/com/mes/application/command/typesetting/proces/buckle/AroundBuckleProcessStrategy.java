@@ -123,7 +123,7 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
         }
         Blood blood = piece == null ? null : piece.getBlood();
         addBleedSidesFromBlood(bleedSides, blood);
-        bleedSides.addAll(resolveBleedSidesFromSequence(piece, blood));
+        bleedSides.addAll(resolveBleedSidesFromSequence(piece, procedureFlow, blood));
         return bleedSides;
     }
 
@@ -154,17 +154,17 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
     /**
      * 按分片顺序推断被出血边。
      *
-     * <p>blood.y 为 0 时代表竖切，分片沿左右方向相邻，按原有左右边补充；blood.x 为 0 时代表横切，
-     * 分片沿上下方向相邻，需要按上下边补充，避免横切场景继续套用竖切的左右边逻辑。</p>
+     * <p>横切分片沿上下方向相邻，竖切分片沿左右方向相邻。</p>
      */
-    private Set<BuckleEdge> resolveBleedSidesFromSequence(ProductionPiece piece, Blood blood) {
+    private Set<BuckleEdge> resolveBleedSidesFromSequence(ProductionPiece piece, ProcedureFlow procedureFlow, Blood blood) {
         Set<BuckleEdge> bleedSides = EnumSet.noneOf(BuckleEdge.class);
         Integer currentSeq = piece == null ? null : piece.getSeq();
         Integer maxSeq = piece == null ? null : extractMaxSeqInGroup(piece.getGroup());
         if (currentSeq == null || maxSeq == null || maxSeq <= 0) {
             return bleedSides;
         }
-        BuckleEdge firstCoveredEdge = resolveFirstCoveredEdge(blood);
+        BuckleEdge firstCoveredEdge = SpliceProcessStrategies.isHorizontalCut(procedureFlow, blood)
+                ? BuckleEdge.BOTTOM : BuckleEdge.RIGHT;
         BuckleEdge lastCoveredEdge = oppositeEdge(firstCoveredEdge);
         if (currentSeq == 1 || (currentSeq > 1 && currentSeq < maxSeq)) {
             bleedSides.add(firstCoveredEdge);
@@ -173,13 +173,6 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
             bleedSides.add(lastCoveredEdge);
         }
         return bleedSides;
-    }
-
-    private BuckleEdge resolveFirstCoveredEdge(Blood blood) {
-        if (blood != null && isZero(blood.getX()) && isNonZero(blood.getY())) {
-            return BuckleEdge.BOTTOM;
-        }
-        return BuckleEdge.RIGHT;
     }
 
     private BuckleEdge oppositeEdge(BuckleEdge edge) {
@@ -194,14 +187,6 @@ public class AroundBuckleProcessStrategy extends AbstractBuckleProcessStrategy {
             default:
                 return BuckleEdge.LEFT;
         }
-    }
-
-    private boolean isZero(Integer value) {
-        return value != null && value == 0;
-    }
-
-    private boolean isNonZero(Integer value) {
-        return value != null && value != 0;
     }
 
     private boolean hasSpliceProcedureNode(ProductionPiece piece) {

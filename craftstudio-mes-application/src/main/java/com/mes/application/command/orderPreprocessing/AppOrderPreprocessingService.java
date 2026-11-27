@@ -117,7 +117,6 @@ public class AppOrderPreprocessingService {
             cancelledOrderItemIds.removeAll(orderItemIds);
         }
     }
-    private static final Set<String> MARKLESS_SPLICE_NODE_NAMES = Set.of("写真拼接", "无痕拼接", "板材拼接");
     private static final String MASK_CALLBACK_LOCK_PREFIX = "orderPreprocessing:maskCallback:lock:";
     private static final String MASK_CALLBACK_COMPLETED_PREFIX = "orderPreprocessing:maskCallback:completed:";
     private static final long MASK_CALLBACK_LOCK_EXPIRE_MINUTES = 30;
@@ -1467,15 +1466,10 @@ public class AppOrderPreprocessingService {
                             blood.setY(sideResult.getBlood().getY());
                             piece.setBlood(blood);
                         }
-                        // 写真/无痕/板材拼接只保留算法返回的拼接结果，不生成或写入任何 mark。
-                        if (isMarklessSpliceFlow(newProcedureFlow)) {
-                            piece.setMarks(null);
-                        } else {
-                            // 其他拼接路线先写入拼接 mark，再按工艺执行打扣与留白。
-                            applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece,
-                                    rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
-                            applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
-                        }
+                        // 先处理拼接标识，再按订单工艺执行留白与打扣。
+                        applySpliceProcessForStrategy(orderItem, newProcedureFlow, piece,
+                                rawGroup == null ? null : groupToFirstSeqBlood.get(rawGroup));
+                        applyBuckleAndLiubaiProcessForStrategy(orderItem, newProcedureFlow, piece, true);
                         ImageMaskResponse.SideResult mirrorResult = pair.getMirror();
                         if (mirrorResult != null) {
                             MirrorConfig mirrorConfig = new MirrorConfig();
@@ -1619,9 +1613,6 @@ public class AppOrderPreprocessingService {
      * @param skipBloodEdges 是否根据出血边跳过留白外扩
      */
     public void applyBuckleAndLiubaiProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, boolean skipBloodEdges) {
-        if (isMarklessSpliceFlow(procedureFlow)) {
-            return;
-        }
         if (hasNodeWithName(procedureFlow, "画内打扣")) {
             applyFourCornerBuckleProcessForStrategy(orderItem, procedureFlow, piece);
             applyLiubaiProcessForStrategy(orderItem, procedureFlow, piece, skipBloodEdges);
@@ -1638,20 +1629,12 @@ public class AppOrderPreprocessingService {
      * 因此可在落库前直接把出血边黑白条、被出血边 group 文本与条纹写入 mask SVG。</p>
      */
     public void applySpliceProcessForStrategy(OrderItem orderItem, ProcedureFlow procedureFlow, ProductionPiece piece, Blood firstSeqBlood) {
-        if (isMarklessSpliceFlow(procedureFlow) || superWidthSpliceProcessService == null
+        if (superWidthSpliceProcessService == null
                 || orderItem == null || procedureFlow == null || piece == null
                 || piece.getSeq() == null || StringUtils.isBlank(piece.getGroup())) {
             return;
         }
         superWidthSpliceProcessService.process(orderItem, procedureFlow, piece, firstSeqBlood);
-    }
-
-    static boolean isMarklessSpliceFlow(ProcedureFlow procedureFlow) {
-        return procedureFlow != null && procedureFlow.getNodes() != null
-                && procedureFlow.getNodes().stream()
-                .filter(Objects::nonNull)
-                .map(ProcedureFlowNode::getNodeName)
-                .anyMatch(MARKLESS_SPLICE_NODE_NAMES::contains);
     }
 
     /**

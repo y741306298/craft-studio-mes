@@ -4,9 +4,9 @@ import com.mes.application.command.api.vo.CallbackConfig;
 import com.mes.application.command.api.vo.UploadConfig;
 import com.mes.application.command.orderPreprocessing.splice.AlgorithmSpliceProcessStrategy;
 import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies.SpliceCoordinates;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
-import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageFile;
 import com.piliofpala.craftstudio.shared.domain.file.vo.ImageProperties;
 import lombok.Data;
@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Data
 public class ImageMaskRequest {
@@ -127,10 +128,6 @@ public class ImageMaskRequest {
                 ? SpliceProcessStrategies.defaults()
                 : spliceStrategies;
 
-        Slice slice = new Slice();
-        List<Coordinate> xs = new ArrayList<>();
-        List<Coordinate> ys = new ArrayList<>();
-
         // 多个拼接工艺同时存在时，只把工艺流中最后一个拼接节点转换成算法 slice。
         ProcedureFlowNode node = SpliceProcessStrategies.findLastSpliceNode(processingNodes, effectiveStrategies).orElse(null);
         AlgorithmSpliceProcessStrategy matchedStrategy = node == null ? null : effectiveStrategies.stream()
@@ -140,67 +137,23 @@ public class ImageMaskRequest {
         if (matchedStrategy == null) {
             return null;
         }
-        List<MTOProductSpecDTO.ProcessParamConfigDTO> paramConfigs = node.getParamConfigs();
-        if (paramConfigs != null) {
-            for (MTOProductSpecDTO.ProcessParamConfigDTO config : paramConfigs) {
-                if (config == null) {
-                    continue;
-                }
-                Object paramValue = config.getParam();
-                resolveCoordinates(paramValue, xs, ys, orderItem, rawImage, matchedStrategy);
-            }
+        SpliceCoordinates coordinates = SpliceProcessStrategies.coordinates(node);
+        if (coordinates.xs().isEmpty() && coordinates.ys().isEmpty()) {
+            return null;
         }
 
-        if (!xs.isEmpty()) {
-            slice.setXs(xs);
+        Slice slice = new Slice();
+        if (!coordinates.xs().isEmpty()) {
+            slice.setXs(coordinates.xs().stream()
+                    .map(value -> buildCoordinate(value, matchedStrategy, "xs", orderItem, rawImage))
+                    .collect(Collectors.toCollection(ArrayList::new)));
         }
-        if (!ys.isEmpty()) {
-            slice.setYs(ys);
+        if (!coordinates.ys().isEmpty()) {
+            slice.setYs(coordinates.ys().stream()
+                    .map(value -> buildCoordinate(value, matchedStrategy, "ys", orderItem, rawImage))
+                    .collect(Collectors.toCollection(ArrayList::new)));
         }
-
-        return (!xs.isEmpty() || !ys.isEmpty()) ? slice : null;
-    }
-
-    private static void resolveCoordinates(Object paramValue,
-                                           List<Coordinate> xs,
-                                           List<Coordinate> ys,
-                                           OrderItem orderItem,
-                                           RawImage rawImage,
-                                           AlgorithmSpliceProcessStrategy spliceStrategy) {
-        if (paramValue == null) {
-            return;
-        }
-
-        if (paramValue instanceof Map<?, ?> mapValue) {
-            addCoordinatesFromList(mapValue.get("xs"), xs, spliceStrategy, "xs", orderItem, rawImage);
-            addCoordinatesFromList(mapValue.get("ys"), ys, spliceStrategy, "ys", orderItem, rawImage);
-            return;
-        }
-
-        if (paramValue instanceof List<?> coordinates) {
-            for (int i = 0; i < coordinates.size(); i += 2) {
-                if (i + 1 < coordinates.size()) {
-                    xs.add(buildCoordinate(coordinates.get(i), spliceStrategy, "xs", orderItem, rawImage));
-                    ys.add(buildCoordinate(coordinates.get(i + 1), spliceStrategy, "ys", orderItem, rawImage));
-                }
-            }
-            return;
-        }
-
-        // 兜底：参数可能是 ProcessParamDTO 等对象，尝试通过 getter 反射获取 xs/ys
-        Object xsValue = invokeGetter(paramValue, "getXs");
-        Object ysValue = invokeGetter(paramValue, "getYs");
-        addCoordinatesFromList(xsValue, xs, spliceStrategy, "xs", orderItem, rawImage);
-        addCoordinatesFromList(ysValue, ys, spliceStrategy, "ys", orderItem, rawImage);
-    }
-
-    private static void addCoordinatesFromList(Object listObj, List<Coordinate> target, AlgorithmSpliceProcessStrategy spliceStrategy, String axis, OrderItem orderItem, RawImage rawImage) {
-        if (!(listObj instanceof List<?> values)) {
-            return;
-        }
-        for (Object value : values) {
-            target.add(buildCoordinate(value, spliceStrategy, axis, orderItem, rawImage));
-        }
+        return slice;
     }
 
     private static Coordinate buildCoordinate(Object rawValue, AlgorithmSpliceProcessStrategy spliceStrategy, String axis, OrderItem orderItem, RawImage rawImage) {

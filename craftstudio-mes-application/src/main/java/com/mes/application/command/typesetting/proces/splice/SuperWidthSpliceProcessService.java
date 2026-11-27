@@ -2,8 +2,9 @@ package com.mes.application.command.typesetting.proces.splice;
 
 import com.mes.application.command.graphics.RemoteGraphics;
 import com.mes.application.command.graphics.RemotePieceGraphics;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies;
+import com.mes.application.command.orderPreprocessing.splice.SpliceProcessStrategies.SpliceCoordinates;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
-import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
 import com.mes.domain.manufacturer.productionPiece.entity.Blood;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.order.orderInfo.entity.OrderItem;
@@ -17,7 +18,6 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -31,8 +31,8 @@ import java.util.regex.Pattern;
 /**
  * 拼接回调预处理服务。
  *
- * <p>在蒙版算法 callback 创建 {@link ProductionPiece} 后、生产工件落库前运行，直接把超幅/背胶/覆板/喷绘拼接的
- * 出血边/被出血边标识写入当前工件 mask SVG，并回写 {@code productionPiece.marks}。这样后续
+ * <p>在蒙版算法 callback 创建 {@link ProductionPiece} 后、生产工件落库前运行，按拼接工艺将
+ * 出血边和被出血边标识写入当前工件 mask SVG，并回写 {@code productionPiece.marks}。这样后续
  * toLayout 会像留白/打扣预处理后的工件一样，把该工件作为带 marks 的 forme 元素提交排版。</p>
  */
 @Slf4j
@@ -126,12 +126,7 @@ public class SuperWidthSpliceProcessService {
             return null;
         }
         // 多个拼接工艺同时存在时，只使用工艺流中最后一个拼接策略生成 callback 标识。
-        return procedureFlow.getNodes().stream()
-                .filter(node -> node != null)
-                .filter(node -> resolveConfigByNodeName(node.getNodeName()) != null)
-                .max(Comparator
-                        .comparingInt((ProcedureFlowNode node) -> node.getNodeOrder() == null ? Integer.MIN_VALUE : node.getNodeOrder())
-                        .thenComparingInt(procedureFlow.getNodes()::indexOf))
+        return SpliceProcessStrategies.findLastSpliceNode(procedureFlow)
                 .map(node -> resolveConfigByNodeName(node.getNodeName()))
                 .orElse(null);
     }
@@ -295,7 +290,7 @@ public class SuperWidthSpliceProcessService {
      * 拼接自身标识的出血/被出血边判断。
      *
      * <p>这里只影响拼接标识放置，不改变留白/打扣策略对 blood 的既有解析逻辑。
-     * 切割方向只以同组 seq=1 工件的 blood 为准：x!=0,y=0 表示拼接缝在左右方向，按左右边处理；x=0,y!=0 表示拼接缝在上下方向，按上下边处理。
+     * 切割方向优先取同组首片回写的出血坐标。出血坐标无法确定方向时，按工艺配置的切线处理。
      * 由于调用抠图接口时拼接 blood 统一改为负数，竖切时算法侧出血边变为左边、被出血边变为右边；
      * 横切时算法侧出血边变为上边、被出血边变为下边；
      * 因此首片只有被出血边，尾片只有出血边，中间片同时具备两类边。</p>
@@ -311,7 +306,7 @@ public class SuperWidthSpliceProcessService {
 
         SpliceCutDirection cutDirection = resolveCutDirection(firstSeqBlood);
         if (cutDirection == SpliceCutDirection.UNKNOWN) {
-            cutDirection = resolveCutDirection(procedureFlow, processConfig);
+            cutDirection = resolveCutDirection(procedureFlow);
         }
         if (cutDirection == SpliceCutDirection.UNKNOWN) {
             return new SpliceEdges(bleedEdges, coveredEdges);
@@ -349,26 +344,15 @@ public class SuperWidthSpliceProcessService {
         return SpliceCutDirection.UNKNOWN;
     }
 
-    private SpliceCutDirection resolveCutDirection(ProcedureFlow procedureFlow, SpliceProcessConfig processConfig) {
-        if (procedureFlow == null || procedureFlow.getNodes() == null || processConfig == null) {
+    private SpliceCutDirection resolveCutDirection(ProcedureFlow procedureFlow) {
+        SpliceCoordinates coordinates = SpliceProcessStrategies.findLastSpliceNode(procedureFlow)
+                .map(SpliceProcessStrategies::coordinates)
+                .orElse(null);
+        if (coordinates == null) {
             return SpliceCutDirection.UNKNOWN;
         }
-        boolean hasXs = false;
-        boolean hasYs = false;
-        for (ProcedureFlowNode node : procedureFlow.getNodes()) {
-            if (node == null || !processConfig.nodeName.equals(node.getNodeName()) || node.getParamConfigs() == null) {
-                continue;
-            }
-            for (com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
-                Object param = config == null ? null : config.getParam();
-                if (param instanceof Map) {
-                    Object xs = ((Map<?, ?>) param).get("xs");
-                    Object ys = ((Map<?, ?>) param).get("ys");
-                    hasXs = hasXs || (xs instanceof Iterable && ((Iterable<?>) xs).iterator().hasNext());
-                    hasYs = hasYs || (ys instanceof Iterable && ((Iterable<?>) ys).iterator().hasNext());
-                }
-            }
-        }
+        boolean hasXs = !coordinates.xs().isEmpty();
+        boolean hasYs = !coordinates.ys().isEmpty();
         if (hasXs && hasYs) {
             return SpliceCutDirection.BOTH;
         }

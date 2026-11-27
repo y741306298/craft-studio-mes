@@ -2,18 +2,17 @@ package com.mes.application.command.orderPreprocessing.splice;
 
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlow;
 import com.mes.domain.manufacturer.procedureFlow.entity.ProcedureFlowNode;
+import com.mes.domain.manufacturer.productionPiece.entity.Blood;
+import com.piliofpala.craftstudio.shared.application.product.mtoproduct.dto.MTOProductSpecDTO;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/**
- * 拼接工艺策略集合。
- *
- * <p>算法调用前统一从这里识别所有会生成 {@code slice} 的拼接工艺；
- * 后续若要扩展算法回调后的处理，可在同包增加后处理策略集合，保持前后处理职责独立。</p>
- */
+/** 订单预处理中使用的拼接工艺策略和切线参数。 */
 public final class SpliceProcessStrategies {
     private static final List<AlgorithmSpliceProcessStrategy> DEFAULT_STRATEGIES = List.of(
             new SuperWidthSpliceProcessStrategy(),
@@ -61,6 +60,67 @@ public final class SpliceProcessStrategies {
 
     public static Optional<AlgorithmSpliceProcessStrategy> findLastStrategy(ProcedureFlow procedureFlow) {
         return findLastSpliceNode(procedureFlow).flatMap(SpliceProcessStrategies::findByNode);
+    }
+
+    /** 回调的出血坐标缺失或均为零时，使用拼接工艺配置的切线判定横切。 */
+    public static boolean isHorizontalCut(ProcedureFlow procedureFlow, Blood blood) {
+        Integer x = blood == null ? null : blood.getX();
+        Integer y = blood == null ? null : blood.getY();
+        if ((x != null && x != 0) || (y != null && y != 0)) {
+            return Integer.valueOf(0).equals(x) && y != null && y != 0;
+        }
+        return findLastSpliceNode(procedureFlow)
+                .map(SpliceProcessStrategies::coordinates)
+                .map(coordinates -> coordinates.xs().isEmpty() && !coordinates.ys().isEmpty())
+                .orElse(false);
+    }
+
+    public static SpliceCoordinates coordinates(ProcedureFlowNode node) {
+        List<Object> xs = new ArrayList<>();
+        List<Object> ys = new ArrayList<>();
+        if (node != null && node.getParamConfigs() != null) {
+            for (MTOProductSpecDTO.ProcessParamConfigDTO config : node.getParamConfigs()) {
+                if (config != null) {
+                    collectCoordinates(config.getParam(), xs, ys);
+                }
+            }
+        }
+        return new SpliceCoordinates(xs, ys);
+    }
+
+    private static void collectCoordinates(Object param, List<Object> xs, List<Object> ys) {
+        if (param == null) {
+            return;
+        }
+        if (param instanceof Map<?, ?> map) {
+            addCoordinates(xs, map.get("xs"));
+            addCoordinates(ys, map.get("ys"));
+        } else if (param instanceof List<?> pairs) {
+            for (int i = 0; i + 1 < pairs.size(); i += 2) {
+                xs.add(pairs.get(i));
+                ys.add(pairs.get(i + 1));
+            }
+        } else {
+            addCoordinates(xs, getCoordinates(param, "getXs"));
+            addCoordinates(ys, getCoordinates(param, "getYs"));
+        }
+    }
+
+    private static void addCoordinates(List<Object> target, Object value) {
+        if (value instanceof List<?> values) {
+            target.addAll(values);
+        }
+    }
+
+    private static Object getCoordinates(Object param, String getterName) {
+        try {
+            return param.getClass().getMethod(getterName).invoke(param);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    public record SpliceCoordinates(List<Object> xs, List<Object> ys) {
     }
 
     public static Optional<AlgorithmSpliceProcessStrategy> findByNode(ProcedureFlowNode node) {
