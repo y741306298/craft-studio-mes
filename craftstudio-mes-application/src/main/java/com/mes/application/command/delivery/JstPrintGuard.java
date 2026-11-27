@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -18,9 +19,21 @@ public class JstPrintGuard {
     static final String AUTH_LOCK_KEY = "gatherPlatform:JST:smsAuthRequired";
     static final String OPERATION_KEY = "gatherPlatform:JST:printOperation";
     public static final String AUTH_REQUIRED_MESSAGE = "聚水潭打印已锁定，请联系客服校验身份";
+    private static final List<String> LOCK_KEYS = List.of(OPERATION_KEY, AUTH_LOCK_KEY);
     private static final DefaultRedisScript<Long> RELEASE = new DefaultRedisScript<>(
             "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
             Long.class);
+    // 强制解锁后，先前的打印或校验请求可能仍在执行。
+    private static final DefaultRedisScript<Long> UPDATE_AUTH_LOCK = new DefaultRedisScript<>("""
+            if redis.call('get', KEYS[1]) ~= ARGV[1] then
+                return 0
+            end
+            if ARGV[2] == 'required' then
+                redis.call('set', KEYS[2], 'required')
+                return 1
+            end
+            return redis.call('del', KEYS[2])
+            """, Long.class);
     private final RedisTemplate<String, Object> redisTemplate;
 
     public JstPrintGuard(RedisTemplate<String, Object> redisTemplate) {
@@ -60,7 +73,7 @@ public class JstPrintGuard {
                 return operation.run();
             } catch (SmsCodeRequiredAuthException exception) {
                 // 仅直接捕获验证码异常时加锁，其他异常原样传播。
-                redisTemplate.opsForValue().set(AUTH_LOCK_KEY, "required");
+                redisTemplate.execute(UPDATE_AUTH_LOCK, LOCK_KEYS, token, "required");
                 throw exception;
             }
         } finally {
@@ -68,25 +81,20 @@ public class JstPrintGuard {
         }
     }
 
-    /** 校验失败时保留身份锁；仅在上游校验成功后删除。 */
+    /** 上游校验成功后，由操作锁的当前持有者删除身份锁。 */
     public void authenticate(String smsCode) throws AuthException {
         String token = acquireOperation();
         try {
             WebSimulator.getLoggedInstance().obtainAuthSid(smsCode);
-            redisTemplate.delete(AUTH_LOCK_KEY);
+            redisTemplate.execute(UPDATE_AUTH_LOCK, LOCK_KEYS, token, "clear");
         } finally {
             releaseOperation(token);
         }
     }
 
-    /** 配置端手动解除身份锁；与打印及验证码校验串行执行。 */
+    /** 配置端强制清除 JST 操作锁和身份锁。 */
     public void unlockSmsAuth() {
-        String token = acquireOperation();
-        try {
-            redisTemplate.delete(AUTH_LOCK_KEY);
-        } finally {
-            releaseOperation(token);
-        }
+        redisTemplate.delete(LOCK_KEYS);
     }
 
     public static boolean requiresSmsAuth(Throwable exception) {

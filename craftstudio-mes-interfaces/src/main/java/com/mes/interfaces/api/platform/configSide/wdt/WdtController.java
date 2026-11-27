@@ -43,7 +43,7 @@ public class WdtController {
         return ApiResponse.success();
     }
 
-    /** 直接解除聚水潭身份校验锁，无需提交短信验证码。 */
+    /** 强制清除聚水潭身份锁和操作互斥锁。 */
     @PostMapping("/unlockJstSmsAuth")
     public ApiResponse<String> unlockJstSmsAuth() {
         jstPrintGuard.unlockSmsAuth();

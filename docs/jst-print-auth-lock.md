@@ -49,13 +49,15 @@
 
 解锁不会自动重放失败的 addPkg 或人工复打请求，调用方需重新提交；待处理预打印任务在后续定时批次恢复。
 
-### 3. 直接解除身份校验锁
+### 3. 强制清除身份锁和操作互斥锁
 
 `POST /api/configSide/wdt/unlockJstSmsAuth`
 
 无需参数或请求体，沿用 configSide 权限。也可通过 `/api/configSide/gather-platform/logistics-config/unlockJstSmsAuth` 调用。
 
-直接删除身份锁，不调用上游验证码校验；锁不存在时仍返回成功。与 JST 打印、重试及验证码校验共用操作互斥，忙时返回 HTTP 423。成功响应与 smsCodeAuth 相同；待处理预打印任务由后续定时批次恢复。
+接口一次删除 `gatherPlatform:JST:smsAuthRequired` 和 `gatherPlatform:JST:printOperation`。任一锁被占用或不存在时均可执行。成功响应与 `smsCodeAuth` 相同，待处理预打印任务由后续定时批次恢复。
+
+强制解锁后，已经发出的 JST 请求可以继续执行，新请求也可以获取操作锁。原操作失去操作锁后无法修改身份锁或释放新请求的操作锁。新的 JST 请求再次收到验证码异常时，MES 会重新设置身份锁。
 
 ## 验证
 
