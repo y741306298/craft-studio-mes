@@ -14,6 +14,7 @@ import com.mes.application.command.typesetting.vo.LayoutConfirmResult;
 import com.mes.application.command.typesetting.vo.TypesettingProductionPieceVO;
 import com.mes.application.dto.req.typesetting.*;
 import com.mes.domain.manufacturer.procedureFlow.entity.*;
+import com.mes.domain.manufacturer.productionPiece.entity.PieceQuantityTransfer;
 import com.mes.domain.manufacturer.productionPiece.entity.ProductionPiece;
 import com.mes.domain.manufacturer.productionPiece.service.ProductionPieceService;
 import com.mes.domain.manufacturer.typesetting.entity.TypesettingInfo;
@@ -66,6 +67,7 @@ class GraphicsPreflightTest {
         String before=JSON.toJSONString(request);
         service.validateToLayoutRequest(request);
         assertEquals(before,JSON.toJSONString(request));assertEquals(5,piece.getQuantity());
+        verify(pieces, never()).reservePendingTypesettingQuantities(anyMap());
         verifyNoInteractions(algorithms,redis);
     }
     @Test void readOnlyCheckDoesNotApplyContainerInsetTwice() {
@@ -118,18 +120,12 @@ class GraphicsPreflightTest {
         ImgUtilClient imgUtil = mock(ImgUtilClient.class);
         when(imgUtil.svg("workflow", "NESTING_MARKER_SVG", Map.of())).thenAnswer(invocation -> {
             assertEquals("layout_processing", record.get().getStatus());
+            assertEquals("piece", record.get().getTypesettingCells().getFirst().getSourceId());
+            verify(pieces).reservePendingTypesettingQuantities(Map.of("piece", 1));
             verifyNoInteractions(algorithms);
             return "<svg/>";
         });
-        NestingRequestComposeService compose = mock(NestingRequestComposeService.class);
-        when(compose.composeElements(anyString(), anyString(), anyList(), anyList())).thenAnswer(invocation -> {
-            RemoteGraphics.svg("NESTING_MARKER_SVG", Map.of());
-            return invocation.getArgument(2);
-        });
-        @SuppressWarnings("unchecked")
-        var composers = (Map<TypesettingLayoutMode, NestingRequestComposeService>)
-                ReflectionTestUtils.getField(service, "nestingRequestComposeServiceMap");
-        composers.put(TypesettingLayoutMode.fromCode(request.getLayoutMode()), compose);
+        useGraphicsComposer();
 
         RemoteGraphics.enter(imgUtil, "workflow");
         try {
@@ -152,6 +148,7 @@ class GraphicsPreflightTest {
             callback.setResults(List.of(nested));
             service.handleNestingCallback(callback);
             assertEquals("confirming", record.get().getStatus());
+            verify(pieces, times(1)).reservePendingTypesettingQuantities(Map.of("piece", 1));
         } finally {
             RemoteGraphics.exit();
         }
@@ -175,6 +172,75 @@ class GraphicsPreflightTest {
         }
         verify(layouts).addTypesetting(any());
         verifyNoInteractions(imgUtil);
+    }
+
+    @Test
+    void returnsPiecesToPendingWhenGraphicsPreparationFails() {
+        setUpLayoutExecution();
+        useGraphicsComposer();
+        when(layouts.addTypesetting(any())).thenAnswer(invocation -> {
+            TypesettingInfo info = invocation.getArgument(0);
+            info.setId("plate");
+            return info;
+        });
+        ImgUtilClient imgUtil = mock(ImgUtilClient.class);
+        when(imgUtil.svg("workflow", "NESTING_MARKER_SVG", Map.of()))
+                .thenThrow(new IllegalStateException("等待图形回调超时"));
+
+        RemoteGraphics.enter(imgUtil, "workflow");
+        try {
+            LayoutConfirmResult result = service.toLayout(request);
+            assertFalse(result.isSuccess());
+            assertEquals("等待图形回调超时", result.getMessage());
+        } finally {
+            RemoteGraphics.exit();
+        }
+
+        var calls = inOrder(pieces, imgUtil, layouts);
+        calls.verify(pieces).reservePendingTypesettingQuantities(Map.of("piece", 1));
+        calls.verify(layouts).addTypesetting(any());
+        calls.verify(imgUtil).svg("workflow", "NESTING_MARKER_SVG", Map.of());
+        calls.verify(pieces).transferPieceQuantitiesBetweenNodesStrict(List.of(
+                new PieceQuantityTransfer("piece", "NODE_TYPESETTING_IN_PROGRESS", "NODE_TYPESETTING", 1)));
+        calls.verify(layouts).updateTypesetting(argThat(info ->
+                TypesettingStatus.FAILED.getCode().equals(info.getStatus()) && info.getTypesettingCells().isEmpty()));
+        verifyNoInteractions(algorithms);
+    }
+
+    @Test
+    void rollsBackOnlyMatchedPiecesWhenAReservationFails() {
+        setUpLayoutExecution();
+        ProductionPiece otherPiece = JSON.parseObject(JSON.toJSONString(piece), ProductionPiece.class);
+        otherPiece.setId("other-piece");
+        otherPiece.setProductionPieceId("PP-other");
+        when(pieces.findById("other-piece")).thenReturn(otherPiece);
+        var otherCell = new TypesettingProductionPieceVO();
+        otherCell.setSourceType(TypesettingSourceType.PART.getCode());
+        otherCell.setSourceId("other-piece");
+        otherCell.setQuantity(1);
+        request.setTypesettingCells(List.of(request.getTypesettingCells().getFirst(), otherCell));
+        when(pieces.reservePendingTypesettingQuantities(Map.of("other-piece", 1))).thenReturn(0L);
+
+        LayoutConfirmResult result = service.toLayout(request);
+
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("other-piece"));
+        verify(pieces).transferPieceQuantitiesBetweenNodesStrict(List.of(
+                new PieceQuantityTransfer("piece", "NODE_TYPESETTING_IN_PROGRESS", "NODE_TYPESETTING", 1)));
+        verify(layouts, never()).addTypesetting(any());
+        verifyNoInteractions(algorithms);
+    }
+
+    private void useGraphicsComposer() {
+        NestingRequestComposeService compose = mock(NestingRequestComposeService.class);
+        when(compose.composeElements(anyString(), anyString(), anyList(), anyList())).thenAnswer(invocation -> {
+            RemoteGraphics.svg("NESTING_MARKER_SVG", Map.of());
+            return invocation.getArgument(2);
+        });
+        @SuppressWarnings("unchecked")
+        var composers = (Map<TypesettingLayoutMode, NestingRequestComposeService>)
+                ReflectionTestUtils.getField(service, "nestingRequestComposeServiceMap");
+        composers.put(TypesettingLayoutMode.fromCode(request.getLayoutMode()), compose);
     }
 
     private void setUpLayoutExecution() {

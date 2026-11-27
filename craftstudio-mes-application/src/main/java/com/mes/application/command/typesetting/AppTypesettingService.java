@@ -1452,8 +1452,14 @@ public class AppTypesettingService {
         }
         TypesettingLayoutMode layoutMode = TypesettingLayoutMode.fromCode(request.getLayoutMode());
         TypesettingInfo typesettingInfo = createTypesettingInfo(request, prepared, cacheKey);
+        List<TypesettingSourceCell> sourceCells = toSourceCells(prepared.cells());
+        Map<String, Integer> reservedPieces = new LinkedHashMap<>();
         NestingRequest nestingRequest;
         try {
+            reserveToLayoutPieces(prepared.pieces(), cacheKey, reservedPieces);
+            typesettingInfo.setTypesettingCells(sourceCells.stream()
+                    .filter(cell -> TypesettingSourceType.PART.getCode().equals(cell.getSourceType()))
+                    .toList());
             nestingRequest = RemoteGraphics.beforeFirstTask(() -> {
                 typesettingInfo.setStatus(TypesettingStatus.LAYOUT_PROCESSING.getCode());
                 TypesettingInfo saved = domainTypesettingService.addTypesetting(typesettingInfo);
@@ -1468,22 +1474,9 @@ public class AppTypesettingService {
             if (!mergedMarks.isEmpty()) {
                 typesettingInfo.setMarks(mergedMarks);
             }
+            reserveToLayoutPlates(prepared.layouts());
         } catch (Exception e) {
-            String reason = resolveExceptionMessage(e);
-            if (typesettingInfo.getId() != null) {
-                markTypesettingsFailed(List.of(typesettingInfo), reason);
-            }
-            return LayoutConfirmResult.failed(reason);
-        }
-
-        List<TypesettingSourceCell> sourceCells = toSourceCells(request.getTypesettingCells());
-        try {
-            reserveToLayoutSources(prepared, cacheKey, request.getManufacturerMetaId());
-        } catch (RuntimeException e) {
-            if (typesettingInfo.getId() != null) {
-                markTypesettingsFailed(List.of(typesettingInfo), resolveExceptionMessage(e));
-            }
-            throw e;
+            return failToLayoutPreparation(typesettingInfo, sourceCells, reservedPieces, e);
         }
         typesettingInfo.setTypesettingCells(sourceCells);
         persistAndSubmitTypesetting(typesettingInfo, nestingRequest, layoutMode);
@@ -1494,28 +1487,61 @@ public class AppTypesettingService {
         return result;
     }
 
-    private void reserveToLayoutSources(ToLayoutPreparation prepared, String typesettingId, String manufacturerMetaId) {
-        // 图形准备成功后再占用来源数量。排版处理中记录还没有正式占用来源。
-        Map<String, Integer> pieceReservations = prepared.pieces().stream()
-                .filter(piece -> piece.getQuantity() != null && piece.getQuantity() > 0)
+    private void reserveToLayoutPieces(List<ProductionPiece> pieces, String typesettingId,
+                                       Map<String, Integer> reservedPieces) {
+        Map<String, Integer> pieceReservations = pieces.stream()
                 .collect(Collectors.toMap(ProductionPiece::getId, ProductionPiece::getQuantity,
                         Integer::sum, LinkedHashMap::new));
-        if (pieceReservations.isEmpty()) {
-            log.warn("toLayout未生成零件占用明细, typesettingId={}, sourceCellCount={}, manufacturerMetaId={}",
-                    typesettingId, prepared.cells().size(), manufacturerMetaId);
-        }
-        try {
-            long reservedCount = productionPieceService.reservePendingTypesettingQuantities(pieceReservations);
-            if (reservedCount != pieceReservations.size()) {
-                throw new IllegalStateException("生产工件数量已发生变化，期望占用="
-                        + pieceReservations.size() + "，实际占用=" + reservedCount);
+        // MongoDB 单文档原子划转。逐个确认成功的零件，后续失败时可精确回退。
+        for (Map.Entry<String, Integer> entry : pieceReservations.entrySet()) {
+            long matched = productionPieceService.reservePendingTypesettingQuantities(
+                    Map.of(entry.getKey(), entry.getValue()));
+            if (matched != 1) {
+                throw new IllegalStateException("生产工件 " + entry.getKey() + " 待排版数量不足或节点已变化");
             }
-            log.info("toLayout零件占用成功, typesettingId={}, expected={}, matched={}, reservations={}",
-                    typesettingId, pieceReservations.size(), reservedCount, pieceReservations);
-        } catch (Exception e) {
-            throw new IllegalStateException("批量更新生产工件节点数量失败：" + e.getMessage(), e);
+            reservedPieces.put(entry.getKey(), entry.getValue());
         }
-        for (TypesettingInfo info : prepared.layouts()) {
+        log.info("toLayout零件占用成功, typesettingId={}, expected={}, matched={}, reservations={}",
+                typesettingId, pieceReservations.size(), reservedPieces.size(), reservedPieces);
+    }
+
+    private LayoutConfirmResult failToLayoutPreparation(TypesettingInfo layout, List<TypesettingSourceCell> sourceCells,
+                                                        Map<String, Integer> reservedPieces, Exception cause) {
+        Iterator<Map.Entry<String, Integer>> reservations = reservedPieces.entrySet().iterator();
+        while (reservations.hasNext()) {
+            Map.Entry<String, Integer> entry = reservations.next();
+            try {
+                productionPieceService.transferPieceQuantitiesBetweenNodesStrict(List.of(
+                        new PieceQuantityTransfer(entry.getKey(), "NODE_TYPESETTING_IN_PROGRESS",
+                                "NODE_TYPESETTING", entry.getValue())));
+                reservations.remove();
+            } catch (RuntimeException e) {
+                log.error("排版准备失败后回退零件数量失败, typesettingId={}, pieceId={}",
+                        layout.getTypesettingId(), entry.getKey(), e);
+            }
+        }
+        String reason = resolveExceptionMessage(cause);
+        if (!reservedPieces.isEmpty()) {
+            reason += "；部分零件数量未回退，请释放失败的排版记录";
+        }
+        if (layout.getId() != null || !reservedPieces.isEmpty()) {
+            layout.setTypesettingCells(sourceCells.stream()
+                    .filter(cell -> TypesettingSourceType.PART.getCode().equals(cell.getSourceType()))
+                    .filter(cell -> reservedPieces.containsKey(cell.getSourceId()))
+                    .toList());
+            layout.setStatus(TypesettingStatus.FAILED.getCode());
+            layout.setRemark(reason);
+            if (layout.getId() == null) {
+                domainTypesettingService.addTypesetting(layout);
+            } else {
+                domainTypesettingService.updateTypesetting(layout);
+            }
+        }
+        return LayoutConfirmResult.failed(reason);
+    }
+
+    private void reserveToLayoutPlates(List<TypesettingInfo> layouts) {
+        for (TypesettingInfo info : layouts) {
             Integer quantity = info.getQuantity();
             if (quantity == null || quantity <= 0) {
                 continue;
