@@ -163,12 +163,12 @@
         <dependency>
             <groupId>com.piliofpala.craftstudio</groupId>
             <artifactId>craftstudio-pangolin-domain</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.6</version>
         </dependency>
         <dependency>
             <groupId>com.piliofpala.craftstudio</groupId>
             <artifactId>craftstudio-pangolin-infra</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.6</version>
         </dependency>
         <dependency>
             <groupId>com.piliofpala.craftstudio.shared</groupId>
