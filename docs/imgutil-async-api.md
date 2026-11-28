@@ -132,7 +132,7 @@ Authorization: Bearer {MES登录令牌}
 
 工作流排队数据保存在 MongoDB，MES 重启后 QUEUED 会继续领取。RUNNING 采用 120 秒租约、每 15 秒续租；失联任务转为 RECOVERY_REQUIRED，不盲目重放可能已提交的生产写入。终态工作流保留 7 天后由 MongoDB TTL 清理。
 
-通过业务预检的工作流直接写入 MongoDB，原 `graphics.workflow.capacity` 配置已停用。MES 工作线程仍受 `graphics.workflow.workers` 限制。实际绘图请求由 imgUtil 持久化排队，达到存储准入阈值时 imgUtil 返回 HTTP 503。
+通过业务预检的工作流直接写入 MongoDB，原 `graphics.workflow.capacity` 配置已停用。MES 工作线程仍受 `graphics.workflow.workers` 限制。实际绘图请求由 imgUtil 持久化排队，存储容量由 imgUtil 的数据卷管理。
 
 提交或回调超时、图形错误结果会使 MES 工作流失败，按原重试接口使用新工作流编号重试。算法错误回调仍按“已持久化接收”返回2xx，后台处理后工作流记录 FAILED 及错误原因；蒙版处理落库失败状态也不会再被包装成 SUCCEEDED。重新投递同一失败回调只确认接收，不自动再次生成生产片。
 
