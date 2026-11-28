@@ -43,11 +43,10 @@ public class GraphicsWorkflowService {
     private final Set<String> active=ConcurrentHashMap.newKeySet();
     private final Semaphore slots;
     private final ThreadPoolExecutor executor;
-    private final int capacity;
     public GraphicsWorkflowService(GraphicsWorkflowRepository repository,ImgUtilClient client,ObjectProvider<AppTypesettingService> typesetting,ObjectProvider<AppOrderPreprocessingService> preprocessing,ObjectProvider<AppProductionPieceService> production,OrderItemService items,TypesettingService layouts,ProductionPieceService pieces,OrderInfoService orders,
-                                   @Value("${graphics.workflow.workers:2}")int workers,@Value("${graphics.workflow.capacity:1000}")int capacity){
-        if(workers<1||workers>8||capacity<1)throw new IllegalArgumentException("图形工作流并发配置无效");
-        this.repository=repository;this.client=client;this.typesetting=typesetting;this.preprocessing=preprocessing;this.production=production;this.items=items;this.layouts=layouts;this.pieces=pieces;this.orders=orders;this.capacity=capacity;slots=new Semaphore(workers);
+                                   @Value("${graphics.workflow.workers:2}")int workers){
+        if(workers<1||workers>8)throw new IllegalArgumentException("图形工作流并发配置无效");
+        this.repository=repository;this.client=client;this.typesetting=typesetting;this.preprocessing=preprocessing;this.production=production;this.items=items;this.layouts=layouts;this.pieces=pieces;this.orders=orders;slots=new Semaphore(workers);
         executor=new ThreadPoolExecutor(workers,workers,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(workers),Thread.ofPlatform().name("mes-graphics-",0).factory(),new ThreadPoolExecutor.AbortPolicy());
     }
     public synchronized GraphicsWorkflow submit(String kind,Object input,String requestId){
@@ -80,7 +79,6 @@ public class GraphicsWorkflowService {
             }
         }
         validateBeforeSubmit(kind, p);
-        if(repository.waiting()>=capacity)throw new GraphicsWorkflowException(429,"图形工作流队列已满，请稍后重试");
         return checkedReplay(repository.insert(UUID.randomUUID().toString(),tenant,kind,business,payload,dedup), payload);
     }
     private GraphicsWorkflow checkedReplay(GraphicsWorkflow job, String payload) {

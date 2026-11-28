@@ -72,7 +72,7 @@ MES 使用有限后台线程等待结果回调，不再 GET 轮询图形任务�
 
 入队前已统一执行只读业务预检：toLayout 的来源/数量/工厂归属、材料/工艺一致性、容器内缩及零件能否放入所选规格；确认排版/打印的记录、状态、模式、SVG/尺寸及设备存在性；重做的正数数量、零件存在性及待排版节点。批量请求先校验所有条目，任一已知错误都返回 HTTP 400，不创建父工作流。预检不占用数量、不写 Redis、不生成图形或提交算法；使用副本计算内缩，不改变原请求。后台执行仍在原锁内重新校验，排队后数据变化、绘图或算法故障仍会导致后续 FAILED。
 
-同一 X-Graphics-Request-Id 的已有任务优先于重新校验和队列容量检查：QUEUED/RUNNING 返回原编号和 HTTP 202；SUCCEEDED 返回原编号、status=SUCCEEDED 和 HTTP 200；FAILED/RECOVERY_REQUIRED 返回 HTTP 409，message 含原任务编号和失败原因，不再包装为接收成功。失败重试走专用 retry 接口，重试前仍需核对已发生的业务写入。
+同一 X-Graphics-Request-Id 的已有任务优先于重新校验：QUEUED/RUNNING 返回原编号和 HTTP 202；SUCCEEDED 返回原编号、status=SUCCEEDED 和 HTTP 200；FAILED/RECOVERY_REQUIRED 返回 HTTP 409，message 含原任务编号和失败原因，不再包装为接收成功。失败重试走专用 retry 接口，重试前仍需核对已发生的业务写入。
 
 单次排版/确认类请求可携带 `X-Graphics-Request-Id`。同一工厂、操作及编号的相同请求复用原工作流，不同参数返回 HTTP 409。未提供时生成新工作流。批量最多 100 项，不允许跨工厂；包含失败项时父工作流为 FAILED，并保留每项 id、success 和 message 等结果；运行时单项异常也保留其他条目的结果。
 
@@ -131,6 +131,8 @@ Authorization: Bearer {MES登录令牌}
 仅 FAILED 或 RECOVERY_REQUIRED 可重试，返回 HTTP 202 和新的工作流描述。旧任务保留。**先核对订单/印版当前状态及已有结果；批量请求只重提失败项，避免重新执行已成功项。** 原有生产状态锁和过期回调校验继续生效。
 
 工作流排队数据保存在 MongoDB，MES 重启后 QUEUED 会继续领取。RUNNING 采用 120 秒租约、每 15 秒续租；失联任务转为 RECOVERY_REQUIRED，不盲目重放可能已提交的生产写入。终态工作流保留 7 天后由 MongoDB TTL 清理。
+
+通过业务预检的工作流直接写入 MongoDB，原 `graphics.workflow.capacity` 配置已停用。MES 工作线程仍受 `graphics.workflow.workers` 限制。实际绘图请求由 imgUtil 持久化排队，达到存储准入阈值时 imgUtil 返回 HTTP 503。
 
 提交或回调超时、图形错误结果会使 MES 工作流失败，按原重试接口使用新工作流编号重试。算法错误回调仍按“已持久化接收”返回2xx，后台处理后工作流记录 FAILED 及错误原因；蒙版处理落库失败状态也不会再被包装成 SUCCEEDED。重新投递同一失败回调只确认接收，不自动再次生成生产片。
 
@@ -287,7 +289,6 @@ graphics:
     wait-timeout-ms: 180000
   workflow:
     workers: 2
-    capacity: 1000
     poll-ms: 500
 ```
 
@@ -317,7 +318,6 @@ Compose 会将 GRAPHICS_FONTS_HOST_DIRECTORY 只读挂载到 /app/fonts；先创
 | 401 | MES 登录鉴权失败 |
 | 404 | 工作流不存在/不属于指定工厂/已过期 |
 | 409 | X-Graphics-Request-Id 参数冲突，或原任务已失败/待人工恢复 |
-| 429 | MES 工作流队列满，Retry-After=5 |
 | 500 | 持久化等服务异常；不得当作已接收 |
 
 后台失败通过查询结果 status/error 返回，不改变查询 HTTP 200。客户端取消页面等待不会取消已经持久化的生产工作流。

@@ -22,7 +22,7 @@ class GraphicsWorkflowRepositoryTest {
             var start=new CountDownLatch(1);
             Callable<String> submit=()->{start.await();return repository.insert(UUID.randomUUID().toString(),"factory","CONFIRM_LAYOUT","layout","{}","same-key").id();};
             var first=pool.submit(submit);var second=pool.submit(submit);start.countDown();
-            assertEquals(first.get(5,TimeUnit.SECONDS),second.get(5,TimeUnit.SECONDS));assertEquals(1,repository.waiting());
+            assertEquals(first.get(5,TimeUnit.SECONDS),second.get(5,TimeUnit.SECONDS));
             var job=repository.claim("worker-one");assertNotNull(job);assertNull(repository.claim("worker-two"));
         }
     }

@@ -51,6 +51,5 @@ public class GraphicsWorkflowRepository {
     }
     public GraphicsWorkflow find(String id,String tenant){Document doc=mongo.findOne(Query.query(Criteria.where("_id").is(id).and("manufacturerMetaId").is(tenant)),Document.class,COLLECTION);return doc==null?null:view(doc);}
     public List<GraphicsWorkflow> list(String business,String tenant){return mongo.find(Query.query(Criteria.where("manufacturerMetaId").is(tenant).and("businessId").is(business)).with(Sort.by(Sort.Direction.DESC,"createdAt")).limit(100),Document.class,COLLECTION).stream().map(this::view).toList();}
-    public long waiting(){return mongo.count(Query.query(Criteria.where("status").is("QUEUED")),COLLECTION);}
     private GraphicsWorkflow view(Document d){return new GraphicsWorkflow(d.getString("_id"),d.getString("manufacturerMetaId"),d.getString("kind"),d.getString("businessId"),d.getString("status"),d.getString("payload"),d.getString("result"),d.getString("error"),d.getDate("createdAt"),d.getDate("updatedAt"),d.getString("owner"));}
 }

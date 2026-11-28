@@ -36,7 +36,7 @@ class GraphicsAdmissionHttpTest {
     @BeforeEach @SuppressWarnings("unchecked") void setup() {
         ObjectProvider<AppTypesettingService> provider=mock(ObjectProvider.class);when(provider.getObject()).thenReturn(app);
         var layouts=mock(TypesettingService.class);var info=new TypesettingInfo();info.setId("layout");info.setManufacturerMetaId("factory");when(layouts.findById("layout")).thenReturn(info);
-        workflows=new GraphicsWorkflowService(repository,mock(ImgUtilClient.class),provider,mock(ObjectProvider.class),mock(ObjectProvider.class),mock(OrderItemService.class),layouts,mock(ProductionPieceService.class),mock(OrderInfoService.class),1,10);
+        workflows=new GraphicsWorkflowService(repository,mock(ImgUtilClient.class),provider,mock(ObjectProvider.class),mock(ObjectProvider.class),mock(OrderItemService.class),layouts,mock(ProductionPieceService.class),mock(OrderInfoService.class),1);
         var factory=new AspectJProxyFactory(app);factory.setProxyTargetClass(true);factory.addAspect(new GraphicsWorkflowAspect(workflows));
         var controller=new TypesettingController();ReflectionTestUtils.setField(controller,"appTypesettingService",factory.getProxy());
         mvc=MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new ApiControllerHandler()).build();
@@ -59,6 +59,9 @@ class GraphicsAdmissionHttpTest {
                 .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.accepted").value(true))
                 .andExpect(jsonPath("$.data.status").value("QUEUED")).andExpect(jsonPath("$.data.graphicsTaskId").value("new-task"));
         verify(app).validateToLayoutRequest(any());verify(app,never()).toLayout(any());
+        verify(repository).findByDedupKey(anyString());
+        verify(repository).insert(anyString(),eq("factory"),eq("TO_LAYOUT"),anyString(),anyString(),anyString());
+        verifyNoMoreInteractions(repository);
     }
     @Test void allConfirmEndpointsRejectAdmissionFailuresInsteadOfReturningSuccess() throws Exception {
         doThrow(new IllegalArgumentException("只有待确认的排版记录才能确认")).when(app).validateConfirmLayoutRequest(any());
